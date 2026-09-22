@@ -1,0 +1,140 @@
+package nomad_test
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/ingvarch/urga/internal/nomad"
+)
+
+// recorder answers with the given body and keeps the request it was asked.
+func recorder(t *testing.T, body string) (*nomad.Client, *http.Request) {
+	t.Helper()
+
+	asked := &http.Request{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*asked = *r
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	return client, asked
+}
+
+func TestJobs_AsksInTheNamespace(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `[]`)
+
+	_, err := client.Jobs(context.Background(), "production")
+	r.NoError(err)
+
+	// The namespace belongs to the request. Asking in the wrong one answers
+	// with an empty list or a 404, which reads like an empty cluster.
+	r.Equal("/v1/jobs", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+}
+
+func TestJobs_AsksInEveryNamespace(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `[]`)
+
+	_, err := client.Jobs(context.Background(), nomad.AllNamespaces)
+	r.NoError(err)
+
+	// The wildcard is what Nomad understands as "all of them".
+	r.Equal("*", asked.URL.Query().Get("namespace"))
+}
+
+func TestJobs_ReadsTheList(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[
+		{
+			"ID": "web",
+			"Name": "web",
+			"Namespace": "production",
+			"Type": "service",
+			"Status": "running",
+			"SubmitTime": 1758499200000000000,
+			"JobSummary": {
+				"Summary": {
+					"frontend": {"Running": 2, "Starting": 1},
+					"backend": {"Running": 1},
+					"worker": {"Running": 1, "Queued": 1, "Failed": 2, "Complete": 5, "Lost": 1}
+				}
+			}
+		}
+	]`)
+
+	jobs, err := client.Jobs(context.Background(), "production")
+	r.NoError(err)
+	r.Len(jobs, 1)
+
+	job := jobs[0]
+	r.Equal("web", job.ID)
+	r.Equal("production", job.Namespace)
+	r.Equal("service", job.Type)
+	r.Equal("running", job.Status)
+	r.Equal(time.Unix(0, 1758499200000000000).UTC(), job.SubmitTime.UTC())
+
+	// The counts of every task group together, the way the job list shows
+	// them. Allocations that ended, failed or were lost are not waited for,
+	// counting them reads as a job that never comes up.
+	r.Equal(4, job.Running)
+	r.Equal(6, job.Desired)
+}
+
+func TestJobs_WithoutASummary(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{"ID": "web", "Name": "web", "Status": "pending"}]`)
+
+	jobs, err := client.Jobs(context.Background(), "default")
+	r.NoError(err)
+	r.Len(jobs, 1)
+
+	// A job the scheduler has not looked at yet has no summary at all.
+	r.Zero(jobs[0].Running)
+	r.Zero(jobs[0].Desired)
+
+	// No submit time stays no submit time. Turning it into 1970 puts an age
+	// of twenty thousand days in the list.
+	r.True(jobs[0].SubmitTime.IsZero())
+}
+
+func TestVersion_ReadsTheAgentBuild(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{"member": {"Name": "server-01", "Tags": {"build": "1.11.1"}}}`)
+
+	version, err := client.Version(context.Background())
+	r.NoError(err)
+
+	r.Equal("/v1/agent/self", asked.URL.Path)
+	r.Equal("1.11.1", version)
+}
+
+func TestVersion_WithoutABuildTag(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `{"member": {"Name": "server-01"}}`)
+
+	version, err := client.Version(context.Background())
+
+	// An agent that does not say answers with nothing, not with an error the
+	// header would have to show.
+	r.NoError(err)
+	r.Empty(version)
+}
