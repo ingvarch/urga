@@ -101,12 +101,14 @@ func evaluationColor(e nomad.Evaluation) color.Color {
 	return nil
 }
 
-var nodeTitles = []string{"ID", "Name", "Datacenter", "Pool", "Version", "Status", "Eligibility", "Drain", "Address"}
+var nodeTitles = []string{"ID", "Name", "Datacenter", "Pool", "Version", "Status", "Eligibility", "Drain", "CPU", "MEM", "Address"}
 
-func nodeRows(nodes []nomad.Node) []tableRow {
+func nodeRows(nodes []nomad.Node, usage map[string]nomad.ResourceUse) []tableRow {
 	rows := make([]tableRow, 0, len(nodes))
 
 	for _, n := range nodes {
+		use, known := usage[n.ID]
+
 		rows = append(rows, tableRow{
 			cells: []string{
 				shortID(n.ID),
@@ -117,6 +119,8 @@ func nodeRows(nodes []nomad.Node) []tableRow {
 				n.Status,
 				n.Eligibility,
 				fmt.Sprintf("%t", n.Drain),
+				percentCell(use.CPUPercent, known),
+				percentCell(use.MemoryPercent, known),
 				n.Address,
 			},
 			color: nodeColor(n),

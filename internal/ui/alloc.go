@@ -8,12 +8,14 @@ import (
 )
 
 // allocTitles are the columns of the allocation list.
-var allocTitles = []string{"ID", "TaskGroup", "JobID", "Namespace", "Node", "Status", "Desired", "Age"}
+var allocTitles = []string{"ID", "TaskGroup", "JobID", "Namespace", "Node", "Status", "Desired", "CPU", "MEM", "Age"}
 
-func allocRows(allocs []nomad.Alloc) []tableRow {
+func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []tableRow {
 	rows := make([]tableRow, 0, len(allocs))
 
 	for _, alloc := range allocs {
+		use, known := usage[alloc.ID]
+
 		rows = append(rows, tableRow{
 			cells: []string{
 				shortID(alloc.ID),
@@ -23,6 +25,8 @@ func allocRows(allocs []nomad.Alloc) []tableRow {
 				alloc.NodeName,
 				alloc.Status,
 				alloc.DesiredStatus,
+				percentCell(use.CPUPercent, known),
+				percentCell(use.MemoryPercent, known),
 				ageOf(alloc.Created),
 			},
 			color: allocColor(alloc),

@@ -183,7 +183,7 @@ func (m Model) title() string {
 func (m Model) rows() []tableRow {
 	switch m.screen.kind {
 	case screenAllocations:
-		return allocRows(m.visibleAllocs())
+		return allocRows(m.visibleAllocs(), m.rowUsage)
 	case screenTasks:
 		return taskRows(m.tasks())
 	case screenTaskGroups:
@@ -197,7 +197,7 @@ func (m Model) rows() []tableRow {
 	case screenEvaluations:
 		return evaluationRows(m.evaluations)
 	case screenNodes:
-		return nodeRows(m.nodes)
+		return nodeRows(m.nodes, m.rowUsage)
 	case screenVariables:
 		return variableRows(m.variables)
 	case screenNodePools:

@@ -31,6 +31,8 @@ type fakeClient struct {
 	spec          string
 	logs          *nomad.LogStream
 	usage         nomad.Usage
+	use           map[string]nomad.ResourceUse
+	usageCalls    int
 	namespaceSpec string
 
 	submitted           int
@@ -193,6 +195,28 @@ func (f *fakeClient) SubmitNamespace(_ context.Context, source string) error {
 
 func (f *fakeClient) Usage(context.Context) (nomad.Usage, error) {
 	return f.usage, f.err
+}
+
+func (f *fakeClient) AllocationUsage(_ context.Context, _, allocID string) (nomad.ResourceUse, error) {
+	f.usageCalls++
+
+	use, ok := f.use[allocID]
+	if !ok {
+		return nomad.ResourceUse{}, errors.New("no stats")
+	}
+
+	return use, nil
+}
+
+func (f *fakeClient) NodeUsage(_ context.Context, nodeID string) (nomad.ResourceUse, error) {
+	f.usageCalls++
+
+	use, ok := f.use[nodeID]
+	if !ok {
+		return nomad.ResourceUse{}, errors.New("no stats")
+	}
+
+	return use, nil
 }
 
 func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {

@@ -29,6 +29,8 @@ type Client interface {
 	JobSpec(ctx context.Context, namespace, jobID string) (string, error)
 	Logs(ctx context.Context, namespace, allocID, task, source string) (*nomad.LogStream, error)
 	Usage(ctx context.Context) (nomad.Usage, error)
+	AllocationUsage(ctx context.Context, namespace, allocID string) (nomad.ResourceUse, error)
+	NodeUsage(ctx context.Context, nodeID string) (nomad.ResourceUse, error)
 
 	TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
 
@@ -182,7 +184,10 @@ type Model struct {
 
 	nomadVersion string
 	usage        nomad.Usage
-	err          error
+
+	// rowUsage is what each row on the screen takes, by its id.
+	rowUsage map[string]nomad.ResourceUse
+	err      error
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -245,7 +250,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.applyList(screenJobs, func(m *Model) { m.jobs = msg })
 
 	case allocsMsg:
-		return m.applyList(screenAllocations, func(m *Model) { m.allocs = msg })
+		next, cmd := m.applyList(screenAllocations, func(m *Model) { m.allocs = msg })
+
+		return next, tea.Batch(cmd, next.usageOnce())
 
 	case taskGroupsMsg:
 		return m.applyList(screenTaskGroups, func(m *Model) { m.groups = msg })
@@ -270,7 +277,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.applyList(screenEvaluations, func(m *Model) { m.evaluations = msg })
 
 	case nodesMsg:
-		return m.applyList(screenNodes, func(m *Model) { m.nodes = msg })
+		next, cmd := m.applyList(screenNodes, func(m *Model) { m.nodes = msg })
+
+		return next, tea.Batch(cmd, next.usageOnce())
 
 	case variablesMsg:
 		return m.applyList(screenVariables, func(m *Model) { m.variables = msg })
@@ -290,6 +299,15 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case pollUsageMsg:
 		return m, fetchUsage(m.client)
+
+	case rowUsageMsg:
+		m.rowUsage = msg
+		m.layout()
+
+		return m, tea.Tick(rowUsageEvery, func(time.Time) tea.Msg { return pollUsageRow{} })
+
+	case pollUsageRow:
+		return m, m.fetchUsage()
 
 	case errMsg:
 		// The rows that are on the screen stay there. An empty table reads as
