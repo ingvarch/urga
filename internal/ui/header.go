@@ -6,9 +6,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+// infoRows is how many lines the cluster info takes.
+const infoRows = 4
+
 // headerHeight is fixed so that the list below never moves, whatever the
-// header has to show.
-const headerHeight = 3
+// header has to show. It holds both the info and the art in the corner.
+var headerHeight = max(len(logo), infoRows)
 
 // hint is one key of the open screen.
 type hint struct {
@@ -22,12 +25,22 @@ type header struct {
 	address      string
 	version      string
 	nomadVersion string
+	namespace    string
 	hints        []hint
 }
 
 func renderHeader(h header, width int) string {
-	info := infoColumn(h, infoWidth(width))
-	hints := hintColumns(h.hints, width-ansi.StringWidth(firstLine(info))-columnGap)
+	art := fitLogo(width)
+
+	// What is left for the cluster info and the keys once the art has its
+	// corner.
+	rest := width
+	if art != "" {
+		rest = width - logoWidth
+	}
+
+	info := infoColumn(h, infoWidth(rest))
+	hints := hintColumns(h.hints, rest-ansi.StringWidth(firstLine(info))-columnGap)
 
 	rows := make([]string, 0, headerHeight)
 	for i := 0; i < headerHeight; i++ {
@@ -36,7 +49,13 @@ func renderHeader(h header, width int) string {
 			row += strings.Repeat(" ", columnGap) + hint
 		}
 
-		rows = append(rows, ansi.Truncate(row, width, "…"))
+		row = ansi.Truncate(row, rest, "…")
+
+		if art != "" {
+			row = pad(row, rest) + lineAt(art, i)
+		}
+
+		rows = append(rows, row)
 	}
 
 	return strings.Join(rows, "\n")
@@ -60,6 +79,7 @@ func infoColumn(h header, width int) string {
 		{"Address:", h.address},
 		{"urga Rev:", h.version},
 		{"Nomad Rev:", h.nomadVersion},
+		{"Namespace:", namespaceLabel(h.namespace)},
 	}
 
 	out := make([]string, 0, len(rows))

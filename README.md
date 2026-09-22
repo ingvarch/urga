@@ -1,17 +1,32 @@
-# urga
+<div align="center">
 
-A terminal UI for HashiCorp Nomad. One binary, no config to write, no browser.
+<pre>
+@@@  @@@ @@@@@@@   @@@@@@@   @@@@@@  
+@@!  @@@ @@!  @@@ !@@       @@!  @@@ 
+@!@  !@! @!@!!@!  !@! @!@!@ @!@!@!@! 
+!!:  !!! !!: :!!  :!!   !!: !!:  !!! 
+ :.:: :   :   : :  :: :: :   :   : : 
+</pre>
+
+**A terminal UI for HashiCorp Nomad.**
+One binary, no config to write, no browser.
+
+</div>
 
 ```
-Address:   https://nomad.example.com
-urga Rev:  v0.1.0-dev
-Nomad Rev: 1.11.1
-╭───────────────────────────── Jobs (all) [3] ─────────────────────────────╮
-│ ID                 Name              Type      Namespace  Status  Allocs │
-│ api                api               service   production running 3/3    │
-│ nightly-import     nightly-import    batch     production dead    0/0     │
-│ traefik            traefik           system    default    running 2/3     │
-╰──────────────────────────────────────────────────────────────────────────╯
+Address:   https://nomad.example.com                           @@@  @@@ @@@@@@@   @@@@@@@   @@@@@@
+urga Rev:  v0.1.0                                              @@!  @@@ @@!  @@@ !@@       @@!  @@@
+Nomad Rev: 1.11.1                                              @!@  !@! @!@!!@!  !@! @!@!@ @!@!@!@!
+Namespace: all                                                 !!:  !!! !!: :!!  :!!   !!: !!:  !!!
+                                                                :.:: :   :   : :  :: :: :   :   : :
+╭───────────────────────────────────────── Jobs (all) [3] ─────────────────────────────────────────╮
+│ ID                     Name                  Type      Namespace       Status     Allocs   Age   │
+│ api                    api                   service   production      running    3/3      11d   │
+│ nightly-import         nightly-import        batch     production      dead       0/0      7h    │
+│ traefik                traefik               system    default         running    2/3      1h    │
+│                                                                                                  │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+q quit
 ```
 
 ## Install

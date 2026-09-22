@@ -181,6 +181,7 @@ func (m Model) render() string {
 			address:      m.client.Address(),
 			version:      m.opts.Version,
 			nomadVersion: m.nomadVersion,
+			namespace:    m.namespace,
 		}, m.width),
 		frame(jobsTitle(m.namespace, len(m.jobs)), m.table.View(), m.width, m.bodyHeight()),
 		m.status(),

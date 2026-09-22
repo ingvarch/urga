@@ -41,7 +41,7 @@ func TestHeader_LongAddressIsEaten(t *testing.T) {
 
 	// A value that does not fit is cut. Wrapping it pushes the rest of the
 	// header down and the screen jumps.
-	r.Len(rows, 3)
+	r.Len(rows, headerHeight)
 	r.LessOrEqual(ansi.StringWidth(rows[0]), 60)
 	r.Contains(rows[0], "…")
 }
@@ -75,4 +75,49 @@ func TestHeader_Height(t *testing.T) {
 
 	many := []hint{{Key: "<a>"}, {Key: "<b>"}, {Key: "<c>"}, {Key: "<d>"}, {Key: "<e>"}}
 	r.Len(lines(renderHeader(header{hints: many}, 80)), headerHeight)
+}
+
+func TestHeader_LogoOnTheRight(t *testing.T) {
+	r := require.New(t)
+
+	out := renderHeader(header{address: "https://nmd.1ly.dev", version: "v0.1.0-dev"}, 140)
+	rows := lines(out)
+
+	// The art sits at the right edge, the cluster info keeps the left.
+	r.Contains(rows[0], "@@@  @@@")
+	r.True(strings.HasPrefix(rows[0], "Address:"))
+
+	for i, row := range rows {
+		r.Equal(140, ansi.StringWidth(row), "line %d", i)
+	}
+}
+
+func TestHeader_WithoutRoomForTheLogo(t *testing.T) {
+	r := require.New(t)
+
+	out := renderHeader(header{address: "https://nmd.1ly.dev"}, 80)
+
+	// No art at all, and no piece of it either.
+	r.NotContains(out, "@")
+	r.Len(lines(out), headerHeight)
+}
+
+func TestHeader_ShowsTheNamespace(t *testing.T) {
+	r := require.New(t)
+
+	out := renderHeader(header{address: "https://nmd.1ly.dev", namespace: "production"}, 140)
+	r.Contains(lines(out)[3], "Namespace:")
+	r.Contains(lines(out)[3], "production")
+
+	// Every namespace at once reads as one word, not as a wildcard.
+	out = renderHeader(header{namespace: ""}, 140)
+	r.Contains(lines(out)[3], "all")
+}
+
+func TestHeader_IsAsTallAsWhatItHolds(t *testing.T) {
+	r := require.New(t)
+
+	// The art and the cluster info both fit, whichever of them is taller.
+	r.GreaterOrEqual(headerHeight, len(logo))
+	r.GreaterOrEqual(headerHeight, infoRows)
 }

@@ -17,6 +17,7 @@ var (
 
 var (
 	styleBorder   = lipgloss.NewStyle().Foreground(colorAccent)
+	styleLogo     = lipgloss.NewStyle().Foreground(colorAccent)
 	styleTitle    = lipgloss.NewStyle().Foreground(colorKey)
 	styleLabel    = lipgloss.NewStyle().Foreground(colorAccent)
 	styleValue    = lipgloss.NewStyle().Foreground(colorText)
