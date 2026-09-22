@@ -29,6 +29,7 @@ type fakeClient struct {
 
 	describe      string
 	spec          string
+	specErr       error
 	logs          *nomad.LogStream
 	usage         nomad.Usage
 	use           map[string]nomad.ResourceUse
@@ -114,6 +115,10 @@ func (f *fakeClient) DescribeService(_ context.Context, namespace, name string) 
 
 func (f *fakeClient) JobSpec(_ context.Context, namespace, jobID string) (string, error) {
 	f.askedNamespace, f.askedID = namespace, jobID
+
+	if f.specErr != nil {
+		return "", f.specErr
+	}
 
 	return f.spec, f.err
 }

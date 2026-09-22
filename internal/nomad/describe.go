@@ -3,8 +3,13 @@ package nomad
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 )
+
+// ErrNoSource says the cluster does not have the file a job was submitted
+// with: it was registered before submissions were kept, or through the API
+// without one.
+var ErrNoSource = errors.New("the cluster kept no source for this job")
 
 // DescribeJob is what the cluster knows about a job.
 func (c *Client) DescribeJob(ctx context.Context, namespace, jobID string) (string, error) {
@@ -61,7 +66,7 @@ func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (string, 
 	}
 
 	if submission == nil || submission.Source == "" {
-		return fmt.Sprintf("The cluster kept no source for %s.\n\nIt was submitted before submissions were stored, or through the API without one.", jobID), nil
+		return "", ErrNoSource
 	}
 
 	return submission.Source, nil

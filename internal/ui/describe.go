@@ -2,9 +2,12 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // describeMsg is a description the cluster answered with.
@@ -73,7 +76,18 @@ func (m Model) jobSpecCmd() tea.Cmd {
 	client := m.client
 
 	return describe(fmt.Sprintf("Job spec: %s", job.ID), func(ctx context.Context) (string, error) {
-		return client.JobSpec(ctx, job.Namespace, job.ID)
+		source, err := client.JobSpec(ctx, job.Namespace, job.ID)
+
+		// The cluster has no file to show. Saying so is the job of the
+		// screen, the client answers with an error and no prose.
+		if errors.Is(err, nomad.ErrNoSource) {
+			return fmt.Sprintf(
+				"The cluster kept no source for %s.\n\n"+
+					"It was registered before submissions were stored, or through the API\n"+
+					"without one. <e> edits what the cluster does have of it.", job.ID), nil
+		}
+
+		return source, err
 	})
 }
 

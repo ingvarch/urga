@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 func TestDescribeJob(t *testing.T) {
@@ -67,7 +69,9 @@ func TestJobSpec_WithoutASource(t *testing.T) {
 
 	out, err := client.JobSpec(context.Background(), "production", "web")
 
-	// A cluster that did not keep the source says so instead of failing.
-	r.NoError(err)
-	r.Contains(out, "no source")
+	// A cluster that did not keep the source says so as an error. Handing a
+	// sentence back as if it were the job file puts English prose in front
+	// of an editor that submits what it is given.
+	r.ErrorIs(err, nomad.ErrNoSource)
+	r.Empty(out)
 }

@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // Editor hands a file to the editor of the user and comes back when it is
@@ -75,15 +77,11 @@ func (m Model) edit() (Model, tea.Cmd) {
 			return m, nil
 		}
 
-		return m, openEditor("hcl",
-			func(ctx context.Context) (string, error) {
-				return client.JobSpec(ctx, job.Namespace, job.ID)
-			},
-			func(source string) tea.Cmd {
-				return act(fmt.Sprintf("Job %s submitted.", job.ID), func(ctx context.Context) error {
-					return client.SubmitJob(ctx, job.Namespace, source)
-				})
+		return m, openEditor(jobFile(client, job), func(source string) tea.Cmd {
+			return act(fmt.Sprintf("Job %s submitted.", job.ID), func(ctx context.Context) error {
+				return client.SubmitJob(ctx, job.Namespace, source)
 			})
+		})
 
 	case screenNamespaces:
 		namespace, ok := selectedOf(m, screenNamespaces, m.namespaces)
@@ -91,27 +89,55 @@ func (m Model) edit() (Model, tea.Cmd) {
 			return m, nil
 		}
 
-		return m, openEditor("json",
-			func(ctx context.Context) (string, error) {
-				return client.NamespaceSpec(ctx, namespace.Name)
-			},
-			func(source string) tea.Cmd {
-				return act(fmt.Sprintf("Namespace %s submitted.", namespace.Name), func(ctx context.Context) error {
-					return client.SubmitNamespace(ctx, source)
-				})
+		return m, openEditor(namespaceFile(client, namespace.Name), func(source string) tea.Cmd {
+			return act(fmt.Sprintf("Namespace %s submitted.", namespace.Name), func(ctx context.Context) error {
+				return client.SubmitNamespace(ctx, source)
 			})
+		})
 	}
 
 	return m, nil
 }
 
+// file is what the editor is given: the name to save it under and what is in
+// it.
+type file func(ctx context.Context) (extension, content string, err error)
+
+// jobFile is the job as a file: what it was submitted with, and what the
+// cluster does have of it when that was not kept.
+func jobFile(client Client, job nomad.Job) file {
+	return func(ctx context.Context) (string, string, error) {
+		source, err := client.JobSpec(ctx, job.Namespace, job.ID)
+		if err == nil {
+			return "hcl", source, nil
+		}
+
+		if !errors.Is(err, nomad.ErrNoSource) {
+			return "", "", err
+		}
+
+		source, err = client.DescribeJob(ctx, job.Namespace, job.ID)
+
+		return "json", source, err
+	}
+}
+
+// namespaceFile is a namespace as a file.
+func namespaceFile(client Client, name string) file {
+	return func(ctx context.Context) (string, string, error) {
+		content, err := client.NamespaceSpec(ctx, name)
+
+		return "json", content, err
+	}
+}
+
 // openEditor puts what the cluster has in a file and hands it over.
-func openEditor(extension string, load func(ctx context.Context) (string, error), submit func(string) tea.Cmd) tea.Cmd {
+func openEditor(load file, submit func(string) tea.Cmd) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		content, err := load(ctx)
+		extension, content, err := load(ctx)
 		if err != nil {
 			return errMsg{err: err}
 		}
