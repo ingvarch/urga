@@ -19,6 +19,7 @@ var generalHints = []hint{
 	{Key: "<?>", Description: "Help"},
 	{Key: "<0-9>", Description: "Switch namespace"},
 	{Key: "<A-Z>", Description: "Sort by that column"},
+	{Key: "<!>", Description: "Only what needs attention"},
 	{Key: "<q>", Description: "Quit"},
 }
 

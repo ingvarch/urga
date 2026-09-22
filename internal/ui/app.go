@@ -151,6 +151,14 @@ type Model struct {
 	// sort is the column the list is ordered by.
 	sort sortState
 
+	// troubled leaves only what the cluster is not happy with.
+	troubled bool
+
+	// shown and held are how many rows are on the screen out of how many
+	// the cluster answered with.
+	shown int
+	held  int
+
 	// namespaceOrder is which namespace each number key stands for.
 	namespaceOrder []string
 
@@ -436,6 +444,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 		return m, nil
 
+	case "!":
+		m.troubled = !m.troubled
+		m.layout()
+
+		return m, nil
+
 	case "enter":
 		return m.open()
 
@@ -581,6 +595,11 @@ func (m Model) status() string {
 		return styleValue.Render(ansi.Truncate(m.said, width, "…"))
 	}
 
+	if m.troubled {
+		return styleWarn.Render(ansi.Truncate(
+			fmt.Sprintf("only what needs attention, %d of %d   <!> all of them", m.shown, m.held), width, "…"))
+	}
+
 	return styleMuted.Render(ansi.Truncate("<:> command   </> filter   <?> help   <q> quit", width, "…"))
 }
 
@@ -609,8 +628,17 @@ func (m *Model) layout() {
 	m.text.filter = m.filter
 	m.text.follow()
 
-	rows, index := filterRows(m.rows(), m.filter)
+	all := m.rows()
+	m.held = len(all)
+
+	rows, index := filterRows(all, m.filter)
+
+	if m.troubled {
+		rows, index = troubledRows(rows, index)
+	}
+
 	rows, index = sortRows(rows, index, m.sort, m.screen.titles())
+	m.shown = len(rows)
 
 	m.index = index
 	m.table.sort = m.sort

@@ -194,6 +194,27 @@ func firstWord(input string) string {
 	return fields[0]
 }
 
+// troubledRows keeps the rows that are painted as not right: the color a row
+// carries already says whether the cluster is happy with it.
+func troubledRows(rows []tableRow, index []int) ([]tableRow, []int) {
+	kept := make([]tableRow, 0, len(rows))
+	keptIndex := make([]int, 0, len(index))
+
+	for i, row := range rows {
+		if row.color != colorDead && row.color != colorAttention {
+			continue
+		}
+
+		kept = append(kept, row)
+
+		if i < len(index) {
+			keptIndex = append(keptIndex, index[i])
+		}
+	}
+
+	return kept, keptIndex
+}
+
 // filterRows keeps the rows that say the text somewhere, and remembers where
 // each of them came from, so that the cursor still points at the right
 // resource.

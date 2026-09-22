@@ -74,6 +74,7 @@ it, as in `jobs production`. `q` leaves.
 | `?` | Help, with the keys of the open resource |
 | `0`–`9` | Switch namespace, `0` is all of them |
 | `A`–`Z` | Sort by the column that starts with that letter, again to reverse |
+| `!` | Only what needs attention, again for all of it |
 | `enter` | Open what the cursor is on |
 | `esc` | Back |
 | `d` | Describe |

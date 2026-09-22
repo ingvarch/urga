@@ -30,6 +30,7 @@ var (
 	styleKey    = lipgloss.NewStyle().Foreground(colorTitle)
 	styleText   = lipgloss.NewStyle().Foreground(colorText)
 	styleMuted  = lipgloss.NewStyle().Foreground(colorMuted)
+	styleWarn   = lipgloss.NewStyle().Foreground(colorAttention)
 	styleError  = lipgloss.NewStyle().Foreground(colorDead)
 
 	styleTableHeader = lipgloss.NewStyle().Foreground(colorAccent)
