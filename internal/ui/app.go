@@ -684,9 +684,7 @@ func (m *Model) layout() {
 	m.shown = len(rows)
 
 	m.index = index
-	m.table.sort = m.sort
-	m.table.rows = rows
-	m.table.follow()
+	m.table.show(rows, m.sort)
 }
 
 func (m Model) schedulePoll() tea.Cmd {
