@@ -23,6 +23,7 @@ const (
 	screenNodes
 	screenVariables
 	screenNodePools
+	screenDescribe
 )
 
 // screenNames label a screen in its title.
@@ -54,6 +55,9 @@ type screen struct {
 
 	jobID   string
 	allocID string
+
+	// label titles a screen that is about one thing, like a description.
+	label string
 }
 
 // titles are the columns of a screen.
@@ -90,14 +94,26 @@ func (s screen) hints() []hint {
 		return jobHints
 	case screenAllocations:
 		return allocHints
+	case screenDeployments, screenServices:
+		return describeHints
 	default:
 		return nil
 	}
 }
 
 var (
-	jobHints   = []hint{{Key: "<enter>", Description: "Allocations"}}
-	allocHints = []hint{{Key: "<enter>", Description: "Tasks"}}
+	jobHints = []hint{
+		{Key: "<enter>", Description: "Allocations"},
+		{Key: "<d>", Description: "Describe"},
+		{Key: "<h>", Description: "Job spec"},
+	}
+
+	allocHints = []hint{
+		{Key: "<enter>", Description: "Tasks"},
+		{Key: "<d>", Description: "Describe"},
+	}
+
+	describeHints = []hint{{Key: "<d>", Description: "Describe"}}
 )
 
 // title labels the box with what it holds and how much of it. The count is
@@ -106,6 +122,9 @@ func (m Model) title() string {
 	count := len(m.table.rows)
 
 	switch m.screen.kind {
+	case screenDescribe:
+		return m.screen.label
+
 	case screenAllocations:
 		return fmt.Sprintf("Allocations (Job: %s) [%d]", m.screen.jobID, count)
 
@@ -161,6 +180,10 @@ func (m Model) fetch() tea.Cmd {
 
 	case screenTasks:
 		// The tasks are part of the allocation, the screen under them polls.
+		return nil
+
+	case screenDescribe:
+		// A description is a snapshot of one moment, it is not polled.
 		return nil
 
 	case screenDeployments:
@@ -295,6 +318,7 @@ func (m Model) back() (Model, tea.Cmd) {
 // enter puts the screen on the table and asks the cluster for its rows.
 func (m Model) enter() (Model, tea.Cmd) {
 	m.table = newTableModel(m.screen.titles())
+	m.filter = ""
 	m.layout()
 
 	return m, m.fetch()

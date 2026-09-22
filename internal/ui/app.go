@@ -19,6 +19,11 @@ type Client interface {
 	Address() string
 	Version(ctx context.Context) (string, error)
 	Jobs(ctx context.Context, namespace string) ([]nomad.Job, error)
+	DescribeJob(ctx context.Context, namespace, jobID string) (string, error)
+	DescribeAllocation(ctx context.Context, namespace, allocID string) (string, error)
+	DescribeDeployment(ctx context.Context, namespace, deploymentID string) (string, error)
+	DescribeService(ctx context.Context, namespace, name string) (string, error)
+	JobSpec(ctx context.Context, namespace, jobID string) (string, error)
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 	Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error)
 	Namespaces(ctx context.Context) ([]nomad.Namespace, error)
@@ -115,6 +120,7 @@ type Model struct {
 	nodePools   []nomad.NodePool
 
 	table tableModel
+	text  textModel
 
 	nomadVersion string
 	err          error
@@ -214,6 +220,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, m.schedulePoll()
 
+	case describeMsg:
+		return m.showDescribe(msg)
+
 	case pollMsg:
 		return m, m.fetch()
 	}
@@ -246,9 +255,21 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.helpKey(msg)
 	}
 
+	if m.screen.kind == screenDescribe {
+		if next, cmd, handled := m.textKey(msg); handled {
+			return next, cmd
+		}
+	}
+
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
+
+	case "d":
+		return m, m.describeCmd()
+
+	case "h":
+		return m, m.jobSpecCmd()
 
 	case ":":
 		return m.openPrompt(promptPrefix)
@@ -329,6 +350,10 @@ func (m Model) render() string {
 	body := m.table.view()
 	title := m.title()
 
+	if m.screen.kind == screenDescribe {
+		body = m.text.view()
+	}
+
 	if m.overlay == overlayHelp {
 		body = renderHelp(m.helpSections(), width-2)
 		title = "Help"
@@ -384,6 +409,7 @@ func (m *Model) layout() {
 	// The table sits inside the box: the margin, its two border lines and the
 	// header row of the table itself are not rows.
 	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3, 1))
+	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2, 1))
 
 	rows, index := filterRows(m.rows(), m.filter)
 	m.index = index

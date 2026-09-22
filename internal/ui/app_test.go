@@ -26,6 +26,11 @@ type fakeClient struct {
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
 
+	describe string
+	spec     string
+
+	askedID string
+
 	err error
 
 	askedNamespace string
@@ -51,6 +56,36 @@ func (f *fakeClient) Allocations(_ context.Context, namespace, jobID string) ([]
 	f.allocCalls++
 
 	return f.allocs, f.err
+}
+
+func (f *fakeClient) DescribeJob(_ context.Context, namespace, jobID string) (string, error) {
+	f.askedNamespace, f.askedID = namespace, jobID
+
+	return f.describe, f.err
+}
+
+func (f *fakeClient) DescribeAllocation(_ context.Context, namespace, allocID string) (string, error) {
+	f.askedNamespace, f.askedID = namespace, allocID
+
+	return f.describe, f.err
+}
+
+func (f *fakeClient) DescribeDeployment(_ context.Context, namespace, id string) (string, error) {
+	f.askedNamespace, f.askedID = namespace, id
+
+	return f.describe, f.err
+}
+
+func (f *fakeClient) DescribeService(_ context.Context, namespace, name string) (string, error) {
+	f.askedNamespace, f.askedID = namespace, name
+
+	return f.describe, f.err
+}
+
+func (f *fakeClient) JobSpec(_ context.Context, namespace, jobID string) (string, error) {
+	f.askedNamespace, f.askedID = namespace, jobID
+
+	return f.spec, f.err
 }
 
 func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {
