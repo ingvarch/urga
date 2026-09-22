@@ -106,3 +106,33 @@ func TestLogs_Stderr(t *testing.T) {
 	r.Equal(nomad.LogStderr, client.askedSource)
 	r.Contains(plain(m.render()), "[stderr]")
 }
+
+func TestLogs_FilterNarrowsTheLines(t *testing.T) {
+	r := require.New(t)
+
+	lines := make(chan string, 3)
+	lines <- "starting up\n"
+	lines <- "error: cannot connect\n"
+	lines <- "retrying\n"
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: &nomad.LogStream{Lines: lines}}
+	m := openTasks(t, client)
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	for range 3 {
+		m = drain(m, m.waitForLog())
+	}
+
+	m, _ = m.update(key('/'))
+	m = typeIn(m, "error")
+
+	out := plain(m.render())
+	r.Contains(out, "error: cannot connect")
+	r.NotContains(out, "starting up")
+
+	// Escape puts the rest of the output back.
+	m, _ = m.update(escape())
+	r.Contains(plain(m.render()), "starting up")
+}

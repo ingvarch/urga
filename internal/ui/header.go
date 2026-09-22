@@ -60,7 +60,8 @@ func renderHeader(h header, width int) string {
 	// one next to it starts where it says it does.
 	infoWide, keysWide := blockWidth(info), blockWidth(keys)
 
-	taken := infoWide + keysWide + 2*columnGap
+	// One more gap so the keys never touch the art in the corner.
+	taken := infoWide + keysWide + 3*columnGap
 	hints := hintColumns(h.hints, rest-taken)
 
 	rows := make([]string, 0, headerHeight)

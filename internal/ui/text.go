@@ -11,10 +11,31 @@ import (
 type textModel struct {
 	lines []string
 
+	// filter keeps only the lines that say it.
+	filter string
+
 	top int
 
 	width  int
 	height int
+}
+
+// visible are the lines the filter leaves.
+func (t textModel) visible() []string {
+	if t.filter == "" {
+		return t.lines
+	}
+
+	match := matcher(t.filter)
+
+	kept := make([]string, 0, len(t.lines))
+	for _, line := range t.lines {
+		if match(line) {
+			kept = append(kept, line)
+		}
+	}
+
+	return kept
 }
 
 func newTextModel(content string) textModel {
@@ -27,18 +48,20 @@ func (t *textModel) setSize(width, height int) {
 }
 
 func (t *textModel) move(delta int) {
-	t.top = clamp(t.top+delta, 0, max(len(t.lines)-t.height, 0))
+	t.top = clamp(t.top+delta, 0, max(len(t.visible())-t.height, 0))
 }
 
 func (t *textModel) follow() {
-	t.top = clamp(t.top, 0, max(len(t.lines)-t.height, 0))
+	t.top = clamp(t.top, 0, max(len(t.visible())-t.height, 0))
 }
 
 func (t textModel) view() string {
+	lines := t.visible()
+
 	rows := make([]string, 0, t.height)
 
-	for i := t.top; i < len(t.lines) && i < t.top+t.height; i++ {
-		line := ansi.Truncate(t.lines[i], t.width, "…")
+	for i := t.top; i < len(lines) && i < t.top+t.height; i++ {
+		line := ansi.Truncate(lines[i], t.width, "…")
 		rows = append(rows, styleText.Render(pad(line, t.width)))
 	}
 

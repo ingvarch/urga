@@ -574,6 +574,9 @@ func (m *Model) layout() {
 	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3, 1))
 	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2, 1))
 
+	m.text.filter = m.filter
+	m.text.follow()
+
 	rows, index := filterRows(m.rows(), m.filter)
 	m.index = index
 	m.table.setRows(rows)
