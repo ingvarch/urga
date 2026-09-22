@@ -29,12 +29,8 @@ func (m Model) openLogs(source string) (Model, tea.Cmd) {
 	next.task = task.Name
 	next.source = source
 
-	m.history = append(m.history, m.screen)
-	m.screen = next
-	m.err = nil
+	m = m.stackText(next, "")
 	m.following = true
-	m.text = newTextModel("")
-	m.layout()
 
 	return m, m.startLogs()
 }

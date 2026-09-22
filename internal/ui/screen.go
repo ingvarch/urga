@@ -372,16 +372,25 @@ func (m Model) show(kind screenKind) (Model, tea.Cmd) {
 	return m.push(screen{kind: kind, namespace: m.namespace})
 }
 
-// push opens a screen on top of the one that is there, which is where escape
+// push opens a list on top of the one that is there, which is where escape
 // comes back to.
 func (m Model) push(next screen) (Model, tea.Cmd) {
+	entered, cmd := m.stack(next).enter()
+
+	return entered, tea.Batch(cmd, entered.remember())
+}
+
+// stack puts a screen on top of the one that is there and leaves behind what
+// belonged to it: its filter and the order of its rows say nothing about the
+// screen that is opening.
+func (m Model) stack(next screen) Model {
 	m.history = append(m.history, m.screen)
 	m.screen = next
 	m.err = nil
+	m.filter = ""
+	m.sort = newSortState()
 
-	entered, cmd := m.enter()
-
-	return entered, tea.Batch(cmd, entered.remember())
+	return m
 }
 
 // back is where escape goes.
@@ -408,6 +417,15 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m.layout()
 
 	return m, m.fetch()
+}
+
+// stackText opens a screen that reads as text rather than as a list.
+func (m Model) stackText(next screen, content string) Model {
+	m = m.stack(next)
+	m.text = newTextModel(content)
+	m.layout()
+
+	return m
 }
 
 // visibleAllocs are the allocations the screen was opened for: all of a job,

@@ -94,14 +94,9 @@ func describe(label string, load func(ctx context.Context) (string, error)) tea.
 // showDescribe puts a description on the screen, on top of the list it was
 // asked from.
 func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
-	m.history = append(m.history, m.screen)
-	m.screen = screen{kind: screenDescribe, namespace: m.screen.namespace, label: msg.label}
-	m.err = nil
+	next := screen{kind: screenDescribe, namespace: m.screen.namespace, label: msg.label}
 
-	m.text = newTextModel(msg.content)
-	m.layout()
-
-	return m, nil
+	return m.stackText(next, msg.content), nil
 }
 
 // textKey scrolls the description under the window.
