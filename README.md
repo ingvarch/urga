@@ -30,6 +30,10 @@ One binary, no config to write, no browser.
 
 ## Install
 
+Download the archive for your machine from the
+[releases](https://github.com/ingvarch/urga/releases) — Linux, macOS, Windows
+and FreeBSD, on amd64 and arm — or install it with Go:
+
 ```sh
 go install github.com/ingvarch/urga/cmd/urga@latest
 ```
@@ -98,7 +102,12 @@ namespace each number key stands for.
 
 ```sh
 make check   # fmt, vet, lint, test, build
+make dist    # one platform, packed the way a release is downloaded
 ```
+
+Every push runs the checks on Linux, the tests on Linux, macOS and Windows,
+and a build for each platform urga is released for. A tag starting with `v`
+builds the archives and opens a draft release.
 
 Tests come before the code they cover. The architecture rules live in
 `CLAUDE.md` and are not negotiated per change.

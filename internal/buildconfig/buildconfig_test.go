@@ -40,13 +40,45 @@ func workflows(t *testing.T) map[string]string {
 func TestWorkflows_PinTheRunner(t *testing.T) {
 	r := require.New(t)
 
-	floating := regexp.MustCompile(`runs-on:\s*\S*-latest`)
+	floating := regexp.MustCompile(`(runs-on:\s*\S*-latest|\S+-latest\s*[,\]])`)
 
 	for name, content := range workflows(t) {
 		// A floating label changes the machine under the build on a date
 		// somebody else picks. The image is named here instead.
 		r.NotRegexp(floating, content, name)
-		r.Contains(content, "runs-on: ubuntu-26.04", name)
+	}
+}
+
+func TestWorkflows_BuildForEveryPlatform(t *testing.T) {
+	r := require.New(t)
+
+	content := workflows(t)["release.yml"]
+	r.NotEmpty(content, "there is no release workflow")
+
+	// urga is downloaded for the machine it will run on, so every one of
+	// them is built.
+	for _, pair := range []string{
+		"{ goos: linux, goarch: amd64 }",
+		"{ goos: linux, goarch: arm64 }",
+		"{ goos: linux, goarch: arm }",
+		"{ goos: darwin, goarch: amd64 }",
+		"{ goos: darwin, goarch: arm64 }",
+		"{ goos: windows, goarch: amd64 }",
+		"{ goos: windows, goarch: arm64 }",
+		"{ goos: freebsd, goarch: amd64 }",
+	} {
+		r.Contains(content, pair)
+	}
+}
+
+func TestWorkflows_TestOnEverySystem(t *testing.T) {
+	r := require.New(t)
+
+	content := workflows(t)["ci.yml"]
+
+	// The tests run where people run urga, not only on Linux.
+	for _, runner := range []string{"ubuntu-26.04", "macos-15", "windows-2025"} {
+		r.Contains(content, runner)
 	}
 }
 
@@ -72,7 +104,10 @@ func TestWorkflows_UseActionsThatAreStillThere(t *testing.T) {
 		"actions/setup-go@v4",
 		"actions/setup-go@v5",
 		"actions/upload-artifact@v3",
+		"actions/upload-artifact@v4",
 		"actions/download-artifact@v3",
+		"actions/download-artifact@v4",
+		"actions/download-artifact@v7",
 	}
 
 	for name, content := range workflows(t) {

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
-	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 	"golang.org/x/term"
@@ -120,37 +118,4 @@ func (s *shellSession) Run() error {
 	}
 
 	return nil
-}
-
-// watchSize tells the task how big the terminal is, now and whenever it
-// changes.
-func watchSize(ctx context.Context, fd int, sizes chan<- nomad.TerminalSize) {
-	defer close(sizes)
-
-	changed := make(chan os.Signal, 1)
-	signal.Notify(changed, syscall.SIGWINCH)
-	defer signal.Stop(changed)
-
-	send := func() {
-		width, height, err := term.GetSize(fd)
-		if err != nil {
-			return
-		}
-
-		select {
-		case sizes <- nomad.TerminalSize{Width: width, Height: height}:
-		case <-ctx.Done():
-		}
-	}
-
-	send()
-
-	for {
-		select {
-		case <-changed:
-			send()
-		case <-ctx.Done():
-			return
-		}
-	}
 }

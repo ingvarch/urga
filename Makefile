@@ -9,7 +9,14 @@ LDFLAGS := -s -w \
 	-X $(PKG)/internal/version.Commit=$(COMMIT) \
 	-X $(PKG)/internal/version.Date=$(DATE)
 
-.PHONY: check fmt vet lint test build run clean
+GOOS  ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+
+# The archive of one platform: a zip for Windows, a tarball everywhere else.
+ARCHIVE := urga_$(VERSION)_$(GOOS)_$(GOARCH)
+EXT     := $(if $(filter windows,$(GOOS)),.exe,)
+
+.PHONY: check fmt vet lint test build dist run clean
 
 check: fmt vet lint test build
 
@@ -31,6 +38,19 @@ test:
 
 build:
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/$(BINARY)
+
+# dist builds one platform and packs it the way a release is downloaded.
+dist:
+	rm -rf dist/$(ARCHIVE)
+	mkdir -p dist/$(ARCHIVE)
+	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags "$(LDFLAGS)" -o dist/$(ARCHIVE)/$(BINARY)$(EXT) ./cmd/$(BINARY)
+	cp README.md LICENSE dist/$(ARCHIVE)/
+ifeq ($(GOOS),windows)
+	cd dist && zip -qr $(ARCHIVE).zip $(ARCHIVE)
+else
+	cd dist && tar -czf $(ARCHIVE).tar.gz $(ARCHIVE)
+endif
+	rm -rf dist/$(ARCHIVE)
 
 run: build
 	./bin/$(BINARY)
