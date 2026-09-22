@@ -77,3 +77,15 @@ func bodyLines(body string, width, height int) []string {
 
 	return out
 }
+
+// center puts lines in the middle of a block of the given width.
+func center(lines []string, width int) string {
+	out := make([]string, 0, len(lines))
+
+	for _, line := range lines {
+		gap := max((width-ansi.StringWidth(line))/2, 0)
+		out = append(out, strings.Repeat(" ", gap)+line)
+	}
+
+	return strings.Join(out, "\n")
+}

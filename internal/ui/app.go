@@ -25,6 +25,13 @@ type Client interface {
 	DescribeService(ctx context.Context, namespace, name string) (string, error)
 	JobSpec(ctx context.Context, namespace, jobID string) (string, error)
 	Logs(ctx context.Context, namespace, allocID, task, source string) (*nomad.LogStream, error)
+
+	StartJob(ctx context.Context, namespace, jobID string) error
+	StopJob(ctx context.Context, namespace, jobID string) error
+	RevertJob(ctx context.Context, namespace, jobID string) error
+	ScaleJob(ctx context.Context, namespace, jobID, group string, count int) error
+	RestartAllocation(ctx context.Context, namespace, allocID string) error
+	StopAllocation(ctx context.Context, namespace, allocID string) error
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 	Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error)
 	Namespaces(ctx context.Context) ([]nomad.Namespace, error)
@@ -101,7 +108,11 @@ type Model struct {
 	// the help window.
 	overlay overlay
 	prompt  promptModel
+	confirm confirmModel
 	filter  string
+
+	// said is what came of the last action.
+	said string
 
 	// index maps a row of the table back to the resource it came from, which
 	// the filter shifts.
@@ -179,6 +190,8 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
+		m.said = ""
+
 		return m.handleKey(msg)
 
 	case jobsMsg:
@@ -245,6 +258,19 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, nil
 
+	case doneMsg:
+		if msg.err != nil {
+			m.err = msg.err
+
+			return m, nil
+		}
+
+		m.err = nil
+		m.said = msg.said
+
+		// The list is stale the moment the cluster changed, ask again.
+		return m, m.fetch()
+
 	case pollMsg:
 		return m, m.fetch()
 	}
@@ -275,6 +301,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	case overlayHelp:
 		return m.helpKey(msg)
+
+	case overlayConfirm:
+		return m.confirmKey(msg)
 	}
 
 	if m.screen.kind == screenLogs {
@@ -295,6 +324,18 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
+
+	case "ctrl+s":
+		return m.startStopJob()
+
+	case "u":
+		return m.revertJob()
+
+	case "r":
+		return m.restartAllocation()
+
+	case "ctrl+k":
+		return m.stopAllocation()
 
 	case "d":
 		return m, m.describeCmd()
@@ -393,6 +434,11 @@ func (m Model) render() string {
 		title = "Help"
 	}
 
+	if m.overlay == overlayConfirm {
+		body = m.confirm.view(width - 2)
+		title = "Confirm"
+	}
+
 	parts = append(parts,
 		indent(frame(title, body, width, m.bodyHeight()), screenPadX),
 		indent(m.status(), headerPadX),
@@ -420,7 +466,11 @@ func (m Model) status() string {
 		return styleError.Render(ansi.Truncate("! "+m.err.Error(), width, "…"))
 	}
 
-	return styleMuted.Render(ansi.Truncate("q quit", width, "…"))
+	if m.said != "" {
+		return styleValue.Render(ansi.Truncate(m.said, width, "…"))
+	}
+
+	return styleMuted.Render(ansi.Truncate("<:> command   </> filter   <?> help   <q> quit", width, "…"))
 }
 
 func (m Model) bodyHeight() int {

@@ -115,11 +115,15 @@ var (
 		{Key: "<enter>", Description: "Allocations"},
 		{Key: "<d>", Description: "Describe"},
 		{Key: "<h>", Description: "Job spec"},
+		{Key: "<ctrl-s>", Description: "Start or stop"},
+		{Key: "<u>", Description: "Revert"},
 	}
 
 	allocHints = []hint{
 		{Key: "<enter>", Description: "Tasks"},
 		{Key: "<d>", Description: "Describe"},
+		{Key: "<r>", Description: "Restart"},
+		{Key: "<ctrl-k>", Description: "Stop"},
 	}
 
 	describeHints = []hint{{Key: "<d>", Description: "Describe"}}

@@ -17,6 +17,7 @@ const (
 	overlayPrompt
 	overlayFilter
 	overlayHelp
+	overlayConfirm
 )
 
 // promptHeight is the line plus the border around it.

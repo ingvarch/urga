@@ -30,8 +30,18 @@ type fakeClient struct {
 	spec     string
 	logs     *nomad.LogStream
 
+	stopped       int
+	started       int
+	restarted     int
+	stoppedAllocs int
+	reverted      int
+	scaled        int
+	scaledTo      int
+	actionErr     error
+
 	askedID     string
 	askedTask   string
+	askedGroup  string
 	askedSource string
 	logsClosed  bool
 
@@ -103,6 +113,49 @@ func (f *fakeClient) Logs(_ context.Context, namespace, allocID, task, source st
 	stream.OnClose = func() { f.logsClosed = true }
 
 	return stream, nil
+}
+
+func (f *fakeClient) StartJob(_ context.Context, namespace, jobID string) error {
+	f.askedNamespace, f.askedID = namespace, jobID
+	f.started++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) StopJob(_ context.Context, namespace, jobID string) error {
+	f.askedNamespace, f.askedID = namespace, jobID
+	f.stopped++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) RevertJob(_ context.Context, namespace, jobID string) error {
+	f.askedNamespace, f.askedID = namespace, jobID
+	f.reverted++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) ScaleJob(_ context.Context, namespace, jobID, group string, count int) error {
+	f.askedNamespace, f.askedID, f.askedGroup = namespace, jobID, group
+	f.scaled++
+	f.scaledTo = count
+
+	return f.actionErr
+}
+
+func (f *fakeClient) RestartAllocation(_ context.Context, namespace, allocID string) error {
+	f.askedNamespace, f.askedID = namespace, allocID
+	f.restarted++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) StopAllocation(_ context.Context, namespace, allocID string) error {
+	f.askedNamespace, f.askedID = namespace, allocID
+	f.stoppedAllocs++
+
+	return f.actionErr
 }
 
 func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {
@@ -310,5 +363,5 @@ func TestModel_LeavesAMarginAroundTheScreen(t *testing.T) {
 
 	// The status line follows the header, not the box.
 	last := rows[len(rows)-1]
-	r.True(strings.HasPrefix(last, strings.Repeat(" ", headerPadX)+"q"), last)
+	r.True(strings.HasPrefix(last, strings.Repeat(" ", headerPadX)+"<:>"), last)
 }
