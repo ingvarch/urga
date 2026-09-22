@@ -9,12 +9,11 @@ import (
 
 // drainNode starts or stops moving the work off the node under the cursor.
 func (m Model) drainNode() (Model, tea.Cmd) {
-	row, ok := m.selectedIndex()
-	if !ok || m.screen.kind != screenNodes || row >= len(m.nodes) {
+	node, ok := selectedOf(m, screenNodes, m.nodes)
+	if !ok {
 		return m, nil
 	}
 
-	node := m.nodes[row]
 	client := m.client
 
 	if node.Drain {
@@ -36,12 +35,11 @@ func (m Model) drainNode() (Model, tea.Cmd) {
 
 // toggleEligibility says whether the node may be given new work.
 func (m Model) toggleEligibility() (Model, tea.Cmd) {
-	row, ok := m.selectedIndex()
-	if !ok || m.screen.kind != screenNodes || row >= len(m.nodes) {
+	node, ok := selectedOf(m, screenNodes, m.nodes)
+	if !ok {
 		return m, nil
 	}
 
-	node := m.nodes[row]
 	client := m.client
 	eligible := node.Eligibility != "eligible"
 
@@ -61,7 +59,7 @@ func (m Model) toggleEligibility() (Model, tea.Cmd) {
 // promoteDeployment takes the canaries of the deployment under the cursor
 // into service.
 func (m Model) promoteDeployment() (Model, tea.Cmd) {
-	deployment, ok := m.selectedDeployment()
+	deployment, ok := selectedOf(m, screenDeployments, m.deployments)
 	if !ok {
 		return m, nil
 	}
@@ -78,7 +76,7 @@ func (m Model) promoteDeployment() (Model, tea.Cmd) {
 
 // failDeployment stops a deployment where it is.
 func (m Model) failDeployment() (Model, tea.Cmd) {
-	deployment, ok := m.selectedDeployment()
+	deployment, ok := selectedOf(m, screenDeployments, m.deployments)
 	if !ok {
 		return m, nil
 	}

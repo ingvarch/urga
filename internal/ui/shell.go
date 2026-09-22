@@ -32,13 +32,8 @@ type shellDoneMsg struct {
 
 // shell opens a shell in the task under the cursor.
 func (m Model) shell() (Model, tea.Cmd) {
-	row, ok := m.selectedIndex()
-	if !ok || m.screen.kind != screenTasks {
-		return m, nil
-	}
-
-	tasks := m.tasks()
-	if row >= len(tasks) {
+	task, ok := selectedOf(m, screenTasks, m.tasks())
+	if !ok {
 		return m, nil
 	}
 
@@ -51,7 +46,7 @@ func (m Model) shell() (Model, tea.Cmd) {
 	return m, m.opts.Shell.Open(shellCommand{
 		Namespace: m.screen.namespace,
 		AllocID:   m.screen.allocID,
-		Task:      tasks[row].Name,
+		Task:      task.Name,
 	})
 }
 

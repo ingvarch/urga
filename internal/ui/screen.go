@@ -293,28 +293,20 @@ func fetchList[T any](load func(ctx context.Context) ([]T, error), wrap func([]T
 
 // open drills into what the cursor is on, if there is anything below it.
 func (m Model) open() (Model, tea.Cmd) {
-	row, ok := m.selectedIndex()
-	if !ok {
-		return m, nil
-	}
-
 	switch m.screen.kind {
 	case screenJobs:
-		if row >= len(m.jobs) {
+		job, ok := selectedOf(m, screenJobs, m.jobs)
+		if !ok {
 			return m, nil
 		}
-
-		job := m.jobs[row]
 
 		return m.push(screen{kind: screenAllocations, namespace: job.Namespace, jobID: job.ID})
 
 	case screenAllocations:
-		allocs := m.visibleAllocs()
-		if row >= len(allocs) {
+		alloc, ok := selectedOf(m, screenAllocations, m.visibleAllocs())
+		if !ok {
 			return m, nil
 		}
-
-		alloc := allocs[row]
 
 		return m.push(screen{
 			kind:      screenTasks,
@@ -327,11 +319,10 @@ func (m Model) open() (Model, tea.Cmd) {
 		return m.openLogs(nomad.LogStdout)
 
 	case screenTaskGroups:
-		if row >= len(m.groups) {
+		group, ok := selectedOf(m, screenTaskGroups, m.groups)
+		if !ok {
 			return m, nil
 		}
-
-		group := m.groups[row]
 
 		return m.push(screen{
 			kind:      screenAllocations,
@@ -344,14 +335,22 @@ func (m Model) open() (Model, tea.Cmd) {
 	return m, nil
 }
 
-// selectedDeployment is the deployment the cursor is on.
-func (m Model) selectedDeployment() (nomad.Deployment, bool) {
-	row, ok := m.selectedIndex()
-	if !ok || m.screen.kind != screenDeployments || row >= len(m.deployments) {
-		return nomad.Deployment{}, false
+// selectedOf is the resource the cursor is on, when the screen showing it is
+// the one that is open. Every key that acts on a row asks through here: the
+// bounds are checked in one place instead of at a dozen call sites.
+func selectedOf[T any](m Model, kind screenKind, items []T) (T, bool) {
+	var none T
+
+	if m.screen.kind != kind {
+		return none, false
 	}
 
-	return m.deployments[row], true
+	row, ok := m.selectedIndex()
+	if !ok || row >= len(items) {
+		return none, false
+	}
+
+	return items[row], true
 }
 
 // selectedIndex is the resource the cursor is on. The filter shifts the rows,

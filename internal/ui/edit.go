@@ -66,16 +66,14 @@ func editorCommand() string {
 
 // edit opens what the cursor is on in the editor of the user.
 func (m Model) edit() (Model, tea.Cmd) {
-	row, ok := m.selectedIndex()
-	if !ok {
-		return m, nil
-	}
-
 	client := m.client
 
 	switch m.screen.kind {
 	case screenJobs:
-		job := m.jobs[row]
+		job, ok := selectedOf(m, screenJobs, m.jobs)
+		if !ok {
+			return m, nil
+		}
 
 		return m, openEditor("hcl",
 			func(ctx context.Context) (string, error) {
@@ -88,7 +86,10 @@ func (m Model) edit() (Model, tea.Cmd) {
 			})
 
 	case screenNamespaces:
-		namespace := m.namespaces[row]
+		namespace, ok := selectedOf(m, screenNamespaces, m.namespaces)
+		if !ok {
+			return m, nil
+		}
 
 		return m, openEditor("json",
 			func(ctx context.Context) (string, error) {

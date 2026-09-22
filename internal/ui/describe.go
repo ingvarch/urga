@@ -16,42 +16,44 @@ type describeMsg struct {
 // describeCmd asks for what the cursor is on, in the words of the cluster.
 // Nothing to describe answers with nothing.
 func (m Model) describeCmd() tea.Cmd {
-	row, ok := m.selectedIndex()
-	if !ok {
-		return nil
-	}
-
 	client := m.client
 
 	switch m.screen.kind {
 	case screenJobs:
-		job := m.jobs[row]
+		job, ok := selectedOf(m, screenJobs, m.jobs)
+		if !ok {
+			return nil
+		}
 
 		return describe(fmt.Sprintf("Job: %s", job.ID), func(ctx context.Context) (string, error) {
 			return client.DescribeJob(ctx, job.Namespace, job.ID)
 		})
 
 	case screenAllocations:
-		allocs := m.visibleAllocs()
-		if row >= len(allocs) {
+		alloc, ok := selectedOf(m, screenAllocations, m.visibleAllocs())
+		if !ok {
 			return nil
 		}
-
-		alloc := allocs[row]
 
 		return describe(fmt.Sprintf("Allocation: %s", shortID(alloc.ID)), func(ctx context.Context) (string, error) {
 			return client.DescribeAllocation(ctx, alloc.Namespace, alloc.ID)
 		})
 
 	case screenDeployments:
-		deployment := m.deployments[row]
+		deployment, ok := selectedOf(m, screenDeployments, m.deployments)
+		if !ok {
+			return nil
+		}
 
 		return describe(fmt.Sprintf("Deployment: %s", shortID(deployment.ID)), func(ctx context.Context) (string, error) {
 			return client.DescribeDeployment(ctx, deployment.Namespace, deployment.ID)
 		})
 
 	case screenServices:
-		service := m.services[row]
+		service, ok := selectedOf(m, screenServices, m.services)
+		if !ok {
+			return nil
+		}
 
 		return describe(fmt.Sprintf("Service: %s", service.Name), func(ctx context.Context) (string, error) {
 			return client.DescribeService(ctx, service.Namespace, service.Name)
@@ -63,12 +65,11 @@ func (m Model) describeCmd() tea.Cmd {
 
 // jobSpecCmd asks for the file the job was submitted with.
 func (m Model) jobSpecCmd() tea.Cmd {
-	row, ok := m.selectedIndex()
-	if !ok || m.screen.kind != screenJobs {
+	job, ok := selectedOf(m, screenJobs, m.jobs)
+	if !ok {
 		return nil
 	}
 
-	job := m.jobs[row]
 	client := m.client
 
 	return describe(fmt.Sprintf("Job spec: %s", job.ID), func(ctx context.Context) (string, error) {

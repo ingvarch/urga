@@ -19,19 +19,14 @@ type (
 
 // openLogs follows what the task under the cursor writes.
 func (m Model) openLogs(source string) (Model, tea.Cmd) {
-	row, ok := m.selectedIndex()
-	if !ok || m.screen.kind != screenTasks {
-		return m, nil
-	}
-
-	tasks := m.tasks()
-	if row >= len(tasks) {
+	task, ok := selectedOf(m, screenTasks, m.tasks())
+	if !ok {
 		return m, nil
 	}
 
 	next := m.screen
 	next.kind = screenLogs
-	next.task = tasks[row].Name
+	next.task = task.Name
 	next.source = source
 
 	m.history = append(m.history, m.screen)
