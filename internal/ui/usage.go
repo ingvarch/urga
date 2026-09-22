@@ -18,7 +18,14 @@ const rowUsageEvery = 5 * time.Second
 
 // Messages of the readings.
 type (
-	rowUsageMsg  map[string]nomad.ResourceUse
+	// rowUsageMsg is what the rows on the screen take, and what went wrong
+	// for the rows that said nothing.
+	rowUsageMsg struct {
+		readings map[string]nomad.ResourceUse
+		missing  int
+		reason   error
+	}
+
 	pollUsageRow struct{}
 )
 
@@ -36,7 +43,7 @@ func (m Model) fetchUsage() tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		readings := make(map[string]nomad.ResourceUse, len(ids))
+		out := rowUsageMsg{readings: make(map[string]nomad.ResourceUse, len(ids))}
 
 		for _, id := range ids {
 			var (
@@ -51,13 +58,22 @@ func (m Model) fetchUsage() tea.Cmd {
 			}
 
 			// A machine that does not answer leaves its row empty, the rest
-			// of the list is still worth showing.
-			if err == nil {
-				readings[id] = use
+			// of the list is still worth showing. What it said is kept, a
+			// dash in a column explains nothing by itself.
+			if err != nil {
+				out.missing++
+
+				if out.reason == nil {
+					out.reason = err
+				}
+
+				continue
 			}
+
+			out.readings[id] = use
 		}
 
-		return rowUsageMsg(readings)
+		return out
 	}
 }
 
@@ -80,7 +96,8 @@ func (m Model) visibleIDs() []string {
 
 		ids := make([]string, 0, len(m.index))
 		for _, at := range m.index {
-			if at < len(allocs) {
+			// Only what runs has anything to report.
+			if at < len(allocs) && allocs[at].Status == statusRunning {
 				ids = append(ids, allocs[at].ID)
 			}
 		}

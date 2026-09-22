@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,9 +52,10 @@ func TestUsage_AskedForWhatIsOnTheScreen(t *testing.T) {
 
 	drain(m, m.fetchUsage())
 
-	// Two rows on the screen, two readings asked for. A cluster is not walked
-	// allocation by allocation for rows nobody is looking at.
-	r.Equal(2, client.usageCalls)
+	// Of the two rows on the screen one runs, and it is the only one asked
+	// about. A cluster is not walked allocation by allocation for rows
+	// nobody is looking at.
+	r.Equal(1, client.usageCalls)
 }
 
 func TestUsage_NotAskedForOnOtherScreens(t *testing.T) {
@@ -104,4 +106,45 @@ func TestUsage_Cells(t *testing.T) {
 	// The cluster has not answered.
 	r.Equal("-", cpuCell(nomad.ResourceUse{}, false))
 	r.Equal("-", memoryCell(nomad.ResourceUse{}, false))
+}
+
+func TestUsage_OnlyRunningAllocationsAreAsked(t *testing.T) {
+	r := require.New(t)
+
+	allocs := []nomad.Alloc{
+		{ID: "running-one", Namespace: "production", JobID: "web", TaskGroup: "frontend", Status: "running"},
+		{ID: "finished-one", Namespace: "production", JobID: "web", TaskGroup: "frontend", Status: "complete"},
+	}
+
+	client := &fakeClient{jobs: twoJobs(), allocs: allocs}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(enter())
+	m, _ = m.update(allocsMsg(allocs))
+
+	drain(m, m.fetchUsage())
+
+	// An allocation that has ended reports nothing, so it is not asked. The
+	// answer would be an error, and the row would say nothing either way.
+	r.Equal(1, client.usageCalls)
+}
+
+func TestUsage_SaysWhyThereAreNoReadings(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), usageErr: errors.New("Unexpected response code: 500 (rpc error: No path to node)")}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(enter())
+	m, _ = m.update(allocsMsg(twoAllocs()))
+
+	m = drain(m, m.fetchUsage())
+
+	// A dash in the column is not an explanation. What the cluster said is
+	// on the screen.
+	out := plain(m.render())
+	r.Contains(out, "no readings")
+	r.Contains(out, "No path to node")
 }

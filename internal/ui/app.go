@@ -189,9 +189,12 @@ type Model struct {
 	nomadVersion string
 	usage        nomad.Usage
 
-	// rowUsage is what each row on the screen takes, by its id.
-	rowUsage map[string]nomad.ResourceUse
-	err      error
+	// rowUsage is what each row on the screen takes, by its id, and why the
+	// rest of them said nothing.
+	rowUsage     map[string]nomad.ResourceUse
+	missingUsage int
+	usageReason  error
+	err          error
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -305,7 +308,8 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, fetchUsage(m.client)
 
 	case rowUsageMsg:
-		m.rowUsage = msg
+		m.rowUsage = msg.readings
+		m.missingUsage, m.usageReason = msg.missing, msg.reason
 		m.layout()
 
 		return m, tea.Tick(rowUsageEvery, func(time.Time) tea.Msg { return pollUsageRow{} })
@@ -632,6 +636,11 @@ func (m Model) status() string {
 	if m.troubled {
 		return styleWarn.Render(ansi.Truncate(
 			fmt.Sprintf("only what needs attention, %d of %d   <!> all of them", m.shown, m.held), width, "…"))
+	}
+
+	if m.missingUsage > 0 && m.usageReason != nil {
+		return styleMuted.Render(ansi.Truncate(
+			fmt.Sprintf("no readings for %d rows: %s", m.missingUsage, m.usageReason), width, "…"))
 	}
 
 	return styleMuted.Render(ansi.Truncate("<:> command   </> filter   <?> help   <q> quit", width, "…"))

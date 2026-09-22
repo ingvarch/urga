@@ -33,6 +33,7 @@ type fakeClient struct {
 	usage         nomad.Usage
 	use           map[string]nomad.ResourceUse
 	usageCalls    int
+	usageErr      error
 	namespaceSpec string
 
 	submitted           int
@@ -233,6 +234,10 @@ func (f *fakeClient) Usage(context.Context) (nomad.Usage, error) {
 
 func (f *fakeClient) AllocationUsage(_ context.Context, _, allocID string) (nomad.ResourceUse, error) {
 	f.usageCalls++
+
+	if f.usageErr != nil {
+		return nomad.ResourceUse{}, f.usageErr
+	}
 
 	use, ok := f.use[allocID]
 	if !ok {
