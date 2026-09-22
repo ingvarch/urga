@@ -51,6 +51,7 @@ func allocColor(alloc nomad.Alloc) color.Color {
 }
 
 // taskTitles are the columns of the task list.
+
 var taskTitles = []string{"Name", "State", "Failed", "Restarts", "Started"}
 
 func taskRows(tasks []nomad.Task) []tableRow {

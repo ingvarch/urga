@@ -28,8 +28,12 @@ type fakeClient struct {
 
 	describe string
 	spec     string
+	logs     *nomad.LogStream
 
-	askedID string
+	askedID     string
+	askedTask   string
+	askedSource string
+	logsClosed  bool
 
 	err error
 
@@ -86,6 +90,19 @@ func (f *fakeClient) JobSpec(_ context.Context, namespace, jobID string) (string
 	f.askedNamespace, f.askedID = namespace, jobID
 
 	return f.spec, f.err
+}
+
+func (f *fakeClient) Logs(_ context.Context, namespace, allocID, task, source string) (*nomad.LogStream, error) {
+	f.askedNamespace, f.askedID, f.askedTask, f.askedSource = namespace, allocID, task, source
+
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	stream := f.logs
+	stream.OnClose = func() { f.logsClosed = true }
+
+	return stream, nil
 }
 
 func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {

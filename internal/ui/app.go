@@ -24,6 +24,7 @@ type Client interface {
 	DescribeDeployment(ctx context.Context, namespace, deploymentID string) (string, error)
 	DescribeService(ctx context.Context, namespace, name string) (string, error)
 	JobSpec(ctx context.Context, namespace, jobID string) (string, error)
+	Logs(ctx context.Context, namespace, allocID, task, source string) (*nomad.LogStream, error)
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 	Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error)
 	Namespaces(ctx context.Context) ([]nomad.Namespace, error)
@@ -121,6 +122,10 @@ type Model struct {
 
 	table tableModel
 	text  textModel
+
+	// stream is the task output the log screen follows.
+	stream    *nomad.LogStream
+	following bool
 
 	nomadVersion string
 	err          error
@@ -223,6 +228,23 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case describeMsg:
 		return m.showDescribe(msg)
 
+	case logStreamMsg:
+		m.stream = msg.stream
+
+		return m, m.waitForLog()
+
+	case logLineMsg:
+		if m.screen.kind != screenLogs {
+			return m, nil
+		}
+
+		return m.appendLog(string(msg))
+
+	case logEndMsg:
+		m.stream = nil
+
+		return m, nil
+
 	case pollMsg:
 		return m, m.fetch()
 	}
@@ -255,8 +277,17 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.helpKey(msg)
 	}
 
-	if m.screen.kind == screenDescribe {
+	if m.screen.kind == screenLogs {
+		if next, cmd, handled := m.logsKey(msg); handled {
+			return next, cmd
+		}
+	}
+
+	if m.screen.kind == screenDescribe || m.screen.kind == screenLogs {
 		if next, cmd, handled := m.textKey(msg); handled {
+			// Scrolling by hand means the end is no longer being watched.
+			next.following = false
+
 			return next, cmd
 		}
 	}
@@ -284,6 +315,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	case "enter":
 		return m.open()
+
+	case "ctrl+e":
+		return m.openLogs(nomad.LogStderr)
 
 	case "esc":
 		return m.back()
@@ -350,7 +384,7 @@ func (m Model) render() string {
 	body := m.table.view()
 	title := m.title()
 
-	if m.screen.kind == screenDescribe {
+	if m.screen.kind == screenDescribe || m.screen.kind == screenLogs {
 		body = m.text.view()
 	}
 

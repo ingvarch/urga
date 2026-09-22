@@ -24,6 +24,7 @@ const (
 	screenVariables
 	screenNodePools
 	screenDescribe
+	screenLogs
 )
 
 // screenNames label a screen in its title.
@@ -58,6 +59,10 @@ type screen struct {
 
 	// label titles a screen that is about one thing, like a description.
 	label string
+
+	// task and source are whose output the log screen follows.
+	task   string
+	source string
 }
 
 // titles are the columns of a screen.
@@ -94,6 +99,10 @@ func (s screen) hints() []hint {
 		return jobHints
 	case screenAllocations:
 		return allocHints
+	case screenTasks:
+		return taskHints
+	case screenLogs:
+		return logHints
 	case screenDeployments, screenServices:
 		return describeHints
 	default:
@@ -124,6 +133,9 @@ func (m Model) title() string {
 	switch m.screen.kind {
 	case screenDescribe:
 		return m.screen.label
+
+	case screenLogs:
+		return logsTitle(m.screen)
 
 	case screenAllocations:
 		return fmt.Sprintf("Allocations (Job: %s) [%d]", m.screen.jobID, count)
@@ -184,6 +196,10 @@ func (m Model) fetch() tea.Cmd {
 
 	case screenDescribe:
 		// A description is a snapshot of one moment, it is not polled.
+		return nil
+
+	case screenLogs:
+		// The stream pushes on its own, there is nothing to ask again for.
 		return nil
 
 	case screenDeployments:
@@ -268,6 +284,9 @@ func (m Model) open() (Model, tea.Cmd) {
 			jobID:     alloc.JobID,
 			allocID:   alloc.ID,
 		})
+
+	case screenTasks:
+		return m.openLogs(nomad.LogStdout)
 	}
 
 	return m, nil
@@ -307,6 +326,9 @@ func (m Model) back() (Model, tea.Cmd) {
 	if len(m.history) == 0 {
 		return m, nil
 	}
+
+	// What the screen held on to is let go of before leaving it.
+	m.closeLogs()
 
 	m.screen = m.history[len(m.history)-1]
 	m.history = m.history[:len(m.history)-1]
