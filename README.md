@@ -15,17 +15,16 @@ One binary, no config to write, no browser.
 
 ```
   Address:   https://nomad.example.com  <0> all         <enter>  Allocations     @@@  @@@ @@@@@@@   @@@@@@@   @@@@@@
-  urga Rev:  v0.1.0                     <1> production  <t>      Task groups     @@!  @@@ @@!  @@@ !@@       @@!  @@@
-  Nomad Rev: 1.11.1                     <2> staging     <d>      Describe        @!@  !@! @!@!!@!  !@! @!@!@ @!@!@!@!
-  Namespace: all                        <3> default     <h>      Job spec        !!:  !!! !!: :!!  :!!   !!: !!:  !!!
-  CPU:       15%                                        <ctrl-s> Start or stop    :.:: :   :   : :  :: :: :   :   : :
-  MEM:       31%                                        <u>      Revert
- ╭────────────────────────────────────────── Jobs (all) [4] ──────────────────────────────────────────╮
- │ ID              Name            Type     Namespace   Status   Allocs  Age                          │
- │ api             api             service  production  running  3/3     11d                          │
- │ nightly-import  nightly-import  batch    production  dead     0/0     7h                           │
- │ traefik         traefik         system   default     running  2/3     1h                           │
- ╰────────────────────────────────────────────────────────────────────────────────────────────────────╯
+  Urga Rev:  v0.1.0                     <1> production  <t>      Task groups     @@!  @@@ @@!  @@@ !@@       @@!  @@@
+  Nomad Rev: 2.0.5                      <2> staging     <d>      Describe        @!@  !@! @!@!!@!  !@! @!@!@ @!@!@!@!
+  CPU:       15%                        <3> default     <h>      Job spec        !!:  !!! !!: :!!  :!!   !!: !!:  !!!
+  MEM:       31%                                        <ctrl-s> Start or stop    :.:: :   :   : :  :: :: :   :   : :
+ ╭───────────────────────────────────────── Jobs (all) [3] ──────────────────────────────────────────╮
+ │ ID                       Name                     Type      Namespace    Status    Allocs   Age   │
+ │ api                      api                      service   production   running   3/3      11d   │
+ │ nightly-import           nightly-import           batch     production   dead      0/0      7h    │
+ │ traefik                  traefik                  system    default      running   2/3      1h    │
+ ╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
   <:> command   </> filter   <?> help   <q> quit
 ```
 

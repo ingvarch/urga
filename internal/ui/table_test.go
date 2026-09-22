@@ -38,15 +38,35 @@ func styleCode(s lipgloss.Style) string {
 func TestTable_ColumnsFollowTheContent(t *testing.T) {
 	r := require.New(t)
 
-	widths := columnWidths(
-		[]string{"ID", "Name", "Status"},
-		[]tableRow{row("api", "api", "running"), row("nightly", "nightly", "dead")},
-		200,
-	)
+	rows := []tableRow{row("api", "api", "running"), row("nightly", "nightly", "dead")}
 
-	// A column is as wide as the widest thing in it. Handing the leftover
-	// space to one column pushes the others off the screen.
-	r.Equal([]int{7, 7, 7}, widths)
+	widths := columnWidths([]string{"ID", "Name", "Status"}, rows, 200)
+
+	// A column is never narrower than what it holds.
+	for i, want := range []int{7, 7, 7} {
+		r.GreaterOrEqual(widths[i], want)
+	}
+
+	// What is left over is shared out, so the row reaches the right edge
+	// instead of huddling on the left.
+	r.Equal(200, total(widths)+gapsWidth(3)+2*tableIndent)
+
+	for i := 1; i < len(widths); i++ {
+		r.InDelta(widths[0], widths[i], 1, "columns that hold the same get the same")
+	}
+}
+
+func TestTable_WideColumnsGetMoreOfTheSpace(t *testing.T) {
+	r := require.New(t)
+
+	rows := []tableRow{row("hcloud-csi-controller", "1/1")}
+
+	widths := columnWidths([]string{"ID", "Allocs"}, rows, 120)
+
+	// The column with the names keeps more of the room than the one with a
+	// count in it.
+	r.Greater(widths[0], widths[1])
+	r.Equal(120, total(widths)+gapsWidth(2)+2*tableIndent)
 }
 
 func TestTable_ColumnsShrinkToFit(t *testing.T) {
@@ -63,7 +83,7 @@ func TestTable_ColumnsShrinkToFit(t *testing.T) {
 	}
 
 	// Everything fits in the width given, gaps included.
-	r.LessOrEqual(total+gapsWidth(3)+1, 40)
+	r.LessOrEqual(total+gapsWidth(3)+2*tableIndent, 40)
 }
 
 func TestTable_LongValueIsEaten(t *testing.T) {
@@ -86,6 +106,7 @@ func TestTable_HeaderAndRows(t *testing.T) {
 
 	out := lines(tbl.view())
 
+	// The header spreads with the columns.
 	r.Contains(out[0], "ID")
 	r.Contains(out[0], "Status")
 	r.Contains(out[1], "api")

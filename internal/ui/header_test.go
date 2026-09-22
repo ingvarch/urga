@@ -21,7 +21,7 @@ func TestHeader(t *testing.T) {
 
 	r.Contains(rows[0], "Address:")
 	r.Contains(rows[0], "https://nmd.1ly.dev")
-	r.Contains(rows[1], "urga Rev:")
+	r.Contains(rows[1], "Urga Rev:")
 	r.Contains(rows[1], "v0.1.0-dev")
 	r.Contains(rows[2], "Nomad Rev:")
 	r.Contains(rows[2], "1.11.1")
@@ -102,16 +102,19 @@ func TestHeader_WithoutRoomForTheLogo(t *testing.T) {
 	r.Len(lines(out), headerHeight)
 }
 
-func TestHeader_ShowsTheNamespace(t *testing.T) {
+func TestHeader_LeavesTheNamespaceToTheKeys(t *testing.T) {
 	r := require.New(t)
 
-	out := renderHeader(header{address: "https://nmd.1ly.dev", namespace: "production"}, 140)
-	r.Contains(lines(out)[3], "Namespace:")
-	r.Contains(lines(out)[3], "production")
+	out := renderHeader(header{
+		address:    "https://nmd.1ly.dev",
+		namespace:  "production",
+		namespaces: []namespaceKey{{Key: "<1>", Name: "production", Active: true}},
+	}, 140)
 
-	// Every namespace at once reads as one word, not as a wildcard.
-	out = renderHeader(header{namespace: ""}, 140)
-	r.Contains(lines(out)[3], "all")
+	// The namespace in use is the lit up key, saying it twice in one header
+	// is a line wasted.
+	r.NotContains(plain(out), "Namespace:")
+	r.Contains(plain(out), "<1> production")
 }
 
 func TestHeader_IsAsTallAsWhatItHolds(t *testing.T) {
@@ -128,10 +131,10 @@ func TestHeader_ShowsWhatTheClusterIsUsing(t *testing.T) {
 	out := renderHeader(header{usage: "15%", memory: "31%"}, 140)
 	rows := lines(out)
 
-	r.Contains(rows[4], "CPU:")
-	r.Contains(rows[4], "15%")
-	r.Contains(rows[5], "MEM:")
-	r.Contains(rows[5], "31%")
+	r.Contains(rows[3], "CPU:")
+	r.Contains(rows[3], "15%")
+	r.Contains(rows[4], "MEM:")
+	r.Contains(rows[4], "31%")
 }
 
 func TestHeader_BeforeTheClusterAnswers(t *testing.T) {
@@ -140,6 +143,6 @@ func TestHeader_BeforeTheClusterAnswers(t *testing.T) {
 	// Nothing is known yet, and the header says that rather than zero.
 	out := renderHeader(header{}, 140)
 
-	r.Contains(lines(out)[4], "n/a")
+	r.Contains(lines(out)[3], "n/a")
 	r.Contains(lines(out)[2], "n/a")
 }

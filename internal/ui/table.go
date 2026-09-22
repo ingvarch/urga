@@ -142,9 +142,41 @@ func columnWidths(titles []string, rows []tableRow, width int) []int {
 		widths[i] = clamp(widths[i], minColumnWidth, maxColumnWidth)
 	}
 
-	shrinkToFit(widths, width-tableIndent-gapsWidth(len(widths)))
+	// The same space is left on both sides, so the last column does not lean
+	// on the border.
+	available := width - 2*tableIndent - gapsWidth(len(widths))
+
+	shrinkToFit(widths, available)
+	spread(widths, available)
 
 	return widths
+}
+
+// spread shares what is left over between the columns, so the row reaches the
+// right edge instead of huddling on the left. A column that holds more gets
+// more of it, which keeps a name column wide and a count column narrow.
+func spread(widths []int, available int) {
+	left := available - total(widths)
+	if left <= 0 || len(widths) == 0 {
+		return
+	}
+
+	content := total(widths)
+	given := 0
+
+	if content > 0 {
+		for i := range widths {
+			share := left * widths[i] / content
+			widths[i] += share
+			given += share
+		}
+	}
+
+	// What does not divide evenly goes to the first columns, which are the
+	// ones holding names.
+	for i := 0; i < left-given; i++ {
+		widths[i%len(widths)]++
+	}
 }
 
 // shrinkToFit takes from the widest column first, so that the short ones keep

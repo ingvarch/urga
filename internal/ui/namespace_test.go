@@ -32,10 +32,10 @@ func TestNamespaceKeys_SwitchTheSession(t *testing.T) {
 	m = drain(m, cmd)
 	r.Equal("staging", client.askedNamespace)
 
-	// Zero brings every namespace back.
+	// Zero brings every namespace back, and the key says so.
 	m, _ = m.update(key('0'))
 	r.Equal(nomad.AllNamespaces, m.namespace)
-	r.Contains(headerOf(m), "Namespace: all")
+	r.Contains(renderHeader(m.headerData(), m.width-2*headerPadX), styleKey.Render(pad("all", len("production"))))
 }
 
 func TestNamespaceKeys_KeepTheirOrder(t *testing.T) {

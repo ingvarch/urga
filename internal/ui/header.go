@@ -7,7 +7,7 @@ import (
 )
 
 // infoRows is how many lines the cluster info takes.
-const infoRows = 6
+const infoRows = 5
 
 // unknown is what a value reads as before the cluster has answered.
 const unknown = "n/a"
@@ -106,9 +106,8 @@ func infoColumn(h header, width int) string {
 		value string
 	}{
 		{"Address:", h.address},
-		{"urga Rev:", h.version},
+		{"Urga Rev:", h.version},
 		{"Nomad Rev:", orUnknown(h.nomadVersion)},
-		{"Namespace:", namespaceLabel(h.namespace)},
 		{"CPU:", orUnknown(h.usage)},
 		{"MEM:", orUnknown(h.memory)},
 	}
