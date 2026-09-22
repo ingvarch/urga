@@ -1,0 +1,192 @@
+package ui
+
+import (
+	"image/color"
+	"strings"
+
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
+)
+
+const (
+	// cellGap is the space between two columns, tableIndent the one before
+	// the first.
+	cellGap     = 2
+	tableIndent = 1
+
+	minColumnWidth = 1
+	maxColumnWidth = 48
+)
+
+// tableRow is one resource. The color says what state it is in.
+type tableRow struct {
+	cells []string
+	color color.Color
+}
+
+// tableModel is the list every screen shows: a header, rows, a cursor and a
+// window that follows it.
+type tableModel struct {
+	titles []string
+	rows   []tableRow
+
+	cursor int
+	top    int
+
+	width  int
+	height int
+}
+
+func newTableModel(titles []string) tableModel {
+	return tableModel{titles: titles}
+}
+
+func (t *tableModel) setSize(width, height int) {
+	t.width, t.height = width, max(height, 1)
+	t.follow()
+}
+
+// setRows takes what the cluster last said. The cursor keeps its place in the
+// list as far as the new list allows.
+func (t *tableModel) setRows(rows []tableRow) {
+	t.rows = rows
+	t.cursor = clamp(t.cursor, 0, len(rows)-1)
+	t.follow()
+}
+
+func (t *tableModel) move(delta int) {
+	t.cursor = clamp(t.cursor+delta, 0, len(t.rows)-1)
+	t.follow()
+}
+
+// selected is the row under the cursor, if there is one.
+func (t tableModel) selected() (tableRow, bool) {
+	if t.cursor < 0 || t.cursor >= len(t.rows) {
+		return tableRow{}, false
+	}
+
+	return t.rows[t.cursor], true
+}
+
+// follow keeps the cursor inside the window.
+func (t *tableModel) follow() {
+	if t.cursor < t.top {
+		t.top = t.cursor
+	}
+
+	if t.cursor >= t.top+t.height {
+		t.top = t.cursor - t.height + 1
+	}
+
+	t.top = max(t.top, 0)
+}
+
+func (t tableModel) view() string {
+	widths := columnWidths(t.titles, t.rows, t.width)
+
+	out := []string{styleTableHeader.Render(t.line(t.titles, widths))}
+
+	for i := t.top; i < len(t.rows) && i < t.top+t.height; i++ {
+		line := t.line(t.rows[i].cells, widths)
+
+		switch {
+		case i == t.cursor:
+			line = styleSelected.Render(line)
+		case t.rows[i].color != nil:
+			line = lipgloss.NewStyle().Foreground(t.rows[i].color).Render(line)
+		default:
+			line = styleText.Render(line)
+		}
+
+		out = append(out, line)
+	}
+
+	return strings.Join(out, "\n")
+}
+
+// line lays the cells out over the columns and pads the result to the whole
+// width, so that a color reaches the end of the row.
+func (t tableModel) line(cells []string, widths []int) string {
+	parts := make([]string, 0, len(widths))
+	for i, width := range widths {
+		cell := ""
+		if i < len(cells) {
+			cell = cells[i]
+		}
+
+		parts = append(parts, pad(truncate(cell, width), width))
+	}
+
+	line := strings.Repeat(" ", tableIndent) + strings.Join(parts, strings.Repeat(" ", cellGap))
+
+	return pad(ansi.Truncate(line, t.width, "…"), t.width)
+}
+
+// columnWidths gives every column the width of the widest thing in it, then
+// takes width away from the greediest ones until the row fits.
+func columnWidths(titles []string, rows []tableRow, width int) []int {
+	widths := make([]int, len(titles))
+	for i, title := range titles {
+		widths[i] = ansi.StringWidth(title)
+	}
+
+	for _, row := range rows {
+		for i, cell := range row.cells {
+			if i < len(widths) {
+				widths[i] = max(widths[i], ansi.StringWidth(cell))
+			}
+		}
+	}
+
+	for i := range widths {
+		widths[i] = clamp(widths[i], minColumnWidth, maxColumnWidth)
+	}
+
+	shrinkToFit(widths, width-tableIndent-gapsWidth(len(widths)))
+
+	return widths
+}
+
+// shrinkToFit takes from the widest column first, so that the short ones keep
+// what they have.
+func shrinkToFit(widths []int, available int) {
+	for total(widths) > available {
+		widest, index := 0, -1
+		for i, w := range widths {
+			if w > widest {
+				widest, index = w, i
+			}
+		}
+
+		if index < 0 || widths[index] <= minColumnWidth {
+			return
+		}
+
+		widths[index]--
+	}
+}
+
+func gapsWidth(columns int) int {
+	if columns <= 1 {
+		return 0
+	}
+
+	return (columns - 1) * cellGap
+}
+
+func total(widths []int) int {
+	sum := 0
+	for _, w := range widths {
+		sum += w
+	}
+
+	return sum
+}
+
+func clamp(v, low, high int) int {
+	if high < low {
+		return low
+	}
+
+	return min(max(v, low), high)
+}

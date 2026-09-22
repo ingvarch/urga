@@ -39,36 +39,23 @@ func TestJobRows(t *testing.T) {
 	rows := jobRows(jobs)
 	r.Len(rows, 2)
 
-	r.Equal([]string{"web", "web", "service", "production", "running", "3/4", "2h"}, []string(rows[0]))
-	r.Equal([]string{"cron", "cron", "batch", "default", "dead", "0/0", "-"}, []string(rows[1]))
+	r.Equal([]string{"web", "web", "service", "production", "running", "3/4", "2h"}, rows[0].cells)
+	r.Equal([]string{"cron", "cron", "batch", "default", "dead", "0/0", "-"}, rows[1].cells)
 }
 
-func TestJobColumns_FillTheWidth(t *testing.T) {
+func TestJobColor(t *testing.T) {
 	r := require.New(t)
 
-	for _, width := range []int{80, 120, 200} {
-		columns := jobColumns(width)
+	// A service that runs everything it asks for is quiet.
+	r.Nil(jobColor(nomad.Job{Type: "service", Status: "running", Running: 3, Desired: 3}))
 
-		// The columns take the whole width, together with the padding the
-		// table puts around each cell. A column short of it leaves a gap in
-		// the border, one over it wraps the row.
-		total := 0
-		for _, column := range columns {
-			total += column.Width + cellPadding
-		}
+	// One that is short of allocations is not.
+	r.Equal(colorAttention, jobColor(nomad.Job{Type: "service", Status: "running", Running: 2, Desired: 3}))
 
-		r.Equal(width, total, "width %d", width)
-	}
-}
+	r.Equal(colorPending, jobColor(nomad.Job{Type: "service", Status: "pending"}))
+	r.Equal(colorDead, jobColor(nomad.Job{Type: "service", Status: "dead"}))
+	r.Equal(colorDead, jobColor(nomad.Job{Type: "service", Status: "failed"}))
 
-func TestJobColumns_NarrowTerminal(t *testing.T) {
-	r := require.New(t)
-
-	columns := jobColumns(20)
-
-	// Every column keeps a width it can show something in, a negative one
-	// drops the column silently.
-	for _, column := range columns {
-		r.GreaterOrEqual(column.Width, 1, column.Title)
-	}
+	// A batch job that ended did its work, it is not a failure.
+	r.Equal(colorSpent, jobColor(nomad.Job{Type: "batch", Status: "dead"}))
 }

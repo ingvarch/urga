@@ -16,7 +16,7 @@ one; write literals where they belong.
 - Go, module path `github.com/ingvarch/urga` (module path equals repo path, always)
 - Bubble Tea v2 (`charm.land/bubbletea/v2`) for the program loop
 - Lipgloss v2 (`charm.land/lipgloss/v2`) for styles
-- Bubbles v2 (`charm.land/bubbles/v2`) for table, viewport and text input
+- Bubbles v2 (`charm.land/bubbles/v2`) for text input and viewport
 - `github.com/hashicorp/nomad/api` for the cluster
 
 Charm moved the v2 modules to `charm.land/...`. The GitHub path resolves to v1
@@ -41,6 +41,11 @@ hashicorp/damon where the opposite of each one caused a bug that took hours.
    what the open resource can do. Navigation and global keys live in `?`.
 5. **Render functions are pure.** A screen turns state plus a width into a
    string. That is what tests assert on.
+6. **The table is ours** (`internal/ui/table.go`). Every screen is a list that
+   needs three things at once: columns as wide as what is in them, a color per
+   row for the state it is in, and a cursor row that reads. Nesting a cell
+   color inside a highlight leaves the row unreadable, so the cursor row is
+   painted end to end instead.
 
 ## Do not copy damon
 

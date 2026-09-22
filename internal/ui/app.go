@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"charm.land/bubbles/v2/table"
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -65,7 +64,7 @@ type Model struct {
 	height int
 
 	jobs  []nomad.Job
-	table table.Model
+	table tableModel
 
 	nomadVersion string
 	err          error
@@ -85,15 +84,8 @@ func New(client Client, opts Options) Model {
 		client:    client,
 		opts:      opts,
 		namespace: opts.Namespace,
-		table:     newTable(),
+		table:     newTableModel(jobTitles),
 	}
-}
-
-func newTable() table.Model {
-	t := table.New(table.WithFocused(true))
-	t.SetStyles(tableStyles())
-
-	return t
 }
 
 // Init asks the cluster for what the first screen shows.
@@ -154,12 +146,27 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
+
+	case "up", "k":
+		m.table.move(-1)
+
+	case "down", "j":
+		m.table.move(1)
+
+	case "pgup", "ctrl+b":
+		m.table.move(-m.table.height)
+
+	case "pgdown", "ctrl+f":
+		m.table.move(m.table.height)
+
+	case "home", "g":
+		m.table.move(-len(m.table.rows))
+
+	case "end", "G":
+		m.table.move(len(m.table.rows))
 	}
 
-	var cmd tea.Cmd
-	m.table, cmd = m.table.Update(msg)
-
-	return m, cmd
+	return m, nil
 }
 
 // View draws the screen. urga runs in the alternate screen, the terminal
@@ -183,7 +190,7 @@ func (m Model) render() string {
 			nomadVersion: m.nomadVersion,
 			namespace:    m.namespace,
 		}, m.width),
-		frame(jobsTitle(m.namespace, len(m.jobs)), m.table.View(), m.width, m.bodyHeight()),
+		frame(jobsTitle(m.namespace, len(m.jobs)), m.table.view(), m.width, m.bodyHeight()),
 		m.status(),
 	}
 
@@ -209,13 +216,10 @@ func (m *Model) layout() {
 		return
 	}
 
-	m.table.SetColumns(jobColumns(m.width - 2))
-	m.table.SetRows(jobRows(m.jobs))
-	m.table.SetWidth(m.width - 2)
-
-	// The table sits inside the box, minus its two border lines and the
-	// header row of the table itself.
-	m.table.SetHeight(max(m.bodyHeight()-2, 1))
+	// The table sits inside the box: its two border lines and the header row
+	// of the table itself are not rows.
+	m.table.setSize(m.width-2, max(m.bodyHeight()-3, 1))
+	m.table.setRows(jobRows(m.jobs))
 }
 
 func (m Model) schedulePoll() tea.Cmd {
