@@ -32,7 +32,12 @@ func (m Model) describeCmd() tea.Cmd {
 		})
 
 	case screenAllocations:
-		alloc := m.allocs[row]
+		allocs := m.visibleAllocs()
+		if row >= len(allocs) {
+			return nil
+		}
+
+		alloc := allocs[row]
 
 		return describe(fmt.Sprintf("Allocation: %s", shortID(alloc.ID)), func(ctx context.Context) (string, error) {
 			return client.DescribeAllocation(ctx, alloc.Namespace, alloc.ID)

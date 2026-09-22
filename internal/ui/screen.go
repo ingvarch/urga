@@ -25,6 +25,7 @@ const (
 	screenNodePools
 	screenDescribe
 	screenLogs
+	screenTaskGroups
 )
 
 // screenNames label a screen in its title.
@@ -39,6 +40,7 @@ var screenNames = map[screenKind]string{
 	screenNodes:       "Nodes",
 	screenVariables:   "Variables",
 	screenNodePools:   "Node Pools",
+	screenTaskGroups:  "Task Groups",
 }
 
 // clusterWide screens hold what belongs to the cluster, not to a namespace.
@@ -60,6 +62,9 @@ type screen struct {
 	// label titles a screen that is about one thing, like a description.
 	label string
 
+	// taskGroup narrows the allocations to one group of the job.
+	taskGroup string
+
 	// task and source are whose output the log screen follows.
 	task   string
 	source string
@@ -72,6 +77,8 @@ func (s screen) titles() []string {
 		return allocTitles
 	case screenTasks:
 		return taskTitles
+	case screenTaskGroups:
+		return taskGroupTitles
 	case screenDeployments:
 		return deploymentTitles
 	case screenNamespaces:
@@ -101,6 +108,8 @@ func (s screen) hints() []hint {
 		return allocHints
 	case screenTasks:
 		return taskHints
+	case screenTaskGroups:
+		return taskGroupHints
 	case screenLogs:
 		return logHints
 	case screenDeployments, screenServices:
@@ -113,6 +122,7 @@ func (s screen) hints() []hint {
 var (
 	jobHints = []hint{
 		{Key: "<enter>", Description: "Allocations"},
+		{Key: "<t>", Description: "Task groups"},
 		{Key: "<d>", Description: "Describe"},
 		{Key: "<h>", Description: "Job spec"},
 		{Key: "<ctrl-s>", Description: "Start or stop"},
@@ -142,7 +152,14 @@ func (m Model) title() string {
 		return logsTitle(m.screen)
 
 	case screenAllocations:
+		if m.screen.taskGroup != "" {
+			return fmt.Sprintf("Allocations (Group: %s) [%d]", m.screen.taskGroup, count)
+		}
+
 		return fmt.Sprintf("Allocations (Job: %s) [%d]", m.screen.jobID, count)
+
+	case screenTaskGroups:
+		return fmt.Sprintf("Task Groups (Job: %s) [%d]", m.screen.jobID, count)
 
 	case screenTasks:
 		return fmt.Sprintf("Tasks (Allocation: %s) [%d]", shortID(m.screen.allocID), count)
@@ -161,9 +178,11 @@ func (m Model) title() string {
 func (m Model) rows() []tableRow {
 	switch m.screen.kind {
 	case screenAllocations:
-		return allocRows(m.allocs)
+		return allocRows(m.visibleAllocs())
 	case screenTasks:
 		return taskRows(m.tasks())
+	case screenTaskGroups:
+		return taskGroupRows(m.groups)
 	case screenDeployments:
 		return deploymentRows(m.deployments)
 	case screenNamespaces:
@@ -193,6 +212,11 @@ func (m Model) fetch() tea.Cmd {
 		return fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
 			return client.Allocations(ctx, screen.namespace, screen.jobID)
 		}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
+
+	case screenTaskGroups:
+		return fetchList(func(ctx context.Context) ([]nomad.TaskGroup, error) {
+			return client.TaskGroups(ctx, screen.namespace, screen.jobID)
+		}, func(items []nomad.TaskGroup) tea.Msg { return taskGroupsMsg(items) })
 
 	case screenTasks:
 		// The tasks are part of the allocation, the screen under them polls.
@@ -276,11 +300,12 @@ func (m Model) open() (Model, tea.Cmd) {
 		return m.push(screen{kind: screenAllocations, namespace: job.Namespace, jobID: job.ID})
 
 	case screenAllocations:
-		if row >= len(m.allocs) {
+		allocs := m.visibleAllocs()
+		if row >= len(allocs) {
 			return m, nil
 		}
 
-		alloc := m.allocs[row]
+		alloc := allocs[row]
 
 		return m.push(screen{
 			kind:      screenTasks,
@@ -291,6 +316,20 @@ func (m Model) open() (Model, tea.Cmd) {
 
 	case screenTasks:
 		return m.openLogs(nomad.LogStdout)
+
+	case screenTaskGroups:
+		if row >= len(m.groups) {
+			return m, nil
+		}
+
+		group := m.groups[row]
+
+		return m.push(screen{
+			kind:      screenAllocations,
+			namespace: m.screen.namespace,
+			jobID:     group.JobID,
+			taskGroup: group.Name,
+		})
 	}
 
 	return m, nil
@@ -348,6 +387,23 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m.layout()
 
 	return m, m.fetch()
+}
+
+// visibleAllocs are the allocations the screen was opened for: all of a job,
+// or only those of one task group.
+func (m Model) visibleAllocs() []nomad.Alloc {
+	if m.screen.taskGroup == "" {
+		return m.allocs
+	}
+
+	kept := make([]nomad.Alloc, 0, len(m.allocs))
+	for _, alloc := range m.allocs {
+		if alloc.TaskGroup == m.screen.taskGroup {
+			kept = append(kept, alloc)
+		}
+	}
+
+	return kept
 }
 
 // tasks are the tasks of the allocation the tasks screen was opened for.

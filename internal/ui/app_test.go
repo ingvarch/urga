@@ -18,6 +18,7 @@ import (
 type fakeClient struct {
 	jobs        []nomad.Job
 	allocs      []nomad.Alloc
+	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
 	namespaces  []nomad.Namespace
 	services    []nomad.Service
@@ -156,6 +157,12 @@ func (f *fakeClient) StopAllocation(_ context.Context, namespace, allocID string
 	f.stoppedAllocs++
 
 	return f.actionErr
+}
+
+func (f *fakeClient) TaskGroups(_ context.Context, namespace, jobID string) ([]nomad.TaskGroup, error) {
+	f.askedNamespace, f.askedID = namespace, jobID
+
+	return f.groups, f.err
 }
 
 func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {

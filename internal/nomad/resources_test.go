@@ -186,3 +186,31 @@ func TestNodePools_Read(t *testing.T) {
 	r.Equal("the default pool", pools[0].Description)
 	r.Equal("binpack", pools[0].Scheduler)
 }
+
+func TestTaskGroups_Read(t *testing.T) {
+	r := require.New(t)
+
+	// The job says what it asks for, the summary says what is running. Both
+	// come from the same answer here.
+	client, asked := recorder(t, `{
+		"ID": "web",
+		"TaskGroups": [{"Name": "frontend", "Count": 3}, {"Name": "backend", "Count": 1}],
+		"Summary": {"frontend": {"Running": 2, "Starting": 1}, "backend": {"Running": 1}}
+	}`)
+
+	groups, err := client.TaskGroups(context.Background(), "production", "web")
+	r.NoError(err)
+	r.Len(groups, 2)
+
+	r.Equal("/v1/job/web/summary", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+
+	r.Equal("frontend", groups[0].Name)
+	r.Equal("web", groups[0].JobID)
+	r.Equal(3, groups[0].Count)
+	r.Equal(2, groups[0].Running)
+	r.Equal(1, groups[0].Starting)
+
+	r.Equal("backend", groups[1].Name)
+	r.Equal(1, groups[1].Count)
+}

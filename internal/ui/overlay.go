@@ -28,15 +28,28 @@ const (
 	filterPrefix = "/"
 )
 
+// promptAction is what the line does when it is committed.
+type promptAction int
+
+const (
+	promptCommand promptAction = iota
+	promptFilter
+	promptScale
+)
+
 // promptModel is the line at the top: a prefix, what was typed, and the rest
 // of the word the prompt would complete.
 type promptModel struct {
 	prefix string
 	text   string
+	action promptAction
+
+	// group is the task group a count belongs to.
+	group string
 }
 
 func (p promptModel) suggestion() string {
-	if p.prefix != promptPrefix {
+	if p.action != promptCommand {
 		return ""
 	}
 
@@ -55,12 +68,11 @@ func (p promptModel) view(width int) string {
 // openPrompt puts the command line up.
 func (m Model) openPrompt(prefix string) (Model, tea.Cmd) {
 	m.overlay = overlayPrompt
+	m.prompt = promptModel{prefix: prefix}
+
 	if prefix == filterPrefix {
 		m.overlay = overlayFilter
-	}
-
-	m.prompt = promptModel{prefix: prefix}
-	if m.overlay == overlayFilter {
+		m.prompt.action = promptFilter
 		m.prompt.text = m.filter
 	}
 
@@ -119,14 +131,19 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 // commit does what the line says.
 func (m Model) commit() (Model, tea.Cmd) {
 	input := m.prompt.text
+	action, group := m.prompt.action, m.prompt.group
 
-	if m.overlay == overlayFilter {
+	if action == promptFilter {
 		m.filter = input
 
 		return m.closePrompt()
 	}
 
 	m, _ = m.closePrompt()
+
+	if action == promptScale {
+		return m.scaleTo(group, input)
+	}
 
 	cmd, ok := parseCommand(input)
 	if !ok {

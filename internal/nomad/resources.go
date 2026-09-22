@@ -228,3 +228,56 @@ func (c *Client) NodePools(ctx context.Context) ([]NodePool, error) {
 
 	return out, nil
 }
+
+// TaskGroup is one group of a job: how many allocations it asks for and how
+// many of them are up.
+type TaskGroup struct {
+	Name  string
+	JobID string
+	Count int
+
+	Running  int
+	Starting int
+	Queued   int
+	Complete int
+	Failed   int
+	Lost     int
+}
+
+// TaskGroups lists the groups of a job with what the cluster made of them.
+func (c *Client) TaskGroups(ctx context.Context, namespace, jobID string) ([]TaskGroup, error) {
+	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	summary, _, err := c.api.Jobs().Summary(jobID, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	groups := make([]TaskGroup, 0, len(job.TaskGroups))
+	for _, group := range job.TaskGroups {
+		if group == nil || group.Name == nil {
+			continue
+		}
+
+		tg := TaskGroup{Name: *group.Name, JobID: jobID}
+
+		if group.Count != nil {
+			tg.Count = *group.Count
+		}
+
+		if summary != nil {
+			if s, ok := summary.Summary[tg.Name]; ok {
+				tg.Running, tg.Starting = s.Running, s.Starting
+				tg.Queued, tg.Complete = s.Queued, s.Complete
+				tg.Failed, tg.Lost = s.Failed, s.Lost
+			}
+		}
+
+		groups = append(groups, tg)
+	}
+
+	return groups, nil
+}

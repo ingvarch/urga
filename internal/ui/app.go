@@ -26,6 +26,8 @@ type Client interface {
 	JobSpec(ctx context.Context, namespace, jobID string) (string, error)
 	Logs(ctx context.Context, namespace, allocID, task, source string) (*nomad.LogStream, error)
 
+	TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
+
 	StartJob(ctx context.Context, namespace, jobID string) error
 	StopJob(ctx context.Context, namespace, jobID string) error
 	RevertJob(ctx context.Context, namespace, jobID string) error
@@ -76,6 +78,7 @@ const (
 type (
 	jobsMsg        []nomad.Job
 	allocsMsg      []nomad.Alloc
+	taskGroupsMsg  []nomad.TaskGroup
 	deploymentsMsg []nomad.Deployment
 	namespacesMsg  []nomad.Namespace
 	servicesMsg    []nomad.Service
@@ -123,6 +126,7 @@ type Model struct {
 
 	jobs        []nomad.Job
 	allocs      []nomad.Alloc
+	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
 	namespaces  []nomad.Namespace
 	services    []nomad.Service
@@ -199,6 +203,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case allocsMsg:
 		return m.applyList(screenAllocations, func(m *Model) { m.allocs = msg })
+
+	case taskGroupsMsg:
+		return m.applyList(screenTaskGroups, func(m *Model) { m.groups = msg })
 
 	case deploymentsMsg:
 		return m.applyList(screenDeployments, func(m *Model) { m.deployments = msg })
@@ -327,6 +334,12 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	case "ctrl+s":
 		return m.startStopJob()
+
+	case "t":
+		return m.openTaskGroups()
+
+	case "s":
+		return m.scaleGroup()
 
 	case "u":
 		return m.revertJob()

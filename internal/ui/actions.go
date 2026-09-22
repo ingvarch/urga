@@ -128,7 +128,12 @@ func (m Model) restartAllocation() (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	alloc := m.allocs[row]
+	allocs := m.visibleAllocs()
+	if row >= len(allocs) {
+		return m, nil
+	}
+
+	alloc := allocs[row]
 	client := m.client
 	short := shortID(alloc.ID)
 
@@ -148,7 +153,12 @@ func (m Model) stopAllocation() (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	alloc := m.allocs[row]
+	allocs := m.visibleAllocs()
+	if row >= len(allocs) {
+		return m, nil
+	}
+
+	alloc := allocs[row]
 	client := m.client
 	short := shortID(alloc.ID)
 
