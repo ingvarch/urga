@@ -33,6 +33,25 @@ func drain(m Model, cmd tea.Cmd) Model {
 	return m
 }
 
+// follow runs a chain of commands the way the program loop does, for at most
+// a few steps, which is enough for one action to run its course.
+func follow(m Model, cmd tea.Cmd, steps int) Model {
+	for range steps {
+		if cmd == nil {
+			return m
+		}
+
+		msg := cmd()
+		if msg == nil {
+			return m
+		}
+
+		m, cmd = m.update(msg)
+	}
+
+	return m
+}
+
 func TestClusterToScreen(t *testing.T) {
 	r := require.New(t)
 

@@ -27,10 +27,15 @@ type fakeClient struct {
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
 
-	describe string
-	spec     string
-	logs     *nomad.LogStream
-	usage    nomad.Usage
+	describe      string
+	spec          string
+	logs          *nomad.LogStream
+	usage         nomad.Usage
+	namespaceSpec string
+
+	submitted           int
+	submittedSource     string
+	submittedNamespaces int
 
 	stopped       int
 	started       int
@@ -164,6 +169,26 @@ func (f *fakeClient) TaskGroups(_ context.Context, namespace, jobID string) ([]n
 	f.askedNamespace, f.askedID = namespace, jobID
 
 	return f.groups, f.err
+}
+
+func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string) error {
+	f.askedNamespace, f.submittedSource = namespace, source
+	f.submitted++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) NamespaceSpec(_ context.Context, name string) (string, error) {
+	f.askedID = name
+
+	return f.namespaceSpec, f.err
+}
+
+func (f *fakeClient) SubmitNamespace(_ context.Context, source string) error {
+	f.submittedSource = source
+	f.submittedNamespaces++
+
+	return f.actionErr
 }
 
 func (f *fakeClient) Usage(context.Context) (nomad.Usage, error) {

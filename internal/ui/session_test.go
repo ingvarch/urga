@@ -2,6 +2,7 @@ package ui
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -17,7 +18,7 @@ func sessionModel(t *testing.T, client Client) (Model, *config.Config) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 
-	m := New(client, Options{Namespace: "production", Version: "v-test", Config: cfg})
+	m := New(client, Options{Namespace: "production", Version: "v-test", Config: cfg, PollEvery: time.Millisecond})
 	m, _ = m.update(sizeMsg())
 
 	return m, cfg
@@ -76,7 +77,7 @@ func TestSession_StartsWhereItStopped(t *testing.T) {
 	cfg.Screen = "nodes"
 	cfg.Namespaces = []string{"staging", "default"}
 
-	m := New(&fakeClient{}, Options{Namespace: "production", Version: "v-test", Config: cfg})
+	m := New(&fakeClient{}, Options{Namespace: "production", Version: "v-test", Config: cfg, PollEvery: time.Millisecond})
 	m, _ = m.update(sizeMsg())
 
 	// The session comes back where it was left, keys and all.

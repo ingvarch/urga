@@ -114,6 +114,8 @@ func (s screen) hints() []hint {
 		return logHints
 	case screenDeployments, screenServices:
 		return describeHints
+	case screenNamespaces:
+		return namespaceHints
 	default:
 		return nil
 	}
@@ -127,6 +129,7 @@ var (
 		{Key: "<h>", Description: "Job spec"},
 		{Key: "<ctrl-s>", Description: "Start or stop"},
 		{Key: "<u>", Description: "Revert"},
+		{Key: "<e>", Description: "Edit"},
 	}
 
 	allocHints = []hint{
@@ -137,6 +140,8 @@ var (
 	}
 
 	describeHints = []hint{{Key: "<d>", Description: "Describe"}}
+
+	namespaceHints = []hint{{Key: "<e>", Description: "Edit"}}
 )
 
 // title labels the box with what it holds and how much of it. The count is

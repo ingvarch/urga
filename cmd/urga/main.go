@@ -48,6 +48,7 @@ func run() error {
 		Namespace: namespaceOrAll(*namespace),
 		Version:   version.Current(),
 		Config:    cfg,
+		Editor:    ui.NewEditor(),
 	})
 
 	_, err = tea.NewProgram(model).Run()

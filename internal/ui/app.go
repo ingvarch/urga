@@ -31,6 +31,10 @@ type Client interface {
 
 	TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
 
+	SubmitJob(ctx context.Context, namespace, source string) error
+	NamespaceSpec(ctx context.Context, name string) (string, error)
+	SubmitNamespace(ctx context.Context, source string) error
+
 	StartJob(ctx context.Context, namespace, jobID string) error
 	StopJob(ctx context.Context, namespace, jobID string) error
 	RevertJob(ctx context.Context, namespace, jobID string) error
@@ -63,6 +67,10 @@ type Options struct {
 
 	// Config is what the last session left behind. It may be nil.
 	Config *config.Config
+
+	// Editor hands a resource to the editor of the user. It may be nil,
+	// and editing then says so.
+	Editor Editor
 }
 
 const (
@@ -128,6 +136,9 @@ type Model struct {
 
 	// said is what came of the last action.
 	said string
+
+	// editing is the file that is open in the editor.
+	editing editFileMsg
 
 	// index maps a row of the table back to the resource it came from, which
 	// the filter shifts.
@@ -274,6 +285,12 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case describeMsg:
 		return m.showDescribe(msg)
 
+	case editFileMsg:
+		return m.startEdit(msg)
+
+	case editedMsg:
+		return m.finishEdit(msg)
+
 	case logStreamMsg:
 		m.stream = msg.stream
 
@@ -360,6 +377,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	case "ctrl+s":
 		return m.startStopJob()
+
+	case "e":
+		return m.edit()
 
 	case "t":
 		return m.openTaskGroups()
