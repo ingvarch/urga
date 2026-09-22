@@ -10,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
@@ -57,6 +58,9 @@ type Options struct {
 
 	// Timeout is how long one request may take.
 	Timeout time.Duration
+
+	// Config is what the last session left behind. It may be nil.
+	Config *config.Config
 }
 
 const (
@@ -156,13 +160,15 @@ func New(client Client, opts Options) Model {
 		opts.Timeout = defaultTimeout
 	}
 
-	return Model{
+	m := Model{
 		client:    client,
 		opts:      opts,
 		namespace: opts.Namespace,
 		screen:    screen{kind: screenJobs, namespace: opts.Namespace},
 		table:     newTableModel(jobTitles),
 	}
+
+	return m.restore()
 }
 
 // Init asks the cluster for what the first screen shows, and for what the
@@ -216,7 +222,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.namespaces = msg
 		m.rememberNamespaces(msg)
 
-		return m.applyList(screenNamespaces, func(*Model) {})
+		next, cmd := m.applyList(screenNamespaces, func(*Model) {})
+
+		return next, tea.Batch(cmd, next.remember())
 
 	case servicesMsg:
 		return m.applyList(screenServices, func(m *Model) { m.services = msg })

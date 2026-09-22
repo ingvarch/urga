@@ -361,7 +361,9 @@ func (m Model) push(next screen) (Model, tea.Cmd) {
 	m.screen = next
 	m.err = nil
 
-	return m.enter()
+	entered, cmd := m.enter()
+
+	return entered, tea.Batch(cmd, entered.remember())
 }
 
 // back is where escape goes.

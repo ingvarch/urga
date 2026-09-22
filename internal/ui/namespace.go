@@ -52,7 +52,9 @@ func (m Model) switchNamespace(namespace string) (Model, tea.Cmd) {
 	m.screen.namespace = namespace
 	m.filter = ""
 
-	return m.enter()
+	next, cmd := m.enter()
+
+	return next, tea.Batch(cmd, next.remember())
 }
 
 // namespaceColumnData is what the header shows for the number keys.

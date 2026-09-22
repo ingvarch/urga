@@ -1,0 +1,100 @@
+package config_test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/ingvarch/urga/internal/config"
+)
+
+func TestConfig_RoundTrip(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load()
+	r.NoError(err)
+	r.Nil(cfg.Namespace)
+	r.Empty(cfg.Screen)
+
+	cfg.UseNamespace("production")
+	cfg.Screen = "deployments"
+	cfg.Namespaces = []string{"production", "staging"}
+
+	r.NoError(cfg.Save())
+
+	again, err := config.Load()
+	r.NoError(err)
+
+	r.Equal("production", *again.Namespace)
+	r.Equal("deployments", again.Screen)
+	r.Equal([]string{"production", "staging"}, again.Namespaces)
+}
+
+func TestConfig_AllNamespacesSurvives(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	// Every namespace at once is a choice, not the absence of one. A session
+	// that ends there comes back there.
+	cfg.UseNamespace("*")
+	r.NoError(cfg.Save())
+
+	again, err := config.Load()
+	r.NoError(err)
+
+	r.NotNil(again.Namespace)
+	r.Equal("*", *again.Namespace)
+}
+
+func TestConfig_UseNamespaceKeepsTheOrder(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	cfg.Remember([]string{"default", "production", "staging"})
+	cfg.Remember([]string{"staging", "default", "production"})
+
+	// The keys keep pointing at the same namespaces whatever order the
+	// cluster answers in.
+	r.Equal([]string{"default", "production", "staging"}, cfg.Namespaces)
+}
+
+func TestConfig_MissingFileIsNoError(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "nothing", "here"))
+
+	cfg, err := config.Load()
+
+	// A first run has nothing to read, and that is not a failure.
+	r.NoError(err)
+	r.NotNil(cfg)
+}
+
+func TestConfig_BrokenFileIsNoError(t *testing.T) {
+	r := require.New(t)
+
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", home)
+
+	r.NoError(os.MkdirAll(filepath.Join(home, "urga"), 0o755))
+	r.NoError(os.WriteFile(filepath.Join(home, "urga", "config.json"), []byte("{not json"), 0o600))
+
+	cfg, err := config.Load()
+
+	// A file that cannot be read starts the session fresh instead of
+	// stopping it.
+	r.NoError(err)
+	r.Nil(cfg.Namespace)
+}

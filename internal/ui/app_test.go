@@ -208,6 +208,10 @@ func twoJobs() []nomad.Job {
 	}
 }
 
+func sizeMsg() tea.WindowSizeMsg {
+	return tea.WindowSizeMsg{Width: 120, Height: 30}
+}
+
 func newTestModel(client Client) Model {
 	m := New(client, Options{Namespace: "production", Version: "v-test", PollEvery: time.Millisecond})
 	m, _ = m.update(tea.WindowSizeMsg{Width: 120, Height: 30})

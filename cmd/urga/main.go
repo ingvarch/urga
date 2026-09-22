@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
 	"github.com/ingvarch/urga/internal/ui"
 	"github.com/ingvarch/urga/internal/version"
@@ -36,9 +37,17 @@ func run() error {
 		return err
 	}
 
+	// What the last session was looking at. A session that cannot be read
+	// starts fresh.
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+
 	model := ui.New(client, ui.Options{
 		Namespace: namespaceOrAll(*namespace),
 		Version:   version.Current(),
+		Config:    cfg,
 	})
 
 	_, err = tea.NewProgram(model).Run()
