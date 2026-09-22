@@ -49,6 +49,7 @@ func run() error {
 		Version:   version.Current(),
 		Config:    cfg,
 		Editor:    ui.NewEditor(),
+		Shell:     ui.NewShell(client),
 	})
 
 	_, err = tea.NewProgram(model).Run()

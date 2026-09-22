@@ -133,4 +133,5 @@ var logHints = []hint{
 var taskHints = []hint{
 	{Key: "<enter>", Description: "Logs"},
 	{Key: "<ctrl-e>", Description: "Logs (stderr)"},
+	{Key: "<s>", Description: "Shell"},
 }

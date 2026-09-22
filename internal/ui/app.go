@@ -71,6 +71,9 @@ type Options struct {
 	// Editor hands a resource to the editor of the user. It may be nil,
 	// and editing then says so.
 	Editor Editor
+
+	// Shell runs a shell inside a task. It may be nil.
+	Shell Shell
 }
 
 const (
@@ -291,6 +294,17 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case editedMsg:
 		return m.finishEdit(msg)
 
+	case shellDoneMsg:
+		if msg.err != nil {
+			m.err = msg.err
+
+			return m, nil
+		}
+
+		m.said = fmt.Sprintf("Shell in %s closed.", msg.task)
+
+		return m, nil
+
 	case logStreamMsg:
 		m.stream = msg.stream
 
@@ -385,6 +399,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.openTaskGroups()
 
 	case "s":
+		if m.screen.kind == screenTasks {
+			return m.shell()
+		}
+
 		return m.scaleGroup()
 
 	case "u":
