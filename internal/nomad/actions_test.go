@@ -105,3 +105,56 @@ func TestScaleJob(t *testing.T) {
 	r.Equal("/v1/job/web/scale", asked.URL.Path)
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 }
+
+func TestDrainNode(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := writeRecorder(t, `{"NodeModifyIndex": 7}`)
+
+	r.NoError(client.DrainNode(context.Background(), "node-1", true))
+
+	r.Equal("/v1/node/node-1/drain", asked.URL.Path)
+}
+
+func TestDrainNode_Stop(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := writeRecorder(t, `{"NodeModifyIndex": 7}`)
+
+	// Stopping a drain puts the node back to taking work, otherwise it sits
+	// there empty and nobody notices.
+	r.NoError(client.DrainNode(context.Background(), "node-1", false))
+
+	r.Equal("/v1/node/node-1/drain", asked.URL.Path)
+}
+
+func TestNodeEligibility(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := writeRecorder(t, `{"NodeModifyIndex": 7}`)
+
+	r.NoError(client.SetNodeEligible(context.Background(), "node-1", false))
+
+	r.Equal("/v1/node/node-1/eligibility", asked.URL.Path)
+}
+
+func TestPromoteDeployment(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := writeRecorder(t, `{"EvalID": "eval-1"}`)
+
+	r.NoError(client.PromoteDeployment(context.Background(), "production", "dep-1"))
+
+	r.Equal("/v1/deployment/promote/dep-1", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+}
+
+func TestFailDeployment(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := writeRecorder(t, `{"EvalID": "eval-1"}`)
+
+	r.NoError(client.FailDeployment(context.Background(), "production", "dep-1"))
+
+	r.Equal("/v1/deployment/fail/dep-1", asked.URL.Path)
+}

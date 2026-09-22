@@ -112,7 +112,11 @@ func (s screen) hints() []hint {
 		return taskGroupHints
 	case screenLogs:
 		return logHints
-	case screenDeployments, screenServices:
+	case screenDeployments:
+		return deploymentHints
+	case screenNodes:
+		return nodeHints
+	case screenServices:
 		return describeHints
 	case screenNamespaces:
 		return namespaceHints
@@ -338,6 +342,16 @@ func (m Model) open() (Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// selectedDeployment is the deployment the cursor is on.
+func (m Model) selectedDeployment() (nomad.Deployment, bool) {
+	row, ok := m.selectedIndex()
+	if !ok || m.screen.kind != screenDeployments || row >= len(m.deployments) {
+		return nomad.Deployment{}, false
+	}
+
+	return m.deployments[row], true
 }
 
 // selectedIndex is the resource the cursor is on. The filter shifts the rows,

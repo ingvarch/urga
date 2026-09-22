@@ -44,6 +44,10 @@ type Client interface {
 	ScaleJob(ctx context.Context, namespace, jobID, group string, count int) error
 	RestartAllocation(ctx context.Context, namespace, allocID string) error
 	StopAllocation(ctx context.Context, namespace, allocID string) error
+	DrainNode(ctx context.Context, nodeID string, drain bool) error
+	SetNodeEligible(ctx context.Context, nodeID string, eligible bool) error
+	PromoteDeployment(ctx context.Context, namespace, deploymentID string) error
+	FailDeployment(ctx context.Context, namespace, deploymentID string) error
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 	Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error)
 	Namespaces(ctx context.Context) ([]nomad.Namespace, error)
@@ -444,6 +448,18 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	case "ctrl+k":
 		return m.stopAllocation()
+
+	case "ctrl+d":
+		return m.drainNode()
+
+	case "i":
+		return m.toggleEligibility()
+
+	case "p":
+		return m.promoteDeployment()
+
+	case "f":
+		return m.failDeployment()
 
 	case "d":
 		return m, m.describeCmd()

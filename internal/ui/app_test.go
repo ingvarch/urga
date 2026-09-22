@@ -44,6 +44,12 @@ type fakeClient struct {
 	restarted     int
 	stoppedAllocs int
 	reverted      int
+	drained       bool
+	drainCalls    int
+	eligible      bool
+	eligibleCalls int
+	promoted      int
+	failed        int
 	scaled        int
 	scaledTo      int
 	actionErr     error
@@ -189,6 +195,34 @@ func (f *fakeClient) NamespaceSpec(_ context.Context, name string) (string, erro
 func (f *fakeClient) SubmitNamespace(_ context.Context, source string) error {
 	f.submittedSource = source
 	f.submittedNamespaces++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) DrainNode(_ context.Context, nodeID string, drain bool) error {
+	f.askedID, f.drained = nodeID, drain
+	f.drainCalls++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) SetNodeEligible(_ context.Context, nodeID string, eligible bool) error {
+	f.askedID, f.eligible = nodeID, eligible
+	f.eligibleCalls++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) PromoteDeployment(_ context.Context, namespace, deploymentID string) error {
+	f.askedNamespace, f.askedID = namespace, deploymentID
+	f.promoted++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) FailDeployment(_ context.Context, namespace, deploymentID string) error {
+	f.askedNamespace, f.askedID = namespace, deploymentID
+	f.failed++
 
 	return f.actionErr
 }
