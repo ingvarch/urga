@@ -19,13 +19,22 @@ type hint struct {
 	Description string
 }
 
-// header is what the top of the screen shows: where we are and what this
-// screen can do. Keys that work everywhere are not here, they are in help.
+// namespaceKey is one namespace the number keys switch to.
+type namespaceKey struct {
+	Key    string
+	Name   string
+	Active bool
+}
+
+// header is what the top of the screen shows: where we are, which namespace
+// a number key switches to, and what this screen can do. Keys that work
+// everywhere are not here, they are in help.
 type header struct {
 	address      string
 	version      string
 	nomadVersion string
 	namespace    string
+	namespaces   []namespaceKey
 	hints        []hint
 }
 
@@ -40,14 +49,28 @@ func renderHeader(h header, width int) string {
 	}
 
 	info := infoColumn(h, infoWidth(rest))
-	hints := hintColumns(h.hints, rest-ansi.StringWidth(firstLine(info))-columnGap)
+	keys := namespaceColumn(h.namespaces)
+
+	// Every column is a block of the same width from top to bottom, so the
+	// one next to it starts where it says it does.
+	infoWide, keysWide := blockWidth(info), blockWidth(keys)
+
+	taken := infoWide + keysWide + 2*columnGap
+	hints := hintColumns(h.hints, rest-taken)
 
 	rows := make([]string, 0, headerHeight)
 	for i := 0; i < headerHeight; i++ {
-		row := lineAt(info, i)
+		row := pad(lineAt(info, i), infoWide)
+
+		if keys != "" {
+			row += strings.Repeat(" ", columnGap) + pad(lineAt(keys, i), keysWide)
+		}
+
 		if hint := lineAt(hints, i); hint != "" {
 			row += strings.Repeat(" ", columnGap) + hint
 		}
+
+		row = strings.TrimRight(row, " ")
 
 		row = ansi.Truncate(row, rest, "…")
 
@@ -93,8 +116,51 @@ func infoColumn(h header, width int) string {
 	return strings.Join(out, "\n")
 }
 
-// hintColumns lays the keys out in columns of headerHeight rows, the way a
-// key list reads.
+// namespaceColumn is the list of namespaces a number key switches to. The one
+// in use is lit up.
+func namespaceColumn(keys []namespaceKey) string {
+	if len(keys) == 0 {
+		return ""
+	}
+
+	keyWidth, nameWidth := 0, 0
+	for _, key := range keys {
+		keyWidth = max(keyWidth, ansi.StringWidth(key.Key))
+		nameWidth = max(nameWidth, ansi.StringWidth(key.Name))
+	}
+
+	cells := make([]string, 0, len(keys))
+	for _, key := range keys {
+		name := styleMuted.Render(pad(key.Name, nameWidth))
+		if key.Active {
+			name = styleKey.Render(pad(key.Name, nameWidth))
+		}
+
+		cells = append(cells, styleLabel.Render(pad(key.Key, keyWidth))+" "+name)
+	}
+
+	return grid(cells, headerHeight)
+}
+
+// grid lays cells into columns of the given height, the way a key list reads:
+// down the column first, then on to the next one.
+func grid(cells []string, height int) string {
+	rows := make([]string, height)
+
+	for i, cell := range cells {
+		row := i % height
+
+		if rows[row] != "" {
+			rows[row] += strings.Repeat(" ", columnGap)
+		}
+
+		rows[row] += cell
+	}
+
+	return strings.Join(rows, "\n")
+}
+
+// hintColumns lays the keys of the screen out the same way.
 func hintColumns(hints []hint, width int) string {
 	if len(hints) == 0 || width <= 0 {
 		return ""
@@ -106,18 +172,13 @@ func hintColumns(hints []hint, width int) string {
 		descriptionWidth = max(descriptionWidth, ansi.StringWidth(h.Description))
 	}
 
-	rows := make([]string, headerHeight)
-	for i, h := range hints {
-		row := i % headerHeight
-
-		if rows[row] != "" {
-			rows[row] += strings.Repeat(" ", columnGap)
-		}
-
-		rows[row] += styleKey.Render(pad(h.Key, keyWidth)) +
-			" " + styleValue.Render(pad(h.Description, descriptionWidth))
+	cells := make([]string, 0, len(hints))
+	for _, h := range hints {
+		cells = append(cells,
+			styleKey.Render(pad(h.Key, keyWidth))+" "+styleValue.Render(pad(h.Description, descriptionWidth)))
 	}
 
+	rows := strings.Split(grid(cells, headerHeight), "\n")
 	for i, row := range rows {
 		rows[i] = ansi.Truncate(row, width, "…")
 	}
@@ -142,6 +203,16 @@ func lineAt(block string, i int) string {
 	return rows[i]
 }
 
-func firstLine(block string) string {
-	return lineAt(block, 0)
+// blockWidth is the width of the widest line of a block.
+func blockWidth(block string) int {
+	if block == "" {
+		return 0
+	}
+
+	width := 0
+	for _, line := range strings.Split(block, "\n") {
+		width = max(width, ansi.StringWidth(line))
+	}
+
+	return width
 }

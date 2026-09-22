@@ -29,6 +29,18 @@ func frame(title, body string, width, height int) string {
 	return strings.Join(rows, "\n")
 }
 
+// indent moves a block in from the left edge.
+func indent(block string, by int) string {
+	prefix := strings.Repeat(" ", by)
+
+	rows := strings.Split(block, "\n")
+	for i, row := range rows {
+		rows[i] = prefix + row
+	}
+
+	return strings.Join(rows, "\n")
+}
+
 // titleBorder centers the title in a line of dashes.
 func titleBorder(title string, width int) string {
 	if title == "" {

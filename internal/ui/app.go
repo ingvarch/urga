@@ -19,6 +19,14 @@ type Client interface {
 	Address() string
 	Version(ctx context.Context) (string, error)
 	Jobs(ctx context.Context, namespace string) ([]nomad.Job, error)
+	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
+	Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error)
+	Namespaces(ctx context.Context) ([]nomad.Namespace, error)
+	Services(ctx context.Context, namespace string) ([]nomad.Service, error)
+	Evaluations(ctx context.Context, namespace string) ([]nomad.Evaluation, error)
+	Nodes(ctx context.Context) ([]nomad.Node, error)
+	Variables(ctx context.Context, namespace string) ([]nomad.Variable, error)
+	NodePools(ctx context.Context) ([]nomad.NodePool, error)
 }
 
 // Options are what the session starts with.
@@ -41,12 +49,28 @@ const (
 	defaultTimeout   = 10 * time.Second
 
 	statusHeight = 1
+
+	// The screen keeps its distance from the edges of the terminal: a line
+	// of air on top, the box one column in, the text of the header and the
+	// status line one further.
+	screenPadTop = 1
+	screenPadX   = 1
+	headerPadX   = 2
 )
 
 // Messages. Every answer from the cluster arrives as one of these, the model
 // changes nowhere else.
 type (
-	jobsMsg    []nomad.Job
+	jobsMsg        []nomad.Job
+	allocsMsg      []nomad.Alloc
+	deploymentsMsg []nomad.Deployment
+	namespacesMsg  []nomad.Namespace
+	servicesMsg    []nomad.Service
+	evaluationsMsg []nomad.Evaluation
+	nodesMsg       []nomad.Node
+	variablesMsg   []nomad.Variable
+	nodePoolsMsg   []nomad.NodePool
+
 	versionMsg string
 	errMsg     struct{ err error }
 	pollMsg    struct{}
@@ -63,7 +87,33 @@ type Model struct {
 	width  int
 	height int
 
-	jobs  []nomad.Job
+	// screen is what the body shows, history is where escape goes back to.
+	screen  screen
+	history []screen
+
+	// overlay is who holds the keyboard: the screen, the command line or
+	// the help window.
+	overlay overlay
+	prompt  promptModel
+	filter  string
+
+	// index maps a row of the table back to the resource it came from, which
+	// the filter shifts.
+	index []int
+
+	// namespaceOrder is which namespace each number key stands for.
+	namespaceOrder []string
+
+	jobs        []nomad.Job
+	allocs      []nomad.Alloc
+	deployments []nomad.Deployment
+	namespaces  []nomad.Namespace
+	services    []nomad.Service
+	evaluations []nomad.Evaluation
+	nodes       []nomad.Node
+	variables   []nomad.Variable
+	nodePools   []nomad.NodePool
+
 	table tableModel
 
 	nomadVersion string
@@ -84,15 +134,20 @@ func New(client Client, opts Options) Model {
 		client:    client,
 		opts:      opts,
 		namespace: opts.Namespace,
+		screen:    screen{kind: screenJobs, namespace: opts.Namespace},
 		table:     newTableModel(jobTitles),
 	}
 }
 
-// Init asks the cluster for what the first screen shows.
+// Init asks the cluster for what the first screen shows, and for what the
+// session needs whatever is open.
 func (m Model) Init() tea.Cmd {
+	client := m.client
+
 	return tea.Batch(
-		fetchJobs(m.client, m.namespace),
-		fetchVersion(m.client),
+		m.fetch(),
+		fetchVersion(client),
+		fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
 	)
 }
 
@@ -116,11 +171,36 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.handleKey(msg)
 
 	case jobsMsg:
-		m.jobs = msg
-		m.err = nil
-		m.layout()
+		return m.applyList(screenJobs, func(m *Model) { m.jobs = msg })
 
-		return m, m.schedulePoll()
+	case allocsMsg:
+		return m.applyList(screenAllocations, func(m *Model) { m.allocs = msg })
+
+	case deploymentsMsg:
+		return m.applyList(screenDeployments, func(m *Model) { m.deployments = msg })
+
+	case namespacesMsg:
+		// The namespaces are kept whatever is on the screen: the command
+		// line and the number keys need the list to switch between them.
+		m.namespaces = msg
+		m.rememberNamespaces(msg)
+
+		return m.applyList(screenNamespaces, func(*Model) {})
+
+	case servicesMsg:
+		return m.applyList(screenServices, func(m *Model) { m.services = msg })
+
+	case evaluationsMsg:
+		return m.applyList(screenEvaluations, func(m *Model) { m.evaluations = msg })
+
+	case nodesMsg:
+		return m.applyList(screenNodes, func(m *Model) { m.nodes = msg })
+
+	case variablesMsg:
+		return m.applyList(screenVariables, func(m *Model) { m.variables = msg })
+
+	case nodePoolsMsg:
+		return m.applyList(screenNodePools, func(m *Model) { m.nodePools = msg })
 
 	case versionMsg:
 		m.nomadVersion = string(msg)
@@ -135,17 +215,60 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, m.schedulePoll()
 
 	case pollMsg:
-		return m, fetchJobs(m.client, m.namespace)
+		return m, m.fetch()
 	}
 
 	return m, nil
 }
 
-// handleKey is the one place that decides who gets a key press.
+// applyList stores what the cluster sent, unless the screen it belongs to
+// was left: it would show up under the wrong title.
+func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
+	if m.screen.kind != kind {
+		return m, nil
+	}
+
+	store(&m)
+	m.err = nil
+	m.layout()
+
+	return m, m.schedulePoll()
+}
+
+// handleKey is the one place that decides who gets a key press. An overlay
+// answers first and the screen never sees the key.
 func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
+	switch m.overlay {
+	case overlayPrompt, overlayFilter:
+		return m.promptKey(msg)
+
+	case overlayHelp:
+		return m.helpKey(msg)
+	}
+
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
+
+	case ":":
+		return m.openPrompt(promptPrefix)
+
+	case "/":
+		return m.openPrompt(filterPrefix)
+
+	case "?":
+		m.overlay = overlayHelp
+
+		return m, nil
+
+	case "enter":
+		return m.open()
+
+	case "esc":
+		return m.back()
+
+	case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		return m.namespaceKey(int(msg.Code - '0'))
 
 	case "up", "k":
 		m.table.move(-1)
@@ -169,6 +292,16 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+// helpKey closes the help window, which is all it answers.
+func (m Model) helpKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "enter", "?", "q":
+		m.overlay = overlayNone
+	}
+
+	return m, nil
+}
+
 // View draws the screen. urga runs in the alternate screen, the terminal
 // comes back as it was.
 func (m Model) View() tea.View {
@@ -183,30 +316,62 @@ func (m Model) render() string {
 		return ""
 	}
 
-	parts := []string{
-		renderHeader(header{
-			address:      m.client.Address(),
-			version:      m.opts.Version,
-			nomadVersion: m.nomadVersion,
-			namespace:    m.namespace,
-		}, m.width),
-		frame(jobsTitle(m.namespace, len(m.jobs)), m.table.view(), m.width, m.bodyHeight()),
-		m.status(),
+	head := renderHeader(m.headerData(), m.width-2*headerPadX)
+
+	parts := []string{strings.Repeat("\n", screenPadTop) + indent(head, headerPadX)}
+
+	width := m.width - 2*screenPadX
+
+	if m.overlay == overlayPrompt || m.overlay == overlayFilter {
+		parts = append(parts, indent(m.prompt.view(width), screenPadX))
 	}
+
+	body := m.table.view()
+	title := m.title()
+
+	if m.overlay == overlayHelp {
+		body = renderHelp(m.helpSections(), width-2)
+		title = "Help"
+	}
+
+	parts = append(parts,
+		indent(frame(title, body, width, m.bodyHeight()), screenPadX),
+		indent(m.status(), headerPadX),
+	)
 
 	return strings.Join(parts, "\n")
 }
 
+// headerData is what the top of the screen says about the session.
+func (m Model) headerData() header {
+	return header{
+		address:      m.client.Address(),
+		version:      m.opts.Version,
+		nomadVersion: m.nomadVersion,
+		namespace:    m.namespace,
+		namespaces:   m.namespaceColumnData(),
+		hints:        m.screen.hints(),
+	}
+}
+
 func (m Model) status() string {
+	width := m.width - 2*headerPadX
+
 	if m.err != nil {
-		return ansi.Truncate(styleError.Render("! "+m.err.Error()), m.width, "…")
+		return styleError.Render(ansi.Truncate("! "+m.err.Error(), width, "…"))
 	}
 
-	return styleMuted.Render(ansi.Truncate("q quit", m.width, "…"))
+	return styleMuted.Render(ansi.Truncate("q quit", width, "…"))
 }
 
 func (m Model) bodyHeight() int {
-	return max(m.height-headerHeight-statusHeight, 2)
+	height := m.height - screenPadTop - headerHeight - statusHeight
+
+	if m.overlay == overlayPrompt || m.overlay == overlayFilter {
+		height -= promptHeight
+	}
+
+	return max(height, 2)
 }
 
 // layout sizes the table to the window and fills it with what the cluster
@@ -216,29 +381,17 @@ func (m *Model) layout() {
 		return
 	}
 
-	// The table sits inside the box: its two border lines and the header row
-	// of the table itself are not rows.
-	m.table.setSize(m.width-2, max(m.bodyHeight()-3, 1))
-	m.table.setRows(jobRows(m.jobs))
+	// The table sits inside the box: the margin, its two border lines and the
+	// header row of the table itself are not rows.
+	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3, 1))
+
+	rows, index := filterRows(m.rows(), m.filter)
+	m.index = index
+	m.table.setRows(rows)
 }
 
 func (m Model) schedulePoll() tea.Cmd {
 	return tea.Tick(m.opts.PollEvery, func(time.Time) tea.Msg { return pollMsg{} })
-}
-
-// fetchJobs asks the cluster for the job list of a namespace.
-func fetchJobs(client Client, namespace string) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
-
-		jobs, err := client.Jobs(ctx, namespace)
-		if err != nil {
-			return errMsg{err: err}
-		}
-
-		return jobsMsg(jobs)
-	}
 }
 
 func fetchVersion(client Client) tea.Cmd {

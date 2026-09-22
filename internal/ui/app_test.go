@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,11 +16,23 @@ import (
 
 // fakeClient answers what the test puts in it and keeps what it was asked.
 type fakeClient struct {
-	jobs []nomad.Job
-	err  error
+	jobs        []nomad.Job
+	allocs      []nomad.Alloc
+	deployments []nomad.Deployment
+	namespaces  []nomad.Namespace
+	services    []nomad.Service
+	evaluations []nomad.Evaluation
+	nodes       []nomad.Node
+	variables   []nomad.Variable
+	nodePools   []nomad.NodePool
+
+	err error
 
 	askedNamespace string
-	calls          int
+	askedJobID     string
+
+	calls      int
+	allocCalls int
 }
 
 func (f *fakeClient) Address() string { return "https://nmd.1ly.dev" }
@@ -31,6 +44,49 @@ func (f *fakeClient) Jobs(_ context.Context, namespace string) ([]nomad.Job, err
 	f.calls++
 
 	return f.jobs, f.err
+}
+
+func (f *fakeClient) Allocations(_ context.Context, namespace, jobID string) ([]nomad.Alloc, error) {
+	f.askedNamespace, f.askedJobID = namespace, jobID
+	f.allocCalls++
+
+	return f.allocs, f.err
+}
+
+func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {
+	f.askedNamespace = namespace
+
+	return f.deployments, f.err
+}
+
+func (f *fakeClient) Namespaces(context.Context) ([]nomad.Namespace, error) {
+	return f.namespaces, f.err
+}
+
+func (f *fakeClient) Services(_ context.Context, namespace string) ([]nomad.Service, error) {
+	f.askedNamespace = namespace
+
+	return f.services, f.err
+}
+
+func (f *fakeClient) Evaluations(_ context.Context, namespace string) ([]nomad.Evaluation, error) {
+	f.askedNamespace = namespace
+
+	return f.evaluations, f.err
+}
+
+func (f *fakeClient) Nodes(context.Context) ([]nomad.Node, error) {
+	return f.nodes, f.err
+}
+
+func (f *fakeClient) Variables(_ context.Context, namespace string) ([]nomad.Variable, error) {
+	f.askedNamespace = namespace
+
+	return f.variables, f.err
+}
+
+func (f *fakeClient) NodePools(context.Context) ([]nomad.NodePool, error) {
+	return f.nodePools, f.err
 }
 
 func twoJobs() []nomad.Job {
@@ -52,7 +108,7 @@ func TestFetchJobs_AsksInTheNamespace(t *testing.T) {
 
 	client := &fakeClient{jobs: twoJobs()}
 
-	msg := fetchJobs(client, "production")()
+	msg := newTestModel(client).fetch()()
 
 	jobs, ok := msg.(jobsMsg)
 	r.True(ok, "%T", msg)
@@ -67,7 +123,7 @@ func TestFetchJobs_HandsTheErrorOver(t *testing.T) {
 
 	client := &fakeClient{err: errors.New("connection refused")}
 
-	msg := fetchJobs(client, "production")()
+	msg := newTestModel(client).fetch()()
 
 	fail, ok := msg.(errMsg)
 	r.True(ok, "%T", msg)
@@ -180,4 +236,27 @@ func TestModel_UsesTheAlternateScreen(t *testing.T) {
 	// urga takes the whole terminal and gives it back untouched when it ends,
 	// it does not scribble over what the user had in the scrollback.
 	r.True(newTestModel(&fakeClient{}).View().AltScreen)
+}
+
+func TestModel_LeavesAMarginAroundTheScreen(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{})
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	rows := lines(m.render())
+
+	// A line of air above everything, and nothing touches the left edge.
+	r.Empty(strings.TrimSpace(rows[0]))
+	r.True(strings.HasPrefix(rows[1], strings.Repeat(" ", headerPadX)+"Address:"), rows[1])
+
+	box := rows[screenPadTop+headerHeight]
+	r.True(strings.HasPrefix(box, strings.Repeat(" ", screenPadX)+"╭"), box)
+
+	// The box keeps the same margin on the right.
+	r.Equal(120-screenPadX, ansi.StringWidth(box))
+
+	// The status line follows the header, not the box.
+	last := rows[len(rows)-1]
+	r.True(strings.HasPrefix(last, strings.Repeat(" ", headerPadX)+"q"), last)
 }
