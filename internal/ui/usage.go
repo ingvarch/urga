@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -100,11 +101,38 @@ func (m Model) visibleIDs() []string {
 	return nil
 }
 
-// percentCell is a reading as it reads in a column.
+// percentCell is what a machine of the cluster is busy with: there is no
+// limit to compare it against, the share is what the node reports.
 func percentCell(value int, known bool) string {
 	if !known {
 		return "-"
 	}
 
 	return fmt.Sprintf("%d%%", value)
+}
+
+// cpuCell and memoryCell are a reading as it reads in a column: a share of
+// what was asked for, or the number itself when nothing was asked for.
+func cpuCell(use nomad.ResourceUse, known bool) string {
+	if !known {
+		return "-"
+	}
+
+	if use.CPUTicksAllowed > 0 {
+		return fmt.Sprintf("%d%%", use.CPUPercent)
+	}
+
+	return strconv.Itoa(use.CPUTicks)
+}
+
+func memoryCell(use nomad.ResourceUse, known bool) string {
+	if !known {
+		return "-"
+	}
+
+	if use.MemoryMBAllowed > 0 {
+		return fmt.Sprintf("%d%%", use.MemoryPercent)
+	}
+
+	return fmt.Sprintf("%dM", use.MemoryMB)
 }

@@ -89,3 +89,19 @@ func TestUsage_ShownOnTheNodes(t *testing.T) {
 	r.Contains(out, "40%")
 	r.Contains(out, "50%")
 }
+
+func TestUsage_Cells(t *testing.T) {
+	r := require.New(t)
+
+	// A share of what was asked for.
+	r.Equal("25%", cpuCell(nomad.ResourceUse{CPUTicks: 125, CPUTicksAllowed: 500, CPUPercent: 25}, true))
+	r.Equal("50%", memoryCell(nomad.ResourceUse{MemoryMB: 128, MemoryMBAllowed: 256, MemoryPercent: 50}, true))
+
+	// Nothing was asked for, so the number itself is what there is to say.
+	r.Equal("125", cpuCell(nomad.ResourceUse{CPUTicks: 125}, true))
+	r.Equal("128M", memoryCell(nomad.ResourceUse{MemoryMB: 128}, true))
+
+	// The cluster has not answered.
+	r.Equal("-", cpuCell(nomad.ResourceUse{}, false))
+	r.Equal("-", memoryCell(nomad.ResourceUse{}, false))
+}

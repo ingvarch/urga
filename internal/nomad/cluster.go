@@ -79,14 +79,26 @@ func (c *Client) AllocationUsage(ctx context.Context, namespace, allocID string)
 		}
 	}
 
-	if stats != nil && stats.ResourceUsage != nil {
-		if cpu := stats.ResourceUsage.CpuStats; cpu != nil {
-			use.CPUTicks = int(cpu.TotalTicks)
+	if stats != nil {
+		ticks, memory := readUsage(stats.ResourceUsage)
+
+		// Some drivers leave the summary of the allocation empty and report
+		// per task instead. Adding the tasks up is what the summary would
+		// have said.
+		if ticks == 0 && memory == 0 {
+			for _, task := range stats.Tasks {
+				if task == nil {
+					continue
+				}
+
+				taskTicks, taskMemory := readUsage(task.ResourceUsage)
+				ticks += taskTicks
+				memory += taskMemory
+			}
 		}
 
-		if memory := stats.ResourceUsage.MemoryStats; memory != nil {
-			use.MemoryMB = int(memory.RSS / megabyte)
-		}
+		use.CPUTicks = ticks
+		use.MemoryMB = int(memory / megabyte)
 	}
 
 	use.CPUPercent = percent(int64(use.CPUTicks), int64(use.CPUTicksAllowed))
@@ -122,6 +134,27 @@ func (c *Client) NodeUsage(ctx context.Context, nodeID string) (ResourceUse, err
 	}
 
 	return use, nil
+}
+
+// readUsage takes what a report says, whichever field the driver filled. On
+// cgroups v2 the memory of a task is in Usage and RSS stays at zero.
+func readUsage(usage *api.ResourceUsage) (ticks int, memoryBytes uint64) {
+	if usage == nil {
+		return 0, 0
+	}
+
+	if cpu := usage.CpuStats; cpu != nil {
+		ticks = int(cpu.TotalTicks)
+	}
+
+	if memory := usage.MemoryStats; memory != nil {
+		memoryBytes = memory.RSS
+		if memoryBytes == 0 {
+			memoryBytes = memory.Usage
+		}
+	}
+
+	return ticks, memoryBytes
 }
 
 // megabyte is what the stats are turned into, they arrive in bytes.
