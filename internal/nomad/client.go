@@ -12,12 +12,11 @@ import (
 // AllNamespaces is what Nomad understands as every namespace at once.
 const AllNamespaces = "*"
 
-// Config says which cluster to talk to. An empty field falls back to the
-// environment, the same variables the nomad command reads.
+// Config says which cluster to talk to. An empty address falls back to the
+// environment, the same variables the nomad command reads, which is also
+// where the token and the region come from.
 type Config struct {
 	Address string
-	Region  string
-	Token   string
 }
 
 // Client is the cluster.
@@ -31,14 +30,6 @@ func New(cfg Config) (*Client, error) {
 
 	if cfg.Address != "" {
 		c.Address = cfg.Address
-	}
-
-	if cfg.Region != "" {
-		c.Region = cfg.Region
-	}
-
-	if cfg.Token != "" {
-		c.SecretID = cfg.Token
 	}
 
 	client, err := api.NewClient(c)

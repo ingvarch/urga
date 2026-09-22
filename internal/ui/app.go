@@ -69,9 +69,6 @@ type Options struct {
 	// PollEvery is the wait between an answer and the next ask.
 	PollEvery time.Duration
 
-	// Timeout is how long one request may take.
-	Timeout time.Duration
-
 	// Config is what the last session left behind. It may be nil.
 	Config *config.Config
 
@@ -201,10 +198,6 @@ type Model struct {
 func New(client Client, opts Options) Model {
 	if opts.PollEvery == 0 {
 		opts.PollEvery = defaultPollEvery
-	}
-
-	if opts.Timeout == 0 {
-		opts.Timeout = defaultTimeout
 	}
 
 	m := Model{
