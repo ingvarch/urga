@@ -7,7 +7,10 @@ import (
 )
 
 // infoRows is how many lines the cluster info takes.
-const infoRows = 4
+const infoRows = 6
+
+// unknown is what a value reads as before the cluster has answered.
+const unknown = "n/a"
 
 // headerHeight is fixed so that the list below never moves, whatever the
 // header has to show. It holds both the info and the art in the corner.
@@ -34,6 +37,8 @@ type header struct {
 	version      string
 	nomadVersion string
 	namespace    string
+	usage        string
+	memory       string
 	namespaces   []namespaceKey
 	hints        []hint
 }
@@ -70,12 +75,12 @@ func renderHeader(h header, width int) string {
 			row += strings.Repeat(" ", columnGap) + hint
 		}
 
-		row = strings.TrimRight(row, " ")
+		row = ansi.Truncate(strings.TrimRight(row, " "), rest, "…")
 
-		row = ansi.Truncate(row, rest, "…")
-
+		// The art is shorter than the header, the lines past it keep the
+		// block square.
 		if art != "" {
-			row = pad(row, rest) + lineAt(art, i)
+			row = pad(row, rest) + pad(lineAt(art, i), logoWidth)
 		}
 
 		rows = append(rows, row)
@@ -101,8 +106,10 @@ func infoColumn(h header, width int) string {
 	}{
 		{"Address:", h.address},
 		{"urga Rev:", h.version},
-		{"Nomad Rev:", h.nomadVersion},
+		{"Nomad Rev:", orUnknown(h.nomadVersion)},
 		{"Namespace:", namespaceLabel(h.namespace)},
+		{"CPU:", orUnknown(h.usage)},
+		{"MEM:", orUnknown(h.memory)},
 	}
 
 	out := make([]string, 0, len(rows))
@@ -184,6 +191,15 @@ func hintColumns(hints []hint, width int) string {
 	}
 
 	return strings.Join(rows, "\n")
+}
+
+// orUnknown is a value the cluster has not answered with yet.
+func orUnknown(value string) string {
+	if value == "" {
+		return unknown
+	}
+
+	return value
 }
 
 func pad(s string, width int) string {

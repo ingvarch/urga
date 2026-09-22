@@ -30,6 +30,7 @@ type fakeClient struct {
 	describe string
 	spec     string
 	logs     *nomad.LogStream
+	usage    nomad.Usage
 
 	stopped       int
 	started       int
@@ -163,6 +164,10 @@ func (f *fakeClient) TaskGroups(_ context.Context, namespace, jobID string) ([]n
 	f.askedNamespace, f.askedID = namespace, jobID
 
 	return f.groups, f.err
+}
+
+func (f *fakeClient) Usage(context.Context) (nomad.Usage, error) {
+	return f.usage, f.err
 }
 
 func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {
@@ -375,4 +380,19 @@ func TestModel_LeavesAMarginAroundTheScreen(t *testing.T) {
 	// The status line follows the header, not the box.
 	last := rows[len(rows)-1]
 	r.True(strings.HasPrefix(last, strings.Repeat(" ", headerPadX)+"<:>"), last)
+}
+
+func TestModel_ReadsWhatTheClusterIsUsing(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{usage: nomad.Usage{CPUPercent: 15, MemoryPercent: 31}}
+	m := newTestModel(client)
+
+	m, cmd := m.update(usageMsg(client.usage))
+	r.NotNil(cmd, "the next reading is scheduled")
+
+	head := plain(renderHeader(m.headerData(), 120))
+	r.Contains(head, "CPU:")
+	r.Contains(head, "15%")
+	r.Contains(head, "31%")
 }

@@ -121,3 +121,25 @@ func TestHeader_IsAsTallAsWhatItHolds(t *testing.T) {
 	r.GreaterOrEqual(headerHeight, len(logo))
 	r.GreaterOrEqual(headerHeight, infoRows)
 }
+
+func TestHeader_ShowsWhatTheClusterIsUsing(t *testing.T) {
+	r := require.New(t)
+
+	out := renderHeader(header{usage: "15%", memory: "31%"}, 140)
+	rows := lines(out)
+
+	r.Contains(rows[4], "CPU:")
+	r.Contains(rows[4], "15%")
+	r.Contains(rows[5], "MEM:")
+	r.Contains(rows[5], "31%")
+}
+
+func TestHeader_BeforeTheClusterAnswers(t *testing.T) {
+	r := require.New(t)
+
+	// Nothing is known yet, and the header says that rather than zero.
+	out := renderHeader(header{}, 140)
+
+	r.Contains(lines(out)[4], "n/a")
+	r.Contains(lines(out)[2], "n/a")
+}

@@ -4,6 +4,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -26,6 +27,7 @@ type Client interface {
 	DescribeService(ctx context.Context, namespace, name string) (string, error)
 	JobSpec(ctx context.Context, namespace, jobID string) (string, error)
 	Logs(ctx context.Context, namespace, allocID, task, source string) (*nomad.LogStream, error)
+	Usage(ctx context.Context) (nomad.Usage, error)
 
 	TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
 
@@ -64,6 +66,10 @@ type Options struct {
 }
 
 const (
+	// usageEvery is how often the header reads the load of the cluster. It
+	// walks every node and allocation, so it is not asked for often.
+	usageEvery = 15 * time.Second
+
 	defaultPollEvery = 2 * time.Second
 	defaultTimeout   = 10 * time.Second
 
@@ -91,9 +97,11 @@ type (
 	variablesMsg   []nomad.Variable
 	nodePoolsMsg   []nomad.NodePool
 
-	versionMsg string
-	errMsg     struct{ err error }
-	pollMsg    struct{}
+	usageMsg     nomad.Usage
+	versionMsg   string
+	errMsg       struct{ err error }
+	pollMsg      struct{}
+	pollUsageMsg struct{}
 )
 
 // Model is the whole interface. It owns the screen, the keyboard and what the
@@ -147,6 +155,7 @@ type Model struct {
 	following bool
 
 	nomadVersion string
+	usage        nomad.Usage
 	err          error
 }
 
@@ -179,6 +188,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.fetch(),
 		fetchVersion(client),
+		fetchUsage(client),
 		fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
 	)
 }
@@ -245,6 +255,14 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.nomadVersion = string(msg)
 
 		return m, nil
+
+	case usageMsg:
+		m.usage = nomad.Usage(msg)
+
+		return m, tea.Tick(usageEvery, func(time.Time) tea.Msg { return pollUsageMsg{} })
+
+	case pollUsageMsg:
+		return m, fetchUsage(m.client)
 
 	case errMsg:
 		// The rows that are on the screen stay there. An empty table reads as
@@ -475,6 +493,8 @@ func (m Model) headerData() header {
 		version:      m.opts.Version,
 		nomadVersion: m.nomadVersion,
 		namespace:    m.namespace,
+		usage:        percentOf(m.usage.CPUPercent),
+		memory:       percentOf(m.usage.MemoryPercent),
 		namespaces:   m.namespaceColumnData(),
 		hints:        m.screen.hints(),
 	}
@@ -523,6 +543,29 @@ func (m *Model) layout() {
 
 func (m Model) schedulePoll() tea.Cmd {
 	return tea.Tick(m.opts.PollEvery, func(time.Time) tea.Msg { return pollMsg{} })
+}
+
+// percentOf is a reading of the cluster, empty until there is one.
+func percentOf(value int) string {
+	if value == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%d%%", value)
+}
+
+func fetchUsage(client Client) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+
+		usage, err := client.Usage(ctx)
+		if err != nil {
+			return errMsg{err: err}
+		}
+
+		return usageMsg(usage)
+	}
 }
 
 func fetchVersion(client Client) tea.Cmd {
