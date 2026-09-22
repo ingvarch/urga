@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -144,8 +145,11 @@ type Model struct {
 	editing editFileMsg
 
 	// index maps a row of the table back to the resource it came from, which
-	// the filter shifts.
+	// the filter and the sort order shift.
 	index []int
+
+	// sort is the column the list is ordered by.
+	sort sortState
 
 	// namespaceOrder is which namespace each number key stands for.
 	namespaceOrder []string
@@ -189,6 +193,7 @@ func New(client Client, opts Options) Model {
 		namespace: opts.Namespace,
 		screen:    screen{kind: screenJobs, namespace: opts.Namespace},
 		table:     newTableModel(jobTitles),
+		sort:      newSortState(),
 	}
 
 	return m.restore()
@@ -460,7 +465,34 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	case "end", "G":
 		m.table.move(len(m.table.rows))
+
+	default:
+		// A capital letter names a column to order the list by.
+		return m.sortKey(msg)
 	}
+
+	return m, nil
+}
+
+// sortKey orders the list by the column a letter names, the way one key
+// picks a column.
+func (m Model) sortKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
+	if len(msg.Text) != 1 {
+		return m, nil
+	}
+
+	letter := []rune(msg.Text)[0]
+	if !unicode.IsUpper(letter) {
+		return m, nil
+	}
+
+	column, ok := columnOfLetter(m.screen.titles(), letter)
+	if !ok {
+		return m, nil
+	}
+
+	m.sort = m.sort.by(column)
+	m.layout()
 
 	return m, nil
 }
@@ -578,8 +610,12 @@ func (m *Model) layout() {
 	m.text.follow()
 
 	rows, index := filterRows(m.rows(), m.filter)
+	rows, index = sortRows(rows, index, m.sort, m.screen.titles())
+
 	m.index = index
-	m.table.setRows(rows)
+	m.table.sort = m.sort
+	m.table.rows = rows
+	m.table.follow()
 }
 
 func (m Model) schedulePoll() tea.Cmd {

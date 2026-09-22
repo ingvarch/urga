@@ -33,12 +33,21 @@ type tableModel struct {
 	cursor int
 	top    int
 
+	sort sortState
+
 	width  int
 	height int
 }
 
 func newTableModel(titles []string) tableModel {
-	return tableModel{titles: titles}
+	return tableModel{titles: titles, sort: newSortState()}
+}
+
+// sortBy orders the rows by a column, and turns them around when it is the
+// column they are already ordered by.
+func (t *tableModel) sortBy(column int) {
+	t.sort = t.sort.by(column)
+	t.setRows(t.rows)
 }
 
 func (t *tableModel) setSize(width, height int) {
@@ -49,6 +58,8 @@ func (t *tableModel) setSize(width, height int) {
 // setRows takes what the cluster last said. The cursor keeps its place in the
 // list as far as the new list allows.
 func (t *tableModel) setRows(rows []tableRow) {
+	rows, _ = sortRows(rows, nil, t.sort, t.titles)
+
 	t.rows = rows
 	t.cursor = clamp(t.cursor, 0, len(rows)-1)
 	t.follow()
@@ -84,7 +95,12 @@ func (t *tableModel) follow() {
 func (t tableModel) view() string {
 	widths := columnWidths(t.titles, t.rows, t.width)
 
-	out := []string{styleTableHeader.Render(t.line(t.titles, widths))}
+	titles := make([]string, len(t.titles))
+	for i, title := range t.titles {
+		titles[i] = title + t.sort.marker(i)
+	}
+
+	out := []string{styleTableHeader.Render(t.line(titles, widths))}
 
 	for i := t.top; i < len(t.rows) && i < t.top+t.height; i++ {
 		line := t.line(t.rows[i].cells, widths)

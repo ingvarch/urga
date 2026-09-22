@@ -73,6 +73,7 @@ it, as in `jobs production`. `q` leaves.
 | `/` | Filter what is on the screen |
 | `?` | Help, with the keys of the open resource |
 | `0`–`9` | Switch namespace, `0` is all of them |
+| `A`–`Z` | Sort by the column that starts with that letter, again to reverse |
 | `enter` | Open what the cursor is on |
 | `esc` | Back |
 | `d` | Describe |

@@ -391,6 +391,7 @@ func (m Model) back() (Model, tea.Cmd) {
 func (m Model) enter() (Model, tea.Cmd) {
 	m.table = newTableModel(m.screen.titles())
 	m.filter = ""
+	m.sort = newSortState()
 	m.layout()
 
 	return m, m.fetch()
