@@ -20,6 +20,10 @@ var (
 	// as one block against the screen.
 	colorPanel = lipgloss.Color("#262b31")
 
+	// colorMark is a row an action is to take. It outranks the color the
+	// row carries for its state: a mark is what the eye is looking for.
+	colorMark = lipgloss.Color("#d7a13b")
+
 	// chartLine is the scale drawn across a chart: quiet enough to read as
 	// a hairline, whether it crosses the air or a reading.
 	chartLine = lipgloss.Color("#525a63")

@@ -219,9 +219,9 @@ func TestPrompt_WhatTheLineReadsIsWhatEnterOpens(t *testing.T) {
 
 		switch {
 		case !ok:
-			r.NotNil(opened.err, "%s: the line reads %q and enter opened something anyway", name, line)
+			r.Equal(flashErr, opened.flash.level, "%s: the line reads %q and enter opened something anyway", name, line)
 		default:
-			r.Nil(opened.err, "%s: the line reads %q and enter refused it", name, line)
+			r.NotEqual(flashErr, opened.flash.level, "%s: the line reads %q and enter refused it", name, line)
 			r.Equal(wanted.kind, opened.screen.kind, "%s: the line reads %q", name, line)
 		}
 	}
@@ -250,7 +250,7 @@ func TestPrompt_ASpaceIsNotAResource(t *testing.T) {
 	r.Empty(m.prompt.choice())
 
 	opened, _ := m.commit()
-	r.NotNil(opened.err)
+	r.Equal(flashErr, opened.flash.level)
 }
 
 func TestPrompt_TheOfferSurvivesTheNamespaceAfterIt(t *testing.T) {

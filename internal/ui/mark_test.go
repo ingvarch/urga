@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -29,20 +30,61 @@ func onAllocations(t *testing.T) (Model, *fakeClient) {
 	return m, client
 }
 
+// markedRows are the rows of the screen drawn in the color of a mark.
+func markedRows(m Model) []string {
+	want := lipgloss.NewStyle().Foreground(colorMark).Render("")
+	want = strings.TrimSuffix(want, "\x1b[m")
+
+	out := []string{}
+
+	for _, line := range strings.Split(m.render(), "\n") {
+		if want != "" && strings.Contains(line, want) {
+			out = append(out, strings.TrimSpace(plain(line)))
+		}
+	}
+
+	return out
+}
+
 func TestMarks_SpaceMarksTheRowUnderTheCursor(t *testing.T) {
 	r := require.New(t)
 
 	m, _ := onAllocations(t)
 
+	m, _ = m.update(key('j'))
 	m, _ = m.update(space())
 
-	// A marked row carries a mark where the list has its margin, so the
-	// columns do not move.
-	r.Contains(plain(m.render()), "•af1f37df")
+	// The row under the cursor is drawn as the cursor, so step off it to
+	// see the color of a mark. Nothing is added to the row and no column
+	// moves for it.
+	m, _ = m.update(key('k'))
+
+	marked := markedRows(m)
+	r.Len(marked, 1)
+	r.Contains(marked[0], "b2222222")
 
 	// The same key lets it go again.
+	m, _ = m.update(key('j'))
 	m, _ = m.update(space())
-	r.NotContains(plain(m.render()), "•")
+	m, _ = m.update(key('k'))
+
+	r.Empty(markedRows(m))
+}
+
+func TestMarks_AMarkOutranksTheStateOfTheRow(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onAllocations(t)
+
+	// The second allocation is pending, which has a color of its own. A
+	// mark is what the eye is looking for, so it wins.
+	m, _ = m.update(key('j'))
+	m, _ = m.update(space())
+	m, _ = m.update(key('k'))
+
+	marked := markedRows(m)
+	r.Len(marked, 1)
+	r.Contains(marked[0], "pending")
 }
 
 func TestMarks_AnActionTakesEveryMarkedRow(t *testing.T) {
@@ -88,7 +130,11 @@ func TestMarks_SurviveTheListBeingAskedAgain(t *testing.T) {
 	// to the allocation, not to the row it happened to be on.
 	m, _ = m.update(allocsMsg(twoAllocs()))
 
-	r.Contains(plain(m.render()), "•af1f37df")
+	// The cursor has a color of its own and stands over a mark, so step
+	// off the row to see it.
+	m, _ = m.update(key('j'))
+
+	r.Len(markedRows(m), 1)
 }
 
 func TestMarks_AreLetGoOfWithTheScreen(t *testing.T) {
@@ -104,7 +150,7 @@ func TestMarks_AreLetGoOfWithTheScreen(t *testing.T) {
 	m, _ = m.update(enter())
 	m, _ = m.update(allocsMsg(twoAllocs()))
 
-	r.NotContains(plain(m.render()), "•")
+	r.Empty(markedRows(m))
 }
 
 func TestMarks_MarkEveryRowAndNoneAgain(t *testing.T) {
@@ -113,10 +159,14 @@ func TestMarks_MarkEveryRowAndNoneAgain(t *testing.T) {
 	m, _ := onAllocations(t)
 
 	m, _ = m.update(ctrlKey('a'))
-	r.Equal(2, strings.Count(plain(m.render()), "•"))
+
+	// Both are taken; the one under the cursor is drawn as the cursor.
+	r.Len(m.marks, 2)
+	r.Len(markedRows(m), 1)
 
 	m, _ = m.update(ctrlKey('a'))
-	r.NotContains(plain(m.render()), "•")
+	r.Empty(m.marks)
+	r.Empty(markedRows(m))
 }
 
 func TestMarks_AScreenWithoutThemTakesTheKeyQuietly(t *testing.T) {
@@ -159,7 +209,7 @@ func TestMarks_AreLetGoOfWhenTheActionIsDone(t *testing.T) {
 	m, _ := onAllocations(t)
 
 	m, _ = m.update(space())
-	r.Contains(plain(m.render()), "•")
+	r.Len(m.marks, 1)
 
 	m, _ = m.update(key('r'))
 
@@ -168,7 +218,8 @@ func TestMarks_AreLetGoOfWhenTheActionIsDone(t *testing.T) {
 
 	// What was marked has been acted on; leaving the marks up would take
 	// them along into the next action by surprise.
-	r.NotContains(plain(m.render()), "•")
+	r.Empty(m.marks)
+	r.Empty(markedRows(m))
 }
 
 func TestMarks_AreActedOnEvenWhenTheFilterHidesThem(t *testing.T) {
@@ -227,7 +278,7 @@ func TestMarks_AreKeptWhenTheActionFails(t *testing.T) {
 	m = drain(m, cmd)
 
 	// What did not happen is still marked, so the same key tries it again.
-	r.Contains(plain(m.render()), "•")
+	r.Len(m.marks, 1)
 }
 
 func TestMarks_MarkingAllUnderAFilterTakesWhatIsShown(t *testing.T) {

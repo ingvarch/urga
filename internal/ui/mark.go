@@ -6,10 +6,6 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// markGlyph stands in the margin of a row that is marked, where the table
-// keeps its distance from the border: the columns do not move for it.
-const markGlyph = "•"
-
 // mark takes the row under the cursor, or lets it go. The cursor stays where
 // it is: a mark is a toggle, and taking one back must not need the cursor
 // walked back to it.

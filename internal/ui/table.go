@@ -96,14 +96,16 @@ func (t tableModel) view() string {
 		titles[i] = title + t.sort.marker(i)
 	}
 
-	out := []string{styleTableHeader.Render(t.line(titles, widths, false))}
+	out := []string{styleTableHeader.Render(t.line(titles, widths))}
 
 	for i := t.top; i < len(t.rows) && i < t.top+t.height; i++ {
-		line := t.line(t.rows[i].cells, widths, t.rows[i].marked)
+		line := t.line(t.rows[i].cells, widths)
 
 		switch {
 		case i == t.cursor:
 			line = styleSelected.Render(line)
+		case t.rows[i].marked:
+			line = lipgloss.NewStyle().Foreground(colorMark).Render(line)
 		case t.rows[i].color != nil:
 			line = lipgloss.NewStyle().Foreground(t.rows[i].color).Render(line)
 		default:
@@ -118,9 +120,7 @@ func (t tableModel) view() string {
 
 // line lays the cells out over the columns and pads the result to the whole
 // width, so that a color reaches the end of the row.
-// line draws one row. A row that is marked says so where the table keeps its
-// distance from the border, so the columns do not move for it.
-func (t tableModel) line(cells []string, widths []int, marked bool) string {
+func (t tableModel) line(cells []string, widths []int) string {
 	parts := make([]string, 0, len(widths))
 	for i, width := range widths {
 		cell := ""
@@ -131,12 +131,7 @@ func (t tableModel) line(cells []string, widths []int, marked bool) string {
 		parts = append(parts, pad(truncate(cell, width), width))
 	}
 
-	indent := strings.Repeat(" ", tableIndent)
-	if marked {
-		indent = markGlyph + strings.Repeat(" ", tableIndent-1)
-	}
-
-	line := indent + strings.Join(parts, strings.Repeat(" ", cellGap))
+	line := strings.Repeat(" ", tableIndent) + strings.Join(parts, strings.Repeat(" ", cellGap))
 
 	return pad(truncate(line, t.width), t.width)
 }
