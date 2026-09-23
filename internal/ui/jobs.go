@@ -10,12 +10,6 @@ import (
 // jobTitles are the columns of the job list.
 var jobTitles = []string{"ID", "Name", "Type", "Namespace", "Status", "Allocs", "Age"}
 
-// jobsTitle labels the list with the namespace it shows and how many rows
-// are in it.
-func jobsTitle(namespace string, count int) string {
-	return fmt.Sprintf("Jobs (%s) [%d]", namespaceLabel(namespace), count)
-}
-
 // namespaceLabel is the namespace as it reads in a title.
 func namespaceLabel(namespace string) string {
 	if namespace == "" || namespace == nomad.AllNamespaces {

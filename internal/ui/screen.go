@@ -28,11 +28,10 @@ const (
 	screenTaskGroups
 )
 
-// screenNames label a screen in its title.
+// screenNames label a screen in its title. The screens that name what they
+// were opened for build their own title and are not in here.
 var screenNames = map[screenKind]string{
 	screenJobs:        "Jobs",
-	screenAllocations: "Allocations",
-	screenTasks:       "Tasks",
 	screenDeployments: "Deployments",
 	screenNamespaces:  "Namespaces",
 	screenServices:    "Services",
@@ -40,7 +39,6 @@ var screenNames = map[screenKind]string{
 	screenNodes:       "Nodes",
 	screenVariables:   "Variables",
 	screenNodePools:   "Node Pools",
-	screenTaskGroups:  "Task Groups",
 }
 
 // clusterWide screens hold what belongs to the cluster, not to a namespace.

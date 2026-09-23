@@ -107,7 +107,6 @@ func TestHeader_LeavesTheNamespaceToTheKeys(t *testing.T) {
 
 	out := renderHeader(header{
 		address:    "https://nmd.1ly.dev",
-		namespace:  "production",
 		namespaces: []namespaceKey{{Key: "<1>", Name: "production", Active: true}},
 	}, 140)
 

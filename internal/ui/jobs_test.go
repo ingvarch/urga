@@ -12,11 +12,18 @@ import (
 func TestJobsTitle(t *testing.T) {
 	r := require.New(t)
 
+	m := newTestModel(&fakeClient{jobs: twoJobs()})
+	m, _ = m.update(jobsMsg(twoJobs()))
+
 	// The namespace and the number of rows, so the list says what it holds
 	// without counting.
-	r.Equal("Jobs (production) [2]", jobsTitle("production", 2))
-	r.Equal("Jobs (all) [5]", jobsTitle(nomad.AllNamespaces, 5))
-	r.Equal("Jobs (all) [0]", jobsTitle("", 0))
+	r.Equal("Jobs (production) [2]", m.title())
+
+	m.namespace = nomad.AllNamespaces
+	r.Equal("Jobs (all) [2]", m.title())
+
+	m.namespace = ""
+	r.Equal("Jobs (all) [2]", m.title())
 }
 
 func TestJobRows(t *testing.T) {

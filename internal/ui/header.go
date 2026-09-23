@@ -36,7 +36,6 @@ type header struct {
 	address      string
 	version      string
 	nomadVersion string
-	namespace    string
 	usage        string
 	memory       string
 	namespaces   []namespaceKey

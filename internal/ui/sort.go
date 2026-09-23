@@ -116,7 +116,7 @@ func cellAt(row tableRow, column int) string {
 // about the order: "2d" reads before "5h" and is older.
 func isDurationColumn(title string) bool {
 	switch title {
-	case "Age", "Modified", "Uptime", "Started":
+	case "Age", "Modified", "Started":
 		return true
 	}
 

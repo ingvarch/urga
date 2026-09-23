@@ -87,10 +87,6 @@ func resolveAlias(word string) (screenKind, bool) {
 		return kind, true
 	}
 
-	if word == "" {
-		return 0, false
-	}
-
 	var found screenKind
 	matched := false
 

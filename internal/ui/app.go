@@ -220,7 +220,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.fetch(),
 		fetchVersion(client),
-		fetchUsage(client),
+		fetchClusterUsage(client),
 		fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
 	)
 }
@@ -298,7 +298,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, tea.Tick(usageEvery, func(time.Time) tea.Msg { return pollUsageMsg{} })
 
 	case pollUsageMsg:
-		return m, fetchUsage(m.client)
+		return m, fetchClusterUsage(m.client)
 
 	case rowUsageMsg:
 		m.rowUsage = msg.readings
@@ -607,7 +607,6 @@ func (m Model) headerData() header {
 		address:      m.client.Address(),
 		version:      m.opts.Version,
 		nomadVersion: m.nomadVersion,
-		namespace:    m.namespace,
 		usage:        percentOf(m.usage.CPUPercent),
 		memory:       percentOf(m.usage.MemoryPercent),
 		namespaces:   m.namespaceColumnData(),
@@ -693,7 +692,9 @@ func percentOf(value int) string {
 	return fmt.Sprintf("%d%%", value)
 }
 
-func fetchUsage(client Client) tea.Cmd {
+// fetchClusterUsage reads what the whole cluster is busy with, which the
+// header shows. What one row takes is read by Model.fetchUsage.
+func fetchClusterUsage(client Client) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()

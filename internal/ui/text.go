@@ -51,8 +51,10 @@ func (t *textModel) move(delta int) {
 	t.top = clamp(t.top+delta, 0, max(len(t.visible())-t.height, 0))
 }
 
+// follow pulls the window back over the lines, which is what a move of
+// nothing does.
 func (t *textModel) follow() {
-	t.top = clamp(t.top, 0, max(len(t.visible())-t.height, 0))
+	t.move(0)
 }
 
 func (t textModel) view() string {

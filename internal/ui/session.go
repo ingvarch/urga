@@ -58,7 +58,7 @@ func (m Model) remember() tea.Cmd {
 		return nil
 	}
 
-	cfg.UseNamespace(namespaceOrAll(m.namespace))
+	cfg.UseNamespace(NamespaceOrAll(m.namespace))
 	cfg.Remember(m.namespaceOrder)
 
 	if name, ok := nameOfScreen[m.screen.kind]; ok {
@@ -74,9 +74,9 @@ func (m Model) remember() tea.Cmd {
 	}
 }
 
-// namespaceOrAll is how the namespace is written down: every namespace at
-// once is a choice, and it is written as one.
-func namespaceOrAll(namespace string) string {
+// NamespaceOrAll is how a namespace is named when none was chosen: every
+// namespace at once is a choice of its own and is written as one.
+func NamespaceOrAll(namespace string) string {
 	if namespace == "" {
 		return nomad.AllNamespaces
 	}

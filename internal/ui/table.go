@@ -165,12 +165,10 @@ func spread(widths []int, available int) {
 	content := total(widths)
 	given := 0
 
-	if content > 0 {
-		for i := range widths {
-			share := left * widths[i] / content
-			widths[i] += share
-			given += share
-		}
+	for i := range widths {
+		share := left * widths[i] / content
+		widths[i] += share
+		given += share
 	}
 
 	// What does not divide evenly goes to the first columns, which are the
