@@ -28,6 +28,8 @@ type fakeClient struct {
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
 	servers     []nomad.Server
+	server      nomad.Server
+	raft        []nomad.RaftPeer
 
 	describe      string
 	spec          string
@@ -64,12 +66,14 @@ type fakeClient struct {
 	askedSource string
 	logsClosed  bool
 
-	err error
+	err     error
+	raftErr error
 
 	askedNamespace string
 	askedJobID     string
 	askedNodeID    string
 	usageNamespace string
+	askedServer    string
 
 	calls      int
 	allocCalls int
@@ -312,6 +316,16 @@ func (f *fakeClient) NodePools(context.Context) ([]nomad.NodePool, error) {
 
 func (f *fakeClient) Servers(context.Context) ([]nomad.Server, error) {
 	return f.servers, f.err
+}
+
+func (f *fakeClient) Server(_ context.Context, name string) (nomad.Server, error) {
+	f.askedServer = name
+
+	return f.server, f.err
+}
+
+func (f *fakeClient) RaftPeers(context.Context) ([]nomad.RaftPeer, error) {
+	return f.raft, f.raftErr
 }
 
 func twoJobs() []nomad.Job {

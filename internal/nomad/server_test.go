@@ -49,7 +49,12 @@ const members = `{
 			"Addr": "10.0.0.6",
 			"Port": 4648,
 			"Status": "alive",
-			"Tags": {"region": "global", "dc": "dc1", "build": "1.11.1", "port": "4647", "role": "nomad"}
+			"ProtocolCur": 2,
+			"ProtocolMin": 1,
+			"ProtocolMax": 5,
+			"Tags": {"region": "global", "dc": "dc1", "build": "1.11.1", "port": "4647", "role": "nomad",
+				"id": "9f3b6e04-8e2f-4f2b-9d5f-2f4a1c0b7e11", "raft_vsn": "3", "expect": "3",
+				"rpc_addr": "10.0.0.6"}
 		}
 	]
 }`
@@ -90,4 +95,59 @@ func TestServers_WithoutALeader(t *testing.T) {
 	for _, server := range servers {
 		r.False(server.Leader)
 	}
+}
+
+func TestServer_ReadsOneByName(t *testing.T) {
+	r := require.New(t)
+
+	client := serversServer(t, members, `"10.0.0.6:4647"`)
+
+	server, err := client.Server(context.Background(), "server-02.global")
+	r.NoError(err)
+
+	r.Equal("server-02.global", server.Name)
+	r.True(server.Leader)
+
+	// Everything the agent gossips about itself is kept, not only what the
+	// list shows: the detail of a server is its tags.
+	r.Equal("3", server.Tags["raft_vsn"])
+	r.Equal("nomad", server.Tags["role"])
+
+	// What the members speak to each other.
+	r.Equal(2, server.Protocol)
+	r.Equal(1, server.ProtocolMin)
+	r.Equal(5, server.ProtocolMax)
+}
+
+func TestServer_ThatIsNotThere(t *testing.T) {
+	r := require.New(t)
+
+	client := serversServer(t, members, `""`)
+
+	_, err := client.Server(context.Background(), "server-09.global")
+	r.ErrorIs(err, nomad.ErrNoServer)
+}
+
+func TestRaftPeers_Read(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{
+		"Index": 22,
+		"Servers": [
+			{"ID": "9f3b6e04", "Node": "server-01.global", "Address": "10.0.0.5:4647", "Leader": false, "Voter": true, "RaftProtocol": "3"},
+			{"ID": "1a2b3c4d", "Node": "server-02.global", "Address": "10.0.0.6:4647", "Leader": true, "Voter": true, "RaftProtocol": "3"}
+		]
+	}`)
+
+	peers, err := client.RaftPeers(context.Background())
+	r.NoError(err)
+	r.Len(peers, 2)
+
+	r.Equal("/v1/operator/raft/configuration", asked.URL.Path)
+
+	r.Equal("server-02.global", peers[1].Node)
+	r.Equal("10.0.0.6:4647", peers[1].Address)
+	r.True(peers[1].Leader)
+	r.True(peers[1].Voter)
+	r.Equal("3", peers[1].Protocol)
 }

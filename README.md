@@ -76,7 +76,7 @@ namespace with it, as in `jobs production`. `q` leaves.
 | `0`–`9` | Switch namespace, `0` is all of them |
 | `A`–`Z` | Sort by the column that starts with that letter, again to reverse |
 | `!` | Only what needs attention, again for all of it |
-| `enter` | Open what the cursor is on: a client opens what it runs |
+| `enter` | Open what the cursor is on: a client opens what it runs, a server what the agent says about itself |
 | `esc` | Back |
 | `d` | Describe |
 | `h` | The job file the job was submitted with |
@@ -102,7 +102,9 @@ are open. Logs follow a task as it writes. A job or a namespace opens in your
 editor and goes back to the cluster when you save. Jobs start, stop, revert and
 scale; allocations restart and stop; a task opens a shell. Clients drain and
 take work again, deployments promote their canaries or fail. The servers list
-says which one leads.
+says which one leads, and a server opens on everything its agent carries: the
+addresses and ports, the gossip it speaks, whether the raft still counts its
+vote, and every tag the cluster was built with.
 
 A client opens on what the machine is doing: its CPU and memory as a chart of
 the readings taken while the screen is open, and the allocations it runs, from

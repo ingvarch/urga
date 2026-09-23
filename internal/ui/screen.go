@@ -23,6 +23,7 @@ const (
 	screenVariables
 	screenNodePools
 	screenServers
+	screenServer
 	screenDescribe
 	screenLogs
 	screenTaskGroups
@@ -164,6 +165,16 @@ func (m Model) open() (Model, tea.Cmd) {
 			nodeID:    node.ID,
 			label:     node.Name,
 		})
+
+	case screenServers:
+		server, ok := selectedOf(m, screenServers, m.servers)
+		if !ok {
+			return m, nil
+		}
+
+		m.server, m.raft, m.raftErr = server, nil, nil
+
+		return m.push(screen{kind: screenServer, label: server.Name})
 
 	case screenTasks:
 		return m.openLogs(nomad.LogStdout)

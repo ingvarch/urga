@@ -78,3 +78,114 @@ func TestClients_IsWhatNomadCallsTheNodes(t *testing.T) {
 		r.Contains(plain(m.render()), "Clients [1]", word)
 	}
 }
+
+func aServer() nomad.Server {
+	return nomad.Server{
+		Name: "server-02.global", Address: "10.0.0.6", Port: 4648,
+		Datacenter: "dc1", Region: "global", Version: "1.11.1", Status: "alive", Leader: true,
+		Tags: map[string]string{
+			"dc": "dc1", "region": "global", "build": "1.11.1", "port": "4647",
+			"id": "9f3b6e04-8e2f-4f2b-9d5f-2f4a1c0b7e11", "role": "nomad",
+			"expect": "3", "raft_vsn": "3", "rpc_addr": "10.0.0.6",
+		},
+		Protocol: 2, ProtocolMin: 1, ProtocolMax: 5,
+	}
+}
+
+// serverScreen drills into the leader of the cluster.
+func serverScreen(t *testing.T) (Model, *fakeClient) {
+	t.Helper()
+
+	client := &fakeClient{servers: twoServers(), server: aServer()}
+
+	m := newTestModel(client)
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "servers")
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	m, _ = m.update(key('j'))
+
+	m, cmd = m.update(enter())
+
+	return drain(m, cmd), client
+}
+
+func TestServer_OpensWhatTheAgentSaysAboutItself(t *testing.T) {
+	r := require.New(t)
+
+	m, client := serverScreen(t)
+
+	r.Equal(screenServer, m.screen.kind)
+	r.Equal("server-02.global", client.askedServer)
+
+	out := plain(m.render())
+	r.Contains(out, "Server server-02.global")
+
+	// What the Nomad interface shows about a server, in the order it reads.
+	r.Contains(out, "Status")
+	r.Contains(out, "alive")
+	r.Contains(out, "Leader")
+	r.Contains(out, "Address")
+	r.Contains(out, "10.0.0.6")
+	r.Contains(out, "Datacenter")
+	r.Contains(out, "Region")
+	r.Contains(out, "Version")
+	r.Contains(out, "1.11.1")
+
+	// And the gossip it speaks, which the interface does not show.
+	r.Contains(out, "Gossip")
+	r.Contains(out, "2")
+}
+
+func TestServer_ShowsEveryTagTheAgentCarries(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := serverScreen(t)
+
+	out := plain(m.render())
+
+	// A tag that no field above stands for is worth a row of its own: it is
+	// how the cluster was built.
+	r.Contains(out, "expect")
+	r.Contains(out, "role")
+
+	// A tag a field already says is not repeated.
+	r.NotContains(out, "build")
+}
+
+func TestServer_SaysWhatRaftMakesOfIt(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := serverScreen(t)
+
+	m, _ = m.update(raftMsg{peers: []nomad.RaftPeer{
+		{Node: "server-02.global", Address: "10.0.0.6:4647", Leader: true, Voter: true, Protocol: "3"},
+	}})
+
+	out := plain(m.render())
+
+	// Alive in the gossip and voting in the raft are two different things.
+	r.Contains(out, "Raft")
+	r.Contains(out, "voter")
+	r.Contains(out, "3")
+}
+
+func TestServer_WhenRaftIsNotAllowed(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := serverScreen(t)
+
+	m, _ = m.update(raftMsg{err: errTest})
+
+	out := plain(m.render())
+
+	// The one thing an ACL is likely to hold back says why, in its own row,
+	// and the rest of the screen stands.
+	r.Contains(out, "Raft")
+	r.Contains(out, "no answer")
+	r.Contains(out, "server-02.global")
+
+	// It is not an error over the whole screen.
+	r.Nil(m.err)
+}

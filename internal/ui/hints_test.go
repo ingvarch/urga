@@ -25,6 +25,7 @@ func everyScreen(t *testing.T) map[screenKind]Model {
 		nodes:       readyNode(),
 		variables:   []nomad.Variable{{Path: "nomad/jobs/web", Namespace: "production"}},
 		nodePools:   []nomad.NodePool{{Name: "default"}},
+		servers:     twoServers(),
 		describe:    "{}",
 		spec:        "job \"web\" {}",
 	}
@@ -38,6 +39,7 @@ func everyScreen(t *testing.T) map[screenKind]Model {
 		"nodes":       nodesMsg(client.nodes),
 		"variables":   variablesMsg(client.variables),
 		"nodepools":   nodePoolsMsg(client.nodePools),
+		"servers":     serversMsg(client.servers),
 	}
 
 	open := map[screenKind]Model{}

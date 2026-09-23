@@ -57,6 +57,8 @@ type Client interface {
 	Variables(ctx context.Context, namespace string) ([]nomad.Variable, error)
 	NodePools(ctx context.Context) ([]nomad.NodePool, error)
 	Servers(ctx context.Context) ([]nomad.Server, error)
+	Server(ctx context.Context, name string) (nomad.Server, error)
+	RaftPeers(ctx context.Context) ([]nomad.RaftPeer, error)
 }
 
 // Options are what the session starts with.
@@ -113,6 +115,15 @@ type (
 	variablesMsg   []nomad.Variable
 	nodePoolsMsg   []nomad.NodePool
 	serversMsg     []nomad.Server
+	serverMsg      nomad.Server
+
+	// raftMsg is what the raft of the cluster says about its servers. An
+	// ACL may hold it back, and then the reason is shown where the answer
+	// would have been.
+	raftMsg struct {
+		peers []nomad.RaftPeer
+		err   error
+	}
 
 	usageMsg     nomad.Usage
 	versionMsg   string
@@ -183,6 +194,12 @@ type Model struct {
 	// readings taken of it since it was opened.
 	host      nomad.Node
 	hostTrail []nomad.ResourceUse
+
+	// server is the one a server screen is open on, raft what the raft of
+	// the cluster makes of the servers.
+	server  nomad.Server
+	raft    []nomad.RaftPeer
+	raftErr error
 
 	table tableModel
 	text  textModel
@@ -377,6 +394,23 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		// The list is stale the moment the cluster changed, ask again.
 		return m, m.fetch()
+
+	case serverMsg:
+		if m.screen.kind != screenServer {
+			return m, nil
+		}
+
+		m.server = nomad.Server(msg)
+		m.err = nil
+		m.layout()
+
+		return m, m.schedulePoll()
+
+	case raftMsg:
+		m.raft, m.raftErr = msg.peers, msg.err
+		m.layout()
+
+		return m, nil
 
 	case hostUseMsg:
 		return m.keepHostUse(msg), nil

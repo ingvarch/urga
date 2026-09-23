@@ -29,6 +29,8 @@ var (
 		{Key: "<ctrl-k>", Description: "Stop"},
 	}
 
+	serverHints = []hint{{Key: "<enter>", Description: "Details"}}
+
 	describeHints = []hint{{Key: "<d>", Description: "Describe"}}
 
 	namespaceHints = []hint{{Key: "<e>", Description: "Edit"}}
@@ -295,11 +297,34 @@ var resources = map[screenKind]resource{
 		stored:  "servers",
 		aliases: []string{"servers", "server", "srv"},
 		titles:  serverTitles,
+		hints:   serverHints,
 		cluster: true,
 		fetch: func(m Model) tea.Cmd {
 			return fetchList(m.client.Servers, func(items []nomad.Server) tea.Msg { return serversMsg(items) })
 		},
 		rows: func(m Model) []tableRow { return serverRows(m.servers) },
+	},
+
+	screenServer: {
+		titles:  fieldTitles,
+		cluster: true,
+
+		title: func(m Model, _ int) string {
+			return sprintf("Server %s", m.screen.label)
+		},
+		fetch: func(m Model) tea.Cmd {
+			client, name := m.client, m.screen.label
+
+			// The agent answers for itself, the raft says whether the rest
+			// of the cluster still counts it.
+			return tea.Batch(
+				request(func(ctx context.Context) (nomad.Server, error) {
+					return client.Server(ctx, name)
+				}, func(server nomad.Server) tea.Msg { return serverMsg(server) }),
+				fetchRaft(client),
+			)
+		},
+		rows: func(m Model) []tableRow { return serverDetailRows(m.server, m.raft, m.raftErr) },
 	},
 
 	screenDescribe: {
