@@ -28,7 +28,7 @@ func run() error {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("urga", version.Current())
+		fmt.Println("urga", version.Full())
 		return nil
 	}
 
@@ -45,7 +45,7 @@ func run() error {
 	}
 
 	model := ui.New(client, ui.Options{
-		Namespace: namespaceOrAll(*namespace),
+		Namespace: ui.NamespaceOrAll(*namespace),
 		Version:   version.Current(),
 		Config:    cfg,
 		Editor:    ui.NewEditor(),
@@ -55,14 +55,4 @@ func run() error {
 	_, err = tea.NewProgram(model).Run()
 
 	return err
-}
-
-// namespaceOrAll starts in every namespace unless one was named. Starting in
-// a single one hides jobs that are right there.
-func namespaceOrAll(namespace string) string {
-	if namespace == "" {
-		return nomad.AllNamespaces
-	}
-
-	return namespace
 }

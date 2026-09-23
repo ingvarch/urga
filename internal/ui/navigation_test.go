@@ -168,3 +168,62 @@ func TestNavigation_PollKeepsToTheOpenScreen(t *testing.T) {
 	r.Zero(client.calls)
 	r.Equal(1, client.allocCalls)
 }
+
+func TestNavigation_AScreenStartsWithoutTheLastOnesFilter(t *testing.T) {
+	r := require.New(t)
+
+	lines := make(chan string, 1)
+	lines <- "the task says something\n"
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), describe: "{}", logs: &nomad.LogStream{Lines: lines}}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(enter())
+	m, _ = m.update(allocsMsg(twoAllocs()))
+
+	// A filter that belongs to the allocation list.
+	m, _ = m.update(key('/'))
+	m = typeIn(m, "frontend")
+	m, _ = m.update(enter())
+	r.Equal("frontend", m.filter)
+
+	// Into the tasks, and a filter of that list as well.
+	m, _ = m.update(enter())
+	r.Empty(m.filter)
+
+	m, _ = m.update(key('/'))
+	m = typeIn(m, "server")
+	m, _ = m.update(enter())
+	r.Equal("server", m.filter)
+
+	// The output of a task is not filtered by what the task list was
+	// filtered to.
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	m = drain(m, m.waitForLog())
+
+	r.Empty(m.filter)
+	r.Contains(plain(m.render()), "the task says something")
+}
+
+func TestNavigation_DescribeStartsWithoutTheFilter(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), describe: "{\n  \"ID\": \"web\"\n}"}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, _ = m.update(key('/'))
+	m = typeIn(m, "web")
+	m, _ = m.update(enter())
+
+	m, cmd := m.update(key('d'))
+	m = drain(m, cmd)
+
+	// The description is shown whole, not narrowed by what the list was
+	// filtered to.
+	r.Empty(m.filter)
+	r.Contains(plain(m.render()), "\"ID\": \"web\"")
+}

@@ -81,13 +81,8 @@ func newAlloc(stub *api.AllocationListStub) Alloc {
 		Tasks:         newTasks(stub.TaskStates),
 	}
 
-	if stub.CreateTime != 0 {
-		alloc.Created = time.Unix(0, stub.CreateTime)
-	}
-
-	if stub.ModifyTime != 0 {
-		alloc.Modified = time.Unix(0, stub.ModifyTime)
-	}
+	alloc.Created = unixTime(stub.CreateTime)
+	alloc.Modified = unixTime(stub.ModifyTime)
 
 	return alloc
 }

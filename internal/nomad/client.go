@@ -12,12 +12,11 @@ import (
 // AllNamespaces is what Nomad understands as every namespace at once.
 const AllNamespaces = "*"
 
-// Config says which cluster to talk to. An empty field falls back to the
-// environment, the same variables the nomad command reads.
+// Config says which cluster to talk to. An empty address falls back to the
+// environment, the same variables the nomad command reads, which is also
+// where the token and the region come from.
 type Config struct {
 	Address string
-	Region  string
-	Token   string
 }
 
 // Client is the cluster.
@@ -31,14 +30,6 @@ func New(cfg Config) (*Client, error) {
 
 	if cfg.Address != "" {
 		c.Address = cfg.Address
-	}
-
-	if cfg.Region != "" {
-		c.Region = cfg.Region
-	}
-
-	if cfg.Token != "" {
-		c.SecretID = cfg.Token
 	}
 
 	client, err := api.NewClient(c)
@@ -109,13 +100,21 @@ func newJob(stub *api.JobListStub) Job {
 		Status:    stub.Status,
 	}
 
-	if stub.SubmitTime != 0 {
-		job.SubmitTime = time.Unix(0, stub.SubmitTime)
-	}
+	job.SubmitTime = unixTime(stub.SubmitTime)
 
 	job.Running, job.Desired = allocationCounts(stub.JobSummary)
 
 	return job
+}
+
+// unixTime reads a Nomad timestamp. Nomad says "never" with a zero, which is
+// not 1970: a job with no submit time would read as twenty thousand days old.
+func unixTime(nanos int64) time.Time {
+	if nanos == 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(0, nanos)
 }
 
 // allocationCounts adds up the task groups of a job. Allocations in a state

@@ -10,8 +10,3 @@ type ResourceUse struct {
 	MemoryMBAllowed int
 	MemoryPercent   int
 }
-
-// Known says whether the cluster answered with anything.
-func (u ResourceUse) Known() bool {
-	return u.CPUTicksAllowed > 0 || u.MemoryMBAllowed > 0 || u.CPUTicks > 0 || u.MemoryMB > 0
-}

@@ -11,7 +11,7 @@ import (
 func TestSubmitJob_JSON(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := writeRecorder(t, `{"EvalID": "eval-1"}`)
+	client, asked := recorder(t, `{"EvalID": "eval-1"}`)
 
 	r.NoError(client.SubmitJob(context.Background(), "production", `{"ID": "web", "Name": "web"}`))
 
@@ -23,7 +23,7 @@ func TestSubmitJob_JSON(t *testing.T) {
 func TestSubmitJob_HCLGoesThroughTheCluster(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := writeRecorder(t, `{"ID": "web", "Name": "web"}`)
+	client, asked := recorder(t, `{"ID": "web", "Name": "web"}`)
 
 	r.NoError(client.SubmitJob(context.Background(), "production", "job \"web\" {}"))
 
@@ -34,7 +34,7 @@ func TestSubmitJob_HCLGoesThroughTheCluster(t *testing.T) {
 func TestSubmitJob_BrokenJSON(t *testing.T) {
 	r := require.New(t)
 
-	client, _ := writeRecorder(t, `{}`)
+	client, _ := recorder(t, `{}`)
 
 	err := client.SubmitJob(context.Background(), "production", "{not json")
 
@@ -56,7 +56,7 @@ func TestNamespaceSpec(t *testing.T) {
 func TestSubmitNamespace(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := writeRecorder(t, `{}`)
+	client, asked := recorder(t, `{}`)
 
 	r.NoError(client.SubmitNamespace(context.Background(), `{"Name": "production"}`))
 

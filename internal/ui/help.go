@@ -54,18 +54,7 @@ func renderHelp(sections []helpSection, width int) string {
 	height := 0
 
 	for _, section := range sections {
-		column := []string{styleLabel.Render(section.title), ""}
-
-		keyWidth, descriptionWidth := 0, 0
-		for _, h := range section.hints {
-			keyWidth = max(keyWidth, ansi.StringWidth(h.Key))
-			descriptionWidth = max(descriptionWidth, ansi.StringWidth(h.Description))
-		}
-
-		for _, h := range section.hints {
-			column = append(column,
-				styleKey.Render(pad(h.Key, keyWidth))+" "+styleText.Render(pad(h.Description, descriptionWidth)))
-		}
+		column := append([]string{styleLabel.Render(section.title), ""}, hintCells(section.hints, styleText)...)
 
 		height = max(height, len(column))
 		columns = append(columns, column)
@@ -90,7 +79,7 @@ func renderHelp(sections []helpSection, width int) string {
 			row += pad(cell, widths[c]) + strings.Repeat(" ", columnGap*2)
 		}
 
-		rows = append(rows, ansi.Truncate(strings.TrimRight(row, " "), width, "…"))
+		rows = append(rows, truncate(strings.TrimRight(row, " "), width))
 	}
 
 	return strings.Join(rows, "\n")

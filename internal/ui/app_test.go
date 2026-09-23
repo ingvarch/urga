@@ -29,10 +29,12 @@ type fakeClient struct {
 
 	describe      string
 	spec          string
+	specErr       error
 	logs          *nomad.LogStream
 	usage         nomad.Usage
 	use           map[string]nomad.ResourceUse
 	usageCalls    int
+	usageErr      error
 	namespaceSpec string
 
 	submitted           int
@@ -44,6 +46,12 @@ type fakeClient struct {
 	restarted     int
 	stoppedAllocs int
 	reverted      int
+	drained       bool
+	drainCalls    int
+	eligible      bool
+	eligibleCalls int
+	promoted      int
+	failed        int
 	scaled        int
 	scaledTo      int
 	actionErr     error
@@ -107,6 +115,10 @@ func (f *fakeClient) DescribeService(_ context.Context, namespace, name string) 
 
 func (f *fakeClient) JobSpec(_ context.Context, namespace, jobID string) (string, error) {
 	f.askedNamespace, f.askedID = namespace, jobID
+
+	if f.specErr != nil {
+		return "", f.specErr
+	}
 
 	return f.spec, f.err
 }
@@ -193,12 +205,44 @@ func (f *fakeClient) SubmitNamespace(_ context.Context, source string) error {
 	return f.actionErr
 }
 
+func (f *fakeClient) DrainNode(_ context.Context, nodeID string, drain bool) error {
+	f.askedID, f.drained = nodeID, drain
+	f.drainCalls++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) SetNodeEligible(_ context.Context, nodeID string, eligible bool) error {
+	f.askedID, f.eligible = nodeID, eligible
+	f.eligibleCalls++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) PromoteDeployment(_ context.Context, namespace, deploymentID string) error {
+	f.askedNamespace, f.askedID = namespace, deploymentID
+	f.promoted++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) FailDeployment(_ context.Context, namespace, deploymentID string) error {
+	f.askedNamespace, f.askedID = namespace, deploymentID
+	f.failed++
+
+	return f.actionErr
+}
+
 func (f *fakeClient) Usage(context.Context) (nomad.Usage, error) {
 	return f.usage, f.err
 }
 
 func (f *fakeClient) AllocationUsage(_ context.Context, _, allocID string) (nomad.ResourceUse, error) {
 	f.usageCalls++
+
+	if f.usageErr != nil {
+		return nomad.ResourceUse{}, f.usageErr
+	}
 
 	use, ok := f.use[allocID]
 	if !ok {

@@ -90,14 +90,13 @@ func (c *Client) Services(ctx context.Context, namespace string) ([]Service, err
 
 // Evaluation is a scheduling decision: why a job runs, or why it does not.
 type Evaluation struct {
-	ID                string
-	JobID             string
-	Namespace         string
-	Type              string
-	TriggeredBy       string
-	Status            string
-	StatusDescription string
-	Created           time.Time
+	ID          string
+	JobID       string
+	Namespace   string
+	Type        string
+	TriggeredBy string
+	Status      string
+	Created     time.Time
 }
 
 // Evaluations lists the scheduling decisions of a namespace.
@@ -110,18 +109,15 @@ func (c *Client) Evaluations(ctx context.Context, namespace string) ([]Evaluatio
 	out := make([]Evaluation, 0, len(list))
 	for _, e := range list {
 		eval := Evaluation{
-			ID:                e.ID,
-			JobID:             e.JobID,
-			Namespace:         e.Namespace,
-			Type:              e.Type,
-			TriggeredBy:       e.TriggeredBy,
-			Status:            e.Status,
-			StatusDescription: e.StatusDescription,
+			ID:          e.ID,
+			JobID:       e.JobID,
+			Namespace:   e.Namespace,
+			Type:        e.Type,
+			TriggeredBy: e.TriggeredBy,
+			Status:      e.Status,
 		}
 
-		if e.CreateTime != 0 {
-			eval.Created = time.Unix(0, e.CreateTime)
-		}
+		eval.Created = unixTime(e.CreateTime)
 
 		out = append(out, eval)
 	}
@@ -187,13 +183,8 @@ func (c *Client) Variables(ctx context.Context, namespace string) ([]Variable, e
 	for _, v := range list {
 		variable := Variable{Path: v.Path, Namespace: v.Namespace}
 
-		if v.CreateTime != 0 {
-			variable.Created = time.Unix(0, v.CreateTime)
-		}
-
-		if v.ModifyTime != 0 {
-			variable.Modified = time.Unix(0, v.ModifyTime)
-		}
+		variable.Created = unixTime(v.CreateTime)
+		variable.Modified = unixTime(v.ModifyTime)
 
 		out = append(out, variable)
 	}

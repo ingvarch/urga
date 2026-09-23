@@ -7,6 +7,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// sortTable orders the rows of a table the way the model does: one sort, one
+// hand-over.
+func sortTable(tbl *tableModel, column int) {
+	order := tbl.sort.by(column)
+
+	rows, _ := sortRows(tbl.rows, nil, order, tbl.titles)
+	tbl.show(rows, order)
+}
+
 func cellsOf(tbl tableModel, column int) []string {
 	out := []string{}
 	for _, row := range tbl.rows {
@@ -21,15 +30,15 @@ func TestSort_ByAColumn(t *testing.T) {
 
 	tbl := testTable(row("web", "b", "running"), row("api", "c", "dead"), row("cron", "a", "pending"))
 
-	tbl.sortBy(0)
+	sortTable(&tbl, 0)
 	r.Equal([]string{"api", "cron", "web"}, cellsOf(tbl, 0))
 
 	// The same column again turns the list around.
-	tbl.sortBy(0)
+	sortTable(&tbl, 0)
 	r.Equal([]string{"web", "cron", "api"}, cellsOf(tbl, 0))
 
 	// Another column starts over, the right way up.
-	tbl.sortBy(1)
+	sortTable(&tbl, 1)
 	r.Equal([]string{"a", "b", "c"}, cellsOf(tbl, 1))
 }
 
@@ -37,12 +46,12 @@ func TestSort_ShowsWhichColumn(t *testing.T) {
 	r := require.New(t)
 
 	tbl := testTable(row("web", "b", "running"))
-	tbl.sortBy(0)
+	sortTable(&tbl, 0)
 
 	header := lines(tbl.view())[0]
 	r.Contains(header, "ID ↑")
 
-	tbl.sortBy(0)
+	sortTable(&tbl, 0)
 	r.Contains(lines(tbl.view())[0], "ID ↓")
 }
 
@@ -51,9 +60,9 @@ func TestSort_AgeGoesByTime(t *testing.T) {
 
 	tbl := newTableModel([]string{"ID", "Age"})
 	tbl.setSize(60, 5)
-	tbl.setRows([]tableRow{row("a", "5h"), row("b", "2d"), row("c", "45s"), row("d", "10m")})
+	tbl.show([]tableRow{row("a", "5h"), row("b", "2d"), row("c", "45s"), row("d", "10m")}, newSortState())
 
-	tbl.sortBy(1)
+	sortTable(&tbl, 1)
 
 	// The youngest first: seconds, minutes, hours, days. Read as text, "2d"
 	// would come before "5h".
@@ -65,9 +74,9 @@ func TestSort_NumbersGoByValue(t *testing.T) {
 
 	tbl := newTableModel([]string{"ID", "Allocs"})
 	tbl.setSize(60, 5)
-	tbl.setRows([]tableRow{row("a", "9/9"), row("b", "10/10"), row("c", "2/2")})
+	tbl.show([]tableRow{row("a", "9/9"), row("b", "10/10"), row("c", "2/2")}, newSortState())
 
-	tbl.sortBy(1)
+	sortTable(&tbl, 1)
 
 	r.Equal([]string{"2/2", "9/9", "10/10"}, cellsOf(tbl, 1))
 }

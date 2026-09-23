@@ -14,7 +14,7 @@ import (
 func testTable(rows ...tableRow) tableModel {
 	t := newTableModel([]string{"ID", "Name", "Status"})
 	t.setSize(60, 3)
-	t.setRows(rows)
+	t.show(rows, newSortState())
 
 	return t
 }
@@ -175,17 +175,16 @@ func TestTable_RowKeepsItsColor(t *testing.T) {
 	r.Contains(out, colorCode(colorDead))
 }
 
-func TestTable_SelectedRow(t *testing.T) {
+func TestTable_CursorStaysInTheRows(t *testing.T) {
 	r := require.New(t)
 
-	tbl := testTable(row("api"), row("cron"))
-	tbl.move(1)
+	tbl := testTable(row("a"), row("b"), row("c"))
+	tbl.move(2)
 
-	selected, ok := tbl.selected()
-	r.True(ok)
-	r.Equal("cron", selected.cells[0])
+	// A shorter list pulls the cursor back into it, otherwise the window
+	// scrolls past every row and the table looks empty.
+	tbl.show([]tableRow{row("a")}, tbl.sort)
 
-	empty := testTable()
-	_, ok = empty.selected()
-	r.False(ok, "an empty list has nothing under the cursor")
+	r.Equal(0, tbl.cursor)
+	r.Contains(lines(tbl.view())[1], "a")
 }

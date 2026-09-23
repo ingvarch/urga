@@ -43,23 +43,16 @@ func newTableModel(titles []string) tableModel {
 	return tableModel{titles: titles, sort: newSortState()}
 }
 
-// sortBy orders the rows by a column, and turns them around when it is the
-// column they are already ordered by.
-func (t *tableModel) sortBy(column int) {
-	t.sort = t.sort.by(column)
-	t.setRows(t.rows)
-}
-
 func (t *tableModel) setSize(width, height int) {
 	t.width, t.height = width, max(height, 1)
 	t.follow()
 }
 
-// setRows takes what the cluster last said. The cursor keeps its place in the
-// list as far as the new list allows.
-func (t *tableModel) setRows(rows []tableRow) {
-	rows, _ = sortRows(rows, nil, t.sort, t.titles)
-
+// show puts rows on the table, in the order they are given. The cursor keeps
+// its place as far as the new list allows: a cursor past the end scrolls the
+// window past the rows and the table looks empty.
+func (t *tableModel) show(rows []tableRow, order sortState) {
+	t.sort = order
 	t.rows = rows
 	t.cursor = clamp(t.cursor, 0, len(rows)-1)
 	t.follow()
@@ -70,16 +63,8 @@ func (t *tableModel) move(delta int) {
 	t.follow()
 }
 
-// selected is the row under the cursor, if there is one.
-func (t tableModel) selected() (tableRow, bool) {
-	if t.cursor < 0 || t.cursor >= len(t.rows) {
-		return tableRow{}, false
-	}
-
-	return t.rows[t.cursor], true
-}
-
-// follow keeps the cursor inside the window.
+// follow keeps the cursor inside the window, and the window over the rows: a
+// window that starts past what is left shows blank lines under a full list.
 func (t *tableModel) follow() {
 	if t.cursor < t.top {
 		t.top = t.cursor
@@ -89,7 +74,7 @@ func (t *tableModel) follow() {
 		t.top = t.cursor - t.height + 1
 	}
 
-	t.top = max(t.top, 0)
+	t.top = clamp(t.top, 0, max(len(t.rows)-t.height, 0))
 }
 
 func (t tableModel) view() string {
@@ -135,7 +120,7 @@ func (t tableModel) line(cells []string, widths []int) string {
 
 	line := strings.Repeat(" ", tableIndent) + strings.Join(parts, strings.Repeat(" ", cellGap))
 
-	return pad(ansi.Truncate(line, t.width, "…"), t.width)
+	return pad(truncate(line, t.width), t.width)
 }
 
 // columnWidths gives every column the width of the widest thing in it, then
@@ -180,12 +165,10 @@ func spread(widths []int, available int) {
 	content := total(widths)
 	given := 0
 
-	if content > 0 {
-		for i := range widths {
-			share := left * widths[i] / content
-			widths[i] += share
-			given += share
-		}
+	for i := range widths {
+		share := left * widths[i] / content
+		widths[i] += share
+		given += share
 	}
 
 	// What does not divide evenly goes to the first columns, which are the

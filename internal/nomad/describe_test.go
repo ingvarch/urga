@@ -2,9 +2,13 @@ package nomad_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 func TestDescribeJob(t *testing.T) {
@@ -67,7 +71,39 @@ func TestJobSpec_WithoutASource(t *testing.T) {
 
 	out, err := client.JobSpec(context.Background(), "production", "web")
 
-	// A cluster that did not keep the source says so instead of failing.
+	// A cluster that did not keep the source says so as an error. Handing a
+	// sentence back as if it were the job file puts English prose in front
+	// of an editor that submits what it is given.
+	r.ErrorIs(err, nomad.ErrNoSource)
+	r.Empty(out)
+}
+
+func TestJobSpec_WhenTheVersionCannotBeRead(t *testing.T) {
+	r := require.New(t)
+
+	var askedVersion string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/v1/job/web" {
+			http.Error(w, "permission denied", http.StatusForbidden)
+
+			return
+		}
+
+		askedVersion = req.URL.Query().Get("version")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"Source": "job \"web\" { type = \"batch\" }", "Format": "hcl2"}`))
+	}))
+	defer server.Close()
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
 	r.NoError(err)
-	r.Contains(out, "no source")
+
+	_, err = client.JobSpec(context.Background(), "production", "web")
+
+	// Not knowing which version runs is not the same as version zero. Asking
+	// for the first version ever submitted puts an old file in the editor,
+	// and saving it sends that old file back to the cluster as the new one.
+	r.Error(err)
+	r.Empty(askedVersion)
 }

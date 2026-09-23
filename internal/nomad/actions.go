@@ -3,6 +3,7 @@ package nomad
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/nomad/api"
 )
@@ -80,3 +81,42 @@ func (c *Client) write(ctx context.Context, namespace string) *api.WriteOptions 
 }
 
 func boolPtr(v bool) *bool { return &v }
+
+// DrainNode starts or stops moving the work off a node. Stopping a drain
+// makes the node take work again.
+func (c *Client) DrainNode(ctx context.Context, nodeID string, drain bool) error {
+	opts := &api.DrainOptions{MarkEligible: true}
+
+	if drain {
+		opts = &api.DrainOptions{DrainSpec: &api.DrainSpec{Deadline: drainDeadline}}
+	}
+
+	_, err := c.api.Nodes().UpdateDrainOpts(nodeID, opts, c.write(ctx, ""))
+
+	return err
+}
+
+// drainDeadline is how long the allocations of a draining node are given to
+// stop on their own.
+const drainDeadline = time.Hour
+
+// SetNodeEligible says whether a node may be given new work.
+func (c *Client) SetNodeEligible(ctx context.Context, nodeID string, eligible bool) error {
+	_, err := c.api.Nodes().ToggleEligibility(nodeID, eligible, c.write(ctx, ""))
+
+	return err
+}
+
+// PromoteDeployment takes the canaries of a deployment into service.
+func (c *Client) PromoteDeployment(ctx context.Context, namespace, deploymentID string) error {
+	_, _, err := c.api.Deployments().PromoteAll(deploymentID, c.write(ctx, namespace))
+
+	return err
+}
+
+// FailDeployment stops a deployment and rolls it back where the job says to.
+func (c *Client) FailDeployment(ctx context.Context, namespace, deploymentID string) error {
+	_, _, err := c.api.Deployments().Fail(deploymentID, c.write(ctx, namespace))
+
+	return err
+}

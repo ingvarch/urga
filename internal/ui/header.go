@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -36,7 +37,6 @@ type header struct {
 	address      string
 	version      string
 	nomadVersion string
-	namespace    string
 	usage        string
 	memory       string
 	namespaces   []namespaceKey
@@ -76,7 +76,7 @@ func renderHeader(h header, width int) string {
 			row += strings.Repeat(" ", columnGap) + hint
 		}
 
-		row = ansi.Truncate(strings.TrimRight(row, " "), rest, "…")
+		row = truncate(strings.TrimRight(row, " "), rest)
 
 		// The art is shorter than the header, the lines past it keep the
 		// block square.
@@ -167,12 +167,9 @@ func grid(cells []string, height int) string {
 	return strings.Join(rows, "\n")
 }
 
-// hintColumns lays the keys of the screen out the same way.
-func hintColumns(hints []hint, width int) string {
-	if len(hints) == 0 || width <= 0 {
-		return ""
-	}
-
+// hintCells are a list of keys laid out as a block of even columns: the key
+// in one, what it does in the next.
+func hintCells(hints []hint, describe lipgloss.Style) []string {
 	keyWidth, descriptionWidth := 0, 0
 	for _, h := range hints {
 		keyWidth = max(keyWidth, ansi.StringWidth(h.Key))
@@ -182,12 +179,21 @@ func hintColumns(hints []hint, width int) string {
 	cells := make([]string, 0, len(hints))
 	for _, h := range hints {
 		cells = append(cells,
-			styleKey.Render(pad(h.Key, keyWidth))+" "+styleValue.Render(pad(h.Description, descriptionWidth)))
+			styleKey.Render(pad(h.Key, keyWidth))+" "+describe.Render(pad(h.Description, descriptionWidth)))
 	}
 
-	rows := strings.Split(grid(cells, headerHeight), "\n")
+	return cells
+}
+
+// hintColumns lays the keys of the screen out for the header.
+func hintColumns(hints []hint, width int) string {
+	if len(hints) == 0 || width <= 0 {
+		return ""
+	}
+
+	rows := strings.Split(grid(hintCells(hints, styleValue), headerHeight), "\n")
 	for i, row := range rows {
-		rows[i] = ansi.Truncate(row, width, "…")
+		rows[i] = truncate(row, width)
 	}
 
 	return strings.Join(rows, "\n")

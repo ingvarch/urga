@@ -55,30 +55,25 @@ var taskGroupHints = []hint{
 
 // openTaskGroups lists the groups of the job under the cursor.
 func (m Model) openTaskGroups() (Model, tea.Cmd) {
-	row, ok := m.selectedIndex()
-	if !ok || m.screen.kind != screenJobs {
+	job, ok := selectedOf(m, screenJobs, m.jobs)
+	if !ok {
 		return m, nil
 	}
-
-	job := m.jobs[row]
 
 	return m.push(screen{kind: screenTaskGroups, namespace: job.Namespace, jobID: job.ID})
 }
 
 // scaleGroup asks how many allocations the group under the cursor should run.
 func (m Model) scaleGroup() (Model, tea.Cmd) {
-	row, ok := m.selectedIndex()
-	if !ok || m.screen.kind != screenTaskGroups || row >= len(m.groups) {
+	group, ok := selectedOf(m, screenTaskGroups, m.groups)
+	if !ok {
 		return m, nil
 	}
 
-	group := m.groups[row]
-
-	m.overlay = overlayPrompt
+	m.overlay = overlayScale
 	m.prompt = promptModel{
 		prefix: fmt.Sprintf("scale %s to: ", group.Name),
 		text:   strconv.Itoa(group.Count),
-		action: promptScale,
 		group:  group.Name,
 	}
 	m.layout()

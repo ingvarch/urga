@@ -2,6 +2,7 @@ package nomad_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,29 +12,10 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// writeRecorder answers every request and keeps the last one, with its body.
-func writeRecorder(t *testing.T, body string) (*nomad.Client, *http.Request) {
-	t.Helper()
-
-	asked := &http.Request{}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		*asked = *r
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(body))
-	}))
-	t.Cleanup(server.Close)
-
-	client, err := nomad.New(nomad.Config{Address: server.URL})
-	require.NoError(t, err)
-
-	return client, asked
-}
-
 func TestStopJob(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := writeRecorder(t, `{"EvalID": "eval-1"}`)
+	client, asked := recorder(t, `{"EvalID": "eval-1"}`)
 
 	r.NoError(client.StopJob(context.Background(), "production", "web"))
 
@@ -45,7 +27,7 @@ func TestStopJob(t *testing.T) {
 func TestStartJob(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := writeRecorder(t, `{"ID": "web", "Stop": true, "Version": 2}`)
+	client, asked := recorder(t, `{"ID": "web", "Stop": true, "Version": 2}`)
 
 	r.NoError(client.StartJob(context.Background(), "production", "web"))
 
@@ -57,7 +39,7 @@ func TestStartJob(t *testing.T) {
 func TestRestartAllocation(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := writeRecorder(t, `{"ID": "af1f37df"}`)
+	client, asked := recorder(t, `{"ID": "af1f37df"}`)
 
 	r.NoError(client.RestartAllocation(context.Background(), "production", "af1f37df"))
 
@@ -67,7 +49,7 @@ func TestRestartAllocation(t *testing.T) {
 func TestStopAllocation(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := writeRecorder(t, `{"ID": "af1f37df"}`)
+	client, asked := recorder(t, `{"ID": "af1f37df"}`)
 
 	r.NoError(client.StopAllocation(context.Background(), "production", "af1f37df"))
 
@@ -77,7 +59,7 @@ func TestStopAllocation(t *testing.T) {
 func TestRevertJob(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := writeRecorder(t, `{"ID": "web", "Version": 3}`)
+	client, asked := recorder(t, `{"ID": "web", "Version": 3}`)
 
 	r.NoError(client.RevertJob(context.Background(), "production", "web"))
 
@@ -88,7 +70,7 @@ func TestRevertJob(t *testing.T) {
 func TestRevertJob_AtTheFirstVersion(t *testing.T) {
 	r := require.New(t)
 
-	client, _ := writeRecorder(t, `{"ID": "web", "Version": 0}`)
+	client, _ := recorder(t, `{"ID": "web", "Version": 0}`)
 
 	// There is nothing behind the first version, and saying so is better than
 	// a cluster error.
@@ -98,10 +80,84 @@ func TestRevertJob_AtTheFirstVersion(t *testing.T) {
 func TestScaleJob(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := writeRecorder(t, `{"EvalID": "eval-1"}`)
+	client, asked := recorder(t, `{"EvalID": "eval-1"}`)
 
 	r.NoError(client.ScaleJob(context.Background(), "production", "web", "frontend", 3))
 
 	r.Equal("/v1/job/web/scale", asked.URL.Path)
 	r.Equal("production", asked.URL.Query().Get("namespace"))
+}
+
+// drainRequest is what the cluster was asked to do with a node.
+func drainRequest(t *testing.T, drain bool) map[string]any {
+	t.Helper()
+
+	var body map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.Equal(t, "/v1/node/node-1/drain", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"NodeModifyIndex": 7}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	require.NoError(t, client.DrainNode(context.Background(), "node-1", drain))
+
+	return body
+}
+
+func TestDrainNode(t *testing.T) {
+	r := require.New(t)
+
+	body := drainRequest(t, true)
+
+	// Draining asks for the allocations to be moved off, with a deadline.
+	r.NotNil(body["DrainSpec"])
+}
+
+func TestDrainNode_Stop(t *testing.T) {
+	r := require.New(t)
+
+	body := drainRequest(t, false)
+
+	// Stopping a drain cancels it and puts the node back to taking work,
+	// otherwise it sits there empty and nobody notices.
+	r.Nil(body["DrainSpec"])
+	r.Equal(true, body["MarkEligible"])
+}
+
+func TestNodeEligibility(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{"NodeModifyIndex": 7}`)
+
+	r.NoError(client.SetNodeEligible(context.Background(), "node-1", false))
+
+	r.Equal("/v1/node/node-1/eligibility", asked.URL.Path)
+}
+
+func TestPromoteDeployment(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{"EvalID": "eval-1"}`)
+
+	r.NoError(client.PromoteDeployment(context.Background(), "production", "dep-1"))
+
+	r.Equal("/v1/deployment/promote/dep-1", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+}
+
+func TestFailDeployment(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{"EvalID": "eval-1"}`)
+
+	r.NoError(client.FailDeployment(context.Background(), "production", "dep-1"))
+
+	r.Equal("/v1/deployment/fail/dep-1", asked.URL.Path)
 }

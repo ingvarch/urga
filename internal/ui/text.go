@@ -1,10 +1,6 @@
 package ui
 
-import (
-	"strings"
-
-	"github.com/charmbracelet/x/ansi"
-)
+import "strings"
 
 // textModel is a block of text with a window over it: what a description or
 // a job file is read through.
@@ -51,8 +47,10 @@ func (t *textModel) move(delta int) {
 	t.top = clamp(t.top+delta, 0, max(len(t.visible())-t.height, 0))
 }
 
+// follow pulls the window back over the lines, which is what a move of
+// nothing does.
 func (t *textModel) follow() {
-	t.top = clamp(t.top, 0, max(len(t.visible())-t.height, 0))
+	t.move(0)
 }
 
 func (t textModel) view() string {
@@ -61,7 +59,7 @@ func (t textModel) view() string {
 	rows := make([]string, 0, t.height)
 
 	for i := t.top; i < len(lines) && i < t.top+t.height; i++ {
-		line := ansi.Truncate(lines[i], t.width, "…")
+		line := truncate(lines[i], t.width)
 		rows = append(rows, styleText.Render(pad(line, t.width)))
 	}
 

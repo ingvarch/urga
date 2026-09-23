@@ -21,3 +21,16 @@ func TestHuman(t *testing.T) {
 	r.Equal("dev", version.Human("dev", "none"))
 	r.Equal("dev", version.Human("", ""))
 }
+
+func TestLong(t *testing.T) {
+	r := require.New(t)
+
+	// The line urga prints for --version says what was built and when, which
+	// is what the build stamps in.
+	r.Equal("v0.1.0 (a1b2c3d), built 2026-09-22T21:35:21Z",
+		version.Long("v0.1.0", "a1b2c3d", "2026-09-22T21:35:21Z"))
+
+	// A build from source has nothing to say about the date.
+	r.Equal("dev", version.Long("dev", "none", "unknown"))
+	r.Equal("dev", version.Long("", "", ""))
+}

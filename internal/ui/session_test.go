@@ -96,3 +96,44 @@ func TestSession_WithoutAConfig(t *testing.T) {
 
 	r.NotPanics(func() { drain(m, cmd) })
 }
+
+func TestSession_RemembersANamespaceFromTheCommandLine(t *testing.T) {
+	r := require.New(t)
+
+	m, cfg := sessionModel(t, &fakeClient{namespaces: threeNamespaces()})
+	m, _ = m.update(namespacesMsg(threeNamespaces()))
+
+	// The job list is already open, and the command names the same resource
+	// with another namespace.
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "jobs staging")
+	m, cmd := m.update(enter())
+	drain(m, cmd)
+
+	r.Equal("staging", m.namespace)
+
+	// Which namespace the session looks at is written down whichever way it
+	// was chosen, so the next run comes back to it.
+	r.NotNil(cfg.Namespace)
+	r.Equal("staging", *cfg.Namespace)
+}
+
+func TestSession_RemembersTheScreenAfterGoingBack(t *testing.T) {
+	r := require.New(t)
+
+	m, cfg := sessionModel(t, &fakeClient{jobs: twoJobs()})
+
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "dp")
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	r.Equal("deployments", cfg.Screen)
+
+	// Escape comes back to the job list, and that is where the next run has
+	// to open, not on the screen that was left.
+	m, cmd = m.update(escape())
+	drain(m, cmd)
+
+	r.Equal(screenJobs, m.screen.kind)
+	r.Equal("jobs", cfg.Screen)
+}

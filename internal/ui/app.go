@@ -10,7 +10,6 @@ import (
 	"unicode"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
@@ -44,6 +43,10 @@ type Client interface {
 	ScaleJob(ctx context.Context, namespace, jobID, group string, count int) error
 	RestartAllocation(ctx context.Context, namespace, allocID string) error
 	StopAllocation(ctx context.Context, namespace, allocID string) error
+	DrainNode(ctx context.Context, nodeID string, drain bool) error
+	SetNodeEligible(ctx context.Context, nodeID string, eligible bool) error
+	PromoteDeployment(ctx context.Context, namespace, deploymentID string) error
+	FailDeployment(ctx context.Context, namespace, deploymentID string) error
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 	Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error)
 	Namespaces(ctx context.Context) ([]nomad.Namespace, error)
@@ -64,9 +67,6 @@ type Options struct {
 
 	// PollEvery is the wait between an answer and the next ask.
 	PollEvery time.Duration
-
-	// Timeout is how long one request may take.
-	Timeout time.Duration
 
 	// Config is what the last session left behind. It may be nil.
 	Config *config.Config
@@ -185,19 +185,18 @@ type Model struct {
 	nomadVersion string
 	usage        nomad.Usage
 
-	// rowUsage is what each row on the screen takes, by its id.
-	rowUsage map[string]nomad.ResourceUse
-	err      error
+	// rowUsage is what each row on the screen takes, by its id, and why the
+	// rest of them said nothing.
+	rowUsage     map[string]nomad.ResourceUse
+	missingUsage int
+	usageReason  error
+	err          error
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
 func New(client Client, opts Options) Model {
 	if opts.PollEvery == 0 {
 		opts.PollEvery = defaultPollEvery
-	}
-
-	if opts.Timeout == 0 {
-		opts.Timeout = defaultTimeout
 	}
 
 	m := Model{
@@ -220,7 +219,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.fetch(),
 		fetchVersion(client),
-		fetchUsage(client),
+		fetchClusterUsage(client),
 		fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
 	)
 }
@@ -298,10 +297,11 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, tea.Tick(usageEvery, func(time.Time) tea.Msg { return pollUsageMsg{} })
 
 	case pollUsageMsg:
-		return m, fetchUsage(m.client)
+		return m, fetchClusterUsage(m.client)
 
 	case rowUsageMsg:
-		m.rowUsage = msg
+		m.rowUsage = msg.readings
+		m.missingUsage, m.usageReason = msg.missing, msg.reason
 		m.layout()
 
 		return m, tea.Tick(rowUsageEvery, func(time.Time) tea.Msg { return pollUsageRow{} })
@@ -387,11 +387,34 @@ func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
 	return m, m.schedulePoll()
 }
 
-// handleKey is the one place that decides who gets a key press. An overlay
-// answers first and the screen never sees the key.
+// handleKey is the one place that decides who gets a key press: an overlay
+// first, then the way around the screen, then what the resource can do.
 func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
+	if m.overlay != overlayNone {
+		return m.overlayKey(msg)
+	}
+
+	if m.screen.kind == screenLogs {
+		if next, cmd, handled := m.logsKey(msg); handled {
+			return next, cmd
+		}
+	}
+
+	if next, handled := m.scrollKey(msg); handled {
+		return next, nil
+	}
+
+	if next, cmd, handled := m.resourceKey(msg); handled {
+		return next, cmd
+	}
+
+	return m.sessionKey(msg)
+}
+
+// overlayKey hands the key to whatever took the keyboard.
+func (m Model) overlayKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch m.overlay {
-	case overlayPrompt, overlayFilter:
+	case overlayPrompt, overlayFilter, overlayScale:
 		return m.promptKey(msg)
 
 	case overlayHelp:
@@ -401,55 +424,81 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.confirmKey(msg)
 	}
 
-	if m.screen.kind == screenLogs {
-		if next, cmd, handled := m.logsKey(msg); handled {
-			return next, cmd
+	return m, nil
+}
+
+// resourceKey is what the open resource can do. Each of these looks at the
+// row under the cursor and does nothing when the screen is not its own.
+func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
+	var (
+		next Model
+		cmd  tea.Cmd
+	)
+
+	switch msg.String() {
+	case "enter":
+		next, cmd = m.open()
+
+	case "ctrl+s":
+		next, cmd = m.startStopJob()
+
+	case "e":
+		next, cmd = m.edit()
+
+	case "t":
+		next, cmd = m.openTaskGroups()
+
+	case "s":
+		// The same key scales a task group and opens a shell in a task,
+		// because a screen never offers both.
+		if m.screen.kind == screenTasks {
+			next, cmd = m.shell()
+		} else {
+			next, cmd = m.scaleGroup()
 		}
+
+	case "u":
+		next, cmd = m.revertJob()
+
+	case "r":
+		next, cmd = m.restartAllocation()
+
+	case "ctrl+k":
+		next, cmd = m.stopAllocation()
+
+	case "ctrl+d":
+		next, cmd = m.drainNode()
+
+	case "i":
+		next, cmd = m.toggleEligibility()
+
+	case "p":
+		next, cmd = m.promoteDeployment()
+
+	case "f":
+		next, cmd = m.failDeployment()
+
+	case "d":
+		next, cmd = m, m.describeCmd()
+
+	case "h":
+		next, cmd = m, m.jobSpecCmd()
+
+	case "ctrl+e":
+		next, cmd = m.openLogs(nomad.LogStderr)
+
+	default:
+		return m, nil, false
 	}
 
-	if m.screen.kind == screenDescribe || m.screen.kind == screenLogs {
-		if next, cmd, handled := m.textKey(msg); handled {
-			// Scrolling by hand means the end is no longer being watched.
-			next.following = false
+	return next, cmd, true
+}
 
-			return next, cmd
-		}
-	}
-
+// sessionKey is what works on every screen.
+func (m Model) sessionKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
-
-	case "ctrl+s":
-		return m.startStopJob()
-
-	case "e":
-		return m.edit()
-
-	case "t":
-		return m.openTaskGroups()
-
-	case "s":
-		if m.screen.kind == screenTasks {
-			return m.shell()
-		}
-
-		return m.scaleGroup()
-
-	case "u":
-		return m.revertJob()
-
-	case "r":
-		return m.restartAllocation()
-
-	case "ctrl+k":
-		return m.stopAllocation()
-
-	case "d":
-		return m, m.describeCmd()
-
-	case "h":
-		return m, m.jobSpecCmd()
 
 	case ":":
 		return m.openPrompt(promptPrefix)
@@ -468,42 +517,16 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 		return m, nil
 
-	case "enter":
-		return m.open()
-
-	case "ctrl+e":
-		return m.openLogs(nomad.LogStderr)
-
 	case "esc":
 		return m.back()
 
 	case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		return m.namespaceKey(int(msg.Code - '0'))
 
-	case "up", "k":
-		m.table.move(-1)
-
-	case "down", "j":
-		m.table.move(1)
-
-	case "pgup", "ctrl+b":
-		m.table.move(-m.table.height)
-
-	case "pgdown", "ctrl+f":
-		m.table.move(m.table.height)
-
-	case "home", "g":
-		m.table.move(-len(m.table.rows))
-
-	case "end", "G":
-		m.table.move(len(m.table.rows))
-
 	default:
 		// A capital letter names a column to order the list by.
 		return m.sortKey(msg)
 	}
-
-	return m, nil
 }
 
 // sortKey orders the list by the column a letter names, the way one key
@@ -559,26 +582,11 @@ func (m Model) render() string {
 
 	width := m.width - 2*screenPadX
 
-	if m.overlay == overlayPrompt || m.overlay == overlayFilter {
+	if m.overlay.asksForALine() {
 		parts = append(parts, indent(m.prompt.view(width), screenPadX))
 	}
 
-	body := m.table.view()
-	title := m.title()
-
-	if m.screen.kind == screenDescribe || m.screen.kind == screenLogs {
-		body = m.text.view()
-	}
-
-	if m.overlay == overlayHelp {
-		body = renderHelp(m.helpSections(), width-2)
-		title = "Help"
-	}
-
-	if m.overlay == overlayConfirm {
-		body = m.confirm.view(width - 2)
-		title = "Confirm"
-	}
+	title, body := m.body(width - 2)
 
 	parts = append(parts,
 		indent(frame(title, body, width, m.bodyHeight()), screenPadX),
@@ -594,7 +602,6 @@ func (m Model) headerData() header {
 		address:      m.client.Address(),
 		version:      m.opts.Version,
 		nomadVersion: m.nomadVersion,
-		namespace:    m.namespace,
 		usage:        percentOf(m.usage.CPUPercent),
 		memory:       percentOf(m.usage.MemoryPercent),
 		namespaces:   m.namespaceColumnData(),
@@ -602,29 +609,51 @@ func (m Model) headerData() header {
 	}
 }
 
+// body is what fills the box: what took the screen, or what the screen
+// shows.
+func (m Model) body(width int) (title, content string) {
+	switch {
+	case m.overlay == overlayHelp:
+		return "Help", renderHelp(m.helpSections(), width)
+
+	case m.overlay == overlayConfirm:
+		return "Confirm", m.confirm.view(width)
+
+	case m.readsAsText():
+		return m.title(), m.text.view()
+	}
+
+	return m.title(), m.table.view()
+}
+
 func (m Model) status() string {
 	width := m.width - 2*headerPadX
 
 	if m.err != nil {
-		return styleError.Render(ansi.Truncate("! "+m.err.Error(), width, "…"))
+		return styleError.Render(truncate("! "+m.err.Error(), width))
 	}
 
 	if m.said != "" {
-		return styleValue.Render(ansi.Truncate(m.said, width, "…"))
+		return styleValue.Render(truncate(m.said, width))
 	}
 
 	if m.troubled {
-		return styleWarn.Render(ansi.Truncate(
-			fmt.Sprintf("only what needs attention, %d of %d   <!> all of them", m.shown, m.held), width, "…"))
+		return styleWarn.Render(truncate(
+			fmt.Sprintf("only what needs attention, %d of %d   <!> all of them", m.shown, m.held), width))
 	}
 
-	return styleMuted.Render(ansi.Truncate("<:> command   </> filter   <?> help   <q> quit", width, "…"))
+	if m.missingUsage > 0 && m.usageReason != nil {
+		return styleMuted.Render(truncate(
+			fmt.Sprintf("no readings for %d rows: %s", m.missingUsage, m.usageReason), width))
+	}
+
+	return styleMuted.Render(truncate("<:> command   </> filter   <?> help   <q> quit", width))
 }
 
 func (m Model) bodyHeight() int {
 	height := m.height - screenPadTop - headerHeight - statusHeight
 
-	if m.overlay == overlayPrompt || m.overlay == overlayFilter {
+	if m.overlay.asksForALine() {
 		height -= promptHeight
 	}
 
@@ -659,9 +688,7 @@ func (m *Model) layout() {
 	m.shown = len(rows)
 
 	m.index = index
-	m.table.sort = m.sort
-	m.table.rows = rows
-	m.table.follow()
+	m.table.show(rows, m.sort)
 }
 
 func (m Model) schedulePoll() tea.Cmd {
@@ -677,30 +704,12 @@ func percentOf(value int) string {
 	return fmt.Sprintf("%d%%", value)
 }
 
-func fetchUsage(client Client) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
-
-		usage, err := client.Usage(ctx)
-		if err != nil {
-			return errMsg{err: err}
-		}
-
-		return usageMsg(usage)
-	}
+// fetchClusterUsage reads what the whole cluster is busy with, which the
+// header shows. What one row takes is read by Model.fetchUsage.
+func fetchClusterUsage(client Client) tea.Cmd {
+	return request(client.Usage, func(usage nomad.Usage) tea.Msg { return usageMsg(usage) })
 }
 
 func fetchVersion(client Client) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
-
-		version, err := client.Version(ctx)
-		if err != nil {
-			return errMsg{err: err}
-		}
-
-		return versionMsg(version)
-	}
+	return request(client.Version, func(version string) tea.Msg { return versionMsg(version) })
 }
