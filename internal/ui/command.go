@@ -1,41 +1,40 @@
 package ui
 
-import "strings"
+import (
+	"sort"
+	"strings"
+)
 
-// commandAliases are the words the prompt understands for a resource.
-var commandAliases = map[string]screenKind{
-	"jobs":        screenJobs,
-	"job":         screenJobs,
-	"jb":          screenJobs,
-	"allocations": screenAllocations,
-	"allocation":  screenAllocations,
-	"allocs":      screenAllocations,
-	"alloc":       screenAllocations,
-	"deployments": screenDeployments,
-	"deployment":  screenDeployments,
-	"dp":          screenDeployments,
-	"namespaces":  screenNamespaces,
-	"namespace":   screenNamespaces,
-	"ns":          screenNamespaces,
-	"services":    screenServices,
-	"service":     screenServices,
-	"svc":         screenServices,
-	"evaluations": screenEvaluations,
-	"evaluation":  screenEvaluations,
-	"evals":       screenEvaluations,
-	"eval":        screenEvaluations,
-	"ev":          screenEvaluations,
-	"nodes":       screenNodes,
-	"node":        screenNodes,
-	"no":          screenNodes,
-	"variables":   screenVariables,
-	"variable":    screenVariables,
-	"vars":        screenVariables,
-	"var":         screenVariables,
-	"nodepools":   screenNodePools,
-	"nodepool":    screenNodePools,
-	"np":          screenNodePools,
-}
+// commandAliases are the words the prompt understands for a resource. They
+// come from the one table that knows what urga can show.
+var commandAliases = func() map[string]screenKind {
+	aliases := map[string]screenKind{}
+
+	for kind, res := range resources {
+		for _, alias := range res.aliases {
+			aliases[alias] = kind
+		}
+	}
+
+	return aliases
+}()
+
+// commandNames are the words the prompt suggests: the first alias of every
+// resource, which is the one that reads as the thing it opens. Short forms
+// stay out of it.
+var commandNames = func() []string {
+	names := []string{"quit"}
+
+	for _, res := range resources {
+		if len(res.aliases) > 0 {
+			names = append(names, res.aliases[0])
+		}
+	}
+
+	sort.Strings(names)
+
+	return names
+}()
 
 // bailAliases leave urga.
 var bailAliases = map[string]bool{
@@ -126,19 +125,4 @@ func completeCommand(typed string) string {
 	}
 
 	return candidates[0][len(word):]
-}
-
-// commandNames are the words the prompt suggests. Short aliases stay out of
-// it, a suggestion is only useful when it reads as the thing it opens.
-var commandNames = []string{
-	"allocations",
-	"deployments",
-	"evaluations",
-	"jobs",
-	"namespaces",
-	"nodepools",
-	"nodes",
-	"quit",
-	"services",
-	"variables",
 }

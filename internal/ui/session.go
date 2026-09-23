@@ -6,25 +6,17 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// screenOfName is how a screen is written down between runs.
-var screenOfName = map[string]screenKind{
-	"jobs":        screenJobs,
-	"deployments": screenDeployments,
-	"namespaces":  screenNamespaces,
-	"services":    screenServices,
-	"evaluations": screenEvaluations,
-	"nodes":       screenNodes,
-	"variables":   screenVariables,
-	"nodepools":   screenNodePools,
-}
+// screenOfName is how a screen is written down between runs, and back.
+var screenOfName = func() map[string]screenKind {
+	names := map[string]screenKind{}
 
-var nameOfScreen = func() map[screenKind]string {
-	out := make(map[screenKind]string, len(screenOfName))
-	for name, kind := range screenOfName {
-		out[kind] = name
+	for kind, res := range resources {
+		if res.stored != "" {
+			names[res.stored] = kind
+		}
 	}
 
-	return out
+	return names
 }()
 
 // restore picks the session up where it was left.
@@ -61,8 +53,8 @@ func (m Model) remember() tea.Cmd {
 	cfg.UseNamespace(NamespaceOrAll(m.namespace))
 	cfg.Remember(m.namespaceOrder)
 
-	if name, ok := nameOfScreen[m.screen.kind]; ok {
-		cfg.Screen = name
+	if stored := m.screen.of().stored; stored != "" {
+		cfg.Screen = stored
 	}
 
 	return func() tea.Msg {

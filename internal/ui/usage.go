@@ -90,6 +90,10 @@ func (m Model) usageOnce() tea.Cmd {
 // visibleIDs are the resources the rows on the screen stand for, when the
 // screen is one that has readings.
 func (m Model) visibleIDs() []string {
+	if !m.screen.of().readings {
+		return nil
+	}
+
 	switch m.screen.kind {
 	case screenAllocations:
 		allocs := m.visibleAllocs()

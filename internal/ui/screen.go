@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"fmt"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -28,26 +27,6 @@ const (
 	screenTaskGroups
 )
 
-// screenNames label a screen in its title. The screens that name what they
-// were opened for build their own title and are not in here.
-var screenNames = map[screenKind]string{
-	screenJobs:        "Jobs",
-	screenDeployments: "Deployments",
-	screenNamespaces:  "Namespaces",
-	screenServices:    "Services",
-	screenEvaluations: "Evaluations",
-	screenNodes:       "Nodes",
-	screenVariables:   "Variables",
-	screenNodePools:   "Node Pools",
-}
-
-// clusterWide screens hold what belongs to the cluster, not to a namespace.
-var clusterWide = map[screenKind]bool{
-	screenNamespaces: true,
-	screenNodes:      true,
-	screenNodePools:  true,
-}
-
 // screen is what is open: the resource and what it was opened for. The
 // namespace travels with it, a job of another namespace keeps its own.
 type screen struct {
@@ -70,207 +49,52 @@ type screen struct {
 
 // titles are the columns of a screen.
 func (s screen) titles() []string {
-	switch s.kind {
-	case screenAllocations:
-		return allocTitles
-	case screenTasks:
-		return taskTitles
-	case screenTaskGroups:
-		return taskGroupTitles
-	case screenDeployments:
-		return deploymentTitles
-	case screenNamespaces:
-		return namespaceTitles
-	case screenServices:
-		return serviceTitles
-	case screenEvaluations:
-		return evaluationTitles
-	case screenNodes:
-		return nodeTitles
-	case screenVariables:
-		return variableTitles
-	case screenNodePools:
-		return nodePoolTitles
-	default:
-		return jobTitles
-	}
+	return s.of().titles
 }
 
 // hints are the keys the open resource answers. Keys that work everywhere
 // are not here, they live in help.
 func (s screen) hints() []hint {
-	switch s.kind {
-	case screenJobs:
-		return jobHints
-	case screenAllocations:
-		return allocHints
-	case screenTasks:
-		return taskHints
-	case screenTaskGroups:
-		return taskGroupHints
-	case screenLogs:
-		return logHints
-	case screenDeployments:
-		return deploymentHints
-	case screenNodes:
-		return nodeHints
-	case screenServices:
-		return describeHints
-	case screenNamespaces:
-		return namespaceHints
-	default:
-		return nil
-	}
+	return s.of().hints
 }
-
-var (
-	jobHints = []hint{
-		{Key: "<enter>", Description: "Allocations"},
-		{Key: "<t>", Description: "Task groups"},
-		{Key: "<d>", Description: "Describe"},
-		{Key: "<h>", Description: "Job spec"},
-		{Key: "<ctrl-s>", Description: "Start or stop"},
-		{Key: "<u>", Description: "Revert"},
-		{Key: "<e>", Description: "Edit"},
-	}
-
-	allocHints = []hint{
-		{Key: "<enter>", Description: "Tasks"},
-		{Key: "<d>", Description: "Describe"},
-		{Key: "<r>", Description: "Restart"},
-		{Key: "<ctrl-k>", Description: "Stop"},
-	}
-
-	describeHints = []hint{{Key: "<d>", Description: "Describe"}}
-
-	namespaceHints = []hint{{Key: "<e>", Description: "Edit"}}
-)
 
 // title labels the box with what it holds and how much of it. The count is
 // what is on the screen, which the filter narrows.
 func (m Model) title() string {
 	count := len(m.table.rows)
+	res := m.screen.of()
 
-	switch m.screen.kind {
-	case screenDescribe:
-		return m.screen.label
-
-	case screenLogs:
-		return logsTitle(m.screen)
-
-	case screenAllocations:
-		if m.screen.taskGroup != "" {
-			return fmt.Sprintf("Allocations (Group: %s) [%d]", m.screen.taskGroup, count)
-		}
-
-		return fmt.Sprintf("Allocations (Job: %s) [%d]", m.screen.jobID, count)
-
-	case screenTaskGroups:
-		return fmt.Sprintf("Task Groups (Job: %s) [%d]", m.screen.jobID, count)
-
-	case screenTasks:
-		return fmt.Sprintf("Tasks (Allocation: %s) [%d]", shortID(m.screen.allocID), count)
+	if res.title != nil {
+		return res.title(m, count)
 	}
 
-	name := screenNames[m.screen.kind]
-
-	if clusterWide[m.screen.kind] {
-		return fmt.Sprintf("%s [%d]", name, count)
+	if res.cluster {
+		return sprintf("%s [%d]", res.name, count)
 	}
 
-	return fmt.Sprintf("%s (%s) [%d]", name, namespaceLabel(m.namespace), count)
+	return sprintf("%s (%s) [%d]", res.name, namespaceLabel(m.namespace), count)
 }
 
 // rows are what the open screen shows.
 func (m Model) rows() []tableRow {
-	switch m.screen.kind {
-	case screenAllocations:
-		return allocRows(m.visibleAllocs(), m.rowUsage)
-	case screenTasks:
-		return taskRows(m.tasks())
-	case screenTaskGroups:
-		return taskGroupRows(m.groups)
-	case screenDeployments:
-		return deploymentRows(m.deployments)
-	case screenNamespaces:
-		return namespaceRows(m.namespaces)
-	case screenServices:
-		return serviceRows(m.services)
-	case screenEvaluations:
-		return evaluationRows(m.evaluations)
-	case screenNodes:
-		return nodeRows(m.nodes, m.rowUsage)
-	case screenVariables:
-		return variableRows(m.variables)
-	case screenNodePools:
-		return nodePoolRows(m.nodePools)
-	default:
-		return jobRows(m.jobs)
+	res := m.screen.of()
+	if res.rows == nil {
+		return nil
 	}
+
+	return res.rows(m)
 }
 
-// fetch asks the cluster for what the open screen shows. Every answer comes
-// back as a message.
+// fetch asks the cluster for what the open screen shows. A screen whose
+// content arrives another way, like a description or a log stream, asks for
+// nothing.
 func (m Model) fetch() tea.Cmd {
-	client, screen, namespace := m.client, m.screen, m.namespace
-
-	switch screen.kind {
-	case screenAllocations:
-		return fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
-			return client.Allocations(ctx, screen.namespace, screen.jobID)
-		}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
-
-	case screenTaskGroups:
-		return fetchList(func(ctx context.Context) ([]nomad.TaskGroup, error) {
-			return client.TaskGroups(ctx, screen.namespace, screen.jobID)
-		}, func(items []nomad.TaskGroup) tea.Msg { return taskGroupsMsg(items) })
-
-	case screenTasks:
-		// The tasks are part of the allocation, the screen under them polls.
+	res := m.screen.of()
+	if res.fetch == nil {
 		return nil
-
-	case screenDescribe:
-		// A description is a snapshot of one moment, it is not polled.
-		return nil
-
-	case screenLogs:
-		// The stream pushes on its own, there is nothing to ask again for.
-		return nil
-
-	case screenDeployments:
-		return fetchList(func(ctx context.Context) ([]nomad.Deployment, error) {
-			return client.Deployments(ctx, namespace)
-		}, func(items []nomad.Deployment) tea.Msg { return deploymentsMsg(items) })
-
-	case screenNamespaces:
-		return fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) })
-
-	case screenServices:
-		return fetchList(func(ctx context.Context) ([]nomad.Service, error) {
-			return client.Services(ctx, namespace)
-		}, func(items []nomad.Service) tea.Msg { return servicesMsg(items) })
-
-	case screenEvaluations:
-		return fetchList(func(ctx context.Context) ([]nomad.Evaluation, error) {
-			return client.Evaluations(ctx, namespace)
-		}, func(items []nomad.Evaluation) tea.Msg { return evaluationsMsg(items) })
-
-	case screenNodes:
-		return fetchList(client.Nodes, func(items []nomad.Node) tea.Msg { return nodesMsg(items) })
-
-	case screenVariables:
-		return fetchList(func(ctx context.Context) ([]nomad.Variable, error) {
-			return client.Variables(ctx, namespace)
-		}, func(items []nomad.Variable) tea.Msg { return variablesMsg(items) })
-
-	case screenNodePools:
-		return fetchList(client.NodePools, func(items []nomad.NodePool) tea.Msg { return nodePoolsMsg(items) })
-
-	default:
-		return fetchList(func(ctx context.Context) ([]nomad.Job, error) {
-			return client.Jobs(ctx, namespace)
-		}, func(items []nomad.Job) tea.Msg { return jobsMsg(items) })
 	}
+
+	return res.fetch(m)
 }
 
 // request asks the cluster in the background and hands the answer over as a
