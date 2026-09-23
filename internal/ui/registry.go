@@ -58,6 +58,10 @@ type resource struct {
 	titles []string
 	hints  []hint
 
+	// hintsFor answers for a screen that is opened for different things and
+	// can do different things with them.
+	hintsFor func(s screen) []hint
+
 	// cluster says the screen holds what belongs to the cluster rather than
 	// to a namespace, so its title carries no namespace.
 	cluster bool
@@ -105,6 +109,16 @@ var resources = map[screenKind]resource{
 		aliases: []string{"allocations", "allocation", "allocs", "alloc"},
 		titles:  allocTitles,
 		hints:   allocHints,
+
+		// The allocations of a client sit on the screen of that client,
+		// which answers for the machine as well as for the work on it.
+		hintsFor: func(s screen) []hint {
+			if s.isClient() {
+				return clientHints
+			}
+
+			return allocHints
+		},
 
 		readings: func(m Model) []rowRef {
 			allocs := m.visibleAllocs()
@@ -333,6 +347,79 @@ var resources = map[screenKind]resource{
 			)
 		},
 		rows: func(m Model) []tableRow { return serverDetailRows(m.server, m.raft, m.raftErr) },
+	},
+
+	screenNodeEvents: {
+		titles:  nodeEventTitles,
+		cluster: true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Events (Client: %s) [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeDetail,
+		rows:  func(m Model) []tableRow { return nodeEventRows(m.nodeDetail.Events) },
+	},
+
+	screenNodeDrivers: {
+		titles:  driverTitles,
+		hints:   driverHints,
+		cluster: true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Drivers (Client: %s) [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeDetail,
+		rows:  func(m Model) []tableRow { return driverRows(m.nodeDetail.Drivers) },
+	},
+
+	screenNodeDriver: {
+		titles:  fieldTitles,
+		hints:   fieldHints,
+		cluster: true,
+		fields:  true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Driver %s [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeDetail,
+		rows:  func(m Model) []tableRow { return fieldRows(m.driverAttributes()) },
+	},
+
+	screenNodeVolumes: {
+		titles:  volumeTitles,
+		cluster: true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Host volumes (Client: %s) [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeDetail,
+		rows:  func(m Model) []tableRow { return volumeRows(m.nodeDetail.Volumes) },
+	},
+
+	screenNodeAttributes: {
+		titles:  fieldTitles,
+		hints:   fieldHints,
+		cluster: true,
+		fields:  true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Attributes (Client: %s) [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeDetail,
+		rows:  func(m Model) []tableRow { return fieldRows(m.nodeDetail.Attributes) },
+	},
+
+	screenNodeMeta: {
+		titles:  metaTitles,
+		hints:   metaHints,
+		cluster: true,
+		fields:  true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Meta (Client: %s) [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeMeta,
+		rows:  func(m Model) []tableRow { return metaRows(m.nodeMeta) },
 	},
 
 	screenDescribe: {

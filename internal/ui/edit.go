@@ -83,6 +83,15 @@ func (m Model) edit() (Model, tea.Cmd) {
 			})
 		})
 
+	case screenNodeMeta:
+		nodeID, name := m.screen.nodeID, m.screen.label
+
+		return m, openEditor(metaFile(client, nodeID), func(source string) tea.Cmd {
+			return act(fmt.Sprintf("Metadata of %s submitted.", name), func(ctx context.Context) error {
+				return client.SubmitNodeMeta(ctx, nodeID, source)
+			})
+		})
+
 	case screenNamespaces:
 		namespace, ok := selectedOf(m, screenNamespaces, m.namespaces)
 		if !ok {

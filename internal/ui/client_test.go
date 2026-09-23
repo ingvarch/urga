@@ -198,3 +198,21 @@ func TestClient_OpensTheTasksOfAnAllocation(t *testing.T) {
 	r.Equal(screenTasks, m.screen.kind)
 	r.Contains(plain(m.render()), "bot")
 }
+
+func TestClient_TheChartBelongsToTheClientScreenOnly(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := clientScreen(t)
+	m, _ = m.update(hostUseMsg{use: nomad.ResourceUse{CPUPercent: 29}})
+
+	r.Contains(plain(m.render()), "Status")
+
+	// A screen opened from the client is about one thing of its own; what
+	// the machine is doing stays behind on the screen it belongs to.
+	next, cmd := m.update(key('a'))
+	next = drain(next, cmd)
+
+	out := plain(next.render())
+	r.NotContains(out, "Datacenter")
+	r.NotContains(out, "100%")
+}

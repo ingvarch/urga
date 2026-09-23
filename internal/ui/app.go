@@ -49,6 +49,10 @@ type Client interface {
 	FailDeployment(ctx context.Context, namespace, deploymentID string) error
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 	NodeAllocations(ctx context.Context, nodeID string) ([]nomad.Alloc, error)
+	NodeDetail(ctx context.Context, nodeID string) (nomad.NodeDetail, error)
+	NodeMeta(ctx context.Context, nodeID string) ([]nomad.MetaEntry, error)
+	NodeMetaSpec(ctx context.Context, nodeID string) (string, error)
+	SubmitNodeMeta(ctx context.Context, nodeID, source string) error
 	Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error)
 	Namespaces(ctx context.Context) ([]nomad.Namespace, error)
 	Services(ctx context.Context, namespace string) ([]nomad.Service, error)
@@ -116,6 +120,8 @@ type (
 	nodePoolsMsg   []nomad.NodePool
 	serversMsg     []nomad.Server
 	serverMsg      nomad.Server
+	nodeDetailMsg  nomad.NodeDetail
+	nodeMetaMsg    []nomad.MetaEntry
 
 	// raftMsg is what the raft of the cluster says about its servers. An
 	// ACL may hold it back, and then the reason is shown where the answer
@@ -194,6 +200,11 @@ type Model struct {
 	// readings taken of it since it was opened.
 	host      nomad.Node
 	hostTrail []nomad.ResourceUse
+
+	// nodeDetail is what the machine of a client screen says about itself,
+	// nodeMeta the metadata it carries.
+	nodeDetail nomad.NodeDetail
+	nodeMeta   []nomad.MetaEntry
 
 	// server is the one a server screen is open on, raft what the raft of
 	// the cluster makes of the servers.
@@ -395,6 +406,22 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		// The list is stale the moment the cluster changed, ask again.
 		return m, m.fetch()
 
+	case nodeDetailMsg:
+		// The answer belongs to the machine it was asked of: leaving one
+		// client for another must not show the first one under the second.
+		if m.screen.nodeID != msg.ID {
+			return m, nil
+		}
+
+		m.nodeDetail = nomad.NodeDetail(msg)
+		m.err = nil
+		m.layout()
+
+		return m, m.schedulePoll()
+
+	case nodeMetaMsg:
+		return m.applyList(screenNodeMeta, func(m *Model) { m.nodeMeta = msg })
+
 	case serverMsg:
 		if m.screen.kind != screenServer {
 			return m, nil
@@ -492,7 +519,13 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		next, cmd = m.startStopJob()
 
 	case "e":
-		next, cmd = m.edit()
+		// The same key opens the events of a client and edits what can be
+		// edited, because a screen never offers both.
+		if m.screen.isClient() {
+			next, cmd = m.openNodeScreen(screenNodeEvents)
+		} else {
+			next, cmd = m.edit()
+		}
 
 	case "t":
 		next, cmd = m.openTaskGroups()
@@ -516,7 +549,22 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		next, cmd = m.stopAllocation()
 
 	case "ctrl+d":
-		next, cmd = m.drainNode()
+		// Draining is a key of the list of clients; on the screen of one
+		// client the same key opens what it can run.
+		if m.screen.isClient() {
+			next, cmd = m.openNodeScreen(screenNodeDrivers)
+		} else {
+			next, cmd = m.drainNode()
+		}
+
+	case "ctrl+h":
+		next, cmd = m.openNodeScreen(screenNodeVolumes)
+
+	case "a":
+		next, cmd = m.openNodeScreen(screenNodeAttributes)
+
+	case "m":
+		next, cmd = m.openNodeScreen(screenNodeMeta)
 
 	case "i":
 		next, cmd = m.toggleEligibility()

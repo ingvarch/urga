@@ -92,9 +92,11 @@ func (m Model) chartHeight() int {
 	return 0
 }
 
-// panelHeight is what the screen holds above its rows. Only a client has one.
+// panelHeight is what the screen holds above its rows. Only the screen of a
+// client has one: what the machine is doing belongs over its allocations,
+// not over a list of its attributes.
 func (m Model) panelHeight() int {
-	if m.screen.nodeID == "" {
+	if !m.screen.isClient() {
 		return 0
 	}
 

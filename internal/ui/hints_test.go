@@ -22,7 +22,10 @@ func everyScreen(t *testing.T) map[screenKind]Model {
 		namespaces:  twoNamespaces(),
 		services:    []nomad.Service{{Name: "api", Namespace: "production"}},
 		evaluations: []nomad.Evaluation{{ID: "eval-1", JobID: "web", Namespace: "production", Status: "complete"}},
-		nodes:       readyNode(),
+		nodes:       busyClient(),
+		nodeAllocs:  clientAllocs(),
+		nodeDetail:  clientDetail(),
+		nodeMeta:    clientMeta(),
 		variables:   []nomad.Variable{{Path: "nomad/jobs/web", Namespace: "production"}},
 		nodePools:   []nomad.NodePool{{Name: "default"}},
 		servers:     twoServers(),
@@ -72,6 +75,22 @@ func everyScreen(t *testing.T) map[screenKind]Model {
 
 	server, _ := open[screenServers].update(enter())
 	open[screenServer] = server
+
+	// The screens of one client, each opened by the key that offers it.
+	machine, machineCmd := open[screenNodes].update(enter())
+	machine = drain(machine, machineCmd)
+	open[machine.screen.kind] = machine
+
+	for _, press := range []tea.KeyPressMsg{key('e'), ctrlKey('d'), ctrlKey('h'), key('a'), key('m')} {
+		next, cmd := machine.update(press)
+		next = drain(next, cmd)
+
+		open[next.screen.kind] = next
+	}
+
+	drivers := open[screenNodeDrivers]
+	driver, cmd := drivers.update(enter())
+	open[screenNodeDriver] = drain(driver, cmd)
 
 	return open
 }

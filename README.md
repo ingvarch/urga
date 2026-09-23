@@ -80,14 +80,17 @@ namespace with it, as in `jobs production`. `q` leaves.
 | `esc` | Back |
 | `d` | Describe |
 | `h` | The job file the job was submitted with |
-| `e` | Edit a job or a namespace in `$EDITOR` |
+| `e` | Edit a job, a namespace or the metadata of a client in `$EDITOR`, or the events of a client |
 | `t` | Task groups of a job |
 | `s` | Scale a task group, or a shell in a task |
 | `ctrl-s` | Start or stop a job |
 | `u` | Revert a job to its previous version |
 | `r` | Restart an allocation |
 | `ctrl-k` | Stop an allocation |
-| `ctrl-d` | Drain a client, or stop draining it |
+| `ctrl-d` | Drain a client, or stop draining it; on a client, what it can run |
+| `ctrl-h` | Host volumes of a client |
+| `a` | Attributes of a client |
+| `m` | Metadata of a client |
 | `i` | Let a client take new work, or stop it |
 | `p` | Promote the canaries of a deployment |
 | `f` | Fail a deployment |
@@ -110,7 +113,10 @@ the cursor, over OSC52, so it works through ssh as well.
 
 A client opens on what the machine is doing: its CPU and memory as a chart of
 the readings taken while the screen is open, and the allocations it runs, from
-every namespace.
+every namespace. From there one key each opens what happened to it, the drivers
+it has and what every one of them reports, the volumes it lends out, the
+attributes it is built from and its metadata, which opens in your editor and
+goes back to the machine when you save.
 
 Allocations and clients say what they are using, the list sorts by any column,
 and one key leaves only what needs attention.

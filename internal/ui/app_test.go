@@ -20,6 +20,8 @@ type fakeClient struct {
 	jobs        []nomad.Job
 	allocs      []nomad.Alloc
 	nodeAllocs  []nomad.Alloc
+	nodeDetail  nomad.NodeDetail
+	nodeMeta    []nomad.MetaEntry
 	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
 	namespaces  []nomad.Namespace
@@ -75,6 +77,8 @@ type fakeClient struct {
 	askedNodeID    string
 	usageNamespace string
 	askedServer    string
+	metaSpec       string
+	metaSubmitted  string
 
 	calls      int
 	allocCalls int
@@ -102,6 +106,30 @@ func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.
 	f.askedNodeID = nodeID
 
 	return f.nodeAllocs, f.err
+}
+
+func (f *fakeClient) NodeDetail(_ context.Context, nodeID string) (nomad.NodeDetail, error) {
+	f.askedNodeID = nodeID
+
+	return f.nodeDetail, f.err
+}
+
+func (f *fakeClient) NodeMeta(_ context.Context, nodeID string) ([]nomad.MetaEntry, error) {
+	f.askedNodeID = nodeID
+
+	return f.nodeMeta, f.err
+}
+
+func (f *fakeClient) NodeMetaSpec(_ context.Context, nodeID string) (string, error) {
+	f.askedNodeID = nodeID
+
+	return f.metaSpec, f.err
+}
+
+func (f *fakeClient) SubmitNodeMeta(_ context.Context, nodeID, source string) error {
+	f.askedNodeID, f.metaSubmitted = nodeID, source
+
+	return f.err
 }
 
 func (f *fakeClient) DescribeJob(_ context.Context, namespace, jobID string) (string, error) {
