@@ -137,6 +137,6 @@ func TestVersions_TheFirstVersionIsNotAnError(t *testing.T) {
 	// Nothing came before the first version of a job. That is how jobs
 	// begin, not something gone wrong.
 	r.Equal(screenDescribe, m.screen.kind)
-	r.False(m.failed())
+	r.NotEqual(flashErr, m.flash.level)
 	r.Contains(plain(m.render()), "nothing before it")
 }

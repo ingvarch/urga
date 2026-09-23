@@ -153,17 +153,9 @@ func marked[T any](m Model, kind screenKind, items []T) []T {
 	return []T{one}
 }
 
-// allocIDs name the allocations of the screen, so that a mark belongs to the
-// allocation rather than to the row it sits on.
+// allocIDs name the allocations of the screen.
 func allocIDs(m Model) []string {
-	allocs := m.visibleAllocs()
-
-	ids := make([]string, 0, len(allocs))
-	for _, alloc := range allocs {
-		ids = append(ids, alloc.ID)
-	}
-
-	return ids
+	return names(m.visibleAllocs(), allocMark)
 }
 
 // allocLabel is what a question about allocations says: the one under the
@@ -172,24 +164,31 @@ func allocLabel(allocs []nomad.Alloc) string {
 	return many(len(allocs), "the allocation "+shortID(allocs[0].ID), "allocations")
 }
 
-// jobIDs and nodeIDs name the resources of their screens, so that a mark
-// belongs to the job or the machine rather than to the row it sits on.
-func jobIDs(m Model) []string {
-	ids := make([]string, 0, len(m.jobs))
-	for _, job := range m.jobs {
-		ids = append(ids, job.Namespace+"/"+job.ID)
-	}
+// What names a resource of a screen, so that a mark belongs to the job, the
+// allocation or the machine rather than to the row it sits on. The marks and
+// the actions that take them read the same name, or a mark would outlive the
+// thing it was put on.
+func jobMark(job nomad.Job) string { return job.Namespace + "/" + job.ID }
 
-	return ids
+func allocMark(alloc nomad.Alloc) string { return alloc.ID }
+
+func nodeMark(node nomad.Node) string { return node.ID }
+
+func jobIDs(m Model) []string {
+	return names(m.jobs, jobMark)
 }
 
 func nodeIDs(m Model) []string {
-	ids := make([]string, 0, len(m.nodes))
-	for _, node := range m.nodes {
-		ids = append(ids, node.ID)
+	return names(m.nodes, nodeMark)
+}
+
+func names[T any](items []T, mark func(T) string) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, mark(item))
 	}
 
-	return ids
+	return out
 }
 
 // many is how a question names what it is about: one of them by name, or

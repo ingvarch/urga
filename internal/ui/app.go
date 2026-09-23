@@ -247,6 +247,10 @@ type Model struct {
 	// from one that was let go of does not touch the one that is up.
 	watchID int
 
+	// refused says the cluster has already turned the stream down and been
+	// said so about: every screen asks again, and every screen is refused.
+	refused bool
+
 	// polling says a timer is already on its way with the next ask. Every
 	// answer would otherwise schedule one, and a screen that is answered
 	// from several sides would end up with a timer per answer.
@@ -437,18 +441,16 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.say(fmt.Sprintf("Saved to %s.", msg.path)), nil
 
 	case doneMsg:
+		// What did not happen stays marked, so the same key tries it again;
+		// what did happen is let go of, so the key does not undo it.
+		m.marks = msg.kept
+
 		if msg.err != nil {
 			m = m.fail(msg.err)
-			m.layout()
-
-			return m, nil
+		} else {
+			m = m.say(msg.said)
 		}
 
-		m = m.say(msg.said)
-
-		// What was asked about has happened, so the marks that asked for it
-		// are let go of.
-		m.marks = nil
 		m.layout()
 
 		// The list is stale the moment the cluster changed, ask again.

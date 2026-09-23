@@ -187,7 +187,7 @@ func TestServer_WhenRaftIsNotAllowed(t *testing.T) {
 	r.Contains(out, "server-02.global")
 
 	// It is not an error over the whole screen.
-	r.False(m.failed())
+	r.NotEqual(flashErr, m.flash.level)
 }
 
 func TestServer_CopiesTheValueUnderTheCursor(t *testing.T) {

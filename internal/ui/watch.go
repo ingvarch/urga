@@ -82,7 +82,10 @@ func (m Model) waitForChange() tea.Cmd {
 		select {
 		case _, ok := <-changes.C:
 			if !ok {
-				return watchEndedMsg{id: id}
+				// A stream that dropped says why before it closes, and
+				// both are then ready at once: reading the close first
+				// must not lose the reason.
+				return watchEndedMsg{id: id, err: reasonOf(changes)}
 			}
 
 			return changeMsg{id: id}
@@ -93,8 +96,19 @@ func (m Model) waitForChange() tea.Cmd {
 	}
 }
 
+// reasonOf is why a stream ended, when it said.
+func reasonOf(changes *nomad.Changes) error {
+	select {
+	case err := <-changes.Err:
+		return err
+	default:
+		return nil
+	}
+}
+
 // startWatching keeps the stream and starts reading it. A stream that comes
-// up after the screen that asked for it is gone is closed instead.
+// up after the screen that asked for it is gone is closed instead. A cluster
+// that talks again is a cluster whose going quiet is news again.
 func (m Model) startWatching(msg watchingMsg) (Model, tea.Cmd) {
 	if msg.id != m.watchID {
 		msg.changes.Close()
@@ -106,6 +120,7 @@ func (m Model) startWatching(msg watchingMsg) (Model, tea.Cmd) {
 
 	m.changes = msg.changes
 	m.watching = true
+	m.refused = false
 
 	return m, m.waitForChange()
 }
@@ -127,10 +142,16 @@ func (m Model) keepChange() (Model, tea.Cmd) {
 // noteWatchEnded says the screen is no longer live, when it is not urga that
 // stopped it. The rows are still there and still asked for, so this is worth
 // knowing rather than something gone wrong.
+//
+// It is said once. Walking around a cluster that will not stream asks it on
+// every screen and is refused every time; saying so every time would leave
+// the status line with nothing else on it.
 func (m Model) noteWatchEnded(err error) Model {
-	if err == nil {
+	if err == nil || m.refused {
 		return m
 	}
+
+	m.refused = true
 
 	return m.warn(fmt.Sprintf("%s: not following the cluster, asking every %s instead",
 		err, m.opts.PollEvery))

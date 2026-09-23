@@ -1,7 +1,9 @@
 package ui
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -322,4 +324,146 @@ func TestMarks_TakeEveryMarkedClientOffWork(t *testing.T) {
 	drain(m, cmd)
 
 	r.Equal(2, client.eligibleCalls)
+}
+
+// pickyClient refuses everything about the job or the client it is told to.
+type pickyClient struct {
+	*fakeClient
+
+	refuse string
+	acted  []string
+}
+
+func (p *pickyClient) StopJob(_ context.Context, _, jobID string) error {
+	return p.act(jobID, "stop "+jobID)
+}
+
+func (p *pickyClient) StartJob(_ context.Context, _, jobID string) error {
+	return p.act(jobID, "start "+jobID)
+}
+
+func (p *pickyClient) DrainNode(_ context.Context, nodeID string, drain bool) error {
+	return p.act(nodeID, fmt.Sprintf("drain %s %t", nodeID, drain))
+}
+
+func (p *pickyClient) act(id, what string) error {
+	if id == p.refuse {
+		return errors.New("connection refused")
+	}
+
+	p.acted = append(p.acted, what)
+
+	return nil
+}
+
+func TestMarks_OnlyWhatDidNotHappenStaysMarked(t *testing.T) {
+	r := require.New(t)
+
+	running := []nomad.Job{
+		{ID: "web", Name: "web", Namespace: "production", Status: "running"},
+		{ID: "cron", Name: "cron", Namespace: "production", Status: "running"},
+	}
+
+	client := &pickyClient{fakeClient: &fakeClient{jobs: running}, refuse: "cron"}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(running))
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(ctrlKey('s'))
+
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	// One went through and one did not. Pressing the key again must try
+	// the one that did not, and leave alone the one that did: it is in the
+	// other state now, and the same key would put it back.
+	r.Equal([]string{"stop web"}, client.acted)
+	r.Len(m.marks, 1)
+
+	m, _ = m.update(jobsMsg([]nomad.Job{
+		{ID: "web", Name: "web", Namespace: "production", Status: "dead"},
+		{ID: "cron", Name: "cron", Namespace: "production", Status: "running"},
+	}))
+
+	m, _ = m.update(ctrlKey('s'))
+	r.Contains(plain(m.render()), "stop the job cron")
+}
+
+func TestMarks_EveryClientOfABatchIsTried(t *testing.T) {
+	r := require.New(t)
+
+	nodes := []nomad.Node{
+		{ID: "node-1", Name: "server-01", Status: "ready", Eligibility: "eligible"},
+		{ID: "node-2", Name: "server-02", Status: "ready", Eligibility: "eligible"},
+	}
+
+	client := &pickyClient{fakeClient: &fakeClient{nodes: nodes}, refuse: "node-1"}
+
+	m, _ := nodeModelOf(client.fakeClient)
+	m.client = client
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(ctrlKey('d'))
+
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	// The one that would not answer does not stop the other, and the
+	// screen says how far it got.
+	r.Equal([]string{"drain node-2 true"}, client.acted)
+	r.Contains(plain(m.render()), "1 of 2")
+}
+
+func TestMarks_AQuestionAboutRowsThatDisagreeReadsAsOne(t *testing.T) {
+	r := require.New(t)
+
+	nodes := []nomad.Node{
+		{ID: "node-1", Name: "server-01", Status: "ready", Eligibility: "eligible"},
+		{ID: "node-2", Name: "server-02", Status: "ready", Eligibility: "ineligible", Drain: true},
+	}
+
+	for _, press := range []struct {
+		key      tea.KeyPressMsg
+		question string
+	}{
+		{ctrlKey('d'), "Really change the draining of 2 clients?"},
+		{key('i'), "Really change the work of 2 clients?"},
+	} {
+		m, _ := nodeModel(t, nodes)
+		m, _ = m.update(ctrlKey('a'))
+		m, _ = m.update(press.key)
+
+		// One is draining and one is not, so neither verb is true of both.
+		// A question is a sentence, not two of them stuck together.
+		r.Contains(plain(m.render()), press.question)
+
+		m, cmd := answerYes(m)
+		m = drain(m, cmd)
+
+		// What came of it reads as a sentence too.
+		r.Regexp(`Changed (the (draining|work) of )?2 clients\.`, plain(m.render()))
+	}
+}
+
+func TestMarks_AQuestionAboutJobsThatDisagree(t *testing.T) {
+	r := require.New(t)
+
+	jobs := []nomad.Job{
+		{ID: "web", Name: "web", Namespace: "production", Status: "running"},
+		{ID: "cron", Name: "cron", Namespace: "production", Status: "dead"},
+	}
+
+	m := newTestModel(&fakeClient{jobs: jobs})
+	m, _ = m.update(jobsMsg(jobs))
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(ctrlKey('s'))
+
+	r.Contains(plain(m.render()), "Really start or stop 2 jobs?")
+
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	r.Contains(plain(m.render()), "Changed 2 jobs.")
 }

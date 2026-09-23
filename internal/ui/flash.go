@@ -76,12 +76,6 @@ func (m Model) forget() Model {
 	return m
 }
 
-// failed says whether what is on the screen went wrong, which is what the
-// screen holds on to until the next answer.
-func (m Model) failed() bool {
-	return m.flash.text != "" && m.flash.level == flashErr && m.flash.fresh()
-}
-
 // fresh says the message is still worth reading.
 func (f flash) fresh() bool {
 	return f.text != "" && time.Since(f.at) < flashFor

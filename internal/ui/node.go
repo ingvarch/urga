@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -24,12 +23,19 @@ func (m Model) drainNode() (Model, tea.Cmd) {
 	// they have nothing.
 	draining := func(node nomad.Node) bool { return node.Drain }
 
-	verb := bothWays(nodes, draining, "stop draining", "drain")
-	done := bothWays(nodes, draining, "Stopped draining", "Draining")
+	verb := bothWays(nodes, draining, "stop draining", "drain", "change the draining of")
+	done := bothWays(nodes, draining, "Stopped draining", "Draining", "Changed")
+
+	// Draining moves the work off the machine; stopping a drain moves
+	// nothing, it stops the moving.
+	aside := " Allocations move elsewhere."
+	if allOf(nodes, draining) {
+		aside = ""
+	}
 
 	return m.ask(
-		fmt.Sprintf("Really %s %s? Allocations move elsewhere.", verb, nodeLabel(nodes)),
-		eachNode(done, nodeLabel(nodes), nodes, func(ctx context.Context, node nomad.Node) error {
+		fmt.Sprintf("Really %s %s?%s", verb, nodeLabel(nodes), aside),
+		each(done, nodeLabel(nodes), nodes, nodeMark, func(ctx context.Context, node nomad.Node) error {
 			return client.DrainNode(ctx, node.ID, !node.Drain)
 		}),
 	)
@@ -38,38 +44,6 @@ func (m Model) drainNode() (Model, tea.Cmd) {
 // nodeLabel is what a question about clients says.
 func nodeLabel(nodes []nomad.Node) string {
 	return many(len(nodes), "the client "+nodes[0].Name, "clients")
-}
-
-// eachNode runs the action against every machine on its own, so that one
-// that will not answer does not stop the rest.
-func eachNode(done, label string, nodes []nomad.Node, do func(context.Context, nomad.Node) error) tea.Cmd {
-	return func() tea.Msg {
-		out := doneMsg{said: fmt.Sprintf("%s %s.", done, label)}
-
-		went := 0
-		failed := []string{}
-
-		for _, node := range nodes {
-			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-			err := do(ctx, node)
-
-			cancel()
-
-			if err != nil {
-				failed = append(failed, err.Error())
-
-				continue
-			}
-
-			went++
-		}
-
-		if len(failed) > 0 {
-			out.err = fmt.Errorf("%s %d of %d: %s", strings.ToLower(done), went, len(nodes), failed[0])
-		}
-
-		return out
-	}
 }
 
 // toggleEligibility says whether the client may be given new work.
@@ -83,20 +57,35 @@ func (m Model) toggleEligibility() (Model, tea.Cmd) {
 
 	eligible := func(node nomad.Node) bool { return node.Eligibility == "eligible" }
 
-	verb := bothWays(nodes, eligible, "stop giving new work to", "give new work again to")
-	done := bothWays(nodes, eligible, "No new work for", "New work again for")
+	verb := bothWays(nodes, eligible, "take new work from", "give new work back to",
+		"change the work of")
+	done := bothWays(nodes, eligible, "Took new work from", "Gave new work back to",
+		"Changed the work of")
 
 	return m.ask(
 		fmt.Sprintf("Really %s %s?", verb, nodeLabel(nodes)),
-		eachNode(done, nodeLabel(nodes), nodes, func(ctx context.Context, node nomad.Node) error {
+		each(done, nodeLabel(nodes), nodes, nodeMark, func(ctx context.Context, node nomad.Node) error {
 			return client.SetNodeEligible(ctx, node.ID, node.Eligibility != "eligible")
 		}),
 	)
 }
 
-// bothWays is how a question names an action that reads one way for some of
-// what it is about and the other way for the rest.
-func bothWays[T any](items []T, yes func(T) bool, whenYes, whenNo string) string {
+// allOf says every one of them answers the same way.
+func allOf[T any](items []T, yes func(T) bool) bool {
+	for _, item := range items {
+		if !yes(item) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// bothWays is how a question or a report names an action that reads one way
+// for some of what it is about and the other way for the rest. Rows that
+// disagree get a phrase of their own: two stuck together with an "or" is not
+// a sentence.
+func bothWays[T any](items []T, yes func(T) bool, whenYes, whenNo, whenBoth string) string {
 	some, rest := false, false
 
 	for _, item := range items {
@@ -109,7 +98,7 @@ func bothWays[T any](items []T, yes func(T) bool, whenYes, whenNo string) string
 
 	switch {
 	case some && rest:
-		return whenYes + " or " + whenNo
+		return whenBoth
 	case some:
 		return whenYes
 	}

@@ -14,6 +14,11 @@ import (
 type doneMsg struct {
 	said string
 	err  error
+
+	// kept are the marks that outlive the action: what did not happen is
+	// still marked, so the same key tries it again, and what did happen is
+	// let go of, so the key does not undo it.
+	kept map[string]bool
 }
 
 // The buttons of a question, in the order they are walked.
@@ -127,12 +132,12 @@ func (m Model) startStopJob() (Model, tea.Cmd) {
 	// they have nothing.
 	dead := func(job nomad.Job) bool { return job.Status == statusDead }
 
-	verb := bothWays(jobs, dead, "start", "stop")
-	done := bothWays(jobs, dead, "Started", "Stopped")
+	verb := bothWays(jobs, dead, "start", "stop", "start or stop")
+	done := bothWays(jobs, dead, "Started", "Stopped", "Changed")
 
 	return m.ask(
 		fmt.Sprintf("Really %s %s?", verb, jobLabel(jobs)),
-		eachJob(done, jobLabel(jobs), jobs, func(ctx context.Context, job nomad.Job) error {
+		each(done, jobLabel(jobs), jobs, jobMark, func(ctx context.Context, job nomad.Job) error {
 			if job.Status == statusDead {
 				return client.StartJob(ctx, job.Namespace, job.ID)
 			}
@@ -145,38 +150,6 @@ func (m Model) startStopJob() (Model, tea.Cmd) {
 // jobLabel is what a question about jobs says.
 func jobLabel(jobs []nomad.Job) string {
 	return many(len(jobs), "the job "+jobs[0].ID, "jobs")
-}
-
-// eachJob runs the action against every job on its own, so that one that
-// will not answer does not stop the rest.
-func eachJob(done, label string, jobs []nomad.Job, do func(context.Context, nomad.Job) error) tea.Cmd {
-	return func() tea.Msg {
-		out := doneMsg{said: fmt.Sprintf("%s %s.", done, label)}
-
-		went := 0
-		failed := []string{}
-
-		for _, job := range jobs {
-			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-			err := do(ctx, job)
-
-			cancel()
-
-			if err != nil {
-				failed = append(failed, err.Error())
-
-				continue
-			}
-
-			went++
-		}
-
-		if len(failed) > 0 {
-			out.err = fmt.Errorf("%s %d of %d: %s", strings.ToLower(done), went, len(jobs), failed[0])
-		}
-
-		return out
-	}
 }
 
 // revertJob puts the version before the one that runs back in place.
@@ -228,27 +201,29 @@ func (m Model) askEachAlloc(verb, done string, do func(context.Context, nomad.Al
 
 	return m.ask(
 		fmt.Sprintf("Really %s %s?", verb, label),
-		eachAlloc(done, label, allocs, do),
+		each(done, label, allocs, allocMark, do),
 	)
 }
 
-// eachAlloc runs the action against every allocation and says how far it
-// got, so that a failure halfway through is not read as nothing happening.
-func eachAlloc(done, label string, allocs []nomad.Alloc, do func(context.Context, nomad.Alloc) error) tea.Cmd {
+// each runs the action against every resource on its own: one that will not
+// answer must not stop the rest, and a screenful of them must not share one
+// timeout. What went through is reported, and what did not stays marked.
+func each[T any](done, label string, items []T, mark func(T) string, do func(context.Context, T) error) tea.Cmd {
 	return func() tea.Msg {
-		out := doneMsg{said: fmt.Sprintf("%s %s.", done, label)}
+		out := doneMsg{said: fmt.Sprintf("%s %s.", done, label), kept: map[string]bool{}}
 
 		went := 0
 		failed := []string{}
 
-		for _, alloc := range allocs {
+		for _, item := range items {
 			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-			err := do(ctx, alloc)
+			err := do(ctx, item)
 
 			cancel()
 
 			if err != nil {
 				failed = append(failed, err.Error())
+				out.kept[mark(item)] = true
 
 				continue
 			}
@@ -257,7 +232,7 @@ func eachAlloc(done, label string, allocs []nomad.Alloc, do func(context.Context
 		}
 
 		if len(failed) > 0 {
-			out.err = fmt.Errorf("%s %d of %d: %s", strings.ToLower(done), went, len(allocs), failed[0])
+			out.err = fmt.Errorf("%s %d of %d: %s", strings.ToLower(done), went, len(items), failed[0])
 		}
 
 		return out

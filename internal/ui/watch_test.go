@@ -135,7 +135,7 @@ func TestWatch_AStreamTheClusterRefusesIsNotAnError(t *testing.T) {
 	// A cluster that will not stream is a cluster urga polls, and says
 	// nothing about it over the rows.
 	r.False(m.watching)
-	r.False(m.failed())
+	r.NotEqual(flashErr, m.flash.level)
 	r.Contains(plain(m.render()), "web")
 }
 
@@ -352,7 +352,7 @@ func TestWatch_AClusterThatWillNotStreamSaysSo(t *testing.T) {
 
 	// It is worth knowing, not an error of the screen: the rows are there
 	// and the list is not marked as failed.
-	r.False(m.failed())
+	r.NotEqual(flashErr, m.flash.level)
 	r.Contains(out, "web")
 }
 
@@ -368,4 +368,59 @@ func TestWatch_LeavingAScreenSaysNothing(t *testing.T) {
 	m, _ = m.update(watchEndedMsg{id: m.watchID})
 
 	r.Empty(m.flash.text)
+}
+
+func TestWatch_AStreamThatDropsKeepsItsReason(t *testing.T) {
+	r := require.New(t)
+
+	// The cluster drops the stream: the reason is sent and the channel is
+	// closed right after it, so both are there to be read. Reading the
+	// close first must not lose the reason.
+	for range 50 {
+		changes := newChanges()
+		changes.errs <- errors.New("EOF")
+		close(changes.c)
+
+		client := &fakeClient{jobs: twoJobs(), changes: changes}
+
+		m := watching(t, client)
+		m, _ = m.update(m.waitForChange()())
+
+		r.Contains(m.flash.text, "EOF")
+	}
+}
+
+func TestWatch_AClusterThatWillNotStreamIsSaidOnce(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), watchErr: errors.New("Permission denied")}
+
+	m := newTestModel(client)
+	m = drain(m, m.fetch())
+
+	m, _ = m.update(m.watch()())
+	r.Contains(m.flash.text, "Permission denied")
+
+	// Walking around a cluster that will not stream must not put the same
+	// line up again on every screen: nothing has changed since it was said.
+	m = m.quiet()
+
+	m, _ = m.update(enter())
+	m, _ = m.update(m.watch()())
+
+	r.Empty(m.flash.text)
+}
+
+func TestWatch_AStreamThatComesBackAndGoesAgainSaysSo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges()}
+
+	m := watching(t, client)
+	m = m.quiet()
+
+	// The stream was up, so its going away is news again.
+	m, _ = m.update(watchEndedMsg{id: m.watchID, err: errors.New("EOF")})
+
+	r.Contains(m.flash.text, "EOF")
 }
