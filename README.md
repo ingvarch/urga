@@ -63,9 +63,10 @@ urga --address https://nomad.example.com --namespace production
 ## Keys
 
 Type `:` for the command line: `jobs`, `deployments`, `namespaces`, `services`,
-`evaluations`, `nodes`, `variables`, `nodepools`, or the short forms `jb`, `dp`,
-`ns`, `svc`, `ev`, `no`, `vars`, `np`. A second word switches the namespace with
-it, as in `jobs production`. `q` leaves.
+`evaluations`, `clients`, `servers`, `variables`, `nodepools`, or the short
+forms `jb`, `dp`, `ns`, `svc`, `ev`, `no`, `srv`, `vars`, `np`. Clients answer
+to `nodes` as well, the word Nomad's own CLI uses. A second word switches the
+namespace with it, as in `jobs production`. `q` leaves.
 
 | Key | What it does |
 | --- | --- |
@@ -86,8 +87,8 @@ it, as in `jobs production`. `q` leaves.
 | `u` | Revert a job to its previous version |
 | `r` | Restart an allocation |
 | `ctrl-k` | Stop an allocation |
-| `ctrl-d` | Drain a node, or stop draining it |
-| `i` | Let a node take new work, or stop it |
+| `ctrl-d` | Drain a client, or stop draining it |
+| `i` | Let a client take new work, or stop it |
 | `p` | Promote the canaries of a deployment |
 | `f` | Fail a deployment |
 | `ctrl-e` | Logs of a task, stderr |
@@ -96,13 +97,14 @@ it, as in `jobs production`. `q` leaves.
 ## What works
 
 Jobs, allocations, tasks, task groups, deployments, namespaces, services,
-evaluations, nodes, variables and node pools, refreshed while they are open.
-Logs follow a task as it writes. A job or a namespace opens in your editor and
-goes back to the cluster when you save. Jobs start, stop, revert and scale;
-allocations restart and stop; a task opens a shell. Nodes drain and take work
-again, deployments promote their canaries or fail.
+evaluations, clients, servers, variables and node pools, refreshed while they
+are open. Logs follow a task as it writes. A job or a namespace opens in your
+editor and goes back to the cluster when you save. Jobs start, stop, revert and
+scale; allocations restart and stop; a task opens a shell. Clients drain and
+take work again, deployments promote their canaries or fail. The servers list
+says which one leads.
 
-Allocations and nodes say what they are using, the list sorts by any column,
+Allocations and clients say what they are using, the list sorts by any column,
 and one key leaves only what needs attention.
 
 The session comes back where it was left: the namespace, the resource and which

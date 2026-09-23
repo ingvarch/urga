@@ -22,6 +22,7 @@ const (
 	screenNodes
 	screenVariables
 	screenNodePools
+	screenServers
 	screenDescribe
 	screenLogs
 	screenTaskGroups

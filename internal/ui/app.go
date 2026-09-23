@@ -55,6 +55,7 @@ type Client interface {
 	Nodes(ctx context.Context) ([]nomad.Node, error)
 	Variables(ctx context.Context, namespace string) ([]nomad.Variable, error)
 	NodePools(ctx context.Context) ([]nomad.NodePool, error)
+	Servers(ctx context.Context) ([]nomad.Server, error)
 }
 
 // Options are what the session starts with.
@@ -110,6 +111,7 @@ type (
 	nodesMsg       []nomad.Node
 	variablesMsg   []nomad.Variable
 	nodePoolsMsg   []nomad.NodePool
+	serversMsg     []nomad.Server
 
 	usageMsg     nomad.Usage
 	versionMsg   string
@@ -174,6 +176,7 @@ type Model struct {
 	nodes       []nomad.Node
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
+	servers     []nomad.Server
 
 	table tableModel
 	text  textModel
@@ -285,6 +288,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case nodePoolsMsg:
 		return m.applyList(screenNodePools, func(m *Model) { m.nodePools = msg })
+
+	case serversMsg:
+		return m.applyList(screenServers, func(m *Model) { m.servers = msg })
 
 	case versionMsg:
 		m.nomadVersion = string(msg)

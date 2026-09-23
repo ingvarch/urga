@@ -26,6 +26,7 @@ type fakeClient struct {
 	nodes       []nomad.Node
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
+	servers     []nomad.Server
 
 	describe      string
 	spec          string
@@ -297,6 +298,10 @@ func (f *fakeClient) Variables(_ context.Context, namespace string) ([]nomad.Var
 
 func (f *fakeClient) NodePools(context.Context) ([]nomad.NodePool, error) {
 	return f.nodePools, f.err
+}
+
+func (f *fakeClient) Servers(context.Context) ([]nomad.Server, error) {
+	return f.servers, f.err
 }
 
 func twoJobs() []nomad.Job {

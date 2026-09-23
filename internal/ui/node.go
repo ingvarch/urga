@@ -7,7 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// drainNode starts or stops moving the work off the node under the cursor.
+// drainNode starts or stops moving the work off the client under the cursor.
 func (m Model) drainNode() (Model, tea.Cmd) {
 	node, ok := selectedOf(m, screenNodes, m.nodes)
 	if !ok {
@@ -18,22 +18,22 @@ func (m Model) drainNode() (Model, tea.Cmd) {
 
 	if node.Drain {
 		return m.ask(
-			fmt.Sprintf("Really stop draining the node %s?", node.Name),
-			act(fmt.Sprintf("Node %s takes work again.", node.Name), func(ctx context.Context) error {
+			fmt.Sprintf("Really stop draining the client %s?", node.Name),
+			act(fmt.Sprintf("Client %s takes work again.", node.Name), func(ctx context.Context) error {
 				return client.DrainNode(ctx, node.ID, false)
 			}),
 		)
 	}
 
 	return m.ask(
-		fmt.Sprintf("Really drain the node %s? Its allocations move elsewhere.", node.Name),
-		act(fmt.Sprintf("Node %s draining.", node.Name), func(ctx context.Context) error {
+		fmt.Sprintf("Really drain the client %s? Its allocations move elsewhere.", node.Name),
+		act(fmt.Sprintf("Client %s draining.", node.Name), func(ctx context.Context) error {
 			return client.DrainNode(ctx, node.ID, true)
 		}),
 	)
 }
 
-// toggleEligibility says whether the node may be given new work.
+// toggleEligibility says whether the client may be given new work.
 func (m Model) toggleEligibility() (Model, tea.Cmd) {
 	node, ok := selectedOf(m, screenNodes, m.nodes)
 	if !ok {
@@ -44,11 +44,11 @@ func (m Model) toggleEligibility() (Model, tea.Cmd) {
 	eligible := node.Eligibility != "eligible"
 
 	question := fmt.Sprintf("Really stop giving new work to %s?", node.Name)
-	said := fmt.Sprintf("Node %s takes no new work.", node.Name)
+	said := fmt.Sprintf("Client %s takes no new work.", node.Name)
 
 	if eligible {
 		question = fmt.Sprintf("Really give new work to %s again?", node.Name)
-		said = fmt.Sprintf("Node %s takes new work.", node.Name)
+		said = fmt.Sprintf("Client %s takes new work.", node.Name)
 	}
 
 	return m.ask(question, act(said, func(ctx context.Context) error {

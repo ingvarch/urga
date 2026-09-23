@@ -220,9 +220,11 @@ var resources = map[screenKind]resource{
 	},
 
 	screenNodes: {
-		name:    "Nodes",
+		// Nomad calls them clients in its own interface; the command line
+		// takes either word.
+		name:    "Clients",
 		stored:  "nodes",
-		aliases: []string{"nodes", "node", "no"},
+		aliases: []string{"clients", "client", "nodes", "node", "no"},
 		titles:  nodeTitles,
 		hints:   nodeHints,
 		cluster: true,
@@ -271,6 +273,18 @@ var resources = map[screenKind]resource{
 			return fetchList(m.client.NodePools, func(items []nomad.NodePool) tea.Msg { return nodePoolsMsg(items) })
 		},
 		rows: func(m Model) []tableRow { return nodePoolRows(m.nodePools) },
+	},
+
+	screenServers: {
+		name:    "Servers",
+		stored:  "servers",
+		aliases: []string{"servers", "server", "srv"},
+		titles:  serverTitles,
+		cluster: true,
+		fetch: func(m Model) tea.Cmd {
+			return fetchList(m.client.Servers, func(items []nomad.Server) tea.Msg { return serversMsg(items) })
+		},
+		rows: func(m Model) []tableRow { return serverRows(m.servers) },
 	},
 
 	screenDescribe: {

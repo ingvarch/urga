@@ -32,7 +32,7 @@ func TestNode_Drain(t *testing.T) {
 	m, client := nodeModel(t, readyNode())
 
 	m, _ = m.update(ctrlKey('d'))
-	r.Contains(plain(m.render()), "drain the node server-01")
+	r.Contains(plain(m.render()), "drain the client server-01")
 
 	_, cmd := answerYes(m)
 	drain(m, cmd)
@@ -50,8 +50,8 @@ func TestNode_StopDraining(t *testing.T) {
 
 	m, _ = m.update(ctrlKey('d'))
 
-	// A node that is already draining is asked to stop, not to start again.
-	r.Contains(plain(m.render()), "stop draining the node server-01")
+	// A client that is already draining is asked to stop, not to start again.
+	r.Contains(plain(m.render()), "stop draining the client server-01")
 
 	_, cmd := answerYes(m)
 	drain(m, cmd)
