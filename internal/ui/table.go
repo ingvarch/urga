@@ -120,7 +120,7 @@ func (t tableModel) line(cells []string, widths []int) string {
 
 	line := strings.Repeat(" ", tableIndent) + strings.Join(parts, strings.Repeat(" ", cellGap))
 
-	return pad(ansi.Truncate(line, t.width, "…"), t.width)
+	return pad(truncate(line, t.width), t.width)
 }
 
 // columnWidths gives every column the width of the widest thing in it, then

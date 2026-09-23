@@ -64,16 +64,10 @@ func (m Model) confirmKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 // act runs one change against the cluster and says what came of it.
 func act(said string, do func(ctx context.Context) error) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
-
-		if err := do(ctx); err != nil {
-			return doneMsg{err: err}
-		}
-
-		return doneMsg{said: said}
-	}
+	return request(
+		func(ctx context.Context) (string, error) { return said, do(ctx) },
+		func(said string) tea.Msg { return doneMsg{said: said} },
+	)
 }
 
 // startStopJob stops a job that runs, starts one that is dead.

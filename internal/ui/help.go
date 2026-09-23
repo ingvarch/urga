@@ -90,7 +90,7 @@ func renderHelp(sections []helpSection, width int) string {
 			row += pad(cell, widths[c]) + strings.Repeat(" ", columnGap*2)
 		}
 
-		rows = append(rows, ansi.Truncate(strings.TrimRight(row, " "), width, "…"))
+		rows = append(rows, truncate(strings.TrimRight(row, " "), width))
 	}
 
 	return strings.Join(rows, "\n")

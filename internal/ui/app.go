@@ -10,7 +10,6 @@ import (
 	"unicode"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
@@ -618,24 +617,24 @@ func (m Model) status() string {
 	width := m.width - 2*headerPadX
 
 	if m.err != nil {
-		return styleError.Render(ansi.Truncate("! "+m.err.Error(), width, "…"))
+		return styleError.Render(truncate("! "+m.err.Error(), width))
 	}
 
 	if m.said != "" {
-		return styleValue.Render(ansi.Truncate(m.said, width, "…"))
+		return styleValue.Render(truncate(m.said, width))
 	}
 
 	if m.troubled {
-		return styleWarn.Render(ansi.Truncate(
-			fmt.Sprintf("only what needs attention, %d of %d   <!> all of them", m.shown, m.held), width, "…"))
+		return styleWarn.Render(truncate(
+			fmt.Sprintf("only what needs attention, %d of %d   <!> all of them", m.shown, m.held), width))
 	}
 
 	if m.missingUsage > 0 && m.usageReason != nil {
-		return styleMuted.Render(ansi.Truncate(
-			fmt.Sprintf("no readings for %d rows: %s", m.missingUsage, m.usageReason), width, "…"))
+		return styleMuted.Render(truncate(
+			fmt.Sprintf("no readings for %d rows: %s", m.missingUsage, m.usageReason), width))
 	}
 
-	return styleMuted.Render(ansi.Truncate("<:> command   </> filter   <?> help   <q> quit", width, "…"))
+	return styleMuted.Render(truncate("<:> command   </> filter   <?> help   <q> quit", width))
 }
 
 func (m Model) bodyHeight() int {
@@ -695,29 +694,9 @@ func percentOf(value int) string {
 // fetchClusterUsage reads what the whole cluster is busy with, which the
 // header shows. What one row takes is read by Model.fetchUsage.
 func fetchClusterUsage(client Client) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
-
-		usage, err := client.Usage(ctx)
-		if err != nil {
-			return errMsg{err: err}
-		}
-
-		return usageMsg(usage)
-	}
+	return request(client.Usage, func(usage nomad.Usage) tea.Msg { return usageMsg(usage) })
 }
 
 func fetchVersion(client Client) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
-
-		version, err := client.Version(ctx)
-		if err != nil {
-			return errMsg{err: err}
-		}
-
-		return versionMsg(version)
-	}
+	return request(client.Version, func(version string) tea.Msg { return versionMsg(version) })
 }

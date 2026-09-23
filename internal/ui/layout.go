@@ -49,7 +49,7 @@ func titleBorder(title string, width int) string {
 
 	label := " " + title + " "
 	if ansi.StringWidth(label) > width {
-		label = ansi.Truncate(label, width, "…")
+		label = truncate(label, width)
 	}
 
 	left := (width - ansi.StringWidth(label)) / 2
@@ -69,7 +69,7 @@ func bodyLines(body string, width, height int) []string {
 	for i := 0; i < height; i++ {
 		line := ""
 		if i < len(rows) {
-			line = ansi.Truncate(rows[i], width, "…")
+			line = truncate(rows[i], width)
 		}
 
 		out = append(out, line+strings.Repeat(" ", width-ansi.StringWidth(line)))

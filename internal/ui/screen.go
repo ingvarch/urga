@@ -273,20 +273,26 @@ func (m Model) fetch() tea.Cmd {
 	}
 }
 
-// fetchList asks the cluster in the background and hands the answer over as a
-// message. Nothing here touches the model.
-func fetchList[T any](load func(ctx context.Context) ([]T, error), wrap func([]T) tea.Msg) tea.Cmd {
+// request asks the cluster in the background and hands the answer over as a
+// message. Nothing here touches the model: every answer arrives through
+// Update like any other message.
+func request[T any](load func(ctx context.Context) (T, error), wrap func(T) tea.Msg) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		items, err := load(ctx)
+		answer, err := load(ctx)
 		if err != nil {
 			return errMsg{err: err}
 		}
 
-		return wrap(items)
+		return wrap(answer)
 	}
+}
+
+// fetchList is a request for a list of resources.
+func fetchList[T any](load func(ctx context.Context) ([]T, error), wrap func([]T) tea.Msg) tea.Cmd {
+	return request(load, wrap)
 }
 
 // open drills into what the cursor is on, if there is anything below it.

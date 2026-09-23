@@ -75,7 +75,7 @@ func renderHeader(h header, width int) string {
 			row += strings.Repeat(" ", columnGap) + hint
 		}
 
-		row = ansi.Truncate(strings.TrimRight(row, " "), rest, "…")
+		row = truncate(strings.TrimRight(row, " "), rest)
 
 		// The art is shorter than the header, the lines past it keep the
 		// block square.
@@ -186,7 +186,7 @@ func hintColumns(hints []hint, width int) string {
 
 	rows := strings.Split(grid(cells, headerHeight), "\n")
 	for i, row := range rows {
-		rows[i] = ansi.Truncate(row, width, "…")
+		rows[i] = truncate(row, width)
 	}
 
 	return strings.Join(rows, "\n")

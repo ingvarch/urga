@@ -92,17 +92,9 @@ func (m Model) jobSpecCmd() tea.Cmd {
 }
 
 func describe(label string, load func(ctx context.Context) (string, error)) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
-
-		content, err := load(ctx)
-		if err != nil {
-			return errMsg{err: err}
-		}
-
+	return request(load, func(content string) tea.Msg {
 		return describeMsg{label: label, content: content}
-	}
+	})
 }
 
 // showDescribe puts a description on the screen, on top of the list it was
