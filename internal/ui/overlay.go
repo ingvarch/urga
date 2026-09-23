@@ -16,9 +16,16 @@ const (
 	overlayNone overlay = iota
 	overlayPrompt
 	overlayFilter
+	overlayScale
 	overlayHelp
 	overlayConfirm
 )
+
+// asksForALine says the overlay is the line at the top, whatever it is
+// asking for.
+func (o overlay) asksForALine() bool {
+	return o == overlayPrompt || o == overlayFilter || o == overlayScale
+}
 
 // promptHeight is the line plus the border around it.
 const promptHeight = 3
@@ -28,28 +35,23 @@ const (
 	filterPrefix = "/"
 )
 
-// promptAction is what the line does when it is committed.
-type promptAction int
-
-const (
-	promptCommand promptAction = iota
-	promptFilter
-	promptScale
-)
-
 // promptModel is the line at the top: a prefix, what was typed, and the rest
-// of the word the prompt would complete.
+// of the word the prompt would complete. What the line is for is the overlay
+// it was opened as, it is not said twice.
 type promptModel struct {
 	prefix string
 	text   string
-	action promptAction
 
 	// group is the task group a count belongs to.
 	group string
+
+	// suggest says whether the rest of a word is offered, which only the
+	// command line does.
+	suggest bool
 }
 
 func (p promptModel) suggestion() string {
-	if p.action != promptCommand {
+	if !p.suggest {
 		return ""
 	}
 
@@ -68,12 +70,11 @@ func (p promptModel) view(width int) string {
 // openPrompt puts the command line up.
 func (m Model) openPrompt(prefix string) (Model, tea.Cmd) {
 	m.overlay = overlayPrompt
-	m.prompt = promptModel{prefix: prefix}
+	m.prompt = promptModel{prefix: prefix, suggest: true}
 
 	if prefix == filterPrefix {
 		m.overlay = overlayFilter
-		m.prompt.action = promptFilter
-		m.prompt.text = m.filter
+		m.prompt = promptModel{prefix: prefix, text: m.filter}
 	}
 
 	m.layout()
@@ -131,9 +132,9 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 // commit does what the line says.
 func (m Model) commit() (Model, tea.Cmd) {
 	input := m.prompt.text
-	action, group := m.prompt.action, m.prompt.group
+	asked, group := m.overlay, m.prompt.group
 
-	if action == promptFilter {
+	if asked == overlayFilter {
 		m.filter = input
 
 		return m.closePrompt()
@@ -141,7 +142,7 @@ func (m Model) commit() (Model, tea.Cmd) {
 
 	m, _ = m.closePrompt()
 
-	if action == promptScale {
+	if asked == overlayScale {
 		return m.scaleTo(group, input)
 	}
 

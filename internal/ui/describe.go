@@ -104,25 +104,3 @@ func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
 
 	return m.stackText(next, msg.content), nil
 }
-
-// textKey scrolls the description under the window.
-func (m Model) textKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
-	switch msg.String() {
-	case "up", "k":
-		m.text.move(-1)
-	case "down", "j":
-		m.text.move(1)
-	case "pgup", "ctrl+b":
-		m.text.move(-m.text.height)
-	case "pgdown", "ctrl+f":
-		m.text.move(m.text.height)
-	case "g", "home":
-		m.text.move(-len(m.text.lines))
-	case "G", "end":
-		m.text.move(len(m.text.lines))
-	default:
-		return m, nil, false
-	}
-
-	return m, nil, true
-}

@@ -70,11 +70,10 @@ func (m Model) scaleGroup() (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.overlay = overlayPrompt
+	m.overlay = overlayScale
 	m.prompt = promptModel{
 		prefix: fmt.Sprintf("scale %s to: ", group.Name),
 		text:   strconv.Itoa(group.Count),
-		action: promptScale,
 		group:  group.Name,
 	}
 	m.layout()

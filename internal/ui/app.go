@@ -391,7 +391,7 @@ func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
 // answers first and the screen never sees the key.
 func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch m.overlay {
-	case overlayPrompt, overlayFilter:
+	case overlayPrompt, overlayFilter, overlayScale:
 		return m.promptKey(msg)
 
 	case overlayHelp:
@@ -407,13 +407,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		}
 	}
 
-	if m.screen.kind == screenDescribe || m.screen.kind == screenLogs {
-		if next, cmd, handled := m.textKey(msg); handled {
-			// Scrolling by hand means the end is no longer being watched.
-			next.following = false
-
-			return next, cmd
-		}
+	if next, handled := m.scrollKey(msg); handled {
+		return next, nil
 	}
 
 	switch msg.String() {
@@ -492,30 +487,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	case "0", "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		return m.namespaceKey(int(msg.Code - '0'))
 
-	case "up", "k":
-		m.table.move(-1)
-
-	case "down", "j":
-		m.table.move(1)
-
-	case "pgup", "ctrl+b":
-		m.table.move(-m.table.height)
-
-	case "pgdown", "ctrl+f":
-		m.table.move(m.table.height)
-
-	case "home", "g":
-		m.table.move(-len(m.table.rows))
-
-	case "end", "G":
-		m.table.move(len(m.table.rows))
-
 	default:
 		// A capital letter names a column to order the list by.
 		return m.sortKey(msg)
 	}
-
-	return m, nil
 }
 
 // sortKey orders the list by the column a letter names, the way one key
@@ -571,7 +546,7 @@ func (m Model) render() string {
 
 	width := m.width - 2*screenPadX
 
-	if m.overlay == overlayPrompt || m.overlay == overlayFilter {
+	if m.overlay.asksForALine() {
 		parts = append(parts, indent(m.prompt.view(width), screenPadX))
 	}
 
@@ -640,7 +615,7 @@ func (m Model) status() string {
 func (m Model) bodyHeight() int {
 	height := m.height - screenPadTop - headerHeight - statusHeight
 
-	if m.overlay == overlayPrompt || m.overlay == overlayFilter {
+	if m.overlay.asksForALine() {
 		height -= promptHeight
 	}
 
