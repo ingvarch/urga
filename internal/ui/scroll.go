@@ -60,7 +60,7 @@ func (m Model) pageHeight() int {
 
 func (m Model) contentLength() int {
 	if m.readsAsText() {
-		return len(m.text.lines)
+		return m.text.length()
 	}
 
 	return len(m.table.rows)

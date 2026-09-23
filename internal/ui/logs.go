@@ -93,7 +93,7 @@ func (m Model) appendLog(chunk string) (Model, tea.Cmd) {
 	}
 
 	if m.following {
-		m.text.move(len(m.text.lines))
+		m.text.toEnd()
 	}
 
 	return m, m.waitForLog()
@@ -119,7 +119,7 @@ func (m Model) logsKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		m.following = false
 	case "r":
 		m.following = true
-		m.text.move(len(m.text.lines))
+		m.text.toEnd()
 	case "t":
 		// Only a log has times to show: they are when urga read a line,
 		// and nothing else on a text screen has any.
