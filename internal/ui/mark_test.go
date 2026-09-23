@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -30,15 +29,20 @@ func onAllocations(t *testing.T) (Model, *fakeClient) {
 	return m, client
 }
 
+// cursorOnMark says the row under the cursor is drawn as a marked row: the
+// cursor takes the color of the mark instead of covering it.
+func cursorOnMark(m Model) bool {
+	return strings.Contains(m.render(), styleCode(styleSelectedMark))
+}
+
 // markedRows are the rows of the screen drawn in the color of a mark.
 func markedRows(m Model) []string {
-	want := lipgloss.NewStyle().Foreground(colorMark).Render("")
-	want = strings.TrimSuffix(want, "\x1b[m")
+	want := colorCode(colorMark)
 
 	out := []string{}
 
 	for _, line := range strings.Split(m.render(), "\n") {
-		if want != "" && strings.Contains(line, want) {
+		if strings.Contains(line, want) {
 			out = append(out, strings.TrimSpace(plain(line)))
 		}
 	}
@@ -517,4 +521,21 @@ func TestMarks_AQuestionAboutJobsThatDisagree(t *testing.T) {
 	m = drain(m, cmd)
 
 	r.Contains(plain(m.render()), "Changed 2 jobs.")
+}
+
+func TestMarks_TheCursorTakesTheColorOfAMark(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onAllocations(t)
+
+	r.False(cursorOnMark(m))
+
+	m, _ = m.update(space())
+
+	// Standing on a marked row must not hide the mark: the cursor is drawn
+	// in the color of the mark, the whole row over.
+	r.True(cursorOnMark(m))
+
+	m, _ = m.update(space())
+	r.False(cursorOnMark(m))
 }
