@@ -70,6 +70,9 @@ func everyScreen(t *testing.T) map[screenKind]Model {
 	described, cmd := jobs.update(key('d'))
 	open[screenDescribe] = drain(described, cmd)
 
+	server, _ := open[screenServers].update(enter())
+	open[screenServer] = server
+
 	return open
 }
 

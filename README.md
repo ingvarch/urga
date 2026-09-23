@@ -91,6 +91,7 @@ namespace with it, as in `jobs production`. `q` leaves.
 | `i` | Let a client take new work, or stop it |
 | `p` | Promote the canaries of a deployment |
 | `f` | Fail a deployment |
+| `c` | Copy the value under the cursor, on a screen of fields |
 | `ctrl-e` | Logs of a task, stderr |
 | `q` | Quit |
 
@@ -104,7 +105,8 @@ scale; allocations restart and stop; a task opens a shell. Clients drain and
 take work again, deployments promote their canaries or fail. The servers list
 says which one leads, and a server opens on everything its agent carries: the
 addresses and ports, the gossip it speaks, whether the raft still counts its
-vote, and every tag the cluster was built with.
+vote, and every tag the cluster was built with. One key copies the value under
+the cursor, over OSC52, so it works through ssh as well.
 
 A client opens on what the machine is doing: its CPU and memory as a chart of
 the readings taken while the screen is open, and the allocations it runs, from

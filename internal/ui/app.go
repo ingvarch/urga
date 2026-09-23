@@ -533,6 +533,9 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	case "h":
 		next, cmd = m, m.jobSpecCmd()
 
+	case "c":
+		next, cmd = m.copyField()
+
 	case "ctrl+e":
 		next, cmd = m.openLogs(nomad.LogStderr)
 

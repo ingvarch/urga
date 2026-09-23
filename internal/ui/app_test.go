@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -517,4 +518,9 @@ func TestModel_ReadsWhatTheClusterIsUsing(t *testing.T) {
 	r.Contains(head, "CPU:")
 	r.Contains(head, "15%")
 	r.Contains(head, "31%")
+}
+
+// clipboardOf is what a command puts on the clipboard.
+func clipboardOf(cmd tea.Cmd) string {
+	return fmt.Sprintf("%s", cmd())
 }

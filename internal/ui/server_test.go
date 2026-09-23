@@ -189,3 +189,38 @@ func TestServer_WhenRaftIsNotAllowed(t *testing.T) {
 	// It is not an error over the whole screen.
 	r.Nil(m.err)
 }
+
+func TestServer_CopiesTheValueUnderTheCursor(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := serverScreen(t)
+
+	// Down to Address, which is the kind of thing one copies.
+	for range 3 {
+		m, _ = m.update(key('j'))
+	}
+
+	next, cmd := m.update(key('c'))
+	r.NotNil(cmd)
+
+	// The value goes to the clipboard, not the name of the field and not
+	// the whole row.
+	r.Equal("10.0.0.6", clipboardOf(cmd))
+	r.Contains(plain(next.render()), "Copied Address")
+}
+
+func TestServer_CopyingWithNothingUnderTheCursor(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{servers: twoServers(), server: aServer()}
+
+	m := newTestModel(client)
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "servers")
+	m, _ = m.update(enter())
+
+	// An empty screen has nothing to copy and says nothing.
+	next, cmd := m.update(key('c'))
+	r.Nil(cmd)
+	r.Empty(next.said)
+}

@@ -31,6 +31,8 @@ var (
 
 	serverHints = []hint{{Key: "<enter>", Description: "Details"}}
 
+	fieldHints = []hint{{Key: "<c>", Description: "Copy the value"}}
+
 	describeHints = []hint{{Key: "<d>", Description: "Describe"}}
 
 	namespaceHints = []hint{{Key: "<e>", Description: "Edit"}}
@@ -59,6 +61,10 @@ type resource struct {
 	// cluster says the screen holds what belongs to the cluster rather than
 	// to a namespace, so its title carries no namespace.
 	cluster bool
+
+	// fields says the screen reads as a list of fields, where a row is a
+	// name and the value behind it rather than a resource.
+	fields bool
 
 	// readings are the resources whose usage the rows show, and reading is
 	// how one of them is read. A screen without readings leaves both nil.
@@ -307,7 +313,9 @@ var resources = map[screenKind]resource{
 
 	screenServer: {
 		titles:  fieldTitles,
+		hints:   fieldHints,
 		cluster: true,
+		fields:  true,
 
 		title: func(m Model, _ int) string {
 			return sprintf("Server %s", m.screen.label)
