@@ -65,8 +65,10 @@ urga --address https://nomad.example.com --namespace production
 Type `:` for the command line: `jobs`, `deployments`, `namespaces`, `services`,
 `evaluations`, `clients`, `servers`, `variables`, `nodepools`, or the short
 forms `jb`, `dp`, `ns`, `svc`, `ev`, `no`, `srv`, `vars`, `np`. Clients answer
-to `nodes` as well, the word Nomad's own CLI uses. A second word switches the
-namespace with it, as in `jobs production`. `q` leaves.
+to `nodes` as well, the word Nomad's own CLI uses. A letter is enough: the
+line finishes the word it fits, `up` and `down` walk through the rest of
+them, `tab` or `right` takes what is offered, `enter` opens it. A second word
+switches the namespace with it, as in `jobs production`. `q` leaves.
 
 | Key | What it does |
 | --- | --- |

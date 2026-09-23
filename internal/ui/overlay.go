@@ -48,14 +48,73 @@ type promptModel struct {
 	// suggest says whether the rest of a word is offered, which only the
 	// command line does.
 	suggest bool
+
+	// matches are the resources the line could be about and at is the one
+	// it offers. A line with nothing typed offers nothing until the arrows
+	// ask it to: -1 is that.
+	matches []string
+	at      int
 }
 
-func (p promptModel) suggestion() string {
-	if !p.suggest {
+// choice is the resource the line offers, empty when it offers none.
+func (p promptModel) choice() string {
+	if p.at < 0 || p.at >= len(p.matches) {
 		return ""
 	}
 
-	return completeCommand(p.text)
+	return p.matches[p.at]
+}
+
+// walk moves through what the line could be about, and comes back around at
+// either end.
+func (p promptModel) walk(by int) promptModel {
+	if len(p.matches) == 0 {
+		p.at = -1
+
+		return p
+	}
+
+	// From nothing, a step forward lands on the first resource and a step
+	// back on the last.
+	if p.at < 0 {
+		p.at = -1
+		if by < 0 {
+			p.at = len(p.matches)
+		}
+	}
+
+	p.at = (p.at + by + len(p.matches)) % len(p.matches)
+
+	return p
+}
+
+// narrow keeps the resources the line still fits and offers the first of
+// them. A line with nothing typed offers nothing yet: pressing the key that
+// opened it must not put a resource in it.
+func (p promptModel) narrow() promptModel {
+	if !p.suggest {
+		return p
+	}
+
+	p.matches = matchingCommands(p.text)
+
+	p.at = 0
+	if p.text == "" || len(p.matches) == 0 {
+		p.at = -1
+	}
+
+	return p
+}
+
+// suggestion is the rest of the resource the line offers, which reads as one
+// word with what was typed.
+func (p promptModel) suggestion() string {
+	offered := p.choice()
+	if offered == "" || !strings.HasPrefix(offered, strings.ToLower(p.text)) {
+		return ""
+	}
+
+	return offered[len(p.text):]
 }
 
 func (p promptModel) view(width int) string {
@@ -70,7 +129,8 @@ func (p promptModel) view(width int) string {
 // openPrompt puts the command line up.
 func (m Model) openPrompt(prefix string) (Model, tea.Cmd) {
 	m.overlay = overlayPrompt
-	m.prompt = promptModel{prefix: prefix, suggest: true}
+	m.prompt = promptModel{prefix: prefix, suggest: true, at: -1}
+	m.prompt = m.prompt.narrow()
 
 	if prefix == filterPrefix {
 		m.overlay = overlayFilter
@@ -104,7 +164,15 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	case "enter":
 		return m.commit()
 
+	case "up":
+		m.prompt = m.prompt.walk(-1)
+
+	case "down":
+		m.prompt = m.prompt.walk(1)
+
 	case "tab", "right", "ctrl+f":
+		// What the line offers is taken into it, and the line stays open:
+		// a namespace can follow the word.
 		m.prompt.text += m.prompt.suggestion()
 
 	case "backspace":
@@ -112,26 +180,36 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 			m.prompt.text = m.prompt.text[:n-1]
 		}
 
+		m.prompt = m.prompt.narrow()
+
 	case "ctrl+u":
 		m.prompt.text = ""
+		m.prompt = m.prompt.narrow()
 
 	default:
 		if msg.Text != "" {
 			m.prompt.text += msg.Text
+			m.prompt = m.prompt.narrow()
 		}
 	}
 
 	if m.overlay == overlayFilter {
 		m.filter = m.prompt.text
-		m.layout()
 	}
+
+	m.layout()
 
 	return m, nil
 }
 
-// commit does what the line says.
+// commit does what the line says, which is what it offers when it offers
+// anything.
 func (m Model) commit() (Model, tea.Cmd) {
 	input := m.prompt.text
+	if offered := m.prompt.choice(); offered != "" && m.overlay == overlayPrompt {
+		input = offered + namespaceOf(m.prompt.text)
+	}
+
 	asked, group := m.overlay, m.prompt.group
 
 	if asked == overlayFilter {
@@ -180,6 +258,17 @@ func (m Model) knowsNamespace(namespace string) bool {
 	}
 
 	return false
+}
+
+// namespaceOf is what the line says after the resource, which a choice from
+// the list keeps.
+func namespaceOf(input string) string {
+	fields := strings.Fields(strings.TrimSpace(input))
+	if len(fields) < 2 {
+		return ""
+	}
+
+	return " " + fields[1]
 }
 
 func firstWord(input string) string {

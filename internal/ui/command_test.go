@@ -65,14 +65,16 @@ func TestParseCommand_Quit(t *testing.T) {
 	}
 }
 
-func TestCompleteCommand(t *testing.T) {
+func TestMatchingCommands(t *testing.T) {
 	r := require.New(t)
 
-	// What the prompt shows dim behind what was typed.
-	r.Equal("bs", completeCommand("jo"))
-	r.Equal("", completeCommand("jobs"))
-	r.Equal("", completeCommand(""))
+	// What the line could still be about, in the order it walks through.
+	r.Equal([]string{"jobs"}, matchingCommands("jo"))
+	r.Equal([]string{"servers", "services"}, matchingCommands("se"))
+	r.Equal(commandNames, matchingCommands(""))
 
-	// A prefix that fits more than one alias suggests nothing.
-	r.Equal("", completeCommand("n"))
+	// Nothing fits a word that names nothing, and a line that already says
+	// where to look is not about a resource any more.
+	r.Empty(matchingCommands("zz"))
+	r.Empty(matchingCommands("jobs production"))
 }

@@ -104,25 +104,24 @@ func resolveAlias(word string) (screenKind, bool) {
 	return found, matched
 }
 
-// completeCommand is the rest of the alias the prompt shows dim behind what
-// was typed. It suggests nothing while the word still fits several.
-func completeCommand(typed string) string {
-	if typed == "" || strings.Contains(typed, " ") {
-		return ""
+// matchingCommands are the resources a line could still be about: all of
+// them while nothing is typed, and those the first word begins after that.
+// A line with a second word in it is about where to look rather than what to
+// open, and has none.
+func matchingCommands(typed string) []string {
+	if strings.Contains(strings.TrimSpace(typed), " ") {
+		return nil
 	}
 
-	word := strings.ToLower(typed)
+	word := strings.ToLower(firstWord(typed))
 
-	candidates := []string{}
+	matches := []string{}
+
 	for _, name := range commandNames {
-		if strings.HasPrefix(name, word) && name != word {
-			candidates = append(candidates, name)
+		if strings.HasPrefix(name, word) {
+			matches = append(matches, name)
 		}
 	}
 
-	if len(candidates) != 1 {
-		return ""
-	}
-
-	return candidates[0][len(word):]
+	return matches
 }

@@ -793,7 +793,7 @@ func (m Model) bodyHeight() int {
 	height := m.height - screenPadTop - headerHeight - statusHeight
 
 	if m.overlay.asksForALine() {
-		height -= promptHeight
+		height -= m.promptRows()
 	}
 
 	return max(height, 2)
@@ -828,6 +828,11 @@ func (m *Model) layout() {
 
 	m.index = index
 	m.table.show(rows, m.sort)
+}
+
+// promptRows is what the line at the top takes.
+func (m Model) promptRows() int {
+	return promptHeight
 }
 
 func (m Model) schedulePoll() tea.Cmd {
