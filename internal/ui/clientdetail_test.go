@@ -238,3 +238,36 @@ func TestClient_KeepsOfferingWhatTheAllocationsAnswer(t *testing.T) {
 	r.Contains(keys, "<d>")
 	r.Contains(keys, "<ctrl-k>")
 }
+
+func TestClient_AnAnswerClearsTheErrorAndAsksAgain(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := pressed(t, key('a'))
+
+	m, _ = m.update(errMsg{err: errTest})
+	m, _ = m.update(pollMsg{})
+
+	m, cmd := m.update(nodeDetailMsg(clientDetail()))
+
+	// The machine answered, so what went wrong is over, and the next ask is
+	// on its way.
+	r.NotContains(plain(m.render()), "no answer")
+	r.NotNil(cmd)
+	r.IsType(pollMsg{}, cmd())
+}
+
+func TestClient_WhatAnotherMachineSaysIsNotShownHere(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := pressed(t, key('a'))
+	m, _ = m.update(pollMsg{})
+
+	other := clientDetail()
+	other.ID = "node-9"
+	other.Attributes = map[string]string{"cpu.arch": "arm64"}
+
+	m, cmd := m.update(nodeDetailMsg(other))
+
+	r.Nil(cmd)
+	r.NotContains(plain(m.render()), "arm64")
+}

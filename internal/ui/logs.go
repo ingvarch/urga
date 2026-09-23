@@ -77,10 +77,21 @@ func (m Model) waitForLog() tea.Cmd {
 	}
 }
 
+// followLog keeps the stream that was opened and waits for its first line.
+func (m Model) followLog(msg logStreamMsg) (Model, tea.Cmd) {
+	m.stream = msg.stream
+
+	return m, m.waitForLog()
+}
+
 // appendLog puts what arrived at the end and follows it, unless following was
 // stopped. When each line arrived is written down: a task writes no time of
 // its own, and the time urga read it is the only one there is.
 func (m Model) appendLog(chunk string) (Model, tea.Cmd) {
+	if m.screen.kind != screenLogs {
+		return m, nil
+	}
+
 	if m.text.stamps == nil {
 		m.text.stamps = map[int]time.Time{}
 	}
@@ -97,6 +108,13 @@ func (m Model) appendLog(chunk string) (Model, tea.Cmd) {
 	}
 
 	return m, m.waitForLog()
+}
+
+// endLog lets go of a stream that has ended on its own.
+func (m Model) endLog() Model {
+	m.stream = nil
+
+	return m
 }
 
 // closeLogs stops the stream, which stops the request behind it.

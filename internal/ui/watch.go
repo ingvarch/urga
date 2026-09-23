@@ -127,7 +127,11 @@ func (m Model) startWatching(msg watchingMsg) (Model, tea.Cmd) {
 
 // keepChange writes down that something changed and lets the burst settle
 // before asking the cluster: the stream says when, one request says what.
-func (m Model) keepChange() (Model, tea.Cmd) {
+func (m Model) keepChange(msg changeMsg) (Model, tea.Cmd) {
+	if !m.current(msg.id) {
+		return m, nil
+	}
+
 	next := m.waitForChange()
 
 	if m.settling {
@@ -137,6 +141,25 @@ func (m Model) keepChange() (Model, tea.Cmd) {
 	m.settling = true
 
 	return m, tea.Batch(next, tea.Tick(settle, func(time.Time) tea.Msg { return settleMsg{} }))
+}
+
+// settled asks the cluster what a burst of changes left behind.
+func (m Model) settled() (Model, tea.Cmd) {
+	m.settling = false
+
+	return m, m.fetch()
+}
+
+// watchEnded lets go of the stream that stopped.
+func (m Model) watchEnded(msg watchEndedMsg) Model {
+	// A cluster that will not stream is one urga asks on its own, which
+	// is what it did before. Nothing about that belongs over the rows,
+	// and the timer it already has goes on without help.
+	if !m.current(msg.id) {
+		return m
+	}
+
+	return m.endWatch().noteWatchEnded(msg.err)
 }
 
 // noteWatchEnded says the screen is no longer live, when it is not urga that

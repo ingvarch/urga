@@ -213,7 +213,7 @@ func (m Model) open() (Model, tea.Cmd) {
 
 		// The readings belong to the machine they were taken on, the chart
 		// starts over on every client.
-		m.host, m.hostTrail = node, nil
+		m.host = hostModel{node: node}
 
 		return m.push(screen{
 			kind:      screenAllocations,
@@ -353,6 +353,9 @@ func (m Model) arrive() (Model, tea.Cmd) {
 func (m Model) enter() (Model, tea.Cmd) {
 	// Whatever is still out was asked for what was on the screen before.
 	m.asked++
+
+	// So were the readings, and their chain ends with that ask.
+	m.usage = m.usage.forgetRows()
 
 	m.table = newTableModel(m.screen.titles())
 	m.filter = ""
