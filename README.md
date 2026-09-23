@@ -83,18 +83,18 @@ namespace with it, as in `jobs production`. `q` leaves.
 | `e` | Edit a job, a namespace or the metadata of a client in `$EDITOR`; the events of a client or of a task |
 | `t` | Task groups of a job |
 | `s` | Scale a task group, or a shell in a task |
-| `ctrl-s` | Start or stop a job |
 | `v` | Versions of a job, with what each one changed |
 | `u` | Revert a job to its previous version, or on the versions screen to the one under the cursor |
-| `space` | Mark a row; an action then takes every marked row |
+| `space` | Mark a row, on jobs, allocations and clients; an action then takes every marked row |
 | `ctrl-a` | Mark every row on the screen, or none |
+| `ctrl-s` | Start or stop a job, or every marked one |
 | `r` | Restart an allocation, or every marked one |
 | `ctrl-k` | Stop an allocation, or every marked one |
-| `ctrl-d` | Drain a client, or stop draining it; on a client, what it can run |
+| `ctrl-d` | Drain a client, or every marked one; on a client, what it can run |
 | `ctrl-h` | Host volumes of a client |
 | `a` | Attributes of a client |
 | `m` | Metadata of a client |
-| `i` | Let a client take new work, or stop it |
+| `i` | Let a client take new work, or stop it; every marked one at once |
 | `p` | Promote the canaries of a deployment |
 | `f` | Fail a deployment |
 | `c` | Copy the value under the cursor, on a screen of fields |
@@ -109,14 +109,15 @@ namespace with it, as in `jobs production`. `q` leaves.
 Jobs, allocations, tasks, task groups, deployments, namespaces, services,
 evaluations, clients, servers, variables and node pools. A screen that the
 cluster will talk about follows its event stream and is asked again the moment
-something changes; the rest, and a cluster whose stream an ACL holds back, are
-asked on a timer. A task says what happened to it, from the moment the client received it.
+something changes; the rest are asked on a timer. A cluster that will not
+stream — an ACL that does not allow it, most often — is polled instead, and
+the status line says so. A task says what happened to it, from the moment the client received it.
 Logs follow a task as it writes; the filter lights up what it matched, long
 lines wrap, and what is on the screen saves to a file. A job or a namespace opens in your
 editor and goes back to the cluster when you save. Jobs start, stop, revert and
 scale; a job keeps its versions, each saying what it changed, and goes back to
-any of them; allocations restart and stop, one or as many as are marked; a task opens a
-shell. Clients drain and
+any of them; allocations restart and stop; jobs start and stop; clients drain and take work
+again — one of them, or as many as are marked; a task opens a shell. Clients drain and
 take work again, deployments promote their canaries or fail. The servers list
 says which one leads, and a server opens on everything its agent carries: the
 addresses and ports, the gossip it speaks, whether the raft still counts its

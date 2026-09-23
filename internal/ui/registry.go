@@ -14,6 +14,7 @@ import (
 var (
 	jobHints = []hint{
 		{Key: "<enter>", Description: "Allocations"},
+		{Key: "<space>", Description: "Mark"},
 		{Key: "<t>", Description: "Task groups"},
 		{Key: "<d>", Description: "Describe"},
 		{Key: "<h>", Description: "Job spec"},
@@ -115,6 +116,7 @@ var resources = map[screenKind]resource{
 		aliases: []string{"jobs", "job", "jb"},
 		titles:  jobTitles,
 		hints:   jobHints,
+		ids:     jobIDs,
 		topics:  []string{nomad.TopicJob},
 		fetch: func(m Model) tea.Cmd {
 			client, namespace := m.client, m.namespace
@@ -291,6 +293,7 @@ var resources = map[screenKind]resource{
 		aliases: []string{"clients", "client", "nodes", "node", "no"},
 		titles:  nodeTitles,
 		hints:   nodeHints,
+		ids:     nodeIDs,
 		topics:  []string{nomad.TopicNode},
 		cluster: true,
 

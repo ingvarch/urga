@@ -81,12 +81,10 @@ func (m Model) keepHostUse(msg hostUseMsg) Model {
 	}
 
 	if msg.err != nil {
-		m.err = msg.err
-
-		return m
+		return m.fail(msg.err)
 	}
 
-	m.err = nil
+	m = m.forget()
 	m.hostTrail = append(m.hostTrail, msg.use)
 
 	if len(m.hostTrail) > hostTrailMax {

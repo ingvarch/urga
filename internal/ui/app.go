@@ -178,8 +178,9 @@ type Model struct {
 	confirm confirmModel
 	filter  string
 
-	// said is what came of the last action.
-	said string
+	// flash is the one thing the status line has to say: what came of an
+	// action, something worth knowing, or something that went wrong.
+	flash flash
 
 	// editing is the file that is open in the editor.
 	editing editFileMsg
@@ -266,7 +267,6 @@ type Model struct {
 	rowUsage     map[string]nomad.ResourceUse
 	missingUsage int
 	usageReason  error
-	err          error
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -304,7 +304,15 @@ func (m Model) Init() tea.Cmd {
 // Update is the entry for every message. It keeps the concrete model, the
 // interface method wraps it.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	before := m.flash.at
+
 	next, cmd := m.update(msg)
+
+	// A message that has just been put up asks for the redraw that will
+	// take it down again.
+	if next.flash.text != "" && next.flash.at != before {
+		cmd = tea.Batch(cmd, flashTimer(next.flash.at))
+	}
 
 	return next, cmd
 }
@@ -318,8 +326,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
-		m.said = ""
-
 		return m.handleKey(msg)
 
 	case jobsMsg:
@@ -392,9 +398,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case errMsg:
 		// The rows that are on the screen stay there. An empty table reads as
 		// an empty cluster.
-		m.err = msg.err
-
-		return m.schedulePoll()
+		return m.fail(msg.err).schedulePoll()
 
 	case describeMsg:
 		return m.showDescribe(msg)
@@ -407,14 +411,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case shellDoneMsg:
 		if msg.err != nil {
-			m.err = msg.err
-
-			return m, nil
+			return m.fail(msg.err), nil
 		}
 
-		m.said = fmt.Sprintf("Shell in %s closed.", msg.task)
-
-		return m, nil
+		return m.say(fmt.Sprintf("Shell in %s closed.", msg.task)), nil
 
 	case logStreamMsg:
 		m.stream = msg.stream
@@ -434,20 +434,17 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case savedMsg:
-		m.said = fmt.Sprintf("Saved to %s.", msg.path)
-
-		return m, nil
+		return m.say(fmt.Sprintf("Saved to %s.", msg.path)), nil
 
 	case doneMsg:
 		if msg.err != nil {
-			m.err = msg.err
+			m = m.fail(msg.err)
 			m.layout()
 
 			return m, nil
 		}
 
-		m.err = nil
-		m.said = msg.said
+		m = m.say(msg.said)
 
 		// What was asked about has happened, so the marks that asked for it
 		// are let go of.
@@ -472,7 +469,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		m.nodeDetail = nomad.NodeDetail(msg)
-		m.err = nil
+		m = m.forget()
 		m.layout()
 
 		return m.schedulePoll()
@@ -490,7 +487,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		m.server = nomad.Server(msg)
-		m.err = nil
+		m = m.forget()
 		m.layout()
 
 		return m.schedulePoll()
@@ -528,6 +525,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, m.fetch()
 
+	case flashOverMsg:
+		return m.clearFlash(msg), nil
+
 	case watchEndedMsg:
 		// A cluster that will not stream is one urga asks on its own, which
 		// is what it did before. Nothing about that belongs over the rows,
@@ -536,7 +536,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 
-		return m.endWatch(), nil
+		return m.endWatch().noteWatchEnded(msg.err), nil
 
 	case pollMsg:
 		// The timer has fired and there is room for the next one, which the
@@ -557,7 +557,7 @@ func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
 	}
 
 	store(&m)
-	m.err = nil
+	m = m.forget()
 	m.layout()
 
 	return m.schedulePoll()
@@ -872,12 +872,8 @@ func (m Model) body(width int) (title, content string) {
 func (m Model) status() string {
 	width := m.width - 2*headerPadX
 
-	if m.err != nil {
-		return styleError.Render(truncate("! "+m.err.Error(), width))
-	}
-
-	if m.said != "" {
-		return styleValue.Render(truncate(m.said, width))
+	if m.flash.fresh() {
+		return m.flash.view(width)
 	}
 
 	if m.troubled {

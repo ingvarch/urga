@@ -45,7 +45,7 @@ func TestAction_StopAJobAsks(t *testing.T) {
 
 	// What happened is said in one line, not in a window that has to be
 	// clicked away.
-	r.Contains(plain(m.render()), "Job web stopped")
+	r.Contains(plain(m.render()), "Stopped the job web")
 }
 
 func TestAction_CancelLeavesTheClusterAlone(t *testing.T) {

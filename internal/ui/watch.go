@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -30,10 +31,13 @@ type (
 		changes *nomad.Changes
 	}
 
-	// watchEndedMsg is the stream stopping, however it stopped. Why it
-	// stopped is not shown: a cluster that will not stream is one urga
-	// polls, which is what it did before.
-	watchEndedMsg struct{ id int }
+	// watchEndedMsg is the stream stopping. A stream urga closed itself
+	// carries no reason; one the cluster refused or dropped carries why,
+	// because the screen is no longer live and nothing else would say so.
+	watchEndedMsg struct {
+		id  int
+		err error
+	}
 
 	// changeMsg is the cluster saying that the screen is no longer what it
 	// shows. What it now holds is read the usual way, so what exactly
@@ -58,7 +62,7 @@ func (m Model) watch() tea.Cmd {
 	return func() tea.Msg {
 		changes, err := client.Events(context.Background(), namespace, topics)
 		if err != nil {
-			return watchEndedMsg{id: id}
+			return watchEndedMsg{id: id, err: err}
 		}
 
 		return watchingMsg{id: id, changes: changes}
@@ -83,8 +87,8 @@ func (m Model) waitForChange() tea.Cmd {
 
 			return changeMsg{id: id}
 
-		case <-changes.Err:
-			return watchEndedMsg{id: id}
+		case err := <-changes.Err:
+			return watchEndedMsg{id: id, err: err}
 		}
 	}
 }
@@ -118,6 +122,18 @@ func (m Model) keepChange() (Model, tea.Cmd) {
 	m.settling = true
 
 	return m, tea.Batch(next, tea.Tick(settle, func(time.Time) tea.Msg { return settleMsg{} }))
+}
+
+// noteWatchEnded says the screen is no longer live, when it is not urga that
+// stopped it. The rows are still there and still asked for, so this is worth
+// knowing rather than something gone wrong.
+func (m Model) noteWatchEnded(err error) Model {
+	if err == nil {
+		return m
+	}
+
+	return m.warn(fmt.Sprintf("%s: not following the cluster, asking every %s instead",
+		err, m.opts.PollEvery))
 }
 
 // endWatch lets the stream go. What it was watching is polled again, and a

@@ -71,7 +71,7 @@ func TestNode_Eligibility(t *testing.T) {
 	m, client := nodeModel(t, readyNode())
 
 	m, _ = m.update(key('i'))
-	r.Contains(plain(m.render()), "stop giving new work to server-01")
+	r.Contains(plain(m.render()), "stop giving new work to the client server-01")
 
 	_, cmd := answerYes(m)
 	drain(m, cmd)

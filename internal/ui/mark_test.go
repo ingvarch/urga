@@ -7,6 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 func space() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeySpace, Text: " "} }
@@ -118,15 +120,18 @@ func TestMarks_MarkEveryRowAndNoneAgain(t *testing.T) {
 func TestMarks_AScreenWithoutThemTakesTheKeyQuietly(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs()}
+	client := &fakeClient{namespaces: twoNamespaces()}
 
 	m := newTestModel(client)
-	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "namespaces")
+	m, _ = m.update(enter())
+	m, _ = m.update(namespacesMsg(twoNamespaces()))
 
 	before := plain(m.render())
 	m, _ = m.update(space())
 
-	// Nothing on the jobs answers a mark, so nothing happens.
+	// Nothing acts on a marked namespace, so the screen does not take one.
 	r.Equal(before, plain(m.render()))
 }
 
@@ -239,4 +244,82 @@ func TestMarks_MarkingAllUnderAFilterTakesWhatIsShown(t *testing.T) {
 	// One row is shown and one mark is hidden: marking all of what is shown
 	// adds it, rather than clearing what is not.
 	r.Len(m.marks, 2)
+}
+
+func TestMarks_StopEveryMarkedJob(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs()}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(ctrlKey('s'))
+
+	// One of the two runs and one is dead, so the question says what is
+	// about to happen to each of them.
+	r.Contains(plain(m.render()), "start or stop 2 jobs")
+
+	m, cmd := answerYes(m)
+	drain(m, cmd)
+
+	r.Equal(1, client.stopped)
+	r.Equal(1, client.started)
+}
+
+func TestMarks_TheQuestionSaysWhatTheyHaveInCommon(t *testing.T) {
+	r := require.New(t)
+
+	running := []nomad.Job{
+		{ID: "web", Name: "web", Namespace: "production", Status: "running"},
+		{ID: "api", Name: "api", Namespace: "production", Status: "running"},
+	}
+
+	client := &fakeClient{jobs: running}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(running))
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(ctrlKey('s'))
+
+	r.Contains(plain(m.render()), "stop 2 jobs")
+}
+
+func TestMarks_DrainEveryMarkedClient(t *testing.T) {
+	r := require.New(t)
+
+	m, client := nodeModel(t, readyNode())
+
+	m, _ = m.update(space())
+	m, _ = m.update(ctrlKey('d'))
+
+	r.Contains(plain(m.render()), "drain the client server-01")
+
+	m, cmd := answerYes(m)
+	drain(m, cmd)
+
+	r.True(client.drained)
+}
+
+func TestMarks_TakeEveryMarkedClientOffWork(t *testing.T) {
+	r := require.New(t)
+
+	nodes := []nomad.Node{
+		{ID: "node-1", Name: "server-01", Status: "ready", Eligibility: "eligible"},
+		{ID: "node-2", Name: "server-02", Status: "ready", Eligibility: "eligible"},
+	}
+
+	m, client := nodeModel(t, nodes)
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(key('i'))
+
+	r.Contains(plain(m.render()), "2 clients")
+
+	m, cmd := answerYes(m)
+	drain(m, cmd)
+
+	r.Equal(2, client.eligibleCalls)
 }

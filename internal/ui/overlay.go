@@ -148,9 +148,7 @@ func (m Model) commit() (Model, tea.Cmd) {
 
 	cmd, ok := parseCommand(input)
 	if !ok {
-		m.err = fmt.Errorf("no such resource: %s", firstWord(input))
-
-		return m, nil
+		return m.fail(fmt.Errorf("no such resource: %s", firstWord(input))), nil
 	}
 
 	if cmd.bail {
@@ -159,9 +157,7 @@ func (m Model) commit() (Model, tea.Cmd) {
 
 	if cmd.namespace != "" {
 		if !m.knowsNamespace(cmd.namespace) {
-			m.err = fmt.Errorf("no such namespace: %s", cmd.namespace)
-
-			return m, nil
+			return m.fail(fmt.Errorf("no such namespace: %s", cmd.namespace)), nil
 		}
 
 		m.namespace = cmd.namespace

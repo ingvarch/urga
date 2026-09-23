@@ -187,7 +187,7 @@ func TestServer_WhenRaftIsNotAllowed(t *testing.T) {
 	r.Contains(out, "server-02.global")
 
 	// It is not an error over the whole screen.
-	r.Nil(m.err)
+	r.False(m.failed())
 }
 
 func TestServer_CopiesTheValueUnderTheCursor(t *testing.T) {
@@ -222,5 +222,5 @@ func TestServer_CopyingWithNothingUnderTheCursor(t *testing.T) {
 	// An empty screen has nothing to copy and says nothing.
 	next, cmd := m.update(key('c'))
 	r.Nil(cmd)
-	r.Empty(next.said)
+	r.Empty(next.flash.text)
 }

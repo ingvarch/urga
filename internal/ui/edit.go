@@ -168,9 +168,7 @@ func openEditor(load file, submit func(string) tea.Cmd) tea.Cmd {
 // startEdit hands the file over to the editor.
 func (m Model) startEdit(msg editFileMsg) (Model, tea.Cmd) {
 	if m.opts.Editor == nil {
-		m.err = errors.New("no editor: set EDITOR or VISUAL")
-
-		return m, nil
+		return m.fail(errors.New("no editor: set EDITOR or VISUAL")), nil
 	}
 
 	m.editing = msg
@@ -187,23 +185,17 @@ func (m Model) finishEdit(msg editedMsg) (Model, tea.Cmd) {
 	defer func() { _ = os.Remove(msg.path) }()
 
 	if msg.err != nil {
-		m.err = msg.err
-
-		return m, nil
+		return m.fail(msg.err), nil
 	}
 
 	data, err := os.ReadFile(msg.path)
 	if err != nil {
-		m.err = err
-
-		return m, nil
+		return m.fail(err), nil
 	}
 
 	source := string(data)
 	if source == edit.original {
-		m.said = fmt.Sprintf("%s unchanged.", filepath.Base(msg.path))
-
-		return m, nil
+		return m.say(fmt.Sprintf("%s unchanged.", filepath.Base(msg.path))), nil
 	}
 
 	if edit.submit == nil {

@@ -272,7 +272,7 @@ func (m Model) push(next screen) (Model, tea.Cmd) {
 func (m Model) stack(next screen) Model {
 	m.history = append(m.history, m.screen)
 	m.screen = next
-	m.err = nil
+	m = m.forget()
 	m.filter = ""
 	m.sort = newSortState()
 	m.marks = nil
@@ -291,7 +291,7 @@ func (m Model) back() (Model, tea.Cmd) {
 
 	m.screen = m.history[len(m.history)-1]
 	m.history = m.history[:len(m.history)-1]
-	m.err = nil
+	m = m.forget()
 	m.marks = nil
 
 	return m.arrive()

@@ -169,9 +169,35 @@ func allocIDs(m Model) []string {
 // allocLabel is what a question about allocations says: the one under the
 // cursor by name, or how many were marked.
 func allocLabel(allocs []nomad.Alloc) string {
-	if len(allocs) == 1 {
-		return "the allocation " + shortID(allocs[0].ID)
+	return many(len(allocs), "the allocation "+shortID(allocs[0].ID), "allocations")
+}
+
+// jobIDs and nodeIDs name the resources of their screens, so that a mark
+// belongs to the job or the machine rather than to the row it sits on.
+func jobIDs(m Model) []string {
+	ids := make([]string, 0, len(m.jobs))
+	for _, job := range m.jobs {
+		ids = append(ids, job.Namespace+"/"+job.ID)
 	}
 
-	return sprintf("%d allocations", len(allocs))
+	return ids
+}
+
+func nodeIDs(m Model) []string {
+	ids := make([]string, 0, len(m.nodes))
+	for _, node := range m.nodes {
+		ids = append(ids, node.ID)
+	}
+
+	return ids
+}
+
+// many is how a question names what it is about: one of them by name, or
+// how many of them there are.
+func many(count int, one, several string) string {
+	if count == 1 {
+		return one
+	}
+
+	return sprintf("%d %s", count, several)
 }

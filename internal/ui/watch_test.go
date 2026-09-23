@@ -135,7 +135,7 @@ func TestWatch_AStreamTheClusterRefusesIsNotAnError(t *testing.T) {
 	// A cluster that will not stream is a cluster urga polls, and says
 	// nothing about it over the rows.
 	r.False(m.watching)
-	r.Nil(m.err)
+	r.False(m.failed())
 	r.Contains(plain(m.render()), "web")
 }
 
@@ -332,4 +332,40 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 	for _, kind := range []screenKind{screenNamespaces, screenVariables, screenServers} {
 		r.Empty(resources[kind].topics, "screen %d", kind)
 	}
+}
+
+func TestWatch_AClusterThatWillNotStreamSaysSo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), watchErr: errors.New("Permission denied")}
+
+	m := newTestModel(client)
+	m = drain(m, m.fetch())
+
+	m, _ = m.update(m.watch()())
+
+	// Nothing is broken, but the screen is no longer live and the person
+	// at the keyboard has no other way of knowing.
+	out := plain(m.render())
+	r.Contains(out, "Permission denied")
+	r.Contains(out, "asking every")
+
+	// It is worth knowing, not an error of the screen: the rows are there
+	// and the list is not marked as failed.
+	r.False(m.failed())
+	r.Contains(out, "web")
+}
+
+func TestWatch_LeavingAScreenSaysNothing(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges()}
+
+	m := watching(t, client)
+
+	// The stream of a screen that was left ends because urga closed it.
+	// Nothing about that is news.
+	m, _ = m.update(watchEndedMsg{id: m.watchID})
+
+	r.Empty(m.flash.text)
 }

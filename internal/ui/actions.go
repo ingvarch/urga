@@ -115,28 +115,68 @@ func act(said string, do func(ctx context.Context) error) tea.Cmd {
 
 // startStopJob stops a job that runs, starts one that is dead.
 func (m Model) startStopJob() (Model, tea.Cmd) {
-	job, ok := selectedOf(m, screenJobs, m.jobs)
-	if !ok {
+	jobs := marked(m, screenJobs, m.jobs)
+	if len(jobs) == 0 {
 		return m, nil
 	}
 
 	client := m.client
 
-	if job.Status == statusDead {
-		return m.ask(
-			fmt.Sprintf("Really start the job %s?", job.ID),
-			act(fmt.Sprintf("Job %s started.", job.ID), func(ctx context.Context) error {
-				return client.StartJob(ctx, job.Namespace, job.ID)
-			}),
-		)
-	}
+	// Each job is asked to do what it is not doing, so a question about
+	// several of them says what they have in common, or both things when
+	// they have nothing.
+	dead := func(job nomad.Job) bool { return job.Status == statusDead }
+
+	verb := bothWays(jobs, dead, "start", "stop")
+	done := bothWays(jobs, dead, "Started", "Stopped")
 
 	return m.ask(
-		fmt.Sprintf("Really stop the job %s?", job.ID),
-		act(fmt.Sprintf("Job %s stopped.", job.ID), func(ctx context.Context) error {
+		fmt.Sprintf("Really %s %s?", verb, jobLabel(jobs)),
+		eachJob(done, jobLabel(jobs), jobs, func(ctx context.Context, job nomad.Job) error {
+			if job.Status == statusDead {
+				return client.StartJob(ctx, job.Namespace, job.ID)
+			}
+
 			return client.StopJob(ctx, job.Namespace, job.ID)
 		}),
 	)
+}
+
+// jobLabel is what a question about jobs says.
+func jobLabel(jobs []nomad.Job) string {
+	return many(len(jobs), "the job "+jobs[0].ID, "jobs")
+}
+
+// eachJob runs the action against every job on its own, so that one that
+// will not answer does not stop the rest.
+func eachJob(done, label string, jobs []nomad.Job, do func(context.Context, nomad.Job) error) tea.Cmd {
+	return func() tea.Msg {
+		out := doneMsg{said: fmt.Sprintf("%s %s.", done, label)}
+
+		went := 0
+		failed := []string{}
+
+		for _, job := range jobs {
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			err := do(ctx, job)
+
+			cancel()
+
+			if err != nil {
+				failed = append(failed, err.Error())
+
+				continue
+			}
+
+			went++
+		}
+
+		if len(failed) > 0 {
+			out.err = fmt.Errorf("%s %d of %d: %s", strings.ToLower(done), went, len(jobs), failed[0])
+		}
+
+		return out
+	}
 }
 
 // revertJob puts the version before the one that runs back in place.

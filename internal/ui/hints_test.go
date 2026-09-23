@@ -116,7 +116,7 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 	for name, m := range everyScreen(t) {
 		// Whatever the screen was left holding says nothing about the key
 		// that is about to be pressed.
-		m.err = nil
+		m = m.quiet()
 
 		for _, h := range m.screen.hints() {
 			// A key in the header is a promise: pressing it opens something,
