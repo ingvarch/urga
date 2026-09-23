@@ -428,12 +428,23 @@ func newTestModel(client Client) Model {
 	return m
 }
 
+// answered is what an ask of the screen came back with, without the label
+// that ties it to the ask.
+func answered(t *testing.T, msg tea.Msg) tea.Msg {
+	t.Helper()
+
+	answer, ok := msg.(answerMsg)
+	require.True(t, ok, "%T", msg)
+
+	return answer.msg
+}
+
 func TestFetchJobs_AsksInTheNamespace(t *testing.T) {
 	r := require.New(t)
 
 	client := &fakeClient{jobs: twoJobs()}
 
-	msg := newTestModel(client).fetch()()
+	msg := answered(t, newTestModel(client).fetch()())
 
 	jobs, ok := msg.(jobsMsg)
 	r.True(ok, "%T", msg)
@@ -448,7 +459,7 @@ func TestFetchJobs_HandsTheErrorOver(t *testing.T) {
 
 	client := &fakeClient{err: errors.New("connection refused")}
 
-	msg := newTestModel(client).fetch()()
+	msg := answered(t, newTestModel(client).fetch()())
 
 	fail, ok := msg.(errMsg)
 	r.True(ok, "%T", msg)
@@ -536,7 +547,7 @@ func TestModel_PollsTheCluster(t *testing.T) {
 
 	// A poll asks the cluster and comes back as a message. Nothing writes to
 	// the model from a goroutine.
-	r.IsType(jobsMsg{}, cmd())
+	r.IsType(jobsMsg{}, answered(t, cmd()))
 	r.Equal(1, client.calls)
 }
 

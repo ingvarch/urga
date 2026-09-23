@@ -251,6 +251,10 @@ type Model struct {
 	// said so about: every screen asks again, and every screen is refused.
 	refused bool
 
+	// asked counts the screens put up, so that an answer to one that is no
+	// longer up is dropped.
+	asked int
+
 	// polling says a timer is already on its way with the next ask. Every
 	// answer would otherwise schedule one, and a screen that is answered
 	// from several sides would end up with a timer per answer.
@@ -331,6 +335,13 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
+
+	case answerMsg:
+		if msg.asked != m.asked {
+			return m, nil
+		}
+
+		return m.update(msg.msg)
 
 	case jobsMsg:
 		return m.applyList(screenJobs, func(m *Model) { m.jobs = msg })

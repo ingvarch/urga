@@ -162,7 +162,7 @@ func TestNavigation_PollKeepsToTheOpenScreen(t *testing.T) {
 
 	_, cmd := m.update(pollMsg{})
 	r.NotNil(cmd)
-	r.IsType(allocsMsg{}, cmd())
+	r.IsType(allocsMsg{}, answered(t, cmd()))
 
 	// A poll asks for what is on the screen, not for the job list.
 	r.Zero(client.calls)
