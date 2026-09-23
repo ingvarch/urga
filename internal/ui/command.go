@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -19,11 +20,12 @@ var commandAliases = func() map[string]screenKind {
 	return aliases
 }()
 
-// commandNames are the words the prompt suggests: the first alias of every
+// commandNames are the words the prompt offers: the first alias of every
 // resource, which is the one that reads as the thing it opens. Short forms
-// stay out of it.
+// stay out of it, and so does leaving urga: that is a command, not a
+// resource to walk into.
 var commandNames = func() []string {
-	names := []string{"quit"}
+	names := []string{}
 
 	for _, res := range resources {
 		if len(res.aliases) > 0 {
@@ -104,25 +106,35 @@ func resolveAlias(word string) (screenKind, bool) {
 	return found, matched
 }
 
-// completeCommand is the rest of the alias the prompt shows dim behind what
-// was typed. It suggests nothing while the word still fits several.
-func completeCommand(typed string) string {
-	if typed == "" || strings.Contains(typed, " ") {
-		return ""
+// matchingCommands are the resources a line could still be about: all of
+// them while nothing is typed, and those the first word begins after that.
+// What the line says after the first word is where to look, not what to
+// open.
+func matchingCommands(typed string) []string {
+	word := strings.ToLower(firstWord(typed))
+
+	matches := []string{}
+
+	// A word that is an alias of its own names its resource, whatever else
+	// begins with it: `no` is a client, not the pool it sits in.
+	if named, ok := commandAliases[word]; ok && nameOf(named) != "" {
+		matches = append(matches, nameOf(named))
 	}
 
-	word := strings.ToLower(typed)
-
-	candidates := []string{}
 	for _, name := range commandNames {
-		if strings.HasPrefix(name, word) && name != word {
-			candidates = append(candidates, name)
+		if strings.HasPrefix(name, word) && !slices.Contains(matches, name) {
+			matches = append(matches, name)
 		}
 	}
 
-	if len(candidates) != 1 {
-		return ""
+	return matches
+}
+
+// nameOf is what a resource is called in the command line.
+func nameOf(kind screenKind) string {
+	if res, ok := resources[kind]; ok && len(res.aliases) > 0 {
+		return res.aliases[0]
 	}
 
-	return candidates[0][len(word):]
+	return ""
 }

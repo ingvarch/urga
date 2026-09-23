@@ -65,14 +65,28 @@ func TestParseCommand_Quit(t *testing.T) {
 	}
 }
 
-func TestCompleteCommand(t *testing.T) {
+func TestMatchingCommands(t *testing.T) {
 	r := require.New(t)
 
-	// What the prompt shows dim behind what was typed.
-	r.Equal("bs", completeCommand("jo"))
-	r.Equal("", completeCommand("jobs"))
-	r.Equal("", completeCommand(""))
+	// What the line could still be about, in the order it walks through.
+	r.Equal([]string{"jobs"}, matchingCommands("jo"))
+	r.Equal([]string{"servers", "services"}, matchingCommands("se"))
+	r.Equal([]string{
+		"allocations", "clients", "deployments", "evaluations", "jobs",
+		"namespaces", "nodepools", "servers", "services", "variables",
+	}, matchingCommands(""))
 
-	// A prefix that fits more than one alias suggests nothing.
-	r.Equal("", completeCommand("n"))
+	// A word that is an alias of its own comes first, whatever other names
+	// begin with it: `no` is what Nomad calls a client, and it must not be
+	// taken for the pool the client is in.
+	r.Equal("clients", matchingCommands("no")[0])
+	r.Equal("clients", matchingCommands("node")[0])
+	r.Contains(matchingCommands("no"), "nodepools")
+
+	// Where to look is not part of the name: the resource is still the
+	// first word, whatever follows it.
+	r.Equal([]string{"jobs"}, matchingCommands("jo production"))
+
+	// Nothing fits a word that names nothing.
+	r.Empty(matchingCommands("zz"))
 }

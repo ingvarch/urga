@@ -227,3 +227,19 @@ func TestNavigation_DescribeStartsWithoutTheFilter(t *testing.T) {
 	r.Empty(m.filter)
 	r.Contains(plain(m.render()), "\"ID\": \"web\"")
 }
+
+func TestAllocations_WithoutAJob(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{allocs: twoAllocs()})
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "allocations")
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	// The command line opens the allocations of the namespace rather than
+	// of a job, and the title says so instead of naming a job that is not
+	// there.
+	r.Contains(plain(m.render()), "Allocations (production)")
+	r.NotContains(plain(m.render()), "Job: )")
+}
