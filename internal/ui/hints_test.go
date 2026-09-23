@@ -119,7 +119,8 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 				next.screen != m.screen ||
 				next.overlay != m.overlay ||
 				next.err != nil ||
-				next.said != m.said
+				next.said != m.said ||
+				len(next.marks) != len(m.marks)
 
 			r.True(did, "the %s screen offers %s and nothing happens", name, h.Key)
 		}
@@ -145,6 +146,10 @@ func keyOf(shown string) tea.KeyPressMsg {
 		return ctrlKey('e')
 	case "ctrl-h":
 		return ctrlKey('h')
+	case "ctrl-a":
+		return ctrlKey('a')
+	case "space":
+		return space()
 	}
 
 	return key(rune(name[0]))

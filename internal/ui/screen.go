@@ -274,6 +274,7 @@ func (m Model) stack(next screen) Model {
 	m.err = nil
 	m.filter = ""
 	m.sort = newSortState()
+	m.marks = nil
 
 	return m
 }
@@ -290,6 +291,7 @@ func (m Model) back() (Model, tea.Cmd) {
 	m.screen = m.history[len(m.history)-1]
 	m.history = m.history[:len(m.history)-1]
 	m.err = nil
+	m.marks = nil
 
 	return m.arrive()
 }

@@ -99,7 +99,7 @@ func TestAction_RestartAnAllocation(t *testing.T) {
 	m = drain(m, cmd)
 
 	r.Equal(1, client.restarted)
-	r.Contains(plain(m.render()), "Allocation af1f37df restarted")
+	r.Contains(plain(m.render()), "Restarted the allocation af1f37df")
 }
 
 func TestAction_StopAnAllocation(t *testing.T) {

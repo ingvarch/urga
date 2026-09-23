@@ -18,10 +18,12 @@ const (
 	maxColumnWidth = 48
 )
 
-// tableRow is one resource. The color says what state it is in.
+// tableRow is one resource. The color says what state it is in, and marked
+// that an action is to take it along with the others.
 type tableRow struct {
-	cells []string
-	color color.Color
+	cells  []string
+	color  color.Color
+	marked bool
 }
 
 // tableModel is the list every screen shows: a header, rows, a cursor and a
@@ -98,6 +100,10 @@ func (t tableModel) view() string {
 
 	for i := t.top; i < len(t.rows) && i < t.top+t.height; i++ {
 		line := t.line(t.rows[i].cells, widths)
+
+		if t.rows[i].marked {
+			line = markGlyph + line[1:]
+		}
 
 		switch {
 		case i == t.cursor:

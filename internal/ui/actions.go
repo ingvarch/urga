@@ -69,19 +69,31 @@ func (m Model) confirmKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	case "enter":
 		if m.confirm.choice == buttonConfirm {
-			return m.closeConfirm(), m.confirm.apply
+			return m.applyConfirm()
 		}
 
 		return m.closeConfirm(), nil
 
 	case "y":
-		return m.closeConfirm(), m.confirm.apply
+		return m.applyConfirm()
 
 	case "esc", "n":
 		return m.closeConfirm(), nil
 	}
 
 	return m, nil
+}
+
+// applyConfirm does what was asked about and lets go of the marks it was
+// asked about: left up, they would be taken into the next action by surprise.
+func (m Model) applyConfirm() (Model, tea.Cmd) {
+	apply := m.confirm.apply
+
+	m = m.closeConfirm()
+	m.marks = nil
+	m.layout()
+
+	return m, apply
 }
 
 // closeConfirm takes the question off the screen.
@@ -146,18 +158,24 @@ func (m Model) revertJob() (Model, tea.Cmd) {
 
 // restartAllocation restarts every task of an allocation.
 func (m Model) restartAllocation() (Model, tea.Cmd) {
-	alloc, ok := selectedOf(m, screenAllocations, m.visibleAllocs())
-	if !ok {
+	allocs := marked(m, screenAllocations, m.visibleAllocs())
+	if len(allocs) == 0 {
 		return m, nil
 	}
 
 	client := m.client
-	short := shortID(alloc.ID)
+	label := allocLabel(allocs)
 
 	return m.ask(
-		fmt.Sprintf("Really restart the allocation %s?", short),
-		act(fmt.Sprintf("Allocation %s restarted.", short), func(ctx context.Context) error {
-			return client.RestartAllocation(ctx, alloc.Namespace, alloc.ID)
+		fmt.Sprintf("Really restart %s?", label),
+		act(fmt.Sprintf("Restarted %s.", label), func(ctx context.Context) error {
+			for _, alloc := range allocs {
+				if err := client.RestartAllocation(ctx, alloc.Namespace, alloc.ID); err != nil {
+					return err
+				}
+			}
+
+			return nil
 		}),
 	)
 }
@@ -165,18 +183,24 @@ func (m Model) restartAllocation() (Model, tea.Cmd) {
 // stopAllocation stops an allocation. The scheduler places a new one when the
 // job still asks for it.
 func (m Model) stopAllocation() (Model, tea.Cmd) {
-	alloc, ok := selectedOf(m, screenAllocations, m.visibleAllocs())
-	if !ok {
+	allocs := marked(m, screenAllocations, m.visibleAllocs())
+	if len(allocs) == 0 {
 		return m, nil
 	}
 
 	client := m.client
-	short := shortID(alloc.ID)
+	label := allocLabel(allocs)
 
 	return m.ask(
-		fmt.Sprintf("Really stop the allocation %s?", short),
-		act(fmt.Sprintf("Allocation %s stopped.", short), func(ctx context.Context) error {
-			return client.StopAllocation(ctx, alloc.Namespace, alloc.ID)
+		fmt.Sprintf("Really stop %s?", label),
+		act(fmt.Sprintf("Stopped %s.", label), func(ctx context.Context) error {
+			for _, alloc := range allocs {
+				if err := client.StopAllocation(ctx, alloc.Namespace, alloc.ID); err != nil {
+					return err
+				}
+			}
+
+			return nil
 		}),
 	)
 }

@@ -28,6 +28,7 @@ var (
 		{Key: "<d>", Description: "Describe"},
 		{Key: "<r>", Description: "Restart"},
 		{Key: "<ctrl-k>", Description: "Stop"},
+		{Key: "<space>", Description: "Mark"},
 	}
 
 	serverHints = []hint{{Key: "<enter>", Description: "Details"}}
@@ -71,6 +72,11 @@ type resource struct {
 	// name and the value behind it rather than a resource.
 	fields bool
 
+	// ids name the resources of the screen, one per row, so that a mark
+	// belongs to the resource and not to the line it sits on. A screen
+	// whose rows answer no action of their own leaves it nil.
+	ids func(m Model) []string
+
 	// readings are the resources whose usage the rows show, and reading is
 	// how one of them is read. A screen without readings leaves both nil.
 	readings func(m Model) []rowRef
@@ -110,6 +116,7 @@ var resources = map[screenKind]resource{
 		aliases: []string{"allocations", "allocation", "allocs", "alloc"},
 		titles:  allocTitles,
 		hints:   allocHints,
+		ids:     allocIDs,
 
 		// The allocations of a client sit on the screen of that client,
 		// which answers for the machine as well as for the work on it.

@@ -20,6 +20,8 @@ var generalHints = []hint{
 	{Key: "<0-9>", Description: "Switch namespace"},
 	{Key: "<A-Z>", Description: "Sort by that column"},
 	{Key: "<!>", Description: "Only what needs attention"},
+	{Key: "<space>", Description: "Mark a row for an action"},
+	{Key: "<ctrl-a>", Description: "Mark every row, or none"},
 	{Key: "<q>", Description: "Quit"},
 }
 

@@ -184,6 +184,10 @@ type Model struct {
 	// sort is the column the list is ordered by.
 	sort sortState
 
+	// marks are the resources of the open screen that an action is to take,
+	// by the ids the screen names them with.
+	marks map[string]bool
+
 	// troubled leaves only what the cluster is not happy with.
 	troubled bool
 
@@ -621,6 +625,12 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	case "c":
 		next, cmd = m.copyField()
 
+	case "space":
+		next, cmd = m.mark()
+
+	case "ctrl+a":
+		next, cmd = m.markAll()
+
 	case "ctrl+e":
 		next, cmd = m.openLogs(nomad.LogStderr)
 
@@ -844,6 +854,7 @@ func (m *Model) layout() {
 	m.shown = len(rows)
 
 	m.index = index
+	m.showMarks(rows)
 	m.table.show(rows, m.sort)
 }
 
