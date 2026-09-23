@@ -266,3 +266,23 @@ func TestHelp_HasNoRoomForTheList(t *testing.T) {
 	// Help covers the body, the rows are not behind it.
 	r.NotContains(plain(m.render()), strings.Repeat("│", 1)+" web")
 }
+
+func TestPrompt_SwitchesBothAtOnce(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), namespaces: twoNamespaces()}
+	m := newTestModel(client)
+	m, _ = m.update(namespacesMsg(twoNamespaces()))
+
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "dp staging")
+	m, cmd := m.update(enter())
+
+	// A command that names a resource and a namespace does both, not one of
+	// the two.
+	r.Equal(screenDeployments, m.screen.kind)
+	r.Equal("staging", m.namespace)
+
+	m = drain(m, cmd)
+	r.Equal("staging", client.askedNamespace)
+}

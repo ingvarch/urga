@@ -157,32 +157,28 @@ func (m Model) commit() (Model, tea.Cmd) {
 	}
 
 	if cmd.namespace != "" {
-		next, ok := m.useNamespace(cmd.namespace)
-		if !ok {
+		if !m.knowsNamespace(cmd.namespace) {
 			m.err = fmt.Errorf("no such namespace: %s", cmd.namespace)
 
 			return m, nil
 		}
 
-		m = next
+		m.namespace = cmd.namespace
+		m.screen.namespace = cmd.namespace
 	}
 
 	return m.show(cmd.kind)
 }
 
-// useNamespace switches the session to a namespace the cluster knows.
-func (m Model) useNamespace(namespace string) (Model, bool) {
+// knowsNamespace says whether the cluster has a namespace by that name.
+func (m Model) knowsNamespace(namespace string) bool {
 	for _, known := range m.namespaces {
 		if known.Name == namespace {
-			m.namespace = namespace
-			m.screen.namespace = namespace
-			m.filter = ""
-
-			return m, true
+			return true
 		}
 	}
 
-	return m, false
+	return false
 }
 
 func firstWord(input string) string {

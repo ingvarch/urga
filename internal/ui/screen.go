@@ -363,13 +363,17 @@ func (m Model) selectedIndex() (int, bool) {
 	return m.index[m.table.cursor], true
 }
 
-// show switches to a resource, which is what the command prompt does.
+// show switches to a resource, which is what the command prompt does. Either
+// way the session writes down where it is looking, so the next run comes back
+// to the same place.
 func (m Model) show(kind screenKind) (Model, tea.Cmd) {
-	if kind == m.screen.kind {
-		return m.enter()
+	if kind != m.screen.kind {
+		return m.push(screen{kind: kind, namespace: m.namespace})
 	}
 
-	return m.push(screen{kind: kind, namespace: m.namespace})
+	entered, cmd := m.enter()
+
+	return entered, tea.Batch(cmd, entered.remember())
 }
 
 // push opens a list on top of the one that is there, which is where escape
