@@ -71,7 +71,10 @@ func TestMatchingCommands(t *testing.T) {
 	// What the line could still be about, in the order it walks through.
 	r.Equal([]string{"jobs"}, matchingCommands("jo"))
 	r.Equal([]string{"servers", "services"}, matchingCommands("se"))
-	r.Equal(commandNames, matchingCommands(""))
+	r.Equal([]string{
+		"allocations", "clients", "deployments", "evaluations", "jobs",
+		"namespaces", "nodepools", "servers", "services", "variables",
+	}, matchingCommands(""))
 
 	// A word that is an alias of its own comes first, whatever other names
 	// begin with it: `no` is what Nomad calls a client, and it must not be
@@ -80,8 +83,10 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal("clients", matchingCommands("node")[0])
 	r.Contains(matchingCommands("no"), "nodepools")
 
-	// Nothing fits a word that names nothing, and a line that already says
-	// where to look is not about a resource any more.
+	// Where to look is not part of the name: the resource is still the
+	// first word, whatever follows it.
+	r.Equal([]string{"jobs"}, matchingCommands("jo production"))
+
+	// Nothing fits a word that names nothing.
 	r.Empty(matchingCommands("zz"))
-	r.Empty(matchingCommands("jobs production"))
 }

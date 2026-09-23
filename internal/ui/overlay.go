@@ -65,11 +65,37 @@ func (p promptModel) choice() string {
 	}
 
 	offered := p.matches[p.at]
-	if !strings.HasPrefix(offered, strings.ToLower(p.text)) {
+	if !strings.HasPrefix(offered, strings.ToLower(firstWord(p.text))) {
 		return ""
 	}
 
 	return offered
+}
+
+// split is the line in three: the word of the resource as the prompt would
+// write it, the rest of that word which was not typed, and whatever the line
+// says after it.
+func (p promptModel) split() (word, tail, rest string) {
+	word, rest = p.text, ""
+	if at := strings.IndexByte(p.text, ' '); at >= 0 {
+		word, rest = p.text[:at], p.text[at:]
+	}
+
+	offered := p.choice()
+	if offered == "" {
+		return word, "", rest
+	}
+
+	// The resource is spelled the way the cluster spells it, whatever the
+	// keyboard was in: the line has to read as one word.
+	return offered[:len(word)], offered[len(word):], rest
+}
+
+// line is what the command line reads as.
+func (p promptModel) line() string {
+	word, tail, rest := p.split()
+
+	return word + tail + rest
 }
 
 // walk moves through what the line could be about, and comes back around at
@@ -103,6 +129,13 @@ func (p promptModel) narrow() promptModel {
 		return p
 	}
 
+	// A resource that is still among them stays the one that is offered:
+	// typing where to look must not walk the resource back.
+	chosen := ""
+	if p.at >= 0 && p.at < len(p.matches) {
+		chosen = p.matches[p.at]
+	}
+
 	p.matches = matchingCommands(p.text)
 
 	// What is typed is the first word; a line that has none of it, a space
@@ -112,25 +145,28 @@ func (p promptModel) narrow() promptModel {
 		p.at = -1
 	}
 
+	// A word that is an alias of its own settles the question: typing it in
+	// full outranks whatever was walked to before.
+	if _, exact := commandAliases[strings.ToLower(firstWord(p.text))]; exact {
+		return p
+	}
+
+	for i, match := range p.matches {
+		if match == chosen {
+			p.at = i
+		}
+	}
+
 	return p
 }
 
-// suggestion is the rest of the resource the line offers, which reads as one
-// word with what was typed.
-func (p promptModel) suggestion() string {
-	offered := p.choice()
-	if offered == "" {
-		return ""
-	}
-
-	return offered[len(p.text):]
-}
-
 func (p promptModel) view(width int) string {
-	// The cursor sits after the suggestion, so the word the prompt offers
+	word, tail, rest := p.split()
+
+	// The cursor sits after the whole line, so the word the prompt offers
 	// reads whole.
-	line := styleTitle.Render(p.prefix) + styleText.Render(p.text) +
-		styleMuted.Render(p.suggestion()) + styleSelected.Render(" ")
+	line := styleTitle.Render(p.prefix) + styleText.Render(word) +
+		styleMuted.Render(tail) + styleText.Render(rest) + styleSelected.Render(" ")
 
 	return frame("", line, width, promptHeight)
 }
@@ -183,7 +219,7 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		// What the line offers is taken into it, and the line stays open:
 		// a namespace can follow the word. The word settles what fits it,
 		// like any other way of changing the line.
-		m.prompt.text += m.prompt.suggestion()
+		m.prompt.text = m.prompt.line()
 		m.prompt = m.prompt.narrow()
 
 	case "backspace":
@@ -204,11 +240,11 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		}
 	}
 
+	// Only the filter changes what is on the table under the line.
 	if m.overlay == overlayFilter {
 		m.filter = m.prompt.text
+		m.layout()
 	}
-
-	m.layout()
 
 	return m, nil
 }
@@ -217,8 +253,8 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 // anything.
 func (m Model) commit() (Model, tea.Cmd) {
 	input := m.prompt.text
-	if offered := m.prompt.choice(); offered != "" && m.overlay == overlayPrompt {
-		input = offered
+	if m.overlay == overlayPrompt {
+		input = m.prompt.line()
 	}
 
 	asked, group := m.overlay, m.prompt.group

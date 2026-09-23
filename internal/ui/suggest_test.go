@@ -16,7 +16,7 @@ func backspace() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyBackspace
 
 // promptLine is what the command line reads as, with what it offers.
 func promptLine(m Model) string {
-	return m.prompt.prefix + m.prompt.text + m.prompt.suggestion()
+	return m.prompt.prefix + m.prompt.line()
 }
 
 func TestPrompt_ALetterOffersTheFirstResourceThatFitsIt(t *testing.T) {
@@ -58,13 +58,13 @@ func TestPrompt_AnEmptyLineOffersNothingUntilTheArrows(t *testing.T) {
 	r.Equal(":", promptLine(m))
 
 	m, _ = m.update(down())
-	r.Equal(":"+commandNames[0], promptLine(m))
+	r.Equal(":allocations", promptLine(m))
 
 	m, _ = m.update(down())
-	r.Equal(":"+commandNames[1], promptLine(m))
+	r.Equal(":clients", promptLine(m))
 
 	m, _ = m.update(up())
-	r.Equal(":"+commandNames[0], promptLine(m))
+	r.Equal(":allocations", promptLine(m))
 }
 
 func TestPrompt_TabTakesWhatIsOffered(t *testing.T) {
@@ -210,7 +210,7 @@ func TestPrompt_WhatTheLineReadsIsWhatEnterOpens(t *testing.T) {
 	for name, keys := range walks {
 		m := walked(t, keys...)
 
-		line := m.prompt.text + m.prompt.suggestion()
+		line := m.prompt.line()
 		opened, _ := m.commit()
 
 		// The line is the promise: whatever it reads as is what enter
@@ -251,4 +251,64 @@ func TestPrompt_ASpaceIsNotAResource(t *testing.T) {
 
 	opened, _ := m.commit()
 	r.NotNil(opened.err)
+}
+
+func TestPrompt_TheOfferSurvivesTheNamespaceAfterIt(t *testing.T) {
+	r := require.New(t)
+
+	m := walked(t, letters("s")...)
+	r.Equal(":servers", promptLine(m))
+
+	m = typeIn(m, " staging")
+
+	// The word that was offered stands in the line with the namespace
+	// behind it, and enter opens exactly that.
+	r.Equal(":servers staging", promptLine(m))
+
+	opened, _ := m.commit()
+	r.Equal(screenServers, opened.screen.kind)
+	r.Equal("staging", opened.namespace)
+}
+
+func TestPrompt_AWalkedWordKeepsItsPlaceAfterASpace(t *testing.T) {
+	r := require.New(t)
+
+	m := walked(t, key('s'), down())
+	r.Equal(":services", promptLine(m))
+
+	m = typeIn(m, " staging")
+
+	// Typing where to look does not walk the resource back to the first
+	// one that fits.
+	r.Equal(":services staging", promptLine(m))
+}
+
+func TestPrompt_UppercaseReadsAsOneWord(t *testing.T) {
+	r := require.New(t)
+
+	m := walked(t, letters("SE")...)
+
+	// What is offered is a word of the cluster, not of the keyboard: the
+	// line reads as that word.
+	r.Equal(":servers", promptLine(m))
+
+	m, _ = m.update(tab())
+	r.Equal("servers", m.prompt.text)
+}
+
+func TestPrompt_LeavingIsNotSomethingToWalkInto(t *testing.T) {
+	r := require.New(t)
+
+	m := walked(t)
+
+	// Walking the resources must never land on the way out of urga.
+	for range len(commandNames) + 2 {
+		m, _ = m.update(down())
+		r.NotEqual("quit", m.prompt.choice())
+	}
+
+	// Typed out, it still leaves.
+	typed := walked(t, letters("quit")...)
+	_, cmd := typed.commit()
+	r.NotNil(cmd)
 }
