@@ -239,6 +239,27 @@ func filterRows(rows []tableRow, filter string) ([]tableRow, []int) {
 	return kept, index
 }
 
+// matchIn is where a filter matches in a line, or nil when it does not. An
+// empty match is nothing to light up.
+func matchIn(line, filter string) []int {
+	rx, err := regexp.Compile("(?i)" + filter)
+	if err != nil {
+		at := strings.Index(strings.ToLower(line), strings.ToLower(filter))
+		if at < 0 || filter == "" {
+			return nil
+		}
+
+		return []int{at, at + len(filter)}
+	}
+
+	at := rx.FindStringIndex(line)
+	if at == nil || at[0] == at[1] {
+		return nil
+	}
+
+	return at
+}
+
 // matcher reads the filter as a pattern, and as plain text when it is not
 // one.
 func matcher(filter string) func(string) bool {

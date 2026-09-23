@@ -37,6 +37,13 @@ var (
 
 	describeHints = []hint{{Key: "<d>", Description: "Describe"}}
 
+	// textHints are the keys of a screen that reads as text rather than as
+	// a list.
+	textHints = []hint{
+		{Key: "<w>", Description: "Wrap lines"},
+		{Key: "<ctrl-s>", Description: "Save"},
+	}
+
 	namespaceHints = []hint{{Key: "<e>", Description: "Edit"}}
 )
 
@@ -450,6 +457,7 @@ var resources = map[screenKind]resource{
 	},
 
 	screenDescribe: {
+		hints: textHints,
 		title: func(m Model, _ int) string { return m.screen.label },
 	},
 

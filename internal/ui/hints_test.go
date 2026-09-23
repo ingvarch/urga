@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"reflect"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -115,12 +116,9 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 			// is drawn and does nothing is worse than no key.
 			next, cmd := m.handleKey(keyOf(h.Key))
 
-			did := cmd != nil ||
-				next.screen != m.screen ||
-				next.overlay != m.overlay ||
-				next.err != nil ||
-				next.said != m.said ||
-				len(next.marks) != len(m.marks)
+			// Anything at all: another screen, a question, a mark, a way
+			// of reading the text, or a request to the cluster.
+			did := cmd != nil || !reflect.DeepEqual(next, m)
 
 			r.True(did, "the %s screen offers %s and nothing happens", name, h.Key)
 		}

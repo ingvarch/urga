@@ -99,13 +99,17 @@ namespace with it, as in `jobs production`. `q` leaves.
 | `f` | Fail a deployment |
 | `c` | Copy the value under the cursor, on a screen of fields |
 | `ctrl-e` | Logs of a task, stderr |
+| `w` | Wrap long lines, on logs and descriptions |
+| `t` | Show when each log line arrived |
+| `ctrl-s` | Save what is on the screen to a file |
 | `q` | Quit |
 
 ## What works
 
 Jobs, allocations, tasks, task groups, deployments, namespaces, services,
 evaluations, clients, servers, variables and node pools, refreshed while they
-are open. Logs follow a task as it writes. A job or a namespace opens in your
+are open. Logs follow a task as it writes; the filter lights up what it matched, long
+lines wrap, and what is on the screen saves to a file. A job or a namespace opens in your
 editor and goes back to the cluster when you save. Jobs start, stop, revert and
 scale; a job keeps its versions, each saying what it changed, and goes back to
 any of them; allocations restart and stop, one or as many as are marked; a task opens a

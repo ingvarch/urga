@@ -409,6 +409,11 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, nil
 
+	case savedMsg:
+		m.said = fmt.Sprintf("Saved to %s.", msg.path)
+
+		return m, nil
+
 	case doneMsg:
 		if msg.err != nil {
 			m.err = msg.err
@@ -500,6 +505,12 @@ func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
 func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	if m.overlay != overlayNone {
 		return m.overlayKey(msg)
+	}
+
+	if m.readsAsText() {
+		if next, cmd, handled := m.textKey(msg); handled {
+			return next, cmd
+		}
 	}
 
 	if m.screen.kind == screenLogs {

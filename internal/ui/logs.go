@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -77,9 +78,19 @@ func (m Model) waitForLog() tea.Cmd {
 }
 
 // appendLog puts what arrived at the end and follows it, unless following was
-// stopped.
+// stopped. When each line arrived is written down: a task writes no time of
+// its own, and the time urga read it is the only one there is.
 func (m Model) appendLog(chunk string) (Model, tea.Cmd) {
-	m.text.lines = append(m.text.lines, strings.Split(strings.TrimSuffix(chunk, "\n"), "\n")...)
+	if m.text.stamps == nil {
+		m.text.stamps = map[int]time.Time{}
+	}
+
+	now := time.Now()
+
+	for _, line := range strings.Split(strings.TrimSuffix(chunk, "\n"), "\n") {
+		m.text.stamps[len(m.text.lines)] = now
+		m.text.lines = append(m.text.lines, line)
+	}
 
 	if m.following {
 		m.text.move(len(m.text.lines))
@@ -116,9 +127,33 @@ func (m Model) logsKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	return m, nil, true
 }
 
+// textKey answers the keys of anything that reads as text: the logs of a
+// task, a description, a job file.
+func (m Model) textKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
+	switch msg.String() {
+	case "w":
+		m.text.wrap = !m.text.wrap
+		m.text.follow()
+
+	case "t":
+		m.text.times = !m.text.times
+
+	case "ctrl+s":
+		return m, m.saveText(), true
+
+	default:
+		return m, nil, false
+	}
+
+	return m, nil, true
+}
+
 var logHints = []hint{
 	{Key: "<s>", Description: "Stop following"},
 	{Key: "<r>", Description: "Resume"},
+	{Key: "<w>", Description: "Wrap lines"},
+	{Key: "<t>", Description: "Times"},
+	{Key: "<ctrl-s>", Description: "Save"},
 }
 
 var taskHints = []hint{
