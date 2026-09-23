@@ -54,9 +54,16 @@ func (c *Client) DescribeService(ctx context.Context, namespace, name string) (s
 // JobSpec is the file the job was submitted with. A cluster that did not keep
 // it says so.
 func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (string, error) {
-	version := 0
+	// Which version runs is asked first: a submission is kept per version,
+	// and version zero is the first file ever submitted, not the current
+	// one. Guessing it here would put an old job in front of the editor.
+	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
+	if err != nil {
+		return "", err
+	}
 
-	if job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace)); err == nil && job.Version != nil {
+	version := 0
+	if job.Version != nil {
 		version = int(*job.Version)
 	}
 

@@ -90,14 +90,13 @@ func (c *Client) Services(ctx context.Context, namespace string) ([]Service, err
 
 // Evaluation is a scheduling decision: why a job runs, or why it does not.
 type Evaluation struct {
-	ID                string
-	JobID             string
-	Namespace         string
-	Type              string
-	TriggeredBy       string
-	Status            string
-	StatusDescription string
-	Created           time.Time
+	ID          string
+	JobID       string
+	Namespace   string
+	Type        string
+	TriggeredBy string
+	Status      string
+	Created     time.Time
 }
 
 // Evaluations lists the scheduling decisions of a namespace.
@@ -110,13 +109,12 @@ func (c *Client) Evaluations(ctx context.Context, namespace string) ([]Evaluatio
 	out := make([]Evaluation, 0, len(list))
 	for _, e := range list {
 		eval := Evaluation{
-			ID:                e.ID,
-			JobID:             e.JobID,
-			Namespace:         e.Namespace,
-			Type:              e.Type,
-			TriggeredBy:       e.TriggeredBy,
-			Status:            e.Status,
-			StatusDescription: e.StatusDescription,
+			ID:          e.ID,
+			JobID:       e.JobID,
+			Namespace:   e.Namespace,
+			Type:        e.Type,
+			TriggeredBy: e.TriggeredBy,
+			Status:      e.Status,
 		}
 
 		eval.Created = unixTime(e.CreateTime)

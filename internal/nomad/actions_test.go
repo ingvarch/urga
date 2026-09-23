@@ -2,10 +2,14 @@ package nomad_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 func TestStopJob(t *testing.T) {
@@ -84,26 +88,47 @@ func TestScaleJob(t *testing.T) {
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 }
 
+// drainRequest is what the cluster was asked to do with a node.
+func drainRequest(t *testing.T, drain bool) map[string]any {
+	t.Helper()
+
+	var body map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.Equal(t, "/v1/node/node-1/drain", r.URL.Path)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"NodeModifyIndex": 7}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	require.NoError(t, client.DrainNode(context.Background(), "node-1", drain))
+
+	return body
+}
+
 func TestDrainNode(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := recorder(t, `{"NodeModifyIndex": 7}`)
+	body := drainRequest(t, true)
 
-	r.NoError(client.DrainNode(context.Background(), "node-1", true))
-
-	r.Equal("/v1/node/node-1/drain", asked.URL.Path)
+	// Draining asks for the allocations to be moved off, with a deadline.
+	r.NotNil(body["DrainSpec"])
 }
 
 func TestDrainNode_Stop(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := recorder(t, `{"NodeModifyIndex": 7}`)
+	body := drainRequest(t, false)
 
-	// Stopping a drain puts the node back to taking work, otherwise it sits
-	// there empty and nobody notices.
-	r.NoError(client.DrainNode(context.Background(), "node-1", false))
-
-	r.Equal("/v1/node/node-1/drain", asked.URL.Path)
+	// Stopping a drain cancels it and puts the node back to taking work,
+	// otherwise it sits there empty and nobody notices.
+	r.Nil(body["DrainSpec"])
+	r.Equal(true, body["MarkEligible"])
 }
 
 func TestNodeEligibility(t *testing.T) {
