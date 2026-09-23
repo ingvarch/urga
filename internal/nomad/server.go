@@ -63,7 +63,8 @@ func (c *Client) Servers(ctx context.Context) ([]Server, error) {
 	// Who leads is a separate question, and one the cluster may not be able
 	// to answer during an election. The list is worth showing either way.
 	// That endpoint takes no options, so it carries no context of its own.
-	leader, _ := c.api.Status().Leader()
+	// Every region has a leader of its own.
+	leader, _ := c.api.Status().RegionLeader(c.region)
 
 	servers := make([]Server, 0, len(members.Members))
 

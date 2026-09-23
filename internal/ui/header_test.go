@@ -21,10 +21,10 @@ func TestHeader(t *testing.T) {
 
 	r.Contains(rows[0], "Address:")
 	r.Contains(rows[0], "https://nomad.example.com")
-	r.Contains(rows[1], "Urga Rev:")
-	r.Contains(rows[1], "v0.1.0-dev")
-	r.Contains(rows[2], "Nomad Rev:")
-	r.Contains(rows[2], "1.11.1")
+	r.Contains(rows[3], "Urga Rev:")
+	r.Contains(rows[3], "v0.1.0-dev")
+	r.Contains(rows[4], "Nomad Rev:")
+	r.Contains(rows[4], "1.11.1")
 
 	for i, row := range rows {
 		r.LessOrEqual(ansi.StringWidth(row), 80, "line %d", i)
@@ -130,10 +130,10 @@ func TestHeader_ShowsWhatTheClusterIsUsing(t *testing.T) {
 	out := renderHeader(header{usage: "15%", memory: "31%"}, 140)
 	rows := lines(out)
 
-	r.Contains(rows[3], "CPU:")
-	r.Contains(rows[3], "15%")
-	r.Contains(rows[4], "MEM:")
-	r.Contains(rows[4], "31%")
+	r.Contains(rows[5], "CPU:")
+	r.Contains(rows[5], "15%")
+	r.Contains(rows[6], "MEM:")
+	r.Contains(rows[6], "31%")
 }
 
 func TestHeader_BeforeTheClusterAnswers(t *testing.T) {
@@ -142,6 +142,37 @@ func TestHeader_BeforeTheClusterAnswers(t *testing.T) {
 	// Nothing is known yet, and the header says that rather than zero.
 	out := renderHeader(header{}, 140)
 
-	r.Contains(lines(out)[3], "n/a")
-	r.Contains(lines(out)[2], "n/a")
+	r.Contains(lines(out)[5], "n/a")
+	r.Contains(lines(out)[4], "n/a")
+}
+
+func TestHeader_SaysTheRegionAndTheDatacenterUnderTheAddress(t *testing.T) {
+	r := require.New(t)
+
+	out := renderHeader(header{
+		address:    "https://nomad.example.com",
+		region:     "eu",
+		datacenter: "dc1",
+		version:    "v0.1.0-dev",
+	}, 80)
+
+	rows := lines(out)
+
+	r.Contains(rows[0], "Address:")
+	r.Contains(rows[1], "Region:")
+	r.Contains(rows[1], "eu")
+	r.Contains(rows[2], "DC:")
+	r.Contains(rows[2], "dc1")
+	r.Contains(rows[3], "Urga Rev:")
+}
+
+func TestHeader_BeforeARegionIsKnown(t *testing.T) {
+	r := require.New(t)
+
+	rows := lines(renderHeader(header{}, 80))
+
+	// The region is the agent's until it has said which one that is; no
+	// datacenter chosen is every one of them.
+	r.Contains(rows[1], "n/a")
+	r.Contains(rows[2], "all")
 }

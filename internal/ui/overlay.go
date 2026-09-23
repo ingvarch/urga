@@ -280,6 +280,14 @@ func (m Model) commit() (Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
+	switch cmd.switching {
+	case scopeRegion:
+		return m.regionCommand(cmd.name)
+
+	case scopeDatacenter:
+		return m.datacenterCommand(cmd.name)
+	}
+
 	if cmd.namespace != "" {
 		if !m.knowsNamespace(cmd.namespace) {
 			return m.fail(fmt.Errorf("no such namespace: %s", cmd.namespace)), nil

@@ -85,3 +85,31 @@ func TestShell_WithoutOne(t *testing.T) {
 
 	r.Contains(plain(m.render()), "no shell")
 }
+
+func TestShell_OpensInTheRegionInUse(t *testing.T) {
+	r := require.New(t)
+
+	shell := &fakeShell{}
+	m := shellModel(t, shell)
+
+	// The session has moved to another region since urga started.
+	m.client.(*fakeClient).region = "us"
+
+	m, cmd := m.update(key('s'))
+	follow(m, cmd, 3)
+
+	r.Equal("us", shell.opened.Region)
+}
+
+func TestShellRunner_AsksInTheRegionOfTheTask(t *testing.T) {
+	r := require.New(t)
+
+	client, err := nomad.New(nomad.Config{Address: "https://nomad.example.com", Region: "eu"})
+	r.NoError(err)
+
+	session := shellRunner{client: client}.session(shellCommand{Region: "us", Task: "server"})
+
+	// The shell was handed the client urga started with; the task is where
+	// the session looks now.
+	r.Equal("us", session.client.Region())
+}

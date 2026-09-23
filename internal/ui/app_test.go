@@ -91,11 +91,24 @@ type fakeClient struct {
 
 	calls      int
 	allocCalls int
+
+	region          string
+	regions         []string
+	datacenters     []string
+	usageDatacenter string
 }
 
 func (f *fakeClient) Address() string { return "https://nomad.example.com" }
 
-func (f *fakeClient) Version(context.Context) (string, error) { return "1.11.1", nil }
+func (f *fakeClient) Region() string { return f.region }
+
+func (f *fakeClient) Regions(context.Context) ([]string, error) { return f.regions, f.err }
+
+func (f *fakeClient) Datacenters(context.Context) ([]string, error) { return f.datacenters, f.err }
+
+func (f *fakeClient) Agent(context.Context) (nomad.Agent, error) {
+	return nomad.Agent{Version: "1.11.1"}, nil
+}
 
 func (f *fakeClient) Jobs(_ context.Context, namespace string) ([]nomad.Job, error) {
 	f.askedNamespace = namespace
@@ -315,7 +328,9 @@ func (f *fakeClient) FailDeployment(_ context.Context, namespace, deploymentID s
 	return f.actionErr
 }
 
-func (f *fakeClient) Usage(context.Context) (nomad.Usage, error) {
+func (f *fakeClient) Usage(_ context.Context, datacenter string) (nomad.Usage, error) {
+	f.usageDatacenter = datacenter
+
 	return f.usage, f.err
 }
 
@@ -603,7 +618,7 @@ func TestModel_ReadsWhatTheClusterIsUsing(t *testing.T) {
 	client := &fakeClient{usage: nomad.Usage{CPUPercent: 15, MemoryPercent: 31}}
 	m := newTestModel(client)
 
-	m, cmd := m.update(usageMsg(client.usage))
+	m, cmd := m.update(usageMsg{usage: client.usage})
 	r.NotNil(cmd, "the next reading is scheduled")
 
 	head := plain(renderHeader(m.headerData(), 120))

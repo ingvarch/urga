@@ -47,16 +47,39 @@ var bailAliases = map[string]bool{
 	"exit": true,
 }
 
+// scope is where the session looks, which a command line word can switch
+// instead of opening a resource.
+type scope int
+
+const (
+	scopeNone scope = iota
+	scopeRegion
+	scopeDatacenter
+)
+
+// scopeNames are the words that switch a scope, in the order the prompt
+// offers them: after the resources, so that `d` stays the deployments.
+var scopeNames = []string{"dc", "region"}
+
+var scopeAliases = map[string]scope{
+	"dc":     scopeDatacenter,
+	"region": scopeRegion,
+}
+
 // command is what the prompt was asked to do.
 type command struct {
 	bail      bool
 	kind      screenKind
 	namespace string
+
+	// switching is the scope the line switches, name what it switches to.
+	switching scope
+	name      string
 }
 
-// parseCommand reads "<resource> [namespace]", for example "jobs production".
-// The resource can be an alias or a prefix of one, as long as the prefix
-// names a single resource.
+// parseCommand reads "<resource> [namespace]", for example "jobs production",
+// or "<scope> [name]", for example "region eu". A word can be a prefix, as
+// long as it fits a single one of them; a resource wins over a scope.
 func parseCommand(input string) (command, bool) {
 	fields := strings.Fields(strings.TrimSpace(input))
 	if len(fields) == 0 {
@@ -65,21 +88,45 @@ func parseCommand(input string) (command, bool) {
 
 	word := strings.ToLower(fields[0])
 
+	var second string
+	if len(fields) > 1 {
+		second = fields[1]
+	}
+
 	if bailAliases[word] {
 		return command{bail: true}, true
 	}
 
-	kind, ok := resolveAlias(word)
-	if !ok {
-		return command{}, false
+	if switching, ok := scopeAliases[word]; ok {
+		return command{switching: switching, name: second}, true
 	}
 
-	cmd := command{kind: kind}
-	if len(fields) > 1 {
-		cmd.namespace = fields[1]
+	if kind, ok := resolveAlias(word); ok {
+		return command{kind: kind, namespace: second}, true
 	}
 
-	return cmd, true
+	if switching, ok := resolveScope(word); ok {
+		return command{switching: switching, name: second}, true
+	}
+
+	return command{}, false
+}
+
+// resolveScope takes a prefix that fits one scope word.
+func resolveScope(word string) (scope, bool) {
+	found := []scope{}
+
+	for _, name := range scopeNames {
+		if strings.HasPrefix(name, word) {
+			found = append(found, scopeAliases[name])
+		}
+	}
+
+	if len(found) != 1 {
+		return scopeNone, false
+	}
+
+	return found[0], true
 }
 
 // resolveAlias takes a whole alias or a prefix that fits one resource.
@@ -121,7 +168,7 @@ func matchingCommands(typed string) []string {
 		matches = append(matches, nameOf(named))
 	}
 
-	for _, name := range commandNames {
+	for _, name := range append(slices.Clone(commandNames), scopeNames...) {
 		if strings.HasPrefix(name, word) && !slices.Contains(matches, name) {
 			matches = append(matches, name)
 		}

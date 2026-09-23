@@ -16,8 +16,9 @@ type Usage struct {
 var withResources = map[string]string{"resources": "true"}
 
 // Usage reads the capacity of the nodes that are ready and what the running
-// allocations take of it.
-func (c *Client) Usage(ctx context.Context) (Usage, error) {
+// allocations take of it. A datacenter narrows both to its own machines, an
+// empty one is the whole region.
+func (c *Client) Usage(ctx context.Context, datacenter string) (Usage, error) {
 	nodes, _, err := c.api.Nodes().List(c.resourceQuery(ctx, ""))
 	if err != nil {
 		return Usage{}, err
@@ -30,7 +31,15 @@ func (c *Client) Usage(ctx context.Context) (Usage, error) {
 
 	var cpuCapacity, memoryCapacity int64
 
+	inside := map[string]bool{}
+
 	for _, node := range nodes {
+		if datacenter != "" && node.Datacenter != datacenter {
+			continue
+		}
+
+		inside[node.ID] = true
+
 		if node.Status != "ready" || node.NodeResources == nil {
 			continue
 		}
@@ -42,6 +51,10 @@ func (c *Client) Usage(ctx context.Context) (Usage, error) {
 	var cpuClaimed, memoryClaimed int64
 
 	for _, alloc := range allocs {
+		if datacenter != "" && !inside[alloc.NodeID] {
+			continue
+		}
+
 		if alloc.ClientStatus != "running" || alloc.AllocatedResources == nil {
 			continue
 		}

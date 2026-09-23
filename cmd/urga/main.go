@@ -24,6 +24,7 @@ func main() {
 func run() error {
 	showVersion := flag.Bool("version", false, "print the version and exit")
 	address := flag.String("address", "", "address of the Nomad cluster, defaults to NOMAD_ADDR")
+	region := flag.String("region", "", "region to ask in, defaults to NOMAD_REGION, then to the one of the agent")
 	namespace := flag.String("namespace", os.Getenv("NOMAD_NAMESPACE"), "namespace to look at, empty is all of them")
 	flag.Parse()
 
@@ -32,7 +33,7 @@ func run() error {
 		return nil
 	}
 
-	client, err := nomad.New(nomad.Config{Address: *address})
+	client, err := nomad.New(nomad.Config{Address: *address, Region: *region})
 	if err != nil {
 		return err
 	}
@@ -50,6 +51,7 @@ func run() error {
 		Config:    cfg,
 		Editor:    ui.NewEditor(),
 		Shell:     ui.NewShell(client),
+		InRegion:  ui.InRegionOf(client),
 	})
 
 	_, err = tea.NewProgram(model).Run()

@@ -1,0 +1,363 @@
+package ui
+
+import (
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ingvarch/urga/internal/nomad"
+)
+
+func TestRegion_TheAgentSaysWhichOneIsInUse(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{})
+	r.Contains(headerOf(m), "Region:    n/a")
+
+	// A session that names no region is answered in the one of the agent.
+	m, _ = m.update(agentMsg(nomad.Agent{Version: "1.11.1", Region: "global"}))
+
+	r.Contains(headerOf(m), "Region:    global")
+	r.Contains(headerOf(m), "DC:        all")
+}
+
+func TestRegion_TheOneAskedForWins(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{region: "eu"})
+	m, _ = m.update(agentMsg(nomad.Agent{Region: "global"}))
+
+	// The agent answers for its own region, the session asks in another.
+	r.Contains(headerOf(m), "Region:    eu")
+}
+
+func TestRegion_TheSessionKnowsTheRegionsAndTheDatacenters(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{regions: []string{"eu", "us"}, datacenters: []string{"dc1", "dc2"}}
+	m := newTestModel(client)
+
+	m = drain(m, m.Init())
+
+	// The command line checks a name against these.
+	r.Equal([]string{"eu", "us"}, m.regions)
+	r.Equal([]string{"dc1", "dc2"}, m.datacenters)
+}
+
+func TestRegion_DatacentersOfAnotherRegionAreDropped(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{region: "eu"})
+
+	// Asked before the session moved to eu: the names belong to us.
+	m, _ = m.update(datacentersMsg{region: "us", names: []string{"us-east"}})
+
+	r.Empty(m.datacenters)
+}
+
+func TestDatacenter_NarrowsTheJobs(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{})
+	m.datacenter = "dc1"
+
+	m, _ = m.update(jobsMsg([]nomad.Job{
+		{ID: "web", Datacenters: []string{"dc1"}},
+		{ID: "api", Datacenters: []string{"dc2"}},
+		{ID: "agent", Datacenters: []string{"*"}},
+	}))
+
+	// A job that may be placed in the datacenter stays, star or not.
+	r.Equal([]string{"web", "agent"}, idsOf(m.jobs, func(j nomad.Job) string { return j.ID }))
+	r.NotContains(plain(m.render()), "api")
+}
+
+func TestDatacenter_NarrowsTheClients(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{})
+	m.datacenter = "dc1"
+	m, _ = m.show(screenNodes)
+
+	m, _ = m.update(nodesMsg([]nomad.Node{
+		{ID: "n1", Name: "node-01", Datacenter: "dc1"},
+		{ID: "n2", Name: "node-02", Datacenter: "dc2"},
+	}))
+
+	r.Equal([]string{"n1"}, idsOf(m.nodes, func(n nomad.Node) string { return n.ID }))
+}
+
+func TestDatacenter_NarrowsTheServersToTheRegionInUse(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{region: "eu"})
+	m.datacenter = "dc1"
+	m, _ = m.show(screenServers)
+
+	m, _ = m.update(serversMsg([]nomad.Server{
+		{Name: "eu-1", Region: "eu", Datacenter: "dc1"},
+		{Name: "eu-2", Region: "eu", Datacenter: "dc2"},
+		{Name: "us-1", Region: "us", Datacenter: "dc1"},
+	}))
+
+	// Datacenters are named per region: dc1 of us is not dc1 of eu.
+	r.Equal([]string{"eu-1"}, idsOf(m.servers, func(s nomad.Server) string { return s.Name }))
+}
+
+func TestDatacenter_EveryOneOfThem(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{})
+	m, _ = m.show(screenServers)
+
+	m, _ = m.update(serversMsg([]nomad.Server{
+		{Name: "eu-1", Region: "eu", Datacenter: "dc1"},
+		{Name: "us-1", Region: "us", Datacenter: "dc2"},
+	}))
+
+	// No datacenter chosen and no region known yet: nothing is left out.
+	r.Len(m.servers, 2)
+}
+
+// idsOf names what a list holds, in its order.
+func idsOf[T any](items []T, id func(T) string) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		out = append(out, id(item))
+	}
+
+	return out
+}
+
+func TestUsage_IsReadForTheDatacenterInUse(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{region: "eu", usage: nomad.Usage{CPUPercent: 15, MemoryPercent: 31}}
+	m := newTestModel(client)
+	m.datacenter = "dc1"
+
+	_, cmd := m.update(pollUsageMsg{})
+	r.NotNil(cmd)
+
+	m, _ = m.update(cmd())
+
+	// The numbers under the name of the datacenter are about it.
+	r.Equal("dc1", client.usageDatacenter)
+	r.Contains(headerOf(m), "CPU:       15%")
+}
+
+func TestUsage_AReadingOfAnotherPlaceIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{region: "eu"})
+	m.datacenter = "dc1"
+
+	// Read before the session moved on.
+	m, _ = m.update(usageMsg{region: "eu", datacenter: "dc2", usage: nomad.Usage{CPUPercent: 50}})
+	m, _ = m.update(usageMsg{region: "us", datacenter: "dc1", usage: nomad.Usage{CPUPercent: 60}})
+
+	r.Contains(headerOf(m), "CPU:       n/a")
+}
+
+func TestUsage_KeepsOneTimer(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{})
+
+	m, first := m.update(usageMsg{})
+	r.NotNil(first, "the next reading is due")
+
+	// A reading asked out of turn, after a switch, lands while the timer is
+	// still on its way; a second timer would double the asking for good.
+	_, second := m.update(usageMsg{})
+	r.Nil(second)
+}
+
+// regionalModel is a session that can switch regions: the fake takes on the
+// region it is asked in, and knows two of them.
+func regionalModel(t *testing.T, client *fakeClient) Model {
+	t.Helper()
+
+	m := newTestModel(client)
+	m.opts.InRegion = func(region string) Client {
+		client.region = region
+
+		return client
+	}
+
+	m, _ = m.update(regionsMsg([]string{"eu", "us"}))
+
+	return m
+}
+
+// runLine types a line into the command line and runs it.
+func runLine(m Model, line string) (Model, tea.Cmd) {
+	m, _ = m.update(key(':'))
+	m = typeIn(m, line)
+
+	return m.update(enter())
+}
+
+func TestRegionCommand_SwitchesTheSession(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), datacenters: []string{"us-east"}}
+	m := regionalModel(t, client)
+	m.datacenter = "dc1"
+
+	m, cmd := runLine(m, "region us")
+
+	r.Equal("us", m.client.Region())
+	r.Contains(headerOf(m), "Region:    us")
+
+	// Datacenters are named per region: dc1 of eu means nothing in us.
+	r.Contains(headerOf(m), "DC:        all")
+
+	client.calls = 0
+	m = drain(m, cmd)
+
+	// What is on the screen and what the next region holds are asked again.
+	r.Equal(1, client.calls)
+	r.Equal([]string{"us-east"}, m.datacenters)
+}
+
+func TestRegionCommand_GoesBackToTheList(t *testing.T) {
+	r := require.New(t)
+
+	m := regionalModel(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()})
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(enter())
+	r.Equal(screenAllocations, m.screen.kind)
+
+	m, _ = runLine(m, "region us")
+
+	// The allocations of a job in one region say nothing about another.
+	r.Equal(screenJobs, m.screen.kind)
+	r.Empty(m.history)
+}
+
+func TestRegionCommand_ClosesTheLogs(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: &nomad.LogStream{Lines: make(chan string)}}
+	m := openTasks(t, client)
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	r.Equal(screenLogs, m.screen.kind)
+
+	m.opts.InRegion = func(string) Client { return client }
+	m, _ = m.update(regionsMsg([]string{"eu", "us"}))
+
+	m, _ = runLine(m, "region us")
+
+	r.True(client.logsClosed)
+	r.Equal(screenJobs, m.screen.kind)
+}
+
+func TestRegionCommand_ReadsTheUsageAtOnce(t *testing.T) {
+	r := require.New(t)
+
+	m := regionalModel(t, &fakeClient{usage: nomad.Usage{CPUPercent: 15, MemoryPercent: 31}})
+
+	m, cmd := runLine(m, "region us")
+	m = drain(m, cmd)
+
+	r.Contains(headerOf(m), "CPU:       15%")
+}
+
+func TestRegionCommand_ARegionTheClusterDoesNotKnow(t *testing.T) {
+	r := require.New(t)
+
+	m := regionalModel(t, &fakeClient{})
+
+	m, _ = runLine(m, "region mars")
+
+	r.Contains(plain(m.render()), "no such region: mars (eu, us)")
+	r.Empty(m.client.Region())
+}
+
+func TestRegionCommand_SaysWhichRegionsThereAre(t *testing.T) {
+	r := require.New(t)
+
+	m := regionalModel(t, &fakeClient{})
+
+	m, _ = runLine(m, "region")
+
+	r.Contains(plain(m.render()), "Regions: eu, us.")
+}
+
+func TestRegionCommand_WithoutAWayToSwitch(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{})
+	m, _ = m.update(regionsMsg([]string{"eu", "us"}))
+
+	m, _ = runLine(m, "region us")
+
+	r.Contains(plain(m.render()), "this session cannot switch regions")
+}
+
+func TestDatacenterCommand_NarrowsTheSession(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: []nomad.Job{
+		{ID: "web", Datacenters: []string{"dc1"}},
+		{ID: "api", Datacenters: []string{"dc2"}},
+	}}
+	m := newTestModel(client)
+	m, _ = m.update(datacentersMsg{names: []string{"dc1", "dc2"}})
+	m, _ = m.update(jobsMsg(client.jobs))
+
+	m, cmd := runLine(m, "dc dc2")
+	r.Contains(headerOf(m), "DC:        dc2")
+
+	m = drain(m, cmd)
+
+	// The lists and the numbers of the header are about that datacenter.
+	r.Equal([]string{"api"}, idsOf(m.jobs, func(j nomad.Job) string { return j.ID }))
+	r.Equal("dc2", client.usageDatacenter)
+
+	// And all of them again.
+	m, cmd = runLine(m, "dc all")
+	m = drain(m, cmd)
+
+	r.Contains(headerOf(m), "DC:        all")
+	r.Len(m.jobs, 2)
+}
+
+func TestDatacenterCommand_ADatacenterTheRegionDoesNotHave(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{})
+	m, _ = m.update(datacentersMsg{names: []string{"dc1", "dc2"}})
+
+	m, _ = runLine(m, "dc dc9")
+
+	r.Contains(plain(m.render()), "no such datacenter: dc9 (dc1, dc2)")
+	r.Empty(m.datacenter)
+}
+
+func TestDatacenterCommand_SaysWhichDatacentersThereAre(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{})
+	m, _ = m.update(datacentersMsg{names: []string{"dc1", "dc2"}})
+
+	m, _ = runLine(m, "dc")
+
+	r.Contains(plain(m.render()), "Datacenters: dc1, dc2.")
+}
+
+func TestInRegionOf_AsksTheClusterInThatRegion(t *testing.T) {
+	r := require.New(t)
+
+	client, err := nomad.New(nomad.Config{Address: "https://nomad.example.com", Region: "us"})
+	r.NoError(err)
+
+	eu := InRegionOf(client)("eu")
+
+	r.Equal("eu", eu.Region())
+	r.Equal("us", client.Region())
+}
