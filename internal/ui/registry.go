@@ -19,6 +19,7 @@ var (
 		{Key: "<h>", Description: "Job spec"},
 		{Key: "<ctrl-s>", Description: "Start or stop"},
 		{Key: "<u>", Description: "Revert"},
+		{Key: "<v>", Description: "Versions"},
 		{Key: "<e>", Description: "Edit"},
 	}
 
@@ -421,6 +422,24 @@ var resources = map[screenKind]resource{
 		},
 		fetch: fetchNodeMeta,
 		rows:  func(m Model) []tableRow { return metaRows(m.nodeMeta) },
+	},
+
+	screenJobVersions: {
+		titles:  versionTitles,
+		hints:   versionHints,
+		cluster: true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Versions (Job: %s) [%d]", m.screen.jobID, count)
+		},
+		fetch: func(m Model) tea.Cmd {
+			client, screen := m.client, m.screen
+
+			return fetchList(func(ctx context.Context) ([]nomad.JobVersion, error) {
+				return client.JobVersions(ctx, screen.namespace, screen.jobID)
+			}, func(items []nomad.JobVersion) tea.Msg { return versionsMsg(items) })
+		},
+		rows: func(m Model) []tableRow { return versionRows(m.versions) },
 	},
 
 	screenDescribe: {

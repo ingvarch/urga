@@ -40,6 +40,9 @@ type Client interface {
 	StartJob(ctx context.Context, namespace, jobID string) error
 	StopJob(ctx context.Context, namespace, jobID string) error
 	RevertJob(ctx context.Context, namespace, jobID string) error
+	JobVersions(ctx context.Context, namespace, jobID string) ([]nomad.JobVersion, error)
+	JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) (string, error)
+	RevertJobTo(ctx context.Context, namespace, jobID string, version uint64) error
 	ScaleJob(ctx context.Context, namespace, jobID, group string, count int) error
 	RestartAllocation(ctx context.Context, namespace, allocID string) error
 	StopAllocation(ctx context.Context, namespace, allocID string) error
@@ -122,6 +125,7 @@ type (
 	serversMsg     []nomad.Server
 	serverMsg      nomad.Server
 	nodeDetailMsg  nomad.NodeDetail
+	versionsMsg    []nomad.JobVersion
 
 	// nodeMetaMsg carries the machine it was asked of, like every answer
 	// that belongs to one client.
@@ -201,6 +205,7 @@ type Model struct {
 	nodes       []nomad.Node
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
+	versions    []nomad.JobVersion
 	servers     []nomad.Server
 
 	// host is the machine a client screen is open on, hostTrail the
@@ -413,6 +418,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		// The list is stale the moment the cluster changed, ask again.
 		return m, m.fetch()
 
+	case versionsMsg:
+		return m.applyList(screenJobVersions, func(m *Model) { m.versions = msg })
+
 	case nodeDetailMsg:
 		// The answer belongs to the machine it was asked of: leaving one
 		// client for another must not show the first one under the second.
@@ -560,7 +568,16 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		}
 
 	case "u":
-		next, cmd = m.revertJob()
+		// The list of jobs reverts to the version before the one that runs;
+		// the list of versions reverts to the one under the cursor.
+		if m.screen.kind == screenJobVersions {
+			next, cmd = m.revertToVersion()
+		} else {
+			next, cmd = m.revertJob()
+		}
+
+	case "v":
+		next, cmd = m.openVersions()
 
 	case "r":
 		next, cmd = m.restartAllocation()

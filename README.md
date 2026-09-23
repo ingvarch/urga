@@ -84,7 +84,8 @@ namespace with it, as in `jobs production`. `q` leaves.
 | `t` | Task groups of a job |
 | `s` | Scale a task group, or a shell in a task |
 | `ctrl-s` | Start or stop a job |
-| `u` | Revert a job to its previous version |
+| `v` | Versions of a job, with what each one changed |
+| `u` | Revert a job to its previous version, or on the versions screen to the one under the cursor |
 | `r` | Restart an allocation |
 | `ctrl-k` | Stop an allocation |
 | `ctrl-d` | Drain a client, or stop draining it; on a client, what it can run |
@@ -104,7 +105,8 @@ Jobs, allocations, tasks, task groups, deployments, namespaces, services,
 evaluations, clients, servers, variables and node pools, refreshed while they
 are open. Logs follow a task as it writes. A job or a namespace opens in your
 editor and goes back to the cluster when you save. Jobs start, stop, revert and
-scale; allocations restart and stop; a task opens a shell. Clients drain and
+scale; a job keeps its versions, each saying what it changed, and goes back to
+any of them; allocations restart and stop; a task opens a shell. Clients drain and
 take work again, deployments promote their canaries or fail. The servers list
 says which one leads, and a server opens on everything its agent carries: the
 addresses and ports, the gossip it speaks, whether the raft still counts its

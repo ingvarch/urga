@@ -22,6 +22,8 @@ type fakeClient struct {
 	nodeAllocs  []nomad.Alloc
 	nodeDetail  nomad.NodeDetail
 	nodeMeta    []nomad.MetaEntry
+	versions    []nomad.JobVersion
+	diff        string
 	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
 	namespaces  []nomad.Namespace
@@ -79,6 +81,9 @@ type fakeClient struct {
 	askedServer    string
 	metaSpec       string
 	metaSubmitted  string
+	askedVersion   uint64
+	revertedTo     uint64
+	diffErr        error
 
 	calls      int
 	allocCalls int
@@ -106,6 +111,24 @@ func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.
 	f.askedNodeID = nodeID
 
 	return f.nodeAllocs, f.err
+}
+
+func (f *fakeClient) JobVersions(_ context.Context, _, jobID string) ([]nomad.JobVersion, error) {
+	f.askedJobID = jobID
+
+	return f.versions, f.err
+}
+
+func (f *fakeClient) JobVersionDiff(_ context.Context, _, jobID string, version uint64) (string, error) {
+	f.askedJobID, f.askedVersion = jobID, version
+
+	return f.diff, f.diffErr
+}
+
+func (f *fakeClient) RevertJobTo(_ context.Context, _, jobID string, version uint64) error {
+	f.askedJobID, f.revertedTo = jobID, version
+
+	return f.err
 }
 
 func (f *fakeClient) Node(_ context.Context, nodeID string) (nomad.Node, error) {

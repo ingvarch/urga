@@ -30,6 +30,7 @@ const (
 	screenNodeVolumes
 	screenNodeAttributes
 	screenNodeMeta
+	screenJobVersions
 	screenDescribe
 	screenLogs
 	screenTaskGroups
@@ -195,6 +196,9 @@ func (m Model) open() (Model, tea.Cmd) {
 
 	case screenNodeDrivers:
 		return m.openDriver()
+
+	case screenJobVersions:
+		return m.openVersionDiff()
 
 	case screenTasks:
 		return m.openLogs(nomad.LogStdout)
