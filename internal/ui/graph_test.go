@@ -222,12 +222,24 @@ func TestChart_IsAsTallAsItIsAsked(t *testing.T) {
 	r.Len(aChart().render(30, 4), 4+4)
 }
 
-func TestChart_EveryLineIsTheSameWidth(t *testing.T) {
+func TestChart_EveryLineIsExactlyTheWidthItWasAsked(t *testing.T) {
 	r := require.New(t)
 
-	for _, line := range aChart(1, 0.5).render(30, 4) {
-		r.LessOrEqual(ansi.StringWidth(plain(line)), 30)
+	for _, width := range []int{8, 10, 17, 30, 64} {
+		for _, line := range aChart(1, 0.5, 0.25).render(width, 4) {
+			r.Equal(width, ansi.StringWidth(plain(line)), "width %d: %q", width, plain(line))
+		}
 	}
+}
+
+func TestChart_TooNarrowForItsScaleDrawsNothing(t *testing.T) {
+	r := require.New(t)
+
+	// The scale alone is six columns. Drawing it into less spills out of
+	// the box the chart is given, and a chart one column wide says nothing
+	// anyway.
+	r.Empty(aChart(1).render(chartAxisWidth, 4))
+	r.NotEmpty(aChart(1).render(chartAxisWidth+1, 4))
 }
 
 func TestChart_SitsOnAShadeOfItsOwn(t *testing.T) {

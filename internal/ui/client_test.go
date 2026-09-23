@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/stretchr/testify/require"
 
@@ -266,4 +267,25 @@ func TestClient_TheMachineInThePanelKeepsUp(t *testing.T) {
 	// And the answer of another machine is not this one.
 	m, _ = m.update(hostMsg(nomad.Node{ID: "node-9", Name: "somewhere-else", Status: "ready"}))
 	r.NotContains(plain(m.render()), "somewhere-else")
+}
+
+func TestClient_ANarrowScreenKeepsTheMachineAndDropsTheCharts(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := clientScreen(t)
+	m, _ = m.update(reading(29))
+
+	m, _ = m.update(tea.WindowSizeMsg{Width: 20, Height: 40})
+
+	out := plain(m.render())
+
+	// Half of a narrow screen has no room for a chart with its scale, so
+	// the machine keeps the room and the charts give it up rather than
+	// spill out of the box.
+	r.Contains(out, "ready")
+	r.NotContains(out, "100%")
+
+	for _, line := range strings.Split(out, "\n") {
+		r.LessOrEqual(ansi.StringWidth(line), 20, line)
+	}
 }

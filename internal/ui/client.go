@@ -96,6 +96,12 @@ func (m Model) keepHostUse(msg hostUseMsg) Model {
 	return m
 }
 
+// chartWidth is what one of the two charts gets: half of the panel, which
+// keeps a column for the margin of the table and a gap between them.
+func (m Model) chartWidth() int {
+	return max((m.width-2*screenPadX-3-columnGap)/2, 1)
+}
+
 // chartHeight is how tall the plot of a chart is here. A short screen gets
 // the short one, and then none at all: the allocations come first.
 func (m Model) chartHeight() int {
@@ -119,7 +125,7 @@ func (m Model) panelHeight() int {
 		return 0
 	}
 
-	if plot := m.chartHeight(); plot > 0 {
+	if plot := m.chartHeight(); plot > 0 && m.chartWidth() > chartAxisWidth {
 		return plot + hostChartRest + hostPanelRest
 	}
 
@@ -144,9 +150,9 @@ func (m Model) hostPanel(width int) []string {
 
 	rows := []string{m.hostDetails(width), ""}
 
-	if plot := m.chartHeight(); plot > 0 {
-		half := max((width-columnGap)/2, 1)
-		window := time.Duration(max(half-chartAxisWidth, 1)) * m.opts.PollEvery
+	if plot := m.chartHeight(); plot > 0 && m.chartWidth() > chartAxisWidth {
+		half := m.chartWidth()
+		window := time.Duration(half-chartAxisWidth) * m.opts.PollEvery
 
 		cpu := chart{
 			name:    "CPU",

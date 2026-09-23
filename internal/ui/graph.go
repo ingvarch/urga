@@ -86,10 +86,17 @@ type chart struct {
 // level that falls inside a row is left off the scale: a label there would
 // stand beside the wrong place.
 func (c chart) render(width, height int) []string {
-	plot := max(width-chartAxisWidth, 1)
+	// The scale takes its columns whatever it is given. Less than one
+	// column of plot left is not a chart, and drawing it anyway spills out
+	// of the box.
+	if width <= chartAxisWidth || height < 1 {
+		return nil
+	}
+
+	plot := width - chartAxisWidth
 
 	rows := []string{
-		c.headline(width),
+		pad(c.headline(width), width),
 		styleMuted.Render(c.side("100%", "┌") + strings.Repeat("─", plot)),
 	}
 
@@ -99,7 +106,7 @@ func (c chart) render(width, height int) []string {
 
 	return append(rows,
 		styleMuted.Render(c.side("0%", "└")+strings.Repeat("─", plot)),
-		styleMuted.Render(strings.Repeat(" ", chartAxisWidth)+c.times(plot)))
+		styleMuted.Render(strings.Repeat(" ", chartAxisWidth)+pad(c.times(plot), plot)))
 }
 
 // side is the scale down the left of the plot: what this row stands for and
@@ -262,6 +269,9 @@ func (c chart) headline(width int) string {
 
 	return left + strings.Repeat(" ", gap) + right
 }
+
+// times are padded to the plot so that the line under the chart is as wide
+// as the chart itself.
 
 // times are the ends of the time axis: how far back the chart reaches, and
 // the reading that has just come in.
