@@ -247,7 +247,7 @@ func TestClient_AReadingOfTheMachineYouLeftIsDropped(t *testing.T) {
 	r.Len(m.hostTrail, before)
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-9", err: errTest})
-	r.Nil(m.err)
+	r.NotEqual(flashErr, m.flash.level)
 }
 
 func TestClient_TheMachineInThePanelKeepsUp(t *testing.T) {

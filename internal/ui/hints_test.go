@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"reflect"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -28,6 +29,7 @@ func everyScreen(t *testing.T) map[string]Model {
 		nodeAllocs:  clientAllocs(),
 		nodeDetail:  clientDetail(),
 		nodeMeta:    clientMeta(),
+		versions:    threeVersions(),
 		variables:   []nomad.Variable{{Path: "nomad/jobs/web", Namespace: "production"}},
 		nodePools:   []nomad.NodePool{{Name: "default"}},
 		use:         map[string]nomad.ResourceUse{"node-1": {}},
@@ -98,6 +100,13 @@ func everyScreen(t *testing.T) map[string]Model {
 	driver, cmd := open["drivers"].update(enter())
 	open["driver"] = drain(driver, cmd)
 
+	// The screens that hang off a job and a task.
+	versions, cmd := jobs.update(key('v'))
+	open["versions"] = drain(versions, cmd)
+
+	events, _ := open["tasks"].update(key('e'))
+	open["taskevents"] = events
+
 	return open
 }
 
@@ -107,7 +116,7 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 	for name, m := range everyScreen(t) {
 		// Whatever the screen was left holding says nothing about the key
 		// that is about to be pressed.
-		m.err = nil
+		m = m.quiet()
 
 		for _, h := range m.screen.hints() {
 			// A key in the header is a promise: pressing it opens something,
@@ -115,11 +124,9 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 			// is drawn and does nothing is worse than no key.
 			next, cmd := m.handleKey(keyOf(h.Key))
 
-			did := cmd != nil ||
-				next.screen != m.screen ||
-				next.overlay != m.overlay ||
-				next.err != nil ||
-				next.said != m.said
+			// Anything at all: another screen, a question, a mark, a way
+			// of reading the text, or a request to the cluster.
+			did := cmd != nil || !reflect.DeepEqual(next, m)
 
 			r.True(did, "the %s screen offers %s and nothing happens", name, h.Key)
 		}
@@ -145,6 +152,10 @@ func keyOf(shown string) tea.KeyPressMsg {
 		return ctrlKey('e')
 	case "ctrl-h":
 		return ctrlKey('h')
+	case "ctrl-a":
+		return ctrlKey('a')
+	case "space":
+		return space()
 	}
 
 	return key(rune(name[0]))

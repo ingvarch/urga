@@ -113,3 +113,39 @@ func TestNodeAllocations_AsksTheNode(t *testing.T) {
 	r.Equal("pelmeni_buh_bot", allocs[0].JobID)
 	r.Equal("running", allocs[0].Status)
 }
+
+func TestAllocations_ReadWhatHappenedToATask(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{
+		"ID": "af1f37df",
+		"Name": "web.bot[0]",
+		"TaskStates": {
+			"bot": {
+				"State": "running",
+				"Events": [
+					{"Type": "Received", "Time": 1758499200000000000, "DisplayMessage": "Task received by client"},
+					{"Type": "Started", "Time": 1758499260000000000, "DisplayMessage": "Task started by client"},
+					{"Type": "Terminated", "Time": 1758499320000000000, "DisplayMessage": "Exit Code: 1",
+						"Details": {"exit_code": "1"}, "FailsTask": true}
+				]
+			}
+		}
+	}]`)
+
+	allocs, err := client.Allocations(context.Background(), "production", "")
+	r.NoError(err)
+	r.Len(allocs[0].Tasks, 1)
+
+	events := allocs[0].Tasks[0].Events
+	r.Len(events, 3)
+
+	// The newest is the one worth reading, so it comes first.
+	r.Equal("Terminated", events[0].Type)
+	r.Equal("Exit Code: 1", events[0].Message)
+	r.True(events[0].Failed)
+	r.False(events[0].Time.IsZero())
+
+	r.Equal("Received", events[2].Type)
+	r.False(events[2].Failed)
+}

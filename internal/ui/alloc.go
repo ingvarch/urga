@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"image/color"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
@@ -88,6 +90,49 @@ func taskColor(task nomad.Task) color.Color {
 	}
 
 	return nil
+}
+
+// taskEventTitles are the columns of what happened to a task.
+var taskEventTitles = []string{"Age", "Type", "Message"}
+
+func taskEventRows(events []nomad.TaskEvent) []tableRow {
+	rows := make([]tableRow, 0, len(events))
+
+	for _, event := range events {
+		row := tableRow{cells: []string{ageOf(event.Time), event.Type, event.Message}}
+		if event.Failed {
+			row.color = colorDead
+		}
+
+		rows = append(rows, row)
+	}
+
+	return rows
+}
+
+// taskEvents are what happened to the task the screen was opened for.
+func (m Model) taskEvents() []nomad.TaskEvent {
+	for _, task := range m.tasks() {
+		if task.Name == m.screen.task {
+			return task.Events
+		}
+	}
+
+	return nil
+}
+
+// openTaskEvents opens what happened to the task under the cursor.
+func (m Model) openTaskEvents() (Model, tea.Cmd) {
+	task, ok := selectedOf(m, screenTasks, m.tasks())
+	if !ok {
+		return m, nil
+	}
+
+	next := m.screen
+	next.kind = screenTaskEvents
+	next.task = task.Name
+
+	return m.push(next)
 }
 
 const (

@@ -47,6 +47,9 @@ var (
 
 	styleTableHeader = lipgloss.NewStyle().Foreground(colorAccent)
 
+	// styleMatch lights up what a filter matched inside a line of text.
+	styleMatch = lipgloss.NewStyle().Foreground(lipgloss.Color("#1c1f24")).Background(colorLabel)
+
 	// The row under the cursor is painted end to end, so it reads whatever
 	// color the resource itself has.
 	styleSelected = lipgloss.NewStyle().

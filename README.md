@@ -73,7 +73,7 @@ switches the namespace with it, as in `jobs production`. `q` leaves.
 | Key | What it does |
 | --- | --- |
 | `:` | Command line |
-| `/` | Filter what is on the screen |
+| `/` | Filter what is on the screen: a pattern, `!` for everything else, `-f ` for the letters in that order |
 | `?` | Help, with the keys of the open resource |
 | `0`–`9` | Switch namespace, `0` is all of them |
 | `A`–`Z` | Sort by the column that starts with that letter, again to reverse |
@@ -82,31 +82,44 @@ switches the namespace with it, as in `jobs production`. `q` leaves.
 | `esc` | Back |
 | `d` | Describe |
 | `h` | The job file the job was submitted with |
-| `e` | Edit a job, a namespace or the metadata of a client in `$EDITOR`, or the events of a client |
+| `e` | Edit a job, a namespace or the metadata of a client in `$EDITOR`; the events of a client or of a task |
 | `t` | Task groups of a job |
 | `s` | Scale a task group, or a shell in a task |
-| `ctrl-s` | Start or stop a job |
-| `u` | Revert a job to its previous version |
-| `r` | Restart an allocation |
-| `ctrl-k` | Stop an allocation |
-| `ctrl-d` | Drain a client, or stop draining it; on a client, what it can run |
+| `v` | Versions of a job, with what each one changed |
+| `u` | Revert a job to its previous version, or on the versions screen to the one under the cursor |
+| `space` | Mark a row, on jobs, allocations and clients; an action then takes every marked row |
+| `ctrl-a` | Mark every row on the screen, or none |
+| `ctrl-s` | Start or stop a job, or every marked one |
+| `r` | Restart an allocation, or every marked one |
+| `ctrl-k` | Stop an allocation, or every marked one |
+| `ctrl-d` | Drain a client, or every marked one; on a client, what it can run |
 | `ctrl-h` | Host volumes of a client |
 | `a` | Attributes of a client |
 | `m` | Metadata of a client |
-| `i` | Let a client take new work, or stop it |
+| `i` | Let a client take new work, or stop it; every marked one at once |
 | `p` | Promote the canaries of a deployment |
 | `f` | Fail a deployment |
 | `c` | Copy the value under the cursor, on a screen of fields |
 | `ctrl-e` | Logs of a task, stderr |
+| `w` | Wrap long lines, on logs and descriptions |
+| `t` | Show when urga read each log line; a task writes no time of its own |
+| `ctrl-s` | Save what is on the screen to a file, as the filter left it |
 | `q` | Quit |
 
 ## What works
 
 Jobs, allocations, tasks, task groups, deployments, namespaces, services,
-evaluations, clients, servers, variables and node pools, refreshed while they
-are open. Logs follow a task as it writes. A job or a namespace opens in your
+evaluations, clients, servers, variables and node pools. A screen that the
+cluster will talk about follows its event stream and is asked again the moment
+something changes; the rest are asked on a timer. A cluster that will not
+stream — an ACL that does not allow it, most often — is polled instead, and
+the status line says so. A task says what happened to it, from the moment the client received it.
+Logs follow a task as it writes; the filter lights up what it matched, long
+lines wrap, and what is on the screen saves to a file. A job or a namespace opens in your
 editor and goes back to the cluster when you save. Jobs start, stop, revert and
-scale; allocations restart and stop; a task opens a shell. Clients drain and
+scale; a job keeps its versions, each saying what it changed, and goes back to
+any of them; allocations restart and stop; jobs start and stop; clients drain and take work
+again — one of them, or as many as are marked; a task opens a shell. Clients drain and
 take work again, deployments promote their canaries or fail. The servers list
 says which one leads, and a server opens on everything its agent carries: the
 addresses and ports, the gossip it speaks, whether the raft still counts its

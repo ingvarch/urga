@@ -36,7 +36,9 @@ hashicorp/damon where the opposite of each one caused a bug that took hours.
    of global state to build a request.
 3. **Polling lives in `tea.Cmd`.** A poll returns a message. No goroutine writes
    to the model, no goroutine draws, no blocking send on a channel that the UI
-   also reads.
+   also reads. The event stream says *when* a screen is stale; *what* it now
+   holds is read the usual way. Nothing is built out of event payloads, and a
+   cluster that will not stream is polled the way it always was.
 4. **Screen keys in the header, general keys in help.** The header lists only
    what the open resource can do. Navigation and global keys live in `?`.
 5. **Render functions are pure.** A screen turns state plus a width into a

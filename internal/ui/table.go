@@ -18,10 +18,12 @@ const (
 	maxColumnWidth = 48
 )
 
-// tableRow is one resource. The color says what state it is in.
+// tableRow is one resource. The color says what state it is in, and marked
+// that an action is to take it along with the others.
 type tableRow struct {
-	cells []string
-	color color.Color
+	cells  []string
+	color  color.Color
+	marked bool
 }
 
 // tableModel is the list every screen shows: a header, rows, a cursor and a
@@ -94,10 +96,10 @@ func (t tableModel) view() string {
 		titles[i] = title + t.sort.marker(i)
 	}
 
-	out := []string{styleTableHeader.Render(t.line(titles, widths))}
+	out := []string{styleTableHeader.Render(t.line(titles, widths, false))}
 
 	for i := t.top; i < len(t.rows) && i < t.top+t.height; i++ {
-		line := t.line(t.rows[i].cells, widths)
+		line := t.line(t.rows[i].cells, widths, t.rows[i].marked)
 
 		switch {
 		case i == t.cursor:
@@ -116,7 +118,9 @@ func (t tableModel) view() string {
 
 // line lays the cells out over the columns and pads the result to the whole
 // width, so that a color reaches the end of the row.
-func (t tableModel) line(cells []string, widths []int) string {
+// line draws one row. A row that is marked says so where the table keeps its
+// distance from the border, so the columns do not move for it.
+func (t tableModel) line(cells []string, widths []int, marked bool) string {
 	parts := make([]string, 0, len(widths))
 	for i, width := range widths {
 		cell := ""
@@ -127,7 +131,12 @@ func (t tableModel) line(cells []string, widths []int) string {
 		parts = append(parts, pad(truncate(cell, width), width))
 	}
 
-	line := strings.Repeat(" ", tableIndent) + strings.Join(parts, strings.Repeat(" ", cellGap))
+	indent := strings.Repeat(" ", tableIndent)
+	if marked {
+		indent = markGlyph + strings.Repeat(" ", tableIndent-1)
+	}
+
+	line := indent + strings.Join(parts, strings.Repeat(" ", cellGap))
 
 	return pad(truncate(line, t.width), t.width)
 }

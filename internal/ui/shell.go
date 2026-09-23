@@ -38,9 +38,7 @@ func (m Model) shell() (Model, tea.Cmd) {
 	}
 
 	if m.opts.Shell == nil {
-		m.err = fmt.Errorf("no shell: urga was started without a terminal")
-
-		return m, nil
+		return m.fail(fmt.Errorf("no shell: urga was started without a terminal")), nil
 	}
 
 	return m, m.opts.Shell.Open(shellCommand{

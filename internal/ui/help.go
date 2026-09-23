@@ -15,7 +15,7 @@ type helpSection struct {
 // generalHints are the keys that work on every screen.
 var generalHints = []hint{
 	{Key: "<:>", Description: "Command"},
-	{Key: "</>", Description: "Filter"},
+	{Key: "</>", Description: "Filter, <!> not, <-f > loosely"},
 	{Key: "<?>", Description: "Help"},
 	{Key: "<0-9>", Description: "Switch namespace"},
 	{Key: "<A-Z>", Description: "Sort by that column"},

@@ -273,9 +273,7 @@ func (m Model) commit() (Model, tea.Cmd) {
 
 	cmd, ok := parseCommand(input)
 	if !ok {
-		m.err = fmt.Errorf("no such resource: %s", firstWord(input))
-
-		return m, nil
+		return m.fail(fmt.Errorf("no such resource: %s", firstWord(input))), nil
 	}
 
 	if cmd.bail {
@@ -284,9 +282,7 @@ func (m Model) commit() (Model, tea.Cmd) {
 
 	if cmd.namespace != "" {
 		if !m.knowsNamespace(cmd.namespace) {
-			m.err = fmt.Errorf("no such namespace: %s", cmd.namespace)
-
-			return m, nil
+			return m.fail(fmt.Errorf("no such namespace: %s", cmd.namespace)), nil
 		}
 
 		m.namespace = cmd.namespace
@@ -364,9 +360,64 @@ func filterRows(rows []tableRow, filter string) ([]tableRow, []int) {
 	return kept, index
 }
 
-// matcher reads the filter as a pattern, and as plain text when it is not
-// one.
+// matchIn is where a filter matches in a line, or nil when it does not. An
+// empty match is nothing to light up.
+func matchIn(line, filter string) []int {
+	// A line kept because it does not say the word has nothing in it to
+	// light up, and the letters of a fuzzy filter sit all over it.
+	if strings.HasPrefix(filter, filterNot) || strings.HasPrefix(filter, filterFuzzy) {
+		return nil
+	}
+
+	rx, err := regexp.Compile("(?i)" + filter)
+	if err != nil {
+		at := strings.Index(strings.ToLower(line), strings.ToLower(filter))
+		if at < 0 || filter == "" {
+			return nil
+		}
+
+		return []int{at, at + len(filter)}
+	}
+
+	at := rx.FindStringIndex(line)
+	if at == nil || at[0] == at[1] {
+		return nil
+	}
+
+	return at
+}
+
+// How a filter can be written, after the way k9s writes them.
+const (
+	// filterNot keeps what does not say it.
+	filterNot = "!"
+
+	// filterFuzzy keeps what has the letters in that order, with anything
+	// between them.
+	filterFuzzy = "-f "
+)
+
+// matcher reads the filter: what to keep out, what to find loosely, and
+// otherwise a pattern, or plain text when the pattern does not compile.
 func matcher(filter string) func(string) bool {
+	if rest, ok := strings.CutPrefix(filter, filterNot); ok {
+		if rest == "" {
+			return everything
+		}
+
+		keep := matcher(rest)
+
+		return func(s string) bool { return !keep(s) }
+	}
+
+	if rest, ok := strings.CutPrefix(filter, filterFuzzy); ok {
+		return fuzzy(rest)
+	}
+
+	if filter == "" {
+		return everything
+	}
+
 	rx, err := regexp.Compile("(?i)" + filter)
 	if err != nil {
 		lower := strings.ToLower(filter)
@@ -375,4 +426,23 @@ func matcher(filter string) func(string) bool {
 	}
 
 	return rx.MatchString
+}
+
+func everything(string) bool { return true }
+
+// fuzzy keeps what carries the letters in that order, however far apart.
+func fuzzy(letters string) func(string) bool {
+	wanted := []rune(strings.ToLower(letters))
+
+	return func(s string) bool {
+		at := 0
+
+		for _, r := range strings.ToLower(s) {
+			if at < len(wanted) && r == wanted[at] {
+				at++
+			}
+		}
+
+		return at == len(wanted)
+	}
 }

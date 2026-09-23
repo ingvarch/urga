@@ -38,9 +38,8 @@ func (m Model) copyField() (Model, tea.Cmd) {
 	// The value is the second column on every screen of fields; a screen
 	// may carry more after it, like where the value came from.
 	field, value := row.cells[0], row.cells[1]
-	m.said = sprintf("Copied %s.", field)
 
-	return m, tea.SetClipboard(value)
+	return m.say(sprintf("Copied %s.", field)), tea.SetClipboard(value)
 }
 
 // fetchRaft asks what the raft of the cluster makes of its servers. An ACL

@@ -85,9 +85,7 @@ func (m Model) scaleGroup() (Model, tea.Cmd) {
 func (m Model) scaleTo(group, input string) (Model, tea.Cmd) {
 	count, err := strconv.Atoi(input)
 	if err != nil || count < 0 {
-		m.err = fmt.Errorf("%q is not a count", input)
-
-		return m, nil
+		return m.fail(fmt.Errorf("%q is not a count", input)), nil
 	}
 
 	client, screen := m.client, m.screen

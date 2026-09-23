@@ -30,6 +30,8 @@ const (
 	screenNodeVolumes
 	screenNodeAttributes
 	screenNodeMeta
+	screenJobVersions
+	screenTaskEvents
 	screenDescribe
 	screenLogs
 	screenTaskGroups
@@ -196,6 +198,9 @@ func (m Model) open() (Model, tea.Cmd) {
 	case screenNodeDrivers:
 		return m.openDriver()
 
+	case screenJobVersions:
+		return m.openVersionDiff()
+
 	case screenTasks:
 		return m.openLogs(nomad.LogStdout)
 
@@ -267,9 +272,10 @@ func (m Model) push(next screen) (Model, tea.Cmd) {
 func (m Model) stack(next screen) Model {
 	m.history = append(m.history, m.screen)
 	m.screen = next
-	m.err = nil
+	m = m.forget()
 	m.filter = ""
 	m.sort = newSortState()
+	m.marks = nil
 
 	return m
 }
@@ -285,7 +291,8 @@ func (m Model) back() (Model, tea.Cmd) {
 
 	m.screen = m.history[len(m.history)-1]
 	m.history = m.history[:len(m.history)-1]
-	m.err = nil
+	m = m.forget()
+	m.marks = nil
 
 	return m.arrive()
 }
@@ -306,7 +313,18 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m.sort = newSortState()
 	m.layout()
 
-	return m, m.fetch()
+	// A screen that can be opened by name shows the namespace of the
+	// session; one that was opened from another screen keeps the namespace
+	// it was opened for. The rows and the stream have to agree on which.
+	if m.screen.of().stored != "" {
+		m.screen.namespace = m.namespace
+	}
+
+	// What the screen that was left was watching is let go of: the new one
+	// watches what it shows, if the cluster will say.
+	m = m.endWatch()
+
+	return m, tea.Batch(m.fetch(), m.watch())
 }
 
 // stackText opens a screen that reads as text rather than as a list.

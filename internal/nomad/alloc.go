@@ -38,6 +38,20 @@ type Task struct {
 
 	Started  time.Time
 	Finished time.Time
+
+	// Events are what happened to the task, newest first: the client says
+	// what it did with it and why it stopped.
+	Events []TaskEvent
+}
+
+// TaskEvent is one thing that happened to a task.
+type TaskEvent struct {
+	Time    time.Time
+	Type    string
+	Message string
+
+	// Failed says this event is what took the task down.
+	Failed bool
 }
 
 // Allocations lists the allocations of a job. An empty job lists every
@@ -119,6 +133,33 @@ func newAlloc(stub *api.AllocationListStub) Alloc {
 	return alloc
 }
 
+// newTaskEvents puts the newest first, which is the one worth reading.
+func newTaskEvents(events []*api.TaskEvent) []TaskEvent {
+	out := make([]TaskEvent, 0, len(events))
+
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+
+		message := event.DisplayMessage
+		if message == "" {
+			message = event.Message
+		}
+
+		out = append(out, TaskEvent{
+			Time:    unixTime(event.Time),
+			Type:    event.Type,
+			Message: message,
+			Failed:  event.FailsTask,
+		})
+	}
+
+	sort.SliceStable(out, func(i, j int) bool { return out[i].Time.After(out[j].Time) })
+
+	return out
+}
+
 // newTasks puts the tasks in the order of their names. A map hands them over
 // in a different order every time, and the list would shuffle under the
 // cursor.
@@ -134,6 +175,7 @@ func newTasks(states map[string]*api.TaskState) []Task {
 			task.Restarts = int(state.Restarts)
 			task.Started = state.StartedAt
 			task.Finished = state.FinishedAt
+			task.Events = newTaskEvents(state.Events)
 		}
 
 		tasks = append(tasks, task)

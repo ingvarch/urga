@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -71,7 +72,7 @@ func TestNode_Eligibility(t *testing.T) {
 	m, client := nodeModel(t, readyNode())
 
 	m, _ = m.update(key('i'))
-	r.Contains(plain(m.render()), "stop giving new work to server-01")
+	r.Contains(plain(m.render()), "take new work from the client server-01")
 
 	_, cmd := answerYes(m)
 	drain(m, cmd)
@@ -119,4 +120,50 @@ func TestDeployment_Fail(t *testing.T) {
 	drain(m, cmd)
 
 	r.Equal(1, client.failed)
+}
+
+func TestNode_StoppingADrainMovesNothing(t *testing.T) {
+	r := require.New(t)
+
+	draining := []nomad.Node{{ID: "node-1", Name: "server-01", Status: "ready", Drain: true}}
+
+	m, _ := nodeModel(t, draining)
+	m, _ = m.update(ctrlKey('d'))
+
+	out := plain(m.render())
+
+	// Stopping a drain does not move anything; it stops the moving.
+	r.Contains(out, "stop draining the client server-01")
+	r.NotContains(out, "move elsewhere")
+}
+
+func TestNode_DrainingSaysWhereTheWorkGoes(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := nodeModel(t, readyNode())
+	m, _ = m.update(ctrlKey('d'))
+
+	r.Contains(plain(m.render()), "move elsewhere")
+}
+
+func TestNode_WhatWentWrongReadsAsASentence(t *testing.T) {
+	r := require.New(t)
+
+	nodes := []nomad.Node{
+		{ID: "node-1", Name: "server-01", Status: "ready", Eligibility: "eligible"},
+		{ID: "node-2", Name: "server-02", Status: "ready", Eligibility: "eligible"},
+	}
+
+	client := &fakeClient{nodes: nodes, actionErr: errors.New("Permission denied")}
+
+	m, _ := nodeModelOf(client)
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(key('i'))
+
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	// How far an action got is a sentence about the action, not a noun
+	// phrase built for a different one.
+	r.Contains(plain(m.render()), "took new work from 0 of 2")
 }

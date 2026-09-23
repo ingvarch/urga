@@ -14,11 +14,13 @@ import (
 var (
 	jobHints = []hint{
 		{Key: "<enter>", Description: "Allocations"},
+		{Key: "<space>", Description: "Mark"},
 		{Key: "<t>", Description: "Task groups"},
 		{Key: "<d>", Description: "Describe"},
 		{Key: "<h>", Description: "Job spec"},
 		{Key: "<ctrl-s>", Description: "Start or stop"},
 		{Key: "<u>", Description: "Revert"},
+		{Key: "<v>", Description: "Versions"},
 		{Key: "<e>", Description: "Edit"},
 	}
 
@@ -27,6 +29,8 @@ var (
 		{Key: "<d>", Description: "Describe"},
 		{Key: "<r>", Description: "Restart"},
 		{Key: "<ctrl-k>", Description: "Stop"},
+		{Key: "<space>", Description: "Mark"},
+		{Key: "<ctrl-a>", Description: "Mark all"},
 	}
 
 	serverHints = []hint{{Key: "<enter>", Description: "Details"}}
@@ -34,6 +38,13 @@ var (
 	fieldHints = []hint{{Key: "<c>", Description: "Copy the value"}}
 
 	describeHints = []hint{{Key: "<d>", Description: "Describe"}}
+
+	// textHints are the keys of a screen that reads as text rather than as
+	// a list.
+	textHints = []hint{
+		{Key: "<w>", Description: "Wrap lines"},
+		{Key: "<ctrl-s>", Description: "Save"},
+	}
 
 	namespaceHints = []hint{{Key: "<e>", Description: "Edit"}}
 )
@@ -62,6 +73,11 @@ type resource struct {
 	// can do different things with them.
 	hintsFor func(s screen) []hint
 
+	// topics are what the cluster is asked to say about: a change in one of
+	// them is this screen no longer being what it shows. A screen with none
+	// is asked on its own.
+	topics []string
+
 	// cluster says the screen holds what belongs to the cluster rather than
 	// to a namespace, so its title carries no namespace.
 	cluster bool
@@ -69,6 +85,11 @@ type resource struct {
 	// fields says the screen reads as a list of fields, where a row is a
 	// name and the value behind it rather than a resource.
 	fields bool
+
+	// ids name the resources of the screen, one per row, so that a mark
+	// belongs to the resource and not to the line it sits on. A screen
+	// whose rows answer no action of their own leaves it nil.
+	ids func(m Model) []string
 
 	// readings are the resources whose usage the rows show, and reading is
 	// how one of them is read. A screen without readings leaves both nil.
@@ -95,6 +116,8 @@ var resources = map[screenKind]resource{
 		aliases: []string{"jobs", "job", "jb"},
 		titles:  jobTitles,
 		hints:   jobHints,
+		ids:     jobIDs,
+		topics:  []string{nomad.TopicJob},
 		fetch: func(m Model) tea.Cmd {
 			client, namespace := m.client, m.namespace
 
@@ -109,6 +132,8 @@ var resources = map[screenKind]resource{
 		aliases: []string{"allocations", "allocation", "allocs", "alloc"},
 		titles:  allocTitles,
 		hints:   allocHints,
+		ids:     allocIDs,
+		topics:  []string{nomad.TopicAllocation},
 
 		// The allocations of a client sit on the screen of that client,
 		// which answers for the machine as well as for the work on it.
@@ -209,6 +234,7 @@ var resources = map[screenKind]resource{
 		aliases: []string{"deployments", "deployment", "dp"},
 		titles:  deploymentTitles,
 		hints:   deploymentHints,
+		topics:  []string{nomad.TopicDeployment},
 		fetch: func(m Model) tea.Cmd {
 			client, namespace := m.client, m.namespace
 
@@ -238,6 +264,7 @@ var resources = map[screenKind]resource{
 		aliases: []string{"services", "service", "svc"},
 		titles:  serviceTitles,
 		hints:   describeHints,
+		topics:  []string{nomad.TopicService},
 		fetch: func(m Model) tea.Cmd {
 			client, namespace := m.client, m.namespace
 
@@ -253,6 +280,7 @@ var resources = map[screenKind]resource{
 		stored:  "evaluations",
 		aliases: []string{"evaluations", "evaluation", "evals", "eval", "ev"},
 		titles:  evaluationTitles,
+		topics:  []string{nomad.TopicEvaluation},
 		fetch: func(m Model) tea.Cmd {
 			client, namespace := m.client, m.namespace
 
@@ -271,6 +299,8 @@ var resources = map[screenKind]resource{
 		aliases: []string{"clients", "client", "nodes", "node", "no"},
 		titles:  nodeTitles,
 		hints:   nodeHints,
+		ids:     nodeIDs,
+		topics:  []string{nomad.TopicNode},
 		cluster: true,
 
 		readings: func(m Model) []rowRef {
@@ -312,6 +342,7 @@ var resources = map[screenKind]resource{
 		stored:  "nodepools",
 		aliases: []string{"nodepools", "nodepool", "np"},
 		titles:  nodePoolTitles,
+		topics:  []string{nomad.TopicNodePool},
 		cluster: true,
 		fetch: func(m Model) tea.Cmd {
 			return fetchList(m.client.NodePools, func(items []nomad.NodePool) tea.Msg { return nodePoolsMsg(items) })
@@ -429,7 +460,36 @@ var resources = map[screenKind]resource{
 		rows:  func(m Model) []tableRow { return metaRows(m.nodeMeta) },
 	},
 
+	screenTaskEvents: {
+		titles: taskEventTitles,
+
+		title: func(m Model, count int) string {
+			return sprintf("Events (Task: %s) [%d]", m.screen.task, count)
+		},
+		rows: func(m Model) []tableRow { return taskEventRows(m.taskEvents()) },
+	},
+
+	screenJobVersions: {
+		titles: versionTitles,
+		hints:  versionHints,
+
+		title: func(m Model, count int) string {
+			return sprintf("Versions (Job: %s) [%d]", m.screen.jobID, count)
+		},
+		fetch: func(m Model) tea.Cmd {
+			client, screen := m.client, m.screen
+
+			return fetchList(func(ctx context.Context) ([]nomad.JobVersion, error) {
+				return client.JobVersions(ctx, screen.namespace, screen.jobID)
+			}, func(items []nomad.JobVersion) tea.Msg {
+				return versionsMsg{jobID: screen.jobID, versions: items}
+			})
+		},
+		rows: func(m Model) []tableRow { return versionRows(m.versions) },
+	},
+
 	screenDescribe: {
+		hints: textHints,
 		title: func(m Model, _ int) string { return m.screen.label },
 	},
 

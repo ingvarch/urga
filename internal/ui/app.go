@@ -40,6 +40,9 @@ type Client interface {
 	StartJob(ctx context.Context, namespace, jobID string) error
 	StopJob(ctx context.Context, namespace, jobID string) error
 	RevertJob(ctx context.Context, namespace, jobID string) error
+	JobVersions(ctx context.Context, namespace, jobID string) ([]nomad.JobVersion, error)
+	JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) (string, error)
+	RevertJobTo(ctx context.Context, namespace, jobID string, version uint64) error
 	ScaleJob(ctx context.Context, namespace, jobID, group string, count int) error
 	RestartAllocation(ctx context.Context, namespace, allocID string) error
 	StopAllocation(ctx context.Context, namespace, allocID string) error
@@ -62,6 +65,7 @@ type Client interface {
 	Variables(ctx context.Context, namespace string) ([]nomad.Variable, error)
 	NodePools(ctx context.Context) ([]nomad.NodePool, error)
 	Servers(ctx context.Context) ([]nomad.Server, error)
+	Events(ctx context.Context, namespace string, topics []string) (*nomad.Changes, error)
 	Server(ctx context.Context, name string) (nomad.Server, error)
 	RaftPeers(ctx context.Context) ([]nomad.RaftPeer, error)
 }
@@ -123,6 +127,13 @@ type (
 	serverMsg      nomad.Server
 	nodeDetailMsg  nomad.NodeDetail
 
+	// versionsMsg carries the job it was asked of: version numbers belong
+	// to one job, and the ones of another must not stand under its name.
+	versionsMsg struct {
+		jobID    string
+		versions []nomad.JobVersion
+	}
+
 	// nodeMetaMsg carries the machine it was asked of, like every answer
 	// that belongs to one client.
 	nodeMetaMsg struct {
@@ -167,8 +178,9 @@ type Model struct {
 	confirm confirmModel
 	filter  string
 
-	// said is what came of the last action.
-	said string
+	// flash is the one thing the status line has to say: what came of an
+	// action, something worth knowing, or something that went wrong.
+	flash flash
 
 	// editing is the file that is open in the editor.
 	editing editFileMsg
@@ -179,6 +191,10 @@ type Model struct {
 
 	// sort is the column the list is ordered by.
 	sort sortState
+
+	// marks are the resources of the open screen that an action is to take,
+	// by the ids the screen names them with.
+	marks map[string]bool
 
 	// troubled leaves only what the cluster is not happy with.
 	troubled bool
@@ -201,6 +217,7 @@ type Model struct {
 	nodes       []nomad.Node
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
+	versions    []nomad.JobVersion
 	servers     []nomad.Server
 
 	// host is the machine a client screen is open on, hostTrail the
@@ -226,6 +243,26 @@ type Model struct {
 	stream    *nomad.LogStream
 	following bool
 
+	// watchID counts the streams this session has opened, so that an answer
+	// from one that was let go of does not touch the one that is up.
+	watchID int
+
+	// refused says the cluster has already turned the stream down and been
+	// said so about: every screen asks again, and every screen is refused.
+	refused bool
+
+	// polling says a timer is already on its way with the next ask. Every
+	// answer would otherwise schedule one, and a screen that is answered
+	// from several sides would end up with a timer per answer.
+	polling bool
+
+	// changes is the cluster saying when what the screen shows changed,
+	// watching that it agreed to, and settling a burst of them waiting to
+	// be asked about.
+	changes  *nomad.Changes
+	watching bool
+	settling bool
+
 	nomadVersion string
 	usage        nomad.Usage
 
@@ -234,7 +271,6 @@ type Model struct {
 	rowUsage     map[string]nomad.ResourceUse
 	missingUsage int
 	usageReason  error
-	err          error
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -262,6 +298,7 @@ func (m Model) Init() tea.Cmd {
 
 	return tea.Batch(
 		m.fetch(),
+		m.watch(),
 		fetchVersion(client),
 		fetchClusterUsage(client),
 		fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
@@ -271,7 +308,15 @@ func (m Model) Init() tea.Cmd {
 // Update is the entry for every message. It keeps the concrete model, the
 // interface method wraps it.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	before := m.flash.at
+
 	next, cmd := m.update(msg)
+
+	// A message that has just been put up asks for the redraw that will
+	// take it down again.
+	if next.flash.text != "" && next.flash.at != before {
+		cmd = tea.Batch(cmd, flashTimer(next.flash.at))
+	}
 
 	return next, cmd
 }
@@ -285,8 +330,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyPressMsg:
-		m.said = ""
-
 		return m.handleKey(msg)
 
 	case jobsMsg:
@@ -359,9 +402,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case errMsg:
 		// The rows that are on the screen stay there. An empty table reads as
 		// an empty cluster.
-		m.err = msg.err
-
-		return m, m.schedulePoll()
+		return m.fail(msg.err).schedulePoll()
 
 	case describeMsg:
 		return m.showDescribe(msg)
@@ -374,14 +415,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case shellDoneMsg:
 		if msg.err != nil {
-			m.err = msg.err
-
-			return m, nil
+			return m.fail(msg.err), nil
 		}
 
-		m.said = fmt.Sprintf("Shell in %s closed.", msg.task)
-
-		return m, nil
+		return m.say(fmt.Sprintf("Shell in %s closed.", msg.task)), nil
 
 	case logStreamMsg:
 		m.stream = msg.stream
@@ -400,18 +437,31 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m, nil
 
-	case doneMsg:
-		if msg.err != nil {
-			m.err = msg.err
+	case savedMsg:
+		return m.say(fmt.Sprintf("Saved to %s.", msg.path)), nil
 
-			return m, nil
+	case doneMsg:
+		// What did not happen stays marked, so the same key tries it again;
+		// what did happen is let go of, so the key does not undo it.
+		m.marks = msg.kept
+
+		if msg.err != nil {
+			m = m.fail(msg.err)
+		} else {
+			m = m.say(msg.said)
 		}
 
-		m.err = nil
-		m.said = msg.said
+		m.layout()
 
 		// The list is stale the moment the cluster changed, ask again.
 		return m, m.fetch()
+
+	case versionsMsg:
+		if m.screen.jobID != msg.jobID {
+			return m, nil
+		}
+
+		return m.applyList(screenJobVersions, func(m *Model) { m.versions = msg.versions })
 
 	case nodeDetailMsg:
 		// The answer belongs to the machine it was asked of: leaving one
@@ -421,10 +471,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		m.nodeDetail = nomad.NodeDetail(msg)
-		m.err = nil
+		m = m.forget()
 		m.layout()
 
-		return m, m.schedulePoll()
+		return m.schedulePoll()
 
 	case nodeMetaMsg:
 		if m.screen.nodeID != msg.nodeID {
@@ -439,10 +489,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		m.server = nomad.Server(msg)
-		m.err = nil
+		m = m.forget()
 		m.layout()
 
-		return m, m.schedulePoll()
+		return m.schedulePoll()
 
 	case raftMsg:
 		m.raft, m.raftErr = msg.peers, msg.err
@@ -462,7 +512,39 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case hostUseMsg:
 		return m.keepHostUse(msg), nil
 
+	case watchingMsg:
+		return m.startWatching(msg)
+
+	case changeMsg:
+		if !m.current(msg.id) {
+			return m, nil
+		}
+
+		return m.keepChange()
+
+	case settleMsg:
+		m.settling = false
+
+		return m, m.fetch()
+
+	case flashOverMsg:
+		return m.clearFlash(msg), nil
+
+	case watchEndedMsg:
+		// A cluster that will not stream is one urga asks on its own, which
+		// is what it did before. Nothing about that belongs over the rows,
+		// and the timer it already has goes on without help.
+		if !m.current(msg.id) {
+			return m, nil
+		}
+
+		return m.endWatch().noteWatchEnded(msg.err), nil
+
 	case pollMsg:
+		// The timer has fired and there is room for the next one, which the
+		// answer to this ask will set.
+		m.polling = false
+
 		return m, m.fetch()
 	}
 
@@ -477,10 +559,10 @@ func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
 	}
 
 	store(&m)
-	m.err = nil
+	m = m.forget()
 	m.layout()
 
-	return m, m.schedulePoll()
+	return m.schedulePoll()
 }
 
 // handleKey is the one place that decides who gets a key press: an overlay
@@ -488,6 +570,12 @@ func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
 func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	if m.overlay != overlayNone {
 		return m.overlayKey(msg)
+	}
+
+	if m.readsAsText() {
+		if next, cmd, handled := m.textKey(msg); handled {
+			return next, cmd
+		}
 	}
 
 	if m.screen.kind == screenLogs {
@@ -541,9 +629,12 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	case "e":
 		// The same key opens the events of a client and edits what can be
 		// edited, because a screen never offers both.
-		if m.screen.isClient() {
+		switch {
+		case m.screen.isClient():
 			next, cmd = m.openNodeScreen(screenNodeEvents)
-		} else {
+		case m.screen.kind == screenTasks:
+			next, cmd = m.openTaskEvents()
+		default:
 			next, cmd = m.edit()
 		}
 
@@ -560,7 +651,16 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		}
 
 	case "u":
-		next, cmd = m.revertJob()
+		// The list of jobs reverts to the version before the one that runs;
+		// the list of versions reverts to the one under the cursor.
+		if m.screen.kind == screenJobVersions {
+			next, cmd = m.revertToVersion()
+		} else {
+			next, cmd = m.revertJob()
+		}
+
+	case "v":
+		next, cmd = m.openVersions()
 
 	case "r":
 		next, cmd = m.restartAllocation()
@@ -603,6 +703,12 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 
 	case "c":
 		next, cmd = m.copyField()
+
+	case "space":
+		next, cmd = m.mark()
+
+	case "ctrl+a":
+		next, cmd = m.markAll()
 
 	case "ctrl+e":
 		next, cmd = m.openLogs(nomad.LogStderr)
@@ -768,12 +874,8 @@ func (m Model) body(width int) (title, content string) {
 func (m Model) status() string {
 	width := m.width - 2*headerPadX
 
-	if m.err != nil {
-		return styleError.Render(truncate("! "+m.err.Error(), width))
-	}
-
-	if m.said != "" {
-		return styleValue.Render(truncate(m.said, width))
+	if m.flash.fresh() {
+		return m.flash.view(width)
 	}
 
 	if m.troubled {
@@ -827,11 +929,20 @@ func (m *Model) layout() {
 	m.shown = len(rows)
 
 	m.index = index
+	m.showMarks(rows)
 	m.table.show(rows, m.sort)
 }
 
-func (m Model) schedulePoll() tea.Cmd {
-	return tea.Tick(m.opts.PollEvery, func(time.Time) tea.Msg { return pollMsg{} })
+// schedulePoll asks for the next poll, unless one is already on its way.
+// The caller keeps the model it is given: the promise to poll lives in it.
+func (m Model) schedulePoll() (Model, tea.Cmd) {
+	if m.polling {
+		return m, nil
+	}
+
+	m.polling = true
+
+	return m, tea.Tick(m.pollEvery(), func(time.Time) tea.Msg { return pollMsg{} })
 }
 
 // percentOf is a reading of the cluster, empty until there is one.
