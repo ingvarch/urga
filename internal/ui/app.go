@@ -387,18 +387,11 @@ func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
 	return m, m.schedulePoll()
 }
 
-// handleKey is the one place that decides who gets a key press. An overlay
-// answers first and the screen never sees the key.
+// handleKey is the one place that decides who gets a key press: an overlay
+// first, then the way around the screen, then what the resource can do.
 func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
-	switch m.overlay {
-	case overlayPrompt, overlayFilter, overlayScale:
-		return m.promptKey(msg)
-
-	case overlayHelp:
-		return m.helpKey(msg)
-
-	case overlayConfirm:
-		return m.confirmKey(msg)
+	if m.overlay != overlayNone {
+		return m.overlayKey(msg)
 	}
 
 	if m.screen.kind == screenLogs {
@@ -411,52 +404,101 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return next, nil
 	}
 
+	if next, cmd, handled := m.resourceKey(msg); handled {
+		return next, cmd
+	}
+
+	return m.sessionKey(msg)
+}
+
+// overlayKey hands the key to whatever took the keyboard.
+func (m Model) overlayKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
+	switch m.overlay {
+	case overlayPrompt, overlayFilter, overlayScale:
+		return m.promptKey(msg)
+
+	case overlayHelp:
+		return m.helpKey(msg)
+
+	case overlayConfirm:
+		return m.confirmKey(msg)
+	}
+
+	return m, nil
+}
+
+// resourceKey is what the open resource can do. Each of these looks at the
+// row under the cursor and does nothing when the screen is not its own.
+func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
+	var (
+		next Model
+		cmd  tea.Cmd
+	)
+
+	switch msg.String() {
+	case "enter":
+		next, cmd = m.open()
+
+	case "ctrl+s":
+		next, cmd = m.startStopJob()
+
+	case "e":
+		next, cmd = m.edit()
+
+	case "t":
+		next, cmd = m.openTaskGroups()
+
+	case "s":
+		// The same key scales a task group and opens a shell in a task,
+		// because a screen never offers both.
+		if m.screen.kind == screenTasks {
+			next, cmd = m.shell()
+		} else {
+			next, cmd = m.scaleGroup()
+		}
+
+	case "u":
+		next, cmd = m.revertJob()
+
+	case "r":
+		next, cmd = m.restartAllocation()
+
+	case "ctrl+k":
+		next, cmd = m.stopAllocation()
+
+	case "ctrl+d":
+		next, cmd = m.drainNode()
+
+	case "i":
+		next, cmd = m.toggleEligibility()
+
+	case "p":
+		next, cmd = m.promoteDeployment()
+
+	case "f":
+		next, cmd = m.failDeployment()
+
+	case "d":
+		next, cmd = m, m.describeCmd()
+
+	case "h":
+		next, cmd = m, m.jobSpecCmd()
+
+	case "ctrl+e":
+		next, cmd = m.openLogs(nomad.LogStderr)
+
+	default:
+		return m, nil, false
+	}
+
+	return next, cmd, true
+}
+
+// sessionKey is what works on every screen.
+func (m Model) sessionKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
-
-	case "ctrl+s":
-		return m.startStopJob()
-
-	case "e":
-		return m.edit()
-
-	case "t":
-		return m.openTaskGroups()
-
-	case "s":
-		if m.screen.kind == screenTasks {
-			return m.shell()
-		}
-
-		return m.scaleGroup()
-
-	case "u":
-		return m.revertJob()
-
-	case "r":
-		return m.restartAllocation()
-
-	case "ctrl+k":
-		return m.stopAllocation()
-
-	case "ctrl+d":
-		return m.drainNode()
-
-	case "i":
-		return m.toggleEligibility()
-
-	case "p":
-		return m.promoteDeployment()
-
-	case "f":
-		return m.failDeployment()
-
-	case "d":
-		return m, m.describeCmd()
-
-	case "h":
-		return m, m.jobSpecCmd()
 
 	case ":":
 		return m.openPrompt(promptPrefix)
@@ -474,12 +516,6 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		m.layout()
 
 		return m, nil
-
-	case "enter":
-		return m.open()
-
-	case "ctrl+e":
-		return m.openLogs(nomad.LogStderr)
 
 	case "esc":
 		return m.back()
@@ -550,22 +586,7 @@ func (m Model) render() string {
 		parts = append(parts, indent(m.prompt.view(width), screenPadX))
 	}
 
-	body := m.table.view()
-	title := m.title()
-
-	if m.screen.kind == screenDescribe || m.screen.kind == screenLogs {
-		body = m.text.view()
-	}
-
-	if m.overlay == overlayHelp {
-		body = renderHelp(m.helpSections(), width-2)
-		title = "Help"
-	}
-
-	if m.overlay == overlayConfirm {
-		body = m.confirm.view(width - 2)
-		title = "Confirm"
-	}
+	title, body := m.body(width - 2)
 
 	parts = append(parts,
 		indent(frame(title, body, width, m.bodyHeight()), screenPadX),
@@ -586,6 +607,23 @@ func (m Model) headerData() header {
 		namespaces:   m.namespaceColumnData(),
 		hints:        m.screen.hints(),
 	}
+}
+
+// body is what fills the box: what took the screen, or what the screen
+// shows.
+func (m Model) body(width int) (title, content string) {
+	switch {
+	case m.overlay == overlayHelp:
+		return "Help", renderHelp(m.helpSections(), width)
+
+	case m.overlay == overlayConfirm:
+		return "Confirm", m.confirm.view(width)
+
+	case m.readsAsText():
+		return m.title(), m.text.view()
+	}
+
+	return m.title(), m.table.view()
 }
 
 func (m Model) status() string {
