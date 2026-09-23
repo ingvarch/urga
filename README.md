@@ -77,8 +77,9 @@ switches the namespace with it, as in `jobs production`. `q` leaves.
 the list the open screen came from; the datacenter goes back to all of them.
 `dc dc2` narrows the jobs, the clients, the servers and the CPU and memory in
 the header to one datacenter, `dc all` brings every one of them back. Either
-word on its own says which there are. The header shows both under the
-address.
+word on its own opens a list of them with the one in use marked: `enter`
+switches to the one under the cursor, `esc` leaves things as they were. The
+header shows both under the address.
 
 | Key | What it does |
 | --- | --- |

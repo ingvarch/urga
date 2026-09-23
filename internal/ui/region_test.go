@@ -278,14 +278,73 @@ func TestRegionCommand_ARegionTheClusterDoesNotKnow(t *testing.T) {
 	r.Empty(m.client.Region())
 }
 
-func TestRegionCommand_SaysWhichRegionsThereAre(t *testing.T) {
+func TestRegionCommand_OpensTheRegions(t *testing.T) {
 	r := require.New(t)
 
-	m := regionalModel(t, &fakeClient{})
+	client := &fakeClient{region: "eu", jobs: twoJobs(), regions: []string{"eu", "us"}}
+	m := regionalModel(t, client)
 
-	m, _ = runLine(m, "region")
+	m, cmd := runLine(m, "region")
+	m = drain(m, cmd)
 
-	r.Contains(plain(m.render()), "Regions: eu, us.")
+	// Every region on a list to pick from, the one in use marked.
+	r.Equal(screenRegions, m.screen.kind)
+
+	out := plain(m.render())
+	r.Contains(out, "Regions [2]")
+	r.Regexp(`eu\s+in use`, out)
+	r.Contains(out, "us")
+}
+
+func TestRegions_EnterSwitchesToTheRegion(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{region: "eu", jobs: twoJobs(), regions: []string{"eu", "us"}}
+	m := regionalModel(t, client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, cmd := runLine(m, "region")
+	m = drain(m, cmd)
+
+	m, _ = m.update(down())
+	m, _ = m.update(enter())
+
+	// The list it was opened from comes back, asked in the new region.
+	r.Equal("us", m.client.Region())
+	r.Equal(screenJobs, m.screen.kind)
+	r.Empty(m.history)
+}
+
+func TestRegions_TheOneInUseGoesBack(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{region: "eu", jobs: twoJobs(), regions: []string{"eu", "us"}}
+	m := regionalModel(t, client)
+
+	m, cmd := runLine(m, "region")
+	m = drain(m, cmd)
+
+	m, _ = m.update(enter())
+
+	// Nothing to switch, and nothing to stay on the list for either.
+	r.Equal("eu", m.client.Region())
+	r.Equal(screenJobs, m.screen.kind)
+}
+
+func TestRegions_EscapeKeepsTheRegion(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{region: "eu", regions: []string{"eu", "us"}}
+	m := regionalModel(t, client)
+
+	m, cmd := runLine(m, "region")
+	m = drain(m, cmd)
+
+	m, _ = m.update(down())
+	m, _ = m.update(escape())
+
+	r.Equal("eu", m.client.Region())
+	r.Equal(screenJobs, m.screen.kind)
 }
 
 func TestRegionCommand_WithoutAWayToSwitch(t *testing.T) {
@@ -339,15 +398,66 @@ func TestDatacenterCommand_ADatacenterTheRegionDoesNotHave(t *testing.T) {
 	r.Empty(m.datacenter)
 }
 
-func TestDatacenterCommand_SaysWhichDatacentersThereAre(t *testing.T) {
+func TestDatacenterCommand_OpensTheDatacenters(t *testing.T) {
 	r := require.New(t)
 
-	m := newTestModel(&fakeClient{})
-	m, _ = m.update(datacentersMsg{names: []string{"dc1", "dc2"}})
+	m := newTestModel(&fakeClient{datacenters: []string{"dc1", "dc2"}})
 
-	m, _ = runLine(m, "dc")
+	m, cmd := runLine(m, "dc")
+	m = drain(m, cmd)
 
-	r.Contains(plain(m.render()), "Datacenters: dc1, dc2.")
+	r.Equal(screenDatacenters, m.screen.kind)
+
+	// Every one of them is a choice of its own, and the one in use while
+	// none was chosen.
+	out := plain(m.render())
+	r.Contains(out, "Datacenters [3]")
+	r.Regexp(`all\s+in use`, out)
+	r.Contains(out, "dc1")
+	r.Contains(out, "dc2")
+}
+
+func TestDatacenters_EnterNarrowsTheScreenItCameFrom(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs: []nomad.Job{
+			{ID: "web", Datacenters: []string{"dc1"}},
+			{ID: "api", Datacenters: []string{"dc2"}},
+		},
+		datacenters: []string{"dc1", "dc2"},
+	}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(client.jobs))
+
+	m, cmd := runLine(m, "dc")
+	m = drain(m, cmd)
+
+	m, _ = m.update(down())
+	m, cmd = m.update(enter())
+
+	r.Equal("dc1", m.datacenter)
+	r.Equal(screenJobs, m.screen.kind)
+
+	m = drain(m, cmd)
+
+	r.Equal([]string{"web"}, idsOf(m.jobs, func(j nomad.Job) string { return j.ID }))
+	r.Equal("dc1", client.usageDatacenter)
+}
+
+func TestDatacenters_AllBringsEveryOneBack(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{datacenters: []string{"dc1", "dc2"}})
+	m.datacenter = "dc1"
+
+	m, cmd := runLine(m, "dc")
+	m = drain(m, cmd)
+
+	m, _ = m.update(enter())
+
+	r.Empty(m.datacenter)
+	r.Contains(headerOf(m), "DC:        all")
 }
 
 func TestInRegionOf_AsksTheClusterInThatRegion(t *testing.T) {

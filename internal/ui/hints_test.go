@@ -107,6 +107,15 @@ func everyScreen(t *testing.T) map[string]Model {
 	events, _ := open["tasks"].update(key('e'))
 	open["taskevents"] = events
 
+	// The lists a region and a datacenter are picked from.
+	regions, _ := jobs.update(regionsMsg([]string{"eu", "us"}))
+	regions, _ = runLine(regions, "region")
+	open["regions"] = regions
+
+	datacenters, _ := jobs.update(datacentersMsg{names: []string{"dc1"}})
+	datacenters, _ = runLine(datacenters, "dc")
+	open["datacenters"] = datacenters
+
 	return open
 }
 

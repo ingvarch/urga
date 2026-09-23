@@ -35,6 +35,8 @@ const (
 	screenDescribe
 	screenLogs
 	screenTaskGroups
+	screenRegions
+	screenDatacenters
 )
 
 // screen is what is open: the resource and what it was opened for. The
@@ -232,6 +234,12 @@ func (m Model) open() (Model, tea.Cmd) {
 
 	case screenNodeDrivers:
 		return m.openDriver()
+
+	case screenRegions:
+		return m.chooseRegion()
+
+	case screenDatacenters:
+		return m.chooseDatacenter()
 
 	case screenJobVersions:
 		return m.openVersionDiff()

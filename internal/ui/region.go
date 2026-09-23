@@ -31,28 +31,96 @@ func InRegionOf(client *nomad.Client) func(region string) Client {
 	return func(region string) Client { return client.InRegion(region) }
 }
 
-// regionCommand switches to a region by name, or says which there are.
+// regionCommand switches to a region by name, or opens the list of them to
+// pick one from.
 func (m Model) regionCommand(name string) (Model, tea.Cmd) {
-	return m.pick(name, m.regions, "region", "Regions", Model.switchRegion)
+	if name == "" {
+		return m.show(screenRegions)
+	}
+
+	return m.pick(name, m.regions, "region", Model.switchRegion)
 }
 
 // datacenterCommand narrows the session to a datacenter, or to every one of
-// them again, or says which there are.
+// them again, or opens the list of them to pick one from.
 func (m Model) datacenterCommand(name string) (Model, tea.Cmd) {
-	if name == everyDatacenter {
+	switch name {
+	case "":
+		return m.show(screenDatacenters)
+
+	case everyDatacenter:
 		return m.switchDatacenter("")
 	}
 
-	return m.pick(name, m.datacenters, "datacenter", "Datacenters", Model.switchDatacenter)
+	return m.pick(name, m.datacenters, "datacenter", Model.switchDatacenter)
 }
 
-// pick reads the name a scope was given: no name lists what there is, and a
-// name the cluster does not know is turned down with the ones it does.
-func (m Model) pick(name string, known []string, kind, kinds string, to func(Model, string) (Model, tea.Cmd)) (Model, tea.Cmd) {
-	if name == "" {
-		return m.say(fmt.Sprintf("%s: %s.", kinds, listed(known))), nil
+// chooseRegion switches to the region under the cursor. The one in use has
+// nothing to switch, and the list goes back to where it was opened from.
+func (m Model) chooseRegion() (Model, tea.Cmd) {
+	region, ok := selectedOf(m, screenRegions, m.regions)
+	if !ok {
+		return m, nil
 	}
 
+	if region == m.regionInUse() {
+		return m.back()
+	}
+
+	return m.switchRegion(region)
+}
+
+// chooseDatacenter narrows the screen the list was opened from to the
+// datacenter under the cursor.
+func (m Model) chooseDatacenter() (Model, tea.Cmd) {
+	choice, ok := selectedOf(m, screenDatacenters, m.datacenterChoices())
+	if !ok {
+		return m, nil
+	}
+
+	datacenter := choice
+	if choice == everyDatacenter {
+		datacenter = ""
+	}
+
+	if datacenter == m.datacenter {
+		return m.back()
+	}
+
+	return m.narrow(datacenter, Model.back)
+}
+
+// datacenterChoices are what the list of datacenters offers: every one of
+// them at once, then each of them.
+func (m Model) datacenterChoices() []string {
+	return append([]string{everyDatacenter}, m.datacenters...)
+}
+
+// choiceTitles are the columns of a list a region or a datacenter is
+// picked from.
+var choiceTitles = []string{"Name", ""}
+
+// choiceRows are the names to pick from, the one in use marked.
+func choiceRows(names []string, inUse string) []tableRow {
+	rows := make([]tableRow, 0, len(names))
+
+	for _, name := range names {
+		row := tableRow{cells: []string{name, ""}}
+
+		if name == inUse {
+			row.cells[1] = "in use"
+			row.color = colorTitle
+		}
+
+		rows = append(rows, row)
+	}
+
+	return rows
+}
+
+// pick switches to a name the cluster knows, and turns down one it does not
+// with the ones it does.
+func (m Model) pick(name string, known []string, kind string, to func(Model, string) (Model, tea.Cmd)) (Model, tea.Cmd) {
 	if !slices.Contains(known, name) {
 		return m.fail(fmt.Errorf("no such %s: %s (%s)", kind, name, listed(known))), nil
 	}
@@ -93,10 +161,16 @@ func (m Model) switchDatacenter(datacenter string) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	return m.narrow(datacenter, Model.enter)
+}
+
+// narrow points the lists and the header at a datacenter, and puts up the
+// screen that show gives.
+func (m Model) narrow(datacenter string, show func(Model) (Model, tea.Cmd)) (Model, tea.Cmd) {
 	m.datacenter = datacenter
 	m.usage = nomad.Usage{}
 
-	next, cmd := m.enter()
+	next, cmd := show(m)
 
 	return next, tea.Batch(cmd, next.fetchClusterUsage())
 }

@@ -47,6 +47,10 @@ var (
 	}
 
 	namespaceHints = []hint{{Key: "<e>", Description: "Edit"}}
+
+	// choiceHints are the keys of a list a region or a datacenter is
+	// picked from.
+	choiceHints = []hint{{Key: "<enter>", Description: "Switch"}}
 )
 
 // resource is everything a screen knows about itself: what it is called, what
@@ -486,6 +490,26 @@ var resources = map[screenKind]resource{
 			})
 		},
 		rows: func(m Model) []tableRow { return versionRows(m.versions) },
+	},
+
+	// The lists a region and a datacenter are picked from. The words that
+	// switch them open them, so they have no alias of their own.
+	screenRegions: {
+		name:    "Regions",
+		titles:  choiceTitles,
+		hints:   choiceHints,
+		cluster: true,
+		fetch:   func(m Model) tea.Cmd { return fetchRegions(m.client) },
+		rows:    func(m Model) []tableRow { return choiceRows(m.regions, m.regionInUse()) },
+	},
+
+	screenDatacenters: {
+		name:    "Datacenters",
+		titles:  choiceTitles,
+		hints:   choiceHints,
+		cluster: true,
+		fetch:   func(m Model) tea.Cmd { return fetchDatacenters(m.client) },
+		rows:    func(m Model) []tableRow { return choiceRows(m.datacenterChoices(), orEvery(m.datacenter)) },
 	},
 
 	screenDescribe: {

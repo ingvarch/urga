@@ -423,17 +423,21 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case regionsMsg:
+		// Kept whatever is on the screen: the command line checks a name
+		// against them.
 		m.regions = msg
 
-		return m, nil
+		return m.applyList(screenRegions, func(*Model) {})
 
 	case datacentersMsg:
 		// The names belong to the region they were asked in.
-		if msg.region == m.client.Region() {
-			m.datacenters = msg.names
+		if msg.region != m.client.Region() {
+			return m, nil
 		}
 
-		return m, nil
+		m.datacenters = msg.names
+
+		return m.applyList(screenDatacenters, func(*Model) {})
 
 	case usageMsg:
 		if msg.region == m.client.Region() && msg.datacenter == m.datacenter {
