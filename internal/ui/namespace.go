@@ -6,18 +6,15 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
 )
-
-// namespaceKeys is how many namespaces the number keys reach. The rest are
-// reached through the command line.
-const namespaceKeys = 9
 
 // rememberNamespaces keeps the order the keys were handed out in. A cluster
 // that answers in another order must not renumber them under the fingers.
 func (m *Model) rememberNamespaces(list []nomad.Namespace) {
 	for _, ns := range list {
-		if len(m.namespaceOrder) >= namespaceKeys {
+		if len(m.namespaceOrder) >= config.MaxNamespaces {
 			return
 		}
 

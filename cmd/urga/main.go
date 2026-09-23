@@ -28,7 +28,7 @@ func run() error {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Println("urga", version.Current())
+		fmt.Println("urga", version.Full())
 		return nil
 	}
 

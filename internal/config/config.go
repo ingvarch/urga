@@ -53,10 +53,6 @@ func Load() (*Config, error) {
 
 // Save writes the session down.
 func (c *Config) Save() error {
-	if c.path == "" {
-		return nil
-	}
-
 	if err := os.MkdirAll(filepath.Dir(c.path), 0o755); err != nil {
 		return err
 	}
