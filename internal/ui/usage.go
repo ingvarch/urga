@@ -30,14 +30,19 @@ type (
 )
 
 // fetchUsage reads what the rows on the screen take. Rows nobody is looking
-// at are not asked about.
+// at are not asked about, and a screen with no readings asks nothing.
 func (m Model) fetchUsage() tea.Cmd {
-	ids := m.visibleIDs()
+	res := m.screen.of()
+	if res.readings == nil || res.reading == nil {
+		return nil
+	}
+
+	ids := res.readings(m)
 	if len(ids) == 0 {
 		return nil
 	}
 
-	client, kind, namespace := m.client, m.screen.kind, m.screen.namespace
+	client, namespace, read := m.client, m.screen.namespace, res.reading
 
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -46,16 +51,7 @@ func (m Model) fetchUsage() tea.Cmd {
 		out := rowUsageMsg{readings: make(map[string]nomad.ResourceUse, len(ids))}
 
 		for _, id := range ids {
-			var (
-				use nomad.ResourceUse
-				err error
-			)
-
-			if kind == screenNodes {
-				use, err = client.NodeUsage(ctx, id)
-			} else {
-				use, err = client.AllocationUsage(ctx, namespace, id)
-			}
+			use, err := read(client, ctx, namespace, id)
 
 			// A machine that does not answer leaves its row empty, the rest
 			// of the list is still worth showing. What it said is kept, a
@@ -85,41 +81,6 @@ func (m Model) usageOnce() tea.Cmd {
 	}
 
 	return m.fetchUsage()
-}
-
-// visibleIDs are the resources the rows on the screen stand for, when the
-// screen is one that has readings.
-func (m Model) visibleIDs() []string {
-	if !m.screen.of().readings {
-		return nil
-	}
-
-	switch m.screen.kind {
-	case screenAllocations:
-		allocs := m.visibleAllocs()
-
-		ids := make([]string, 0, len(m.index))
-		for _, at := range m.index {
-			// Only what runs has anything to report.
-			if at < len(allocs) && allocs[at].Status == statusRunning {
-				ids = append(ids, allocs[at].ID)
-			}
-		}
-
-		return ids
-
-	case screenNodes:
-		ids := make([]string, 0, len(m.index))
-		for _, at := range m.index {
-			if at < len(m.nodes) {
-				ids = append(ids, m.nodes[at].ID)
-			}
-		}
-
-		return ids
-	}
-
-	return nil
 }
 
 // percentCell is what a machine of the cluster is busy with: there is no

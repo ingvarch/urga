@@ -70,18 +70,28 @@ func (c *Config) UseNamespace(namespace string) {
 	c.Namespace = &namespace
 }
 
-// Remember keeps the order the number keys were handed out in. A namespace
-// that is already known stays where it is.
+// Remember keeps the order the number keys were handed out in.
 func (c *Config) Remember(namespaces []string) {
-	for _, name := range namespaces {
-		if len(c.Namespaces) >= MaxNamespaces {
-			return
+	c.Namespaces = Ordered(c.Namespaces, namespaces)
+}
+
+// Ordered is the rule the number keys follow: first seen keeps its number, a
+// namespace already known stays where it is, and there are only so many keys
+// to give away.
+func Ordered(known, seen []string) []string {
+	order := slices.Clone(known)
+
+	for _, name := range seen {
+		if len(order) >= MaxNamespaces {
+			break
 		}
 
-		if !slices.Contains(c.Namespaces, name) {
-			c.Namespaces = append(c.Namespaces, name)
+		if !slices.Contains(order, name) {
+			order = append(order, name)
 		}
 	}
+
+	return order
 }
 
 func configPath() (string, error) {

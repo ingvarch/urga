@@ -133,30 +133,27 @@ func namespaceFile(client Client, name string) file {
 
 // openEditor puts what the cluster has in a file and hands it over.
 func openEditor(load file, submit func(string) tea.Cmd) tea.Cmd {
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
-
+	return request(func(ctx context.Context) (editFileMsg, error) {
 		extension, content, err := load(ctx)
 		if err != nil {
-			return errMsg{err: err}
+			return editFileMsg{}, err
 		}
 
 		file, err := os.CreateTemp("", "urga-*."+extension)
 		if err != nil {
-			return errMsg{err: err}
+			return editFileMsg{}, err
 		}
 
 		if _, err := file.WriteString(content); err != nil {
-			return errMsg{err: err}
+			return editFileMsg{}, err
 		}
 
 		if err := file.Close(); err != nil {
-			return errMsg{err: err}
+			return editFileMsg{}, err
 		}
 
-		return editFileMsg{path: file.Name(), original: content, submit: submit}
-	}
+		return editFileMsg{path: file.Name(), original: content, submit: submit}, nil
+	}, func(msg editFileMsg) tea.Msg { return msg })
 }
 
 // startEdit hands the file over to the editor.

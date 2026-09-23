@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"slices"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -11,17 +10,15 @@ import (
 )
 
 // rememberNamespaces keeps the order the keys were handed out in. A cluster
-// that answers in another order must not renumber them under the fingers.
+// that answers in another order must not renumber them under the fingers,
+// and the rule for that lives with the file it is written to.
 func (m *Model) rememberNamespaces(list []nomad.Namespace) {
+	seen := make([]string, 0, len(list))
 	for _, ns := range list {
-		if len(m.namespaceOrder) >= config.MaxNamespaces {
-			return
-		}
-
-		if !slices.Contains(m.namespaceOrder, ns.Name) {
-			m.namespaceOrder = append(m.namespaceOrder, ns.Name)
-		}
+		seen = append(seen, ns.Name)
 	}
+
+	m.namespaceOrder = config.Ordered(m.namespaceOrder, seen)
 }
 
 // namespaceKey switches the session to the namespace a number stands for.

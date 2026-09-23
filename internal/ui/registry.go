@@ -58,8 +58,10 @@ type resource struct {
 	// to a namespace, so its title carries no namespace.
 	cluster bool
 
-	// readings says the rows of this screen carry what they are using.
-	readings bool
+	// readings are the resources whose usage the rows show, and reading is
+	// how one of them is read. A screen without readings leaves both nil.
+	readings func(m Model) []string
+	reading  func(client Client, ctx context.Context, namespace, id string) (nomad.ResourceUse, error)
 
 	// title overrides the "<name> (<namespace>) [n]" form for a screen that
 	// says what it was opened for.
@@ -92,12 +94,26 @@ var resources = map[screenKind]resource{
 	},
 
 	screenAllocations: {
-		name:    "Allocations",
 		aliases: []string{"allocations", "allocation", "allocs", "alloc"},
 		titles:  allocTitles,
 		hints:   allocHints,
 
-		readings: true,
+		readings: func(m Model) []string {
+			allocs := m.visibleAllocs()
+
+			ids := make([]string, 0, len(m.index))
+			for _, at := range m.index {
+				// Only what runs has anything to report.
+				if at < len(allocs) && allocs[at].Status == statusRunning {
+					ids = append(ids, allocs[at].ID)
+				}
+			}
+
+			return ids
+		},
+		reading: func(client Client, ctx context.Context, namespace, id string) (nomad.ResourceUse, error) {
+			return client.AllocationUsage(ctx, namespace, id)
+		},
 
 		title: func(m Model, count int) string {
 			if m.screen.taskGroup != "" {
@@ -117,7 +133,6 @@ var resources = map[screenKind]resource{
 	},
 
 	screenTasks: {
-		name:   "Tasks",
 		titles: taskTitles,
 		hints:  taskHints,
 
@@ -128,7 +143,6 @@ var resources = map[screenKind]resource{
 	},
 
 	screenTaskGroups: {
-		name:   "Task Groups",
 		titles: taskGroupTitles,
 		hints:  taskGroupHints,
 
@@ -206,13 +220,26 @@ var resources = map[screenKind]resource{
 	},
 
 	screenNodes: {
-		name:     "Nodes",
-		stored:   "nodes",
-		aliases:  []string{"nodes", "node", "no"},
-		titles:   nodeTitles,
-		hints:    nodeHints,
-		cluster:  true,
-		readings: true,
+		name:    "Nodes",
+		stored:  "nodes",
+		aliases: []string{"nodes", "node", "no"},
+		titles:  nodeTitles,
+		hints:   nodeHints,
+		cluster: true,
+
+		readings: func(m Model) []string {
+			ids := make([]string, 0, len(m.index))
+			for _, at := range m.index {
+				if at < len(m.nodes) {
+					ids = append(ids, m.nodes[at].ID)
+				}
+			}
+
+			return ids
+		},
+		reading: func(client Client, ctx context.Context, _, id string) (nomad.ResourceUse, error) {
+			return client.NodeUsage(ctx, id)
+		},
 		fetch: func(m Model) tea.Cmd {
 			return fetchList(m.client.Nodes, func(items []nomad.Node) tea.Msg { return nodesMsg(items) })
 		},
