@@ -224,17 +224,3 @@ func lineAt(block string, i int) string {
 
 	return rows[i]
 }
-
-// blockWidth is the width of the widest line of a block.
-func blockWidth(block string) int {
-	if block == "" {
-		return 0
-	}
-
-	width := 0
-	for _, line := range strings.Split(block, "\n") {
-		width = max(width, ansi.StringWidth(line))
-	}
-
-	return width
-}

@@ -588,8 +588,15 @@ func (m Model) render() string {
 
 	title, body := m.body(width - 2)
 
+	framed := frame(title, body, width, m.bodyHeight())
+
+	// A question floats over the screen, next to the row it was asked about.
+	if m.overlay == overlayConfirm {
+		framed = modal(framed, m.confirm.view(width-2*modalPadX), m.cursorLine())
+	}
+
 	parts = append(parts,
-		indent(frame(title, body, width, m.bodyHeight()), screenPadX),
+		indent(framed, screenPadX),
 		indent(m.status(), headerPadX),
 	)
 
@@ -609,15 +616,23 @@ func (m Model) headerData() header {
 	}
 }
 
+// cursorLine is where the row under the cursor is drawn inside the box: the
+// top border and the header of the table come before it. A screen that reads
+// as text has no such row.
+func (m Model) cursorLine() int {
+	if m.readsAsText() {
+		return -1
+	}
+
+	return 2 + m.table.cursor - m.table.top
+}
+
 // body is what fills the box: what took the screen, or what the screen
 // shows.
 func (m Model) body(width int) (title, content string) {
 	switch {
 	case m.overlay == overlayHelp:
 		return "Help", renderHelp(m.helpSections(), width)
-
-	case m.overlay == overlayConfirm:
-		return "Confirm", m.confirm.view(width)
 
 	case m.readsAsText():
 		return m.title(), m.text.view()

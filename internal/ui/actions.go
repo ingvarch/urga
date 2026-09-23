@@ -13,22 +13,39 @@ type doneMsg struct {
 	err  error
 }
 
-// confirmModel is the question before something in the cluster changes.
+// The buttons of a question, in the order they are walked.
+const (
+	buttonCancel = iota
+	buttonConfirm
+)
+
+// confirmModel is the question before something in the cluster changes, and
+// which of its buttons the cursor is on.
 type confirmModel struct {
 	question string
 	apply    tea.Cmd
+
+	// choice is the button under the cursor. It starts on cancel: enter out
+	// of habit then changes nothing in the cluster.
+	choice int
 }
 
+// view is the question as a box to put over the screen.
 func (c confirmModel) view(width int) string {
-	lines := []string{
-		"",
+	return dialog("Confirm", []string{
 		styleText.Render(c.question),
 		"",
-		styleKey.Render("<enter>") + styleText.Render(" confirm") +
-			"    " + styleKey.Render("<esc>") + styleText.Render(" cancel"),
+		c.button("cancel", buttonCancel) + "   " + c.button("confirm", buttonConfirm),
+	}, width)
+}
+
+// button is one of the two, filled when the cursor is on it.
+func (c confirmModel) button(label string, at int) string {
+	if c.choice == at {
+		return styleButtonOn.Render(" " + label + " ")
 	}
 
-	return center(lines, width)
+	return styleButton.Render(" " + label + " ")
 }
 
 // ask puts a question up. Nothing is asked of the cluster until it is
@@ -43,23 +60,37 @@ func (m Model) ask(question string, apply tea.Cmd) (Model, tea.Cmd) {
 
 // confirmKey answers the question, and nothing else while it is up.
 func (m Model) confirmKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
-	apply := m.confirm.apply
-
 	switch msg.String() {
-	case "enter", "y":
-		m.overlay = overlayNone
-		m.confirm = confirmModel{}
-		m.layout()
+	case "left", "shift+tab", "h":
+		m.confirm.choice = buttonCancel
 
-		return m, apply
+	case "right", "tab", "l":
+		m.confirm.choice = buttonConfirm
+
+	case "enter":
+		if m.confirm.choice == buttonConfirm {
+			return m.closeConfirm(), m.confirm.apply
+		}
+
+		return m.closeConfirm(), nil
+
+	case "y":
+		return m.closeConfirm(), m.confirm.apply
 
 	case "esc", "n":
-		m.overlay = overlayNone
-		m.confirm = confirmModel{}
-		m.layout()
+		return m.closeConfirm(), nil
 	}
 
 	return m, nil
+}
+
+// closeConfirm takes the question off the screen.
+func (m Model) closeConfirm() Model {
+	m.overlay = overlayNone
+	m.confirm = confirmModel{}
+	m.layout()
+
+	return m
 }
 
 // act runs one change against the cluster and says what came of it.
