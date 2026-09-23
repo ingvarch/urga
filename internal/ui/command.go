@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"sort"
 	"strings"
 )
@@ -117,11 +118,26 @@ func matchingCommands(typed string) []string {
 
 	matches := []string{}
 
+	// A word that is an alias of its own names its resource, whatever else
+	// begins with it: `no` is a client, not the pool it sits in.
+	if named, ok := commandAliases[word]; ok {
+		matches = append(matches, nameOf(named))
+	}
+
 	for _, name := range commandNames {
-		if strings.HasPrefix(name, word) {
+		if strings.HasPrefix(name, word) && !slices.Contains(matches, name) {
 			matches = append(matches, name)
 		}
 	}
 
 	return matches
+}
+
+// nameOf is what a resource is called in the command line.
+func nameOf(kind screenKind) string {
+	if res, ok := resources[kind]; ok && len(res.aliases) > 0 {
+		return res.aliases[0]
+	}
+
+	return ""
 }

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -121,13 +122,33 @@ func TestPrompt_TakesNoRoomOfItsOwn(t *testing.T) {
 	r := require.New(t)
 
 	m := loadedModel(t)
+	rows := len(strings.Split(plain(m.render()), "\n"))
+
 	m, _ = m.update(key(':'))
 	m, _ = m.update(down())
 
 	// Everything happens in the line: what it offers never pushes the rows
-	// down the screen.
-	r.Equal(promptHeight, m.promptRows())
+	// down the screen or takes one away.
+	r.Equal(rows, len(strings.Split(plain(m.render()), "\n")))
 	r.Contains(plain(m.render()), "Jobs (production)")
+}
+
+func TestPrompt_AShortFormOpensWhatItAlwaysDid(t *testing.T) {
+	r := require.New(t)
+
+	// `no` is Nomad's own word for a client. A name that merely starts the
+	// same way must not take the line over.
+	for word, kind := range map[string]screenKind{
+		"no":   screenNodes,
+		"node": screenNodes,
+		"np":   screenNodePools,
+		"ns":   screenNamespaces,
+	} {
+		m := walked(t, letters(word)...)
+		opened, _ := m.commit()
+
+		r.Equal(kind, opened.screen.kind, "%s reads as %q", word, promptLine(m))
+	}
 }
 
 func TestFilter_OffersNothing(t *testing.T) {

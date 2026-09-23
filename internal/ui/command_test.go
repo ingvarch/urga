@@ -73,6 +73,13 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal([]string{"servers", "services"}, matchingCommands("se"))
 	r.Equal(commandNames, matchingCommands(""))
 
+	// A word that is an alias of its own comes first, whatever other names
+	// begin with it: `no` is what Nomad calls a client, and it must not be
+	// taken for the pool the client is in.
+	r.Equal("clients", matchingCommands("no")[0])
+	r.Equal("clients", matchingCommands("node")[0])
+	r.Contains(matchingCommands("no"), "nodepools")
+
 	// Nothing fits a word that names nothing, and a line that already says
 	// where to look is not about a resource any more.
 	r.Empty(matchingCommands("zz"))

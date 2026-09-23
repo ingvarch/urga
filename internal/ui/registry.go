@@ -146,6 +146,12 @@ var resources = map[screenKind]resource{
 				return sprintf("Client %s [%d]", m.screen.label, count)
 			}
 
+			// The command line opens the allocations of the namespace, with
+			// no job to name.
+			if m.screen.jobID == "" {
+				return sprintf("Allocations (%s) [%d]", namespaceLabel(m.screen.namespace), count)
+			}
+
 			return sprintf("Allocations (Job: %s) [%d]", m.screen.jobID, count)
 		},
 		fetch: func(m Model) tea.Cmd {

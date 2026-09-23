@@ -218,7 +218,7 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 func (m Model) commit() (Model, tea.Cmd) {
 	input := m.prompt.text
 	if offered := m.prompt.choice(); offered != "" && m.overlay == overlayPrompt {
-		input = offered + namespaceOf(m.prompt.text)
+		input = offered
 	}
 
 	asked, group := m.overlay, m.prompt.group
@@ -269,17 +269,6 @@ func (m Model) knowsNamespace(namespace string) bool {
 	}
 
 	return false
-}
-
-// namespaceOf is what the line says after the resource, which a choice from
-// the list keeps.
-func namespaceOf(input string) string {
-	fields := strings.Fields(strings.TrimSpace(input))
-	if len(fields) < 2 {
-		return ""
-	}
-
-	return " " + fields[1]
 }
 
 func firstWord(input string) string {
