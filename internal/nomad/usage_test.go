@@ -14,30 +14,12 @@ import (
 func TestAllocationUsage(t *testing.T) {
 	r := require.New(t)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		switch req.URL.Path {
-		case "/v1/allocation/af1f37df":
-			_, _ = w.Write([]byte(`{
-				"ID": "af1f37df",
-				"AllocatedResources": {"Tasks": {"web": {"Cpu": {"CpuShares": 500}, "Memory": {"MemoryMB": 256}}}}
-			}`))
-		case "/v1/client/allocation/af1f37df/stats":
-			_, _ = w.Write([]byte(`{
-				"ResourceUsage": {
-					"CpuStats": {"TotalTicks": 125},
-					"MemoryStats": {"RSS": 134217728}
-				}
-			}`))
-		default:
-			http.NotFound(w, req)
+	client := statsServer(t, `{
+		"ResourceUsage": {
+			"CpuStats": {"TotalTicks": 125},
+			"MemoryStats": {"RSS": 134217728}
 		}
-	}))
-	defer server.Close()
-
-	client, err := nomad.New(nomad.Config{Address: server.URL})
-	r.NoError(err)
+	}`)
 
 	use, err := client.AllocationUsage(context.Background(), "production", "af1f37df")
 	r.NoError(err)

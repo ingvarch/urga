@@ -119,9 +119,7 @@ func (c *Client) Evaluations(ctx context.Context, namespace string) ([]Evaluatio
 			StatusDescription: e.StatusDescription,
 		}
 
-		if e.CreateTime != 0 {
-			eval.Created = time.Unix(0, e.CreateTime)
-		}
+		eval.Created = unixTime(e.CreateTime)
 
 		out = append(out, eval)
 	}
@@ -187,13 +185,8 @@ func (c *Client) Variables(ctx context.Context, namespace string) ([]Variable, e
 	for _, v := range list {
 		variable := Variable{Path: v.Path, Namespace: v.Namespace}
 
-		if v.CreateTime != 0 {
-			variable.Created = time.Unix(0, v.CreateTime)
-		}
-
-		if v.ModifyTime != 0 {
-			variable.Modified = time.Unix(0, v.ModifyTime)
-		}
+		variable.Created = unixTime(v.CreateTime)
+		variable.Modified = unixTime(v.ModifyTime)
 
 		out = append(out, variable)
 	}

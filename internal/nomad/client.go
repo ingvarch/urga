@@ -100,13 +100,21 @@ func newJob(stub *api.JobListStub) Job {
 		Status:    stub.Status,
 	}
 
-	if stub.SubmitTime != 0 {
-		job.SubmitTime = time.Unix(0, stub.SubmitTime)
-	}
+	job.SubmitTime = unixTime(stub.SubmitTime)
 
 	job.Running, job.Desired = allocationCounts(stub.JobSummary)
 
 	return job
+}
+
+// unixTime reads a Nomad timestamp. Nomad says "never" with a zero, which is
+// not 1970: a job with no submit time would read as twenty thousand days old.
+func unixTime(nanos int64) time.Time {
+	if nanos == 0 {
+		return time.Time{}
+	}
+
+	return time.Unix(0, nanos)
 }
 
 // allocationCounts adds up the task groups of a job. Allocations in a state
