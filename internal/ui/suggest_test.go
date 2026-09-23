@@ -11,6 +11,8 @@ func down() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyDown} }
 func up() tea.KeyPressMsg   { return tea.KeyPressMsg{Code: tea.KeyUp} }
 func tab() tea.KeyPressMsg  { return tea.KeyPressMsg{Code: tea.KeyTab} }
 
+func backspace() tea.KeyPressMsg { return tea.KeyPressMsg{Code: tea.KeyBackspace} }
+
 // promptLine is what the command line reads as, with what it offers.
 func promptLine(m Model) string {
 	return m.prompt.prefix + m.prompt.text + m.prompt.suggestion()
@@ -140,4 +142,92 @@ func TestFilter_OffersNothing(t *testing.T) {
 	// The filter takes any text there is; a resource has nothing to do
 	// with it.
 	r.Equal("/s", promptLine(m))
+}
+
+// walked runs a line of keys into an open command line.
+func walked(t *testing.T, keys ...tea.KeyPressMsg) Model {
+	t.Helper()
+
+	m := loadedModel(t)
+	m, _ = m.update(namespacesMsg(twoNamespaces()))
+	m, _ = m.update(key(':'))
+
+	for _, press := range keys {
+		m, _ = m.update(press)
+	}
+
+	return m
+}
+
+// letters are one key press per character.
+func letters(text string) []tea.KeyPressMsg {
+	keys := make([]tea.KeyPressMsg, 0, len(text))
+	for _, r := range text {
+		keys = append(keys, key(r))
+	}
+
+	return keys
+}
+
+func TestPrompt_WhatTheLineReadsIsWhatEnterOpens(t *testing.T) {
+	r := require.New(t)
+
+	walks := map[string][]tea.KeyPressMsg{
+		"a letter":               {key('s')},
+		"a letter and a step":    {key('s'), down()},
+		"a step back":            {key('s'), up()},
+		"taken and stepped":      {key('s'), tab(), down()},
+		"taken twice":            {key('j'), tab(), tab()},
+		"walked from nothing":    {down(), down()},
+		"walked and typed":       {down(), key('s')},
+		"a space and a step":     {key(' '), down()},
+		"typed past every name":  {key('z'), key('z'), down()},
+		"backspaced to nothing":  {key('s'), backspace(), down()},
+		"a word and a namespace": append([]tea.KeyPressMsg{key('j'), tab()}, append(letters(" staging"), down())...),
+	}
+
+	for name, keys := range walks {
+		m := walked(t, keys...)
+
+		line := m.prompt.text + m.prompt.suggestion()
+		opened, _ := m.commit()
+
+		// The line is the promise: whatever it reads as is what enter
+		// opens, in every order the keys can be pressed.
+		wanted, ok := parseCommand(line)
+
+		switch {
+		case !ok:
+			r.NotNil(opened.err, "%s: the line reads %q and enter opened something anyway", name, line)
+		default:
+			r.Nil(opened.err, "%s: the line reads %q and enter refused it", name, line)
+			r.Equal(wanted.kind, opened.screen.kind, "%s: the line reads %q", name, line)
+		}
+	}
+}
+
+func TestPrompt_TakingAWordOffersTheNextOneAfterIt(t *testing.T) {
+	r := require.New(t)
+
+	m := walked(t, key('s'), tab())
+
+	// The word is settled, and the arrows walk on from it rather than from
+	// what was typed before it.
+	r.Equal("servers", m.prompt.text)
+
+	m, _ = m.update(down())
+	r.Equal(":servers", promptLine(m))
+}
+
+func TestPrompt_ASpaceIsNotAResource(t *testing.T) {
+	r := require.New(t)
+
+	m := walked(t, key(' '))
+
+	// A line that holds nothing but a space names nothing, and must not
+	// open the first resource there is.
+	r.Empty(m.prompt.choice())
+
+	opened, _ := m.commit()
+	r.NotNil(opened.err)
 }

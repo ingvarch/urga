@@ -56,13 +56,20 @@ type promptModel struct {
 	at      int
 }
 
-// choice is the resource the line offers, empty when it offers none.
+// choice is the resource the line offers, empty when it offers none. It is
+// only ever a word the line reads as: what is on the screen is what enter
+// opens, whatever order the keys were pressed in.
 func (p promptModel) choice() string {
 	if p.at < 0 || p.at >= len(p.matches) {
 		return ""
 	}
 
-	return p.matches[p.at]
+	offered := p.matches[p.at]
+	if !strings.HasPrefix(offered, strings.ToLower(p.text)) {
+		return ""
+	}
+
+	return offered
 }
 
 // walk moves through what the line could be about, and comes back around at
@@ -98,8 +105,10 @@ func (p promptModel) narrow() promptModel {
 
 	p.matches = matchingCommands(p.text)
 
+	// What is typed is the first word; a line that has none of it, a space
+	// for instance, names nothing yet.
 	p.at = 0
-	if p.text == "" || len(p.matches) == 0 {
+	if firstWord(p.text) == "" || len(p.matches) == 0 {
 		p.at = -1
 	}
 
@@ -110,7 +119,7 @@ func (p promptModel) narrow() promptModel {
 // word with what was typed.
 func (p promptModel) suggestion() string {
 	offered := p.choice()
-	if offered == "" || !strings.HasPrefix(offered, strings.ToLower(p.text)) {
+	if offered == "" {
 		return ""
 	}
 
@@ -172,8 +181,10 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 	case "tab", "right", "ctrl+f":
 		// What the line offers is taken into it, and the line stays open:
-		// a namespace can follow the word.
+		// a namespace can follow the word. The word settles what fits it,
+		// like any other way of changing the line.
 		m.prompt.text += m.prompt.suggestion()
+		m.prompt = m.prompt.narrow()
 
 	case "backspace":
 		if n := len(m.prompt.text); n > 0 {
