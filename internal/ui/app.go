@@ -48,6 +48,12 @@ type Client interface {
 	PromoteDeployment(ctx context.Context, namespace, deploymentID string) error
 	FailDeployment(ctx context.Context, namespace, deploymentID string) error
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
+	NodeAllocations(ctx context.Context, nodeID string) ([]nomad.Alloc, error)
+	Node(ctx context.Context, nodeID string) (nomad.Node, error)
+	NodeDetail(ctx context.Context, nodeID string) (nomad.NodeDetail, error)
+	NodeMeta(ctx context.Context, nodeID string) ([]nomad.MetaEntry, error)
+	NodeMetaSpec(ctx context.Context, nodeID string) (string, error)
+	SubmitNodeMeta(ctx context.Context, nodeID, source string) error
 	Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error)
 	Namespaces(ctx context.Context) ([]nomad.Namespace, error)
 	Services(ctx context.Context, namespace string) ([]nomad.Service, error)
@@ -55,6 +61,9 @@ type Client interface {
 	Nodes(ctx context.Context) ([]nomad.Node, error)
 	Variables(ctx context.Context, namespace string) ([]nomad.Variable, error)
 	NodePools(ctx context.Context) ([]nomad.NodePool, error)
+	Servers(ctx context.Context) ([]nomad.Server, error)
+	Server(ctx context.Context, name string) (nomad.Server, error)
+	RaftPeers(ctx context.Context) ([]nomad.RaftPeer, error)
 }
 
 // Options are what the session starts with.
@@ -110,6 +119,24 @@ type (
 	nodesMsg       []nomad.Node
 	variablesMsg   []nomad.Variable
 	nodePoolsMsg   []nomad.NodePool
+	serversMsg     []nomad.Server
+	serverMsg      nomad.Server
+	nodeDetailMsg  nomad.NodeDetail
+
+	// nodeMetaMsg carries the machine it was asked of, like every answer
+	// that belongs to one client.
+	nodeMetaMsg struct {
+		nodeID string
+		meta   []nomad.MetaEntry
+	}
+
+	// raftMsg is what the raft of the cluster says about its servers. An
+	// ACL may hold it back, and then the reason is shown where the answer
+	// would have been.
+	raftMsg struct {
+		peers []nomad.RaftPeer
+		err   error
+	}
 
 	usageMsg     nomad.Usage
 	versionMsg   string
@@ -174,6 +201,23 @@ type Model struct {
 	nodes       []nomad.Node
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
+	servers     []nomad.Server
+
+	// host is the machine a client screen is open on, hostTrail the
+	// readings taken of it since it was opened.
+	host      nomad.Node
+	hostTrail []nomad.ResourceUse
+
+	// nodeDetail is what the machine of a client screen says about itself,
+	// nodeMeta the metadata it carries.
+	nodeDetail nomad.NodeDetail
+	nodeMeta   []nomad.MetaEntry
+
+	// server is the one a server screen is open on, raft what the raft of
+	// the cluster makes of the servers.
+	server  nomad.Server
+	raft    []nomad.RaftPeer
+	raftErr error
 
 	table tableModel
 	text  textModel
@@ -286,6 +330,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case nodePoolsMsg:
 		return m.applyList(screenNodePools, func(m *Model) { m.nodePools = msg })
 
+	case serversMsg:
+		return m.applyList(screenServers, func(m *Model) { m.servers = msg })
+
 	case versionMsg:
 		m.nomadVersion = string(msg)
 
@@ -366,6 +413,55 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		// The list is stale the moment the cluster changed, ask again.
 		return m, m.fetch()
 
+	case nodeDetailMsg:
+		// The answer belongs to the machine it was asked of: leaving one
+		// client for another must not show the first one under the second.
+		if m.screen.nodeID != msg.ID {
+			return m, nil
+		}
+
+		m.nodeDetail = nomad.NodeDetail(msg)
+		m.err = nil
+		m.layout()
+
+		return m, m.schedulePoll()
+
+	case nodeMetaMsg:
+		if m.screen.nodeID != msg.nodeID {
+			return m, nil
+		}
+
+		return m.applyList(screenNodeMeta, func(m *Model) { m.nodeMeta = msg.meta })
+
+	case serverMsg:
+		if m.screen.kind != screenServer {
+			return m, nil
+		}
+
+		m.server = nomad.Server(msg)
+		m.err = nil
+		m.layout()
+
+		return m, m.schedulePoll()
+
+	case raftMsg:
+		m.raft, m.raftErr = msg.peers, msg.err
+		m.layout()
+
+		return m, nil
+
+	case hostMsg:
+		if m.screen.nodeID != msg.ID {
+			return m, nil
+		}
+
+		m.host = nomad.Node(msg)
+
+		return m, nil
+
+	case hostUseMsg:
+		return m.keepHostUse(msg), nil
+
 	case pollMsg:
 		return m, m.fetch()
 	}
@@ -443,7 +539,13 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		next, cmd = m.startStopJob()
 
 	case "e":
-		next, cmd = m.edit()
+		// The same key opens the events of a client and edits what can be
+		// edited, because a screen never offers both.
+		if m.screen.isClient() {
+			next, cmd = m.openNodeScreen(screenNodeEvents)
+		} else {
+			next, cmd = m.edit()
+		}
 
 	case "t":
 		next, cmd = m.openTaskGroups()
@@ -467,7 +569,22 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		next, cmd = m.stopAllocation()
 
 	case "ctrl+d":
-		next, cmd = m.drainNode()
+		// Draining is a key of the list of clients; on the screen of one
+		// client the same key opens what it can run.
+		if m.screen.isClient() {
+			next, cmd = m.openNodeScreen(screenNodeDrivers)
+		} else {
+			next, cmd = m.drainNode()
+		}
+
+	case "ctrl+h":
+		next, cmd = m.openNodeScreen(screenNodeVolumes)
+
+	case "a":
+		next, cmd = m.openNodeScreen(screenNodeAttributes)
+
+	case "m":
+		next, cmd = m.openNodeScreen(screenNodeMeta)
 
 	case "i":
 		next, cmd = m.toggleEligibility()
@@ -483,6 +600,9 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 
 	case "h":
 		next, cmd = m, m.jobSpecCmd()
+
+	case "c":
+		next, cmd = m.copyField()
 
 	case "ctrl+e":
 		next, cmd = m.openLogs(nomad.LogStderr)
@@ -588,8 +708,15 @@ func (m Model) render() string {
 
 	title, body := m.body(width - 2)
 
+	framed := frame(title, body, width, m.bodyHeight())
+
+	// A question floats over the screen, next to the row it was asked about.
+	if m.overlay == overlayConfirm {
+		framed = modal(framed, m.confirm.view(width-2*modalPadX), m.cursorLine())
+	}
+
 	parts = append(parts,
-		indent(frame(title, body, width, m.bodyHeight()), screenPadX),
+		indent(framed, screenPadX),
 		indent(m.status(), headerPadX),
 	)
 
@@ -609,6 +736,17 @@ func (m Model) headerData() header {
 	}
 }
 
+// cursorLine is where the row under the cursor is drawn inside the box: the
+// top border and the header of the table come before it. A screen that reads
+// as text has no such row.
+func (m Model) cursorLine() int {
+	if m.readsAsText() {
+		return -1
+	}
+
+	return 2 + m.panelHeight() + m.table.cursor - m.table.top
+}
+
 // body is what fills the box: what took the screen, or what the screen
 // shows.
 func (m Model) body(width int) (title, content string) {
@@ -616,11 +754,12 @@ func (m Model) body(width int) (title, content string) {
 	case m.overlay == overlayHelp:
 		return "Help", renderHelp(m.helpSections(), width)
 
-	case m.overlay == overlayConfirm:
-		return "Confirm", m.confirm.view(width)
-
 	case m.readsAsText():
 		return m.title(), m.text.view()
+	}
+
+	if panel := m.panelHeight(); panel > 0 {
+		return m.title(), strings.Join(append(m.hostPanel(width), m.table.view()), "\n")
 	}
 
 	return m.title(), m.table.view()
@@ -669,7 +808,7 @@ func (m *Model) layout() {
 
 	// The table sits inside the box: the margin, its two border lines and the
 	// header row of the table itself are not rows.
-	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3, 1))
+	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3-m.panelHeight(), 1))
 	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2, 1))
 
 	m.text.filter = m.filter

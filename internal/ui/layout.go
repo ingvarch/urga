@@ -89,3 +89,13 @@ func center(lines []string, width int) string {
 
 	return strings.Join(out, "\n")
 }
+
+// blockWidth is the width of the widest line of a block.
+func blockWidth(block string) int {
+	width := 0
+	for _, line := range strings.Split(block, "\n") {
+		width = max(width, ansi.StringWidth(line))
+	}
+
+	return width
+}

@@ -3,6 +3,8 @@ package nomad
 import (
 	"context"
 	"time"
+
+	"github.com/hashicorp/nomad/api"
 )
 
 // Deployment is a rollout of a job version.
@@ -136,31 +138,48 @@ type Node struct {
 	Eligibility string
 	Drain       bool
 	Address     string
+
+	// CPUShares and MemoryMB are what the machine has, which is what its
+	// readings are measured against.
+	CPUShares int
+	MemoryMB  int
 }
 
 // Nodes lists the clients of the cluster.
 func (c *Client) Nodes(ctx context.Context) ([]Node, error) {
-	list, _, err := c.api.Nodes().List(c.query(ctx, ""))
+	list, _, err := c.api.Nodes().List(c.resourceQuery(ctx, ""))
 	if err != nil {
 		return nil, err
 	}
 
 	out := make([]Node, 0, len(list))
 	for _, n := range list {
-		out = append(out, Node{
-			ID:          n.ID,
-			Name:        n.Name,
-			Datacenter:  n.Datacenter,
-			NodePool:    n.NodePool,
-			Version:     n.Version,
-			Status:      n.Status,
-			Eligibility: n.SchedulingEligibility,
-			Drain:       n.Drain,
-			Address:     n.Address,
-		})
+		out = append(out, newNode(n))
 	}
 
 	return out, nil
+}
+
+// newNode reads one machine of the list.
+func newNode(n *api.NodeListStub) Node {
+	node := Node{
+		ID:          n.ID,
+		Name:        n.Name,
+		Datacenter:  n.Datacenter,
+		NodePool:    n.NodePool,
+		Version:     n.Version,
+		Status:      n.Status,
+		Eligibility: n.SchedulingEligibility,
+		Drain:       n.Drain,
+		Address:     n.Address,
+	}
+
+	if n.NodeResources != nil {
+		node.CPUShares = int(n.NodeResources.Cpu.CpuShares)
+		node.MemoryMB = int(n.NodeResources.Memory.MemoryMB)
+	}
+
+	return node
 }
 
 // Variable is an entry of the variable store. Only what the list says, the

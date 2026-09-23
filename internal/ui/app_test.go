@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +19,9 @@ import (
 type fakeClient struct {
 	jobs        []nomad.Job
 	allocs      []nomad.Alloc
+	nodeAllocs  []nomad.Alloc
+	nodeDetail  nomad.NodeDetail
+	nodeMeta    []nomad.MetaEntry
 	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
 	namespaces  []nomad.Namespace
@@ -26,6 +30,9 @@ type fakeClient struct {
 	nodes       []nomad.Node
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
+	servers     []nomad.Server
+	server      nomad.Server
+	raft        []nomad.RaftPeer
 
 	describe      string
 	spec          string
@@ -62,10 +69,16 @@ type fakeClient struct {
 	askedSource string
 	logsClosed  bool
 
-	err error
+	err     error
+	raftErr error
 
 	askedNamespace string
 	askedJobID     string
+	askedNodeID    string
+	usageNamespace string
+	askedServer    string
+	metaSpec       string
+	metaSubmitted  string
 
 	calls      int
 	allocCalls int
@@ -87,6 +100,48 @@ func (f *fakeClient) Allocations(_ context.Context, namespace, jobID string) ([]
 	f.allocCalls++
 
 	return f.allocs, f.err
+}
+
+func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.Alloc, error) {
+	f.askedNodeID = nodeID
+
+	return f.nodeAllocs, f.err
+}
+
+func (f *fakeClient) Node(_ context.Context, nodeID string) (nomad.Node, error) {
+	f.askedNodeID = nodeID
+
+	for _, node := range f.nodes {
+		if node.ID == nodeID {
+			return node, f.err
+		}
+	}
+
+	return nomad.Node{}, f.err
+}
+
+func (f *fakeClient) NodeDetail(_ context.Context, nodeID string) (nomad.NodeDetail, error) {
+	f.askedNodeID = nodeID
+
+	return f.nodeDetail, f.err
+}
+
+func (f *fakeClient) NodeMeta(_ context.Context, nodeID string) ([]nomad.MetaEntry, error) {
+	f.askedNodeID = nodeID
+
+	return f.nodeMeta, f.err
+}
+
+func (f *fakeClient) NodeMetaSpec(_ context.Context, nodeID string) (string, error) {
+	f.askedNodeID = nodeID
+
+	return f.metaSpec, f.err
+}
+
+func (f *fakeClient) SubmitNodeMeta(_ context.Context, nodeID, source string) error {
+	f.askedNodeID, f.metaSubmitted = nodeID, source
+
+	return f.err
 }
 
 func (f *fakeClient) DescribeJob(_ context.Context, namespace, jobID string) (string, error) {
@@ -237,8 +292,9 @@ func (f *fakeClient) Usage(context.Context) (nomad.Usage, error) {
 	return f.usage, f.err
 }
 
-func (f *fakeClient) AllocationUsage(_ context.Context, _, allocID string) (nomad.ResourceUse, error) {
+func (f *fakeClient) AllocationUsage(_ context.Context, namespace, allocID string) (nomad.ResourceUse, error) {
 	f.usageCalls++
+	f.usageNamespace = namespace
 
 	if f.usageErr != nil {
 		return nomad.ResourceUse{}, f.usageErr
@@ -297,6 +353,20 @@ func (f *fakeClient) Variables(_ context.Context, namespace string) ([]nomad.Var
 
 func (f *fakeClient) NodePools(context.Context) ([]nomad.NodePool, error) {
 	return f.nodePools, f.err
+}
+
+func (f *fakeClient) Servers(context.Context) ([]nomad.Server, error) {
+	return f.servers, f.err
+}
+
+func (f *fakeClient) Server(_ context.Context, name string) (nomad.Server, error) {
+	f.askedServer = name
+
+	return f.server, f.err
+}
+
+func (f *fakeClient) RaftPeers(context.Context) ([]nomad.RaftPeer, error) {
+	return f.raft, f.raftErr
 }
 
 func twoJobs() []nomad.Job {
@@ -488,4 +558,9 @@ func TestModel_ReadsWhatTheClusterIsUsing(t *testing.T) {
 	r.Contains(head, "CPU:")
 	r.Contains(head, "15%")
 	r.Contains(head, "31%")
+}
+
+// clipboardOf is what a command puts on the clipboard.
+func clipboardOf(cmd tea.Cmd) string {
+	return fmt.Sprintf("%s", cmd())
 }

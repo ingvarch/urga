@@ -63,9 +63,10 @@ urga --address https://nomad.example.com --namespace production
 ## Keys
 
 Type `:` for the command line: `jobs`, `deployments`, `namespaces`, `services`,
-`evaluations`, `nodes`, `variables`, `nodepools`, or the short forms `jb`, `dp`,
-`ns`, `svc`, `ev`, `no`, `vars`, `np`. A second word switches the namespace with
-it, as in `jobs production`. `q` leaves.
+`evaluations`, `clients`, `servers`, `variables`, `nodepools`, or the short
+forms `jb`, `dp`, `ns`, `svc`, `ev`, `no`, `srv`, `vars`, `np`. Clients answer
+to `nodes` as well, the word Nomad's own CLI uses. A second word switches the
+namespace with it, as in `jobs production`. `q` leaves.
 
 | Key | What it does |
 | --- | --- |
@@ -75,34 +76,49 @@ it, as in `jobs production`. `q` leaves.
 | `0`–`9` | Switch namespace, `0` is all of them |
 | `A`–`Z` | Sort by the column that starts with that letter, again to reverse |
 | `!` | Only what needs attention, again for all of it |
-| `enter` | Open what the cursor is on |
+| `enter` | Open what the cursor is on: a client opens what it runs, a server what the agent says about itself |
 | `esc` | Back |
 | `d` | Describe |
 | `h` | The job file the job was submitted with |
-| `e` | Edit a job or a namespace in `$EDITOR` |
+| `e` | Edit a job, a namespace or the metadata of a client in `$EDITOR`, or the events of a client |
 | `t` | Task groups of a job |
 | `s` | Scale a task group, or a shell in a task |
 | `ctrl-s` | Start or stop a job |
 | `u` | Revert a job to its previous version |
 | `r` | Restart an allocation |
 | `ctrl-k` | Stop an allocation |
-| `ctrl-d` | Drain a node, or stop draining it |
-| `i` | Let a node take new work, or stop it |
+| `ctrl-d` | Drain a client, or stop draining it; on a client, what it can run |
+| `ctrl-h` | Host volumes of a client |
+| `a` | Attributes of a client |
+| `m` | Metadata of a client |
+| `i` | Let a client take new work, or stop it |
 | `p` | Promote the canaries of a deployment |
 | `f` | Fail a deployment |
+| `c` | Copy the value under the cursor, on a screen of fields |
 | `ctrl-e` | Logs of a task, stderr |
 | `q` | Quit |
 
 ## What works
 
 Jobs, allocations, tasks, task groups, deployments, namespaces, services,
-evaluations, nodes, variables and node pools, refreshed while they are open.
-Logs follow a task as it writes. A job or a namespace opens in your editor and
-goes back to the cluster when you save. Jobs start, stop, revert and scale;
-allocations restart and stop; a task opens a shell. Nodes drain and take work
-again, deployments promote their canaries or fail.
+evaluations, clients, servers, variables and node pools, refreshed while they
+are open. Logs follow a task as it writes. A job or a namespace opens in your
+editor and goes back to the cluster when you save. Jobs start, stop, revert and
+scale; allocations restart and stop; a task opens a shell. Clients drain and
+take work again, deployments promote their canaries or fail. The servers list
+says which one leads, and a server opens on everything its agent carries: the
+addresses and ports, the gossip it speaks, whether the raft still counts its
+vote, and every tag the cluster was built with. One key copies the value under
+the cursor, over OSC52, so it works through ssh as well.
 
-Allocations and nodes say what they are using, the list sorts by any column,
+A client opens on what the machine is doing: its CPU and memory as a chart of
+the readings taken while the screen is open, and the allocations it runs, from
+every namespace. From there one key each opens what happened to it, the drivers
+it has and what every one of them reports, the volumes it lends out, the
+attributes it is built from and its metadata, which opens in your editor and
+goes back to the machine when you save.
+
+Allocations and clients say what they are using, the list sorts by any column,
 and one key leaves only what needs attention.
 
 The session comes back where it was left: the namespace, the resource and which

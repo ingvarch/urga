@@ -14,6 +14,14 @@ func ctrlKey(code rune) tea.KeyPressMsg {
 	return tea.KeyPressMsg{Code: code, Mod: tea.ModCtrl}
 }
 
+// answerYes walks the cursor to the confirm button and presses it, the way a
+// person answers the question. The cursor starts on cancel.
+func answerYes(m Model) (Model, tea.Cmd) {
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyRight})
+
+	return m.update(enter())
+}
+
 func TestAction_StopAJobAsks(t *testing.T) {
 	r := require.New(t)
 
@@ -28,7 +36,7 @@ func TestAction_StopAJobAsks(t *testing.T) {
 	r.Contains(plain(m.render()), "stop the job web")
 	r.Zero(client.stopped)
 
-	m, cmd := m.update(enter())
+	m, cmd := answerYes(m)
 	r.Equal(overlayNone, m.overlay)
 
 	m = drain(m, cmd)
@@ -69,7 +77,7 @@ func TestAction_StartADeadJob(t *testing.T) {
 	// A job that is already dead is started, not stopped.
 	r.Contains(plain(m.render()), "start the job cron")
 
-	_, cmd := m.update(enter())
+	_, cmd := answerYes(m)
 	drain(m, cmd)
 
 	r.Equal(1, client.started)
@@ -87,7 +95,7 @@ func TestAction_RestartAnAllocation(t *testing.T) {
 	m, _ = m.update(key('r'))
 	r.Contains(plain(m.render()), "restart the allocation af1f37df")
 
-	m, cmd := m.update(enter())
+	m, cmd := answerYes(m)
 	m = drain(m, cmd)
 
 	r.Equal(1, client.restarted)
@@ -104,7 +112,7 @@ func TestAction_StopAnAllocation(t *testing.T) {
 	m, _ = m.update(allocsMsg(twoAllocs()))
 
 	m, _ = m.update(ctrlKey('k'))
-	_, cmd := m.update(enter())
+	_, cmd := answerYes(m)
 	drain(m, cmd)
 
 	r.Equal(1, client.stoppedAllocs)
@@ -120,7 +128,7 @@ func TestAction_RevertAJob(t *testing.T) {
 	m, _ = m.update(key('u'))
 	r.Contains(plain(m.render()), "previous version")
 
-	_, cmd := m.update(enter())
+	_, cmd := answerYes(m)
 	drain(m, cmd)
 
 	r.Equal(1, client.reverted)
@@ -134,7 +142,7 @@ func TestAction_FailureIsSaid(t *testing.T) {
 	m, _ = m.update(jobsMsg(twoJobs()))
 
 	m, _ = m.update(ctrlKey('s'))
-	m, cmd := m.update(enter())
+	m, cmd := answerYes(m)
 	m = drain(m, cmd)
 
 	r.Contains(plain(m.render()), "permission denied")

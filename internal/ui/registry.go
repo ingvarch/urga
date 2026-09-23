@@ -29,6 +29,10 @@ var (
 		{Key: "<ctrl-k>", Description: "Stop"},
 	}
 
+	serverHints = []hint{{Key: "<enter>", Description: "Details"}}
+
+	fieldHints = []hint{{Key: "<c>", Description: "Copy the value"}}
+
 	describeHints = []hint{{Key: "<d>", Description: "Describe"}}
 
 	namespaceHints = []hint{{Key: "<e>", Description: "Edit"}}
@@ -54,14 +58,22 @@ type resource struct {
 	titles []string
 	hints  []hint
 
+	// hintsFor answers for a screen that is opened for different things and
+	// can do different things with them.
+	hintsFor func(s screen) []hint
+
 	// cluster says the screen holds what belongs to the cluster rather than
 	// to a namespace, so its title carries no namespace.
 	cluster bool
 
+	// fields says the screen reads as a list of fields, where a row is a
+	// name and the value behind it rather than a resource.
+	fields bool
+
 	// readings are the resources whose usage the rows show, and reading is
 	// how one of them is read. A screen without readings leaves both nil.
-	readings func(m Model) []string
-	reading  func(client Client, ctx context.Context, namespace, id string) (nomad.ResourceUse, error)
+	readings func(m Model) []rowRef
+	reading  func(client Client, ctx context.Context, ref rowRef) (nomad.ResourceUse, error)
 
 	// title overrides the "<name> (<namespace>) [n]" form for a screen that
 	// says what it was opened for.
@@ -98,21 +110,31 @@ var resources = map[screenKind]resource{
 		titles:  allocTitles,
 		hints:   allocHints,
 
-		readings: func(m Model) []string {
+		// The allocations of a client sit on the screen of that client,
+		// which answers for the machine as well as for the work on it.
+		hintsFor: func(s screen) []hint {
+			if s.isClient() {
+				return clientHints
+			}
+
+			return allocHints
+		},
+
+		readings: func(m Model) []rowRef {
 			allocs := m.visibleAllocs()
 
-			ids := make([]string, 0, len(m.index))
+			refs := make([]rowRef, 0, len(m.index))
 			for _, at := range m.index {
 				// Only what runs has anything to report.
 				if at < len(allocs) && allocs[at].Status == statusRunning {
-					ids = append(ids, allocs[at].ID)
+					refs = append(refs, rowRef{namespace: allocs[at].Namespace, id: allocs[at].ID})
 				}
 			}
 
-			return ids
+			return refs
 		},
-		reading: func(client Client, ctx context.Context, namespace, id string) (nomad.ResourceUse, error) {
-			return client.AllocationUsage(ctx, namespace, id)
+		reading: func(client Client, ctx context.Context, ref rowRef) (nomad.ResourceUse, error) {
+			return client.AllocationUsage(ctx, ref.namespace, ref.id)
 		},
 
 		title: func(m Model, count int) string {
@@ -120,10 +142,26 @@ var resources = map[screenKind]resource{
 				return sprintf("Allocations (Group: %s) [%d]", m.screen.taskGroup, count)
 			}
 
+			if m.screen.nodeID != "" {
+				return sprintf("Client %s [%d]", m.screen.label, count)
+			}
+
 			return sprintf("Allocations (Job: %s) [%d]", m.screen.jobID, count)
 		},
 		fetch: func(m Model) tea.Cmd {
 			client, screen := m.client, m.screen
+
+			if screen.nodeID != "" {
+				// The machine answers for its allocations and for itself:
+				// the chart above them is what the host is doing.
+				return tea.Batch(
+					fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
+						return client.NodeAllocations(ctx, screen.nodeID)
+					}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
+					fetchHost(client, screen.nodeID),
+					fetchHostUse(client, screen.nodeID),
+				)
+			}
 
 			return fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
 				return client.Allocations(ctx, screen.namespace, screen.jobID)
@@ -220,25 +258,27 @@ var resources = map[screenKind]resource{
 	},
 
 	screenNodes: {
-		name:    "Nodes",
+		// Nomad calls them clients in its own interface; the command line
+		// takes either word.
+		name:    "Clients",
 		stored:  "nodes",
-		aliases: []string{"nodes", "node", "no"},
+		aliases: []string{"clients", "client", "nodes", "node", "no"},
 		titles:  nodeTitles,
 		hints:   nodeHints,
 		cluster: true,
 
-		readings: func(m Model) []string {
-			ids := make([]string, 0, len(m.index))
+		readings: func(m Model) []rowRef {
+			refs := make([]rowRef, 0, len(m.index))
 			for _, at := range m.index {
 				if at < len(m.nodes) {
-					ids = append(ids, m.nodes[at].ID)
+					refs = append(refs, rowRef{id: m.nodes[at].ID})
 				}
 			}
 
-			return ids
+			return refs
 		},
-		reading: func(client Client, ctx context.Context, _, id string) (nomad.ResourceUse, error) {
-			return client.NodeUsage(ctx, id)
+		reading: func(client Client, ctx context.Context, ref rowRef) (nomad.ResourceUse, error) {
+			return client.NodeUsage(ctx, ref.id)
 		},
 		fetch: func(m Model) tea.Cmd {
 			return fetchList(m.client.Nodes, func(items []nomad.Node) tea.Msg { return nodesMsg(items) })
@@ -271,6 +311,116 @@ var resources = map[screenKind]resource{
 			return fetchList(m.client.NodePools, func(items []nomad.NodePool) tea.Msg { return nodePoolsMsg(items) })
 		},
 		rows: func(m Model) []tableRow { return nodePoolRows(m.nodePools) },
+	},
+
+	screenServers: {
+		name:    "Servers",
+		stored:  "servers",
+		aliases: []string{"servers", "server", "srv"},
+		titles:  serverTitles,
+		hints:   serverHints,
+		cluster: true,
+		fetch: func(m Model) tea.Cmd {
+			return fetchList(m.client.Servers, func(items []nomad.Server) tea.Msg { return serversMsg(items) })
+		},
+		rows: func(m Model) []tableRow { return serverRows(m.servers) },
+	},
+
+	screenServer: {
+		titles:  fieldTitles,
+		hints:   fieldHints,
+		cluster: true,
+		fields:  true,
+
+		title: func(m Model, _ int) string {
+			return sprintf("Server %s", m.screen.label)
+		},
+		fetch: func(m Model) tea.Cmd {
+			client, name := m.client, m.screen.label
+
+			// The agent answers for itself, the raft says whether the rest
+			// of the cluster still counts it.
+			return tea.Batch(
+				request(func(ctx context.Context) (nomad.Server, error) {
+					return client.Server(ctx, name)
+				}, func(server nomad.Server) tea.Msg { return serverMsg(server) }),
+				fetchRaft(client),
+			)
+		},
+		rows: func(m Model) []tableRow { return serverDetailRows(m.server, m.raft, m.raftErr) },
+	},
+
+	screenNodeEvents: {
+		titles:  nodeEventTitles,
+		cluster: true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Events (Client: %s) [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeDetail,
+		rows:  func(m Model) []tableRow { return nodeEventRows(m.nodeDetail.Events) },
+	},
+
+	screenNodeDrivers: {
+		titles:  driverTitles,
+		hints:   driverHints,
+		cluster: true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Drivers (Client: %s) [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeDetail,
+		rows:  func(m Model) []tableRow { return driverRows(m.nodeDetail.Drivers) },
+	},
+
+	screenNodeDriver: {
+		titles:  fieldTitles,
+		hints:   fieldHints,
+		cluster: true,
+		fields:  true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Driver %s [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeDetail,
+		rows:  func(m Model) []tableRow { return fieldRows(m.driverAttributes()) },
+	},
+
+	screenNodeVolumes: {
+		titles:  volumeTitles,
+		cluster: true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Host volumes (Client: %s) [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeDetail,
+		rows:  func(m Model) []tableRow { return volumeRows(m.nodeDetail.Volumes) },
+	},
+
+	screenNodeAttributes: {
+		titles:  fieldTitles,
+		hints:   fieldHints,
+		cluster: true,
+		fields:  true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Attributes (Client: %s) [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeDetail,
+		rows:  func(m Model) []tableRow { return fieldRows(m.nodeDetail.Attributes) },
+	},
+
+	screenNodeMeta: {
+		titles:  metaTitles,
+		hints:   metaHints,
+		cluster: true,
+		fields:  true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Meta (Client: %s) [%d]", m.screen.label, count)
+		},
+		fetch: fetchNodeMeta,
+		rows:  func(m Model) []tableRow { return metaRows(m.nodeMeta) },
 	},
 
 	screenDescribe: {

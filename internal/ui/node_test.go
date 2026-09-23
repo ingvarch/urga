@@ -11,7 +11,12 @@ import (
 func nodeModel(t *testing.T, nodes []nomad.Node) (Model, *fakeClient) {
 	t.Helper()
 
-	client := &fakeClient{nodes: nodes}
+	return nodeModelOf(&fakeClient{nodes: nodes})
+}
+
+// nodeModelOf opens the clients screen on a cluster of its own.
+func nodeModelOf(client *fakeClient) (Model, *fakeClient) {
+	nodes := client.nodes
 
 	m := newTestModel(client)
 	m, _ = m.update(key(':'))
@@ -32,9 +37,9 @@ func TestNode_Drain(t *testing.T) {
 	m, client := nodeModel(t, readyNode())
 
 	m, _ = m.update(ctrlKey('d'))
-	r.Contains(plain(m.render()), "drain the node server-01")
+	r.Contains(plain(m.render()), "drain the client server-01")
 
-	_, cmd := m.update(enter())
+	_, cmd := answerYes(m)
 	drain(m, cmd)
 
 	r.True(client.drained)
@@ -50,10 +55,10 @@ func TestNode_StopDraining(t *testing.T) {
 
 	m, _ = m.update(ctrlKey('d'))
 
-	// A node that is already draining is asked to stop, not to start again.
-	r.Contains(plain(m.render()), "stop draining the node server-01")
+	// A client that is already draining is asked to stop, not to start again.
+	r.Contains(plain(m.render()), "stop draining the client server-01")
 
-	_, cmd := m.update(enter())
+	_, cmd := answerYes(m)
 	drain(m, cmd)
 
 	r.False(client.drained)
@@ -68,7 +73,7 @@ func TestNode_Eligibility(t *testing.T) {
 	m, _ = m.update(key('i'))
 	r.Contains(plain(m.render()), "stop giving new work to server-01")
 
-	_, cmd := m.update(enter())
+	_, cmd := answerYes(m)
 	drain(m, cmd)
 
 	r.False(client.eligible)
@@ -90,7 +95,7 @@ func TestDeployment_Promote(t *testing.T) {
 	m, _ = m.update(key('p'))
 	r.Contains(plain(m.render()), "promote the canaries")
 
-	m, cmd := m.update(enter())
+	m, cmd := answerYes(m)
 	m = drain(m, cmd)
 
 	r.Equal(1, client.promoted)
@@ -110,7 +115,7 @@ func TestDeployment_Fail(t *testing.T) {
 	m, _ = m.update(deploymentsMsg(deployments))
 
 	m, _ = m.update(key('f'))
-	_, cmd := m.update(enter())
+	_, cmd := answerYes(m)
 	drain(m, cmd)
 
 	r.Equal(1, client.failed)

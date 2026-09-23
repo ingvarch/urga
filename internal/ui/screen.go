@@ -22,6 +22,14 @@ const (
 	screenNodes
 	screenVariables
 	screenNodePools
+	screenServers
+	screenServer
+	screenNodeEvents
+	screenNodeDrivers
+	screenNodeDriver
+	screenNodeVolumes
+	screenNodeAttributes
+	screenNodeMeta
 	screenDescribe
 	screenLogs
 	screenTaskGroups
@@ -36,6 +44,10 @@ type screen struct {
 	jobID   string
 	allocID string
 
+	// nodeID is the machine an allocation list was opened for: a client
+	// shows its own work rather than the work of a job.
+	nodeID string
+
 	// label titles a screen that is about one thing, like a description.
 	label string
 
@@ -47,6 +59,12 @@ type screen struct {
 	source string
 }
 
+// isClient says the screen was opened for one machine of the cluster, which
+// answers keys of its own.
+func (s screen) isClient() bool {
+	return s.kind == screenAllocations && s.nodeID != ""
+}
+
 // titles are the columns of a screen.
 func (s screen) titles() []string {
 	return s.of().titles
@@ -55,7 +73,12 @@ func (s screen) titles() []string {
 // hints are the keys the open resource answers. Keys that work everywhere
 // are not here, they live in help.
 func (s screen) hints() []hint {
-	return s.of().hints
+	res := s.of()
+	if res.hintsFor != nil {
+		return res.hintsFor(s)
+	}
+
+	return res.hints
 }
 
 // title labels the box with what it holds and how much of it. The count is
@@ -142,6 +165,36 @@ func (m Model) open() (Model, tea.Cmd) {
 			jobID:     alloc.JobID,
 			allocID:   alloc.ID,
 		})
+
+	case screenNodes:
+		node, ok := selectedOf(m, screenNodes, m.nodes)
+		if !ok {
+			return m, nil
+		}
+
+		// The readings belong to the machine they were taken on, the chart
+		// starts over on every client.
+		m.host, m.hostTrail = node, nil
+
+		return m.push(screen{
+			kind:      screenAllocations,
+			namespace: nomad.AllNamespaces,
+			nodeID:    node.ID,
+			label:     node.Name,
+		})
+
+	case screenServers:
+		server, ok := selectedOf(m, screenServers, m.servers)
+		if !ok {
+			return m, nil
+		}
+
+		m.server, m.raft, m.raftErr = server, nil, nil
+
+		return m.push(screen{kind: screenServer, label: server.Name})
+
+	case screenNodeDrivers:
+		return m.openDriver()
 
 	case screenTasks:
 		return m.openLogs(nomad.LogStdout)

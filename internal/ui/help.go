@@ -25,8 +25,9 @@ var generalHints = []hint{
 
 // navigationHints are how to move around.
 var navigationHints = []hint{
-	{Key: "<enter>", Description: "Open"},
-	{Key: "<esc>", Description: "Back"},
+	{Key: "<enter>", Description: "Open, or press a button"},
+	{Key: "<esc>", Description: "Back, or cancel"},
+	{Key: "<left/right>", Description: "Choose a button"},
 	{Key: "<k/up>", Description: "Up"},
 	{Key: "<j/down>", Description: "Down"},
 	{Key: "<pgup/pgdn>", Description: "Page"},

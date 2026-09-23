@@ -58,6 +58,15 @@ func (t *tableModel) show(rows []tableRow, order sortState) {
 	t.follow()
 }
 
+// selected is the row the cursor is on.
+func (t tableModel) selected() (tableRow, bool) {
+	if t.cursor < 0 || t.cursor >= len(t.rows) {
+		return tableRow{}, false
+	}
+
+	return t.rows[t.cursor], true
+}
+
 func (t *tableModel) move(delta int) {
 	t.cursor = clamp(t.cursor+delta, 0, len(t.rows)-1)
 	t.follow()

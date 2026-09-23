@@ -84,3 +84,32 @@ func TestAllocations_Tasks(t *testing.T) {
 	r.Equal("sidecar", allocs[0].Tasks[1].Name)
 	r.True(allocs[0].Tasks[1].Failed)
 }
+
+func TestNodeAllocations_AsksTheNode(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `[{
+		"ID": "af1f37df-4528-6395-3a51-1ffcbf3c2ba4",
+		"Name": "pelmeni_buh_bot.pelmenis[0]",
+		"Namespace": "production",
+		"JobID": "pelmeni_buh_bot",
+		"TaskGroup": "pelmenis",
+		"NodeID": "node-1",
+		"NodeName": "nomad-server-01",
+		"ClientStatus": "running",
+		"DesiredStatus": "run",
+		"CreateTime": 1758499200000000000
+	}]`)
+
+	allocs, err := client.NodeAllocations(context.Background(), "node-1")
+	r.NoError(err)
+	r.Len(allocs, 1)
+
+	// The machine is asked for its own work, in every namespace: a client
+	// runs whatever the schedulers put on it.
+	r.Equal("/v1/node/node-1/allocations", asked.URL.Path)
+	r.Equal("*", asked.URL.Query().Get("namespace"))
+
+	r.Equal("pelmeni_buh_bot", allocs[0].JobID)
+	r.Equal("running", allocs[0].Status)
+}

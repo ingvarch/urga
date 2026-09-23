@@ -53,6 +53,10 @@ func TestNodeUsage(t *testing.T) {
 	// The cores together: one 40% busy and one 60% busy, and the memory of
 	// the machine.
 	r.Equal(50, use.CPUPercent)
+
+	// What the machine is doing in ticks, which reads next to the capacity
+	// the node list carries.
+	r.Equal(1500, use.CPUTicks)
 	r.Equal(50, use.MemoryPercent)
 	r.Equal(4096, use.MemoryMB)
 	r.Equal(8192, use.MemoryMBAllowed)
