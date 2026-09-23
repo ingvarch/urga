@@ -127,6 +127,8 @@ func (c *Client) NodeUsage(ctx context.Context, nodeID string) (ResourceUse, err
 		use.CPUPercent = int(busy/float64(cores) + 0.5)
 	}
 
+	use.CPUTicks = int(stats.CPUTicksConsumed)
+
 	if stats.Memory != nil {
 		use.MemoryMB = int(stats.Memory.Used / megabyte)
 		use.MemoryMBAllowed = int(stats.Memory.Total / megabyte)

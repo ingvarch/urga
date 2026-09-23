@@ -48,6 +48,7 @@ type Client interface {
 	PromoteDeployment(ctx context.Context, namespace, deploymentID string) error
 	FailDeployment(ctx context.Context, namespace, deploymentID string) error
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
+	NodeAllocations(ctx context.Context, nodeID string) ([]nomad.Alloc, error)
 	Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error)
 	Namespaces(ctx context.Context) ([]nomad.Namespace, error)
 	Services(ctx context.Context, namespace string) ([]nomad.Service, error)
@@ -177,6 +178,11 @@ type Model struct {
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
 	servers     []nomad.Server
+
+	// host is the machine a client screen is open on, hostTrail the
+	// readings taken of it since it was opened.
+	host      nomad.Node
+	hostTrail []nomad.ResourceUse
 
 	table tableModel
 	text  textModel
@@ -371,6 +377,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		// The list is stale the moment the cluster changed, ask again.
 		return m, m.fetch()
+
+	case hostUseMsg:
+		return m.keepHostUse(msg), nil
 
 	case pollMsg:
 		return m, m.fetch()
@@ -630,7 +639,7 @@ func (m Model) cursorLine() int {
 		return -1
 	}
 
-	return 2 + m.table.cursor - m.table.top
+	return 2 + m.panelHeight() + m.table.cursor - m.table.top
 }
 
 // body is what fills the box: what took the screen, or what the screen
@@ -642,6 +651,10 @@ func (m Model) body(width int) (title, content string) {
 
 	case m.readsAsText():
 		return m.title(), m.text.view()
+	}
+
+	if panel := m.panelHeight(); panel > 0 {
+		return m.title(), strings.Join(append(m.hostPanel(width), m.table.view()), "\n")
 	}
 
 	return m.title(), m.table.view()
@@ -690,7 +703,7 @@ func (m *Model) layout() {
 
 	// The table sits inside the box: the margin, its two border lines and the
 	// header row of the table itself are not rows.
-	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3, 1))
+	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3-m.panelHeight(), 1))
 	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2, 1))
 
 	m.text.filter = m.filter

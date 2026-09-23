@@ -18,6 +18,7 @@ import (
 type fakeClient struct {
 	jobs        []nomad.Job
 	allocs      []nomad.Alloc
+	nodeAllocs  []nomad.Alloc
 	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
 	namespaces  []nomad.Namespace
@@ -67,6 +68,8 @@ type fakeClient struct {
 
 	askedNamespace string
 	askedJobID     string
+	askedNodeID    string
+	usageNamespace string
 
 	calls      int
 	allocCalls int
@@ -88,6 +91,12 @@ func (f *fakeClient) Allocations(_ context.Context, namespace, jobID string) ([]
 	f.allocCalls++
 
 	return f.allocs, f.err
+}
+
+func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.Alloc, error) {
+	f.askedNodeID = nodeID
+
+	return f.nodeAllocs, f.err
 }
 
 func (f *fakeClient) DescribeJob(_ context.Context, namespace, jobID string) (string, error) {
@@ -238,8 +247,9 @@ func (f *fakeClient) Usage(context.Context) (nomad.Usage, error) {
 	return f.usage, f.err
 }
 
-func (f *fakeClient) AllocationUsage(_ context.Context, _, allocID string) (nomad.ResourceUse, error) {
+func (f *fakeClient) AllocationUsage(_ context.Context, namespace, allocID string) (nomad.ResourceUse, error) {
 	f.usageCalls++
+	f.usageNamespace = namespace
 
 	if f.usageErr != nil {
 		return nomad.ResourceUse{}, f.usageErr

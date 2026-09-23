@@ -37,6 +37,10 @@ type screen struct {
 	jobID   string
 	allocID string
 
+	// nodeID is the machine an allocation list was opened for: a client
+	// shows its own work rather than the work of a job.
+	nodeID string
+
 	// label titles a screen that is about one thing, like a description.
 	label string
 
@@ -142,6 +146,23 @@ func (m Model) open() (Model, tea.Cmd) {
 			namespace: alloc.Namespace,
 			jobID:     alloc.JobID,
 			allocID:   alloc.ID,
+		})
+
+	case screenNodes:
+		node, ok := selectedOf(m, screenNodes, m.nodes)
+		if !ok {
+			return m, nil
+		}
+
+		// The readings belong to the machine they were taken on, the chart
+		// starts over on every client.
+		m.host, m.hostTrail = node, nil
+
+		return m.push(screen{
+			kind:      screenAllocations,
+			namespace: nomad.AllNamespaces,
+			nodeID:    node.ID,
+			label:     node.Name,
 		})
 
 	case screenTasks:

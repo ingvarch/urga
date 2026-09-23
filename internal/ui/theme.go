@@ -15,6 +15,14 @@ var (
 	// colorSurface is the shade of a control that sits on the background: a
 	// button the cursor is not on.
 	colorSurface = lipgloss.Color("#3a4149")
+
+	// colorPanel is the shade a chart sits on, so the area it covers reads
+	// as one block against the screen.
+	colorPanel = lipgloss.Color("#262b31")
+
+	// chartLine is the scale drawn across a chart: quiet enough to read as
+	// a hairline, whether it crosses the air or a reading.
+	chartLine = lipgloss.Color("#525a63")
 )
 
 // Row colors say what state a resource is in, at a glance down the list.

@@ -66,6 +66,38 @@ func (c *Client) Allocations(ctx context.Context, namespace, jobID string) ([]Al
 	return allocs, nil
 }
 
+// NodeAllocations lists what one machine of the cluster runs, whichever
+// namespace the work belongs to.
+func (c *Client) NodeAllocations(ctx context.Context, nodeID string) ([]Alloc, error) {
+	stubs, _, err := c.api.Nodes().Allocations(nodeID, c.query(ctx, AllNamespaces))
+	if err != nil {
+		return nil, err
+	}
+
+	// The node answers with whole allocations where the other lists answer
+	// with stubs. Cutting one down to a stub keeps the reading of a list in
+	// one place.
+	allocs := make([]Alloc, 0, len(stubs))
+	for _, stub := range stubs {
+		allocs = append(allocs, newAlloc(&api.AllocationListStub{
+			ID:            stub.ID,
+			Name:          stub.Name,
+			Namespace:     stub.Namespace,
+			JobID:         stub.JobID,
+			TaskGroup:     stub.TaskGroup,
+			NodeID:        stub.NodeID,
+			NodeName:      stub.NodeName,
+			ClientStatus:  stub.ClientStatus,
+			DesiredStatus: stub.DesiredStatus,
+			TaskStates:    stub.TaskStates,
+			CreateTime:    stub.CreateTime,
+			ModifyTime:    stub.ModifyTime,
+		}))
+	}
+
+	return allocs, nil
+}
+
 func newAlloc(stub *api.AllocationListStub) Alloc {
 	alloc := Alloc{
 		ID:            stub.ID,

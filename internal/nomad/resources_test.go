@@ -159,6 +159,27 @@ func TestNodes_Read(t *testing.T) {
 	r.Equal("10.0.0.5", nodes[0].Address)
 }
 
+func TestNodes_ReadTheCapacity(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `[{
+		"ID": "node-1",
+		"Name": "nomad-server-01",
+		"Status": "ready",
+		"NodeResources": {"Cpu": {"CpuShares": 4000}, "Memory": {"MemoryMB": 3820}}
+	}]`)
+
+	nodes, err := client.Nodes(context.Background())
+	r.NoError(err)
+	r.Len(nodes, 1)
+
+	// Nomad leaves the resources out of the list unless it is asked for them,
+	// and what a machine has is what its readings are measured against.
+	r.Equal("true", asked.URL.Query().Get("resources"))
+	r.Equal(4000, nodes[0].CPUShares)
+	r.Equal(3820, nodes[0].MemoryMB)
+}
+
 func TestVariables_Read(t *testing.T) {
 	r := require.New(t)
 

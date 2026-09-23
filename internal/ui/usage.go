@@ -29,6 +29,14 @@ type (
 	pollUsageRow struct{}
 )
 
+// rowRef is one row a screen takes a reading of. The namespace travels with
+// it: a client runs the work of every namespace, and a reading is asked for
+// where the allocation lives.
+type rowRef struct {
+	namespace string
+	id        string
+}
+
 // fetchUsage reads what the rows on the screen take. Rows nobody is looking
 // at are not asked about, and a screen with no readings asks nothing.
 func (m Model) fetchUsage() tea.Cmd {
@@ -37,21 +45,21 @@ func (m Model) fetchUsage() tea.Cmd {
 		return nil
 	}
 
-	ids := res.readings(m)
-	if len(ids) == 0 {
+	refs := res.readings(m)
+	if len(refs) == 0 {
 		return nil
 	}
 
-	client, namespace, read := m.client, m.screen.namespace, res.reading
+	client, read := m.client, res.reading
 
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		out := rowUsageMsg{readings: make(map[string]nomad.ResourceUse, len(ids))}
+		out := rowUsageMsg{readings: make(map[string]nomad.ResourceUse, len(refs))}
 
-		for _, id := range ids {
-			use, err := read(client, ctx, namespace, id)
+		for _, ref := range refs {
+			use, err := read(client, ctx, ref)
 
 			// A machine that does not answer leaves its row empty, the rest
 			// of the list is still worth showing. What it said is kept, a
@@ -66,7 +74,7 @@ func (m Model) fetchUsage() tea.Cmd {
 				continue
 			}
 
-			out.readings[id] = use
+			out.readings[ref.id] = use
 		}
 
 		return out

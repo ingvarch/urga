@@ -93,6 +93,7 @@ func (m Model) failDeployment() (Model, tea.Cmd) {
 
 var (
 	nodeHints = []hint{
+		{Key: "<enter>", Description: "What it runs"},
 		{Key: "<ctrl-d>", Description: "Drain"},
 		{Key: "<i>", Description: "Eligibility"},
 	}

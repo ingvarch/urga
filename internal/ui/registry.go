@@ -60,8 +60,8 @@ type resource struct {
 
 	// readings are the resources whose usage the rows show, and reading is
 	// how one of them is read. A screen without readings leaves both nil.
-	readings func(m Model) []string
-	reading  func(client Client, ctx context.Context, namespace, id string) (nomad.ResourceUse, error)
+	readings func(m Model) []rowRef
+	reading  func(client Client, ctx context.Context, ref rowRef) (nomad.ResourceUse, error)
 
 	// title overrides the "<name> (<namespace>) [n]" form for a screen that
 	// says what it was opened for.
@@ -98,21 +98,21 @@ var resources = map[screenKind]resource{
 		titles:  allocTitles,
 		hints:   allocHints,
 
-		readings: func(m Model) []string {
+		readings: func(m Model) []rowRef {
 			allocs := m.visibleAllocs()
 
-			ids := make([]string, 0, len(m.index))
+			refs := make([]rowRef, 0, len(m.index))
 			for _, at := range m.index {
 				// Only what runs has anything to report.
 				if at < len(allocs) && allocs[at].Status == statusRunning {
-					ids = append(ids, allocs[at].ID)
+					refs = append(refs, rowRef{namespace: allocs[at].Namespace, id: allocs[at].ID})
 				}
 			}
 
-			return ids
+			return refs
 		},
-		reading: func(client Client, ctx context.Context, namespace, id string) (nomad.ResourceUse, error) {
-			return client.AllocationUsage(ctx, namespace, id)
+		reading: func(client Client, ctx context.Context, ref rowRef) (nomad.ResourceUse, error) {
+			return client.AllocationUsage(ctx, ref.namespace, ref.id)
 		},
 
 		title: func(m Model, count int) string {
@@ -120,10 +120,25 @@ var resources = map[screenKind]resource{
 				return sprintf("Allocations (Group: %s) [%d]", m.screen.taskGroup, count)
 			}
 
+			if m.screen.nodeID != "" {
+				return sprintf("Client %s [%d]", m.screen.label, count)
+			}
+
 			return sprintf("Allocations (Job: %s) [%d]", m.screen.jobID, count)
 		},
 		fetch: func(m Model) tea.Cmd {
 			client, screen := m.client, m.screen
+
+			if screen.nodeID != "" {
+				// The machine answers for its allocations and for itself:
+				// the chart above them is what the host is doing.
+				return tea.Batch(
+					fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
+						return client.NodeAllocations(ctx, screen.nodeID)
+					}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
+					fetchHostUse(client, screen.nodeID),
+				)
+			}
 
 			return fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
 				return client.Allocations(ctx, screen.namespace, screen.jobID)
@@ -229,18 +244,18 @@ var resources = map[screenKind]resource{
 		hints:   nodeHints,
 		cluster: true,
 
-		readings: func(m Model) []string {
-			ids := make([]string, 0, len(m.index))
+		readings: func(m Model) []rowRef {
+			refs := make([]rowRef, 0, len(m.index))
 			for _, at := range m.index {
 				if at < len(m.nodes) {
-					ids = append(ids, m.nodes[at].ID)
+					refs = append(refs, rowRef{id: m.nodes[at].ID})
 				}
 			}
 
-			return ids
+			return refs
 		},
-		reading: func(client Client, ctx context.Context, _, id string) (nomad.ResourceUse, error) {
-			return client.NodeUsage(ctx, id)
+		reading: func(client Client, ctx context.Context, ref rowRef) (nomad.ResourceUse, error) {
+			return client.NodeUsage(ctx, ref.id)
 		},
 		fetch: func(m Model) tea.Cmd {
 			return fetchList(m.client.Nodes, func(items []nomad.Node) tea.Msg { return nodesMsg(items) })

@@ -136,18 +136,23 @@ type Node struct {
 	Eligibility string
 	Drain       bool
 	Address     string
+
+	// CPUShares and MemoryMB are what the machine has, which is what its
+	// readings are measured against.
+	CPUShares int
+	MemoryMB  int
 }
 
 // Nodes lists the clients of the cluster.
 func (c *Client) Nodes(ctx context.Context) ([]Node, error) {
-	list, _, err := c.api.Nodes().List(c.query(ctx, ""))
+	list, _, err := c.api.Nodes().List(c.resourceQuery(ctx, ""))
 	if err != nil {
 		return nil, err
 	}
 
 	out := make([]Node, 0, len(list))
 	for _, n := range list {
-		out = append(out, Node{
+		node := Node{
 			ID:          n.ID,
 			Name:        n.Name,
 			Datacenter:  n.Datacenter,
@@ -157,7 +162,14 @@ func (c *Client) Nodes(ctx context.Context) ([]Node, error) {
 			Eligibility: n.SchedulingEligibility,
 			Drain:       n.Drain,
 			Address:     n.Address,
-		})
+		}
+
+		if n.NodeResources != nil {
+			node.CPUShares = int(n.NodeResources.Cpu.CpuShares)
+			node.MemoryMB = int(n.NodeResources.Memory.MemoryMB)
+		}
+
+		out = append(out, node)
 	}
 
 	return out, nil

@@ -11,7 +11,12 @@ import (
 func nodeModel(t *testing.T, nodes []nomad.Node) (Model, *fakeClient) {
 	t.Helper()
 
-	client := &fakeClient{nodes: nodes}
+	return nodeModelOf(&fakeClient{nodes: nodes})
+}
+
+// nodeModelOf opens the clients screen on a cluster of its own.
+func nodeModelOf(client *fakeClient) (Model, *fakeClient) {
+	nodes := client.nodes
 
 	m := newTestModel(client)
 	m, _ = m.update(key(':'))
