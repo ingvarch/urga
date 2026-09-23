@@ -12,7 +12,7 @@ func TestHeader(t *testing.T) {
 	r := require.New(t)
 
 	out := renderHeader(header{
-		address:      "https://nmd.1ly.dev",
+		address:      "https://nomad.example.com",
 		version:      "v0.1.0-dev",
 		nomadVersion: "1.11.1",
 	}, 80)
@@ -20,7 +20,7 @@ func TestHeader(t *testing.T) {
 	rows := lines(out)
 
 	r.Contains(rows[0], "Address:")
-	r.Contains(rows[0], "https://nmd.1ly.dev")
+	r.Contains(rows[0], "https://nomad.example.com")
 	r.Contains(rows[1], "Urga Rev:")
 	r.Contains(rows[1], "v0.1.0-dev")
 	r.Contains(rows[2], "Nomad Rev:")
@@ -50,7 +50,7 @@ func TestHeader_ShowsTheKeysOfTheScreen(t *testing.T) {
 	r := require.New(t)
 
 	out := renderHeader(header{
-		address: "https://nmd.1ly.dev",
+		address: "https://nomad.example.com",
 		hints: []hint{
 			{Key: "<enter>", Description: "Allocations"},
 			{Key: "<r>", Description: "Restart"},
@@ -80,7 +80,7 @@ func TestHeader_Height(t *testing.T) {
 func TestHeader_LogoOnTheRight(t *testing.T) {
 	r := require.New(t)
 
-	out := renderHeader(header{address: "https://nmd.1ly.dev", version: "v0.1.0-dev"}, 140)
+	out := renderHeader(header{address: "https://nomad.example.com", version: "v0.1.0-dev"}, 140)
 	rows := lines(out)
 
 	// The art sits at the right edge, the cluster info keeps the left.
@@ -95,7 +95,7 @@ func TestHeader_LogoOnTheRight(t *testing.T) {
 func TestHeader_WithoutRoomForTheLogo(t *testing.T) {
 	r := require.New(t)
 
-	out := renderHeader(header{address: "https://nmd.1ly.dev"}, 80)
+	out := renderHeader(header{address: "https://nomad.example.com"}, 80)
 
 	// No art at all, and no piece of it either.
 	r.NotContains(out, "@")
@@ -106,7 +106,7 @@ func TestHeader_LeavesTheNamespaceToTheKeys(t *testing.T) {
 	r := require.New(t)
 
 	out := renderHeader(header{
-		address:    "https://nmd.1ly.dev",
+		address:    "https://nomad.example.com",
 		namespaces: []namespaceKey{{Key: "<1>", Name: "production", Active: true}},
 	}, 140)
 

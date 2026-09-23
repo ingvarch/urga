@@ -93,7 +93,7 @@ type fakeClient struct {
 	allocCalls int
 }
 
-func (f *fakeClient) Address() string { return "https://nmd.1ly.dev" }
+func (f *fakeClient) Address() string { return "https://nomad.example.com" }
 
 func (f *fakeClient) Version(context.Context) (string, error) { return "1.11.1", nil }
 
