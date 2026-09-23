@@ -9,6 +9,19 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
+// allocationsOf walks down to the allocation list of the first job, which is
+// where the readings show up.
+func allocationsOf(t *testing.T, client *fakeClient) Model {
+	t.Helper()
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(client.jobs))
+	m, _ = m.update(enter())
+	m, _ = m.update(allocsMsg(client.allocs))
+
+	return m
+}
+
 func TestUsage_ShownOnTheAllocations(t *testing.T) {
 	r := require.New(t)
 
@@ -20,10 +33,7 @@ func TestUsage_ShownOnTheAllocations(t *testing.T) {
 		},
 	}
 
-	m := newTestModel(client)
-	m, _ = m.update(jobsMsg(twoJobs()))
-	m, _ = m.update(enter())
-	m, _ = m.update(allocsMsg(twoAllocs()))
+	m := allocationsOf(t, client)
 
 	// Before the cluster answers, the columns are there and empty.
 	out := plain(m.render())
@@ -45,10 +55,7 @@ func TestUsage_AskedForWhatIsOnTheScreen(t *testing.T) {
 
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
 
-	m := newTestModel(client)
-	m, _ = m.update(jobsMsg(twoJobs()))
-	m, _ = m.update(enter())
-	m, _ = m.update(allocsMsg(twoAllocs()))
+	m := allocationsOf(t, client)
 
 	drain(m, m.fetchUsage())
 
@@ -118,10 +125,7 @@ func TestUsage_OnlyRunningAllocationsAreAsked(t *testing.T) {
 
 	client := &fakeClient{jobs: twoJobs(), allocs: allocs}
 
-	m := newTestModel(client)
-	m, _ = m.update(jobsMsg(twoJobs()))
-	m, _ = m.update(enter())
-	m, _ = m.update(allocsMsg(allocs))
+	m := allocationsOf(t, client)
 
 	drain(m, m.fetchUsage())
 
@@ -135,10 +139,7 @@ func TestUsage_SaysWhyThereAreNoReadings(t *testing.T) {
 
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), usageErr: errors.New("Unexpected response code: 500 (rpc error: No path to node)")}
 
-	m := newTestModel(client)
-	m, _ = m.update(jobsMsg(twoJobs()))
-	m, _ = m.update(enter())
-	m, _ = m.update(allocsMsg(twoAllocs()))
+	m := allocationsOf(t, client)
 
 	m = drain(m, m.fetchUsage())
 
