@@ -35,6 +35,8 @@ const (
 	screenDescribe
 	screenLogs
 	screenTaskGroups
+	screenRegions
+	screenDatacenters
 )
 
 // screen is what is open: the resource and what it was opened for. The
@@ -119,7 +121,42 @@ func (m Model) fetch() tea.Cmd {
 		return nil
 	}
 
-	return res.fetch(m)
+	return askedFor(m.asked, res.fetch(m))
+}
+
+// answerMsg is an answer with the ask it belongs to. The session moves on
+// while a request is out; what was asked before that is no longer what the
+// screen shows.
+type answerMsg struct {
+	asked int
+	msg   tea.Msg
+}
+
+// askedFor labels whatever a command answers with, the commands of a batch
+// included.
+func askedFor(asked int, cmd tea.Cmd) tea.Cmd {
+	if cmd == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		msg := cmd()
+
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			labelled := make(tea.BatchMsg, 0, len(batch))
+			for _, c := range batch {
+				labelled = append(labelled, askedFor(asked, c))
+			}
+
+			return labelled
+		}
+
+		if msg == nil {
+			return nil
+		}
+
+		return answerMsg{asked: asked, msg: msg}
+	}
 }
 
 // request asks the cluster in the background and hands the answer over as a
@@ -197,6 +234,12 @@ func (m Model) open() (Model, tea.Cmd) {
 
 	case screenNodeDrivers:
 		return m.openDriver()
+
+	case screenRegions:
+		return m.chooseRegion()
+
+	case screenDatacenters:
+		return m.chooseDatacenter()
 
 	case screenJobVersions:
 		return m.openVersionDiff()
@@ -308,6 +351,9 @@ func (m Model) arrive() (Model, tea.Cmd) {
 
 // enter puts the screen on the table and asks the cluster for its rows.
 func (m Model) enter() (Model, tea.Cmd) {
+	// Whatever is still out was asked for what was on the screen before.
+	m.asked++
+
 	m.table = newTableModel(m.screen.titles())
 	m.filter = ""
 	m.sort = newSortState()

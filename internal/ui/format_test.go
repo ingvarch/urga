@@ -47,7 +47,7 @@ func TestTruncate(t *testing.T) {
 	r.Equal("exactly10c", truncate("exactly10c", 10))
 
 	// A long value is eaten from the right, wrapping it breaks the row.
-	r.Equal("https://nm…", truncate("https://nmd.1ly.dev", 11))
+	r.Equal("https://no…", truncate("https://nomad.example.com", 11))
 	r.Equal("…", truncate("anything", 1))
 	r.Equal("", truncate("anything", 0))
 }

@@ -15,10 +15,12 @@ One binary, no config to write, no browser.
 
 ```
   Address:   https://nomad.example.com  <0> all         <enter>  Allocations     @@@  @@@ @@@@@@@   @@@@@@@   @@@@@@
-  Urga Rev:  v0.1.0                     <1> production  <t>      Task groups     @@!  @@@ @@!  @@@ !@@       @@!  @@@
-  Nomad Rev: 2.0.5                      <2> staging     <d>      Describe        @!@  !@! @!@!!@!  !@! @!@!@ @!@!@!@!
-  CPU:       15%                        <3> default     <h>      Job spec        !!:  !!! !!: :!!  :!!   !!: !!:  !!!
-  MEM:       31%                                        <ctrl-s> Start or stop    :.:: :   :   : :  :: :: :   :   : :
+  Region:    global                     <1> production  <t>      Task groups     @@!  @@@ @@!  @@@ !@@       @@!  @@@
+  DC:        all                        <2> staging     <d>      Describe        @!@  !@! @!@!!@!  !@! @!@!@ @!@!@!@!
+  Urga Rev:  v0.1.0                     <3> default     <h>      Job spec        !!:  !!! !!: :!!  :!!   !!: !!:  !!!
+  Nomad Rev: 2.0.5                                      <ctrl-s> Start or stop    :.:: :   :   : :  :: :: :   :   : :
+  CPU:       15%
+  MEM:       31%
  ╭───────────────────────────────────────── Jobs (all) [3] ──────────────────────────────────────────╮
  │ ID                       Name                     Type      Namespace    Status    Allocs   Age   │
  │ api                      api                      service   production   running   3/3      11d   │
@@ -52,12 +54,13 @@ urga reads the same environment as the `nomad` command:
 | --- | --- |
 | `NOMAD_ADDR` | Address of the cluster, defaults to `http://127.0.0.1:4646` |
 | `NOMAD_TOKEN` | ACL token, when the cluster asks for one |
+| `NOMAD_REGION` | Region to ask in, the one of the agent when unset |
 | `NOMAD_NAMESPACE` | Namespace to start in, every namespace when unset |
 
 Flags override it:
 
 ```sh
-urga --address https://nomad.example.com --namespace production
+urga --address https://nomad.example.com --region eu --namespace production
 ```
 
 ## Keys
@@ -69,6 +72,14 @@ to `nodes` as well, the word Nomad's own CLI uses. A letter is enough: the
 line finishes the word it fits, `up` and `down` walk through the rest of
 them, `tab` or `right` takes what is offered, `enter` opens it. A second word
 switches the namespace with it, as in `jobs production`. `q` leaves.
+
+`region eu` asks another region of the cluster from then on and goes back to
+the list the open screen came from; the datacenter goes back to all of them.
+`dc dc2` narrows the jobs, the clients, the servers and the CPU and memory in
+the header to one datacenter, `dc all` brings every one of them back. Either
+word on its own opens a list of them with the one in use marked: `enter`
+switches to the one under the cursor, `esc` leaves things as they were. The
+header shows both under the address.
 
 | Key | What it does |
 | --- | --- |

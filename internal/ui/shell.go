@@ -12,8 +12,10 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// shellCommand is what a shell needs to know about.
+// shellCommand is what a shell needs to know about. The region travels with
+// it: the session may have moved to another one since urga started.
 type shellCommand struct {
+	Region    string
 	Namespace string
 	AllocID   string
 	Task      string
@@ -42,6 +44,7 @@ func (m Model) shell() (Model, tea.Cmd) {
 	}
 
 	return m, m.opts.Shell.Open(shellCommand{
+		Region:    m.client.Region(),
 		Namespace: m.screen.namespace,
 		AllocID:   m.screen.allocID,
 		Task:      task.Name,
@@ -58,11 +61,14 @@ type shellRunner struct {
 func NewShell(client *nomad.Client) Shell { return shellRunner{client: client} }
 
 func (s shellRunner) Open(cmd shellCommand) tea.Cmd {
-	session := &shellSession{client: s.client, cmd: cmd}
-
-	return tea.Exec(session, func(err error) tea.Msg {
+	return tea.Exec(s.session(cmd), func(err error) tea.Msg {
 		return shellDoneMsg{task: cmd.Task, err: err}
 	})
+}
+
+// session is a shell in the region of the task.
+func (s shellRunner) session(cmd shellCommand) *shellSession {
+	return &shellSession{client: s.client.InRegion(cmd.Region), cmd: cmd}
 }
 
 // shellSession is a running shell. Bubble Tea gives it the terminal while it

@@ -77,7 +77,7 @@ func (c *Client) ScaleJob(ctx context.Context, namespace, jobID, group string, c
 }
 
 func (c *Client) write(ctx context.Context, namespace string) *api.WriteOptions {
-	return (&api.WriteOptions{Namespace: namespace}).WithContext(ctx)
+	return (&api.WriteOptions{Namespace: namespace, Region: c.region}).WithContext(ctx)
 }
 
 func boolPtr(v bool) *bool { return &v }

@@ -124,7 +124,8 @@ func TestClient_TheChartIsDroppedOnAShortScreen(t *testing.T) {
 	m, _ := clientScreen(t)
 	m, _ = m.update(reading(29))
 
-	m, _ = m.update(tea.WindowSizeMsg{Width: 120, Height: 16})
+	// A box of nine rows, whatever the header above it takes.
+	m, _ = m.update(tea.WindowSizeMsg{Width: 120, Height: headerHeight + 11})
 	out := plain(m.render())
 
 	// On a screen with no room for both, the allocations win and the

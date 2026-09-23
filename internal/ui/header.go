@@ -8,10 +8,13 @@ import (
 )
 
 // infoRows is how many lines the cluster info takes.
-const infoRows = 5
+const infoRows = 7
 
 // unknown is what a value reads as before the cluster has answered.
 const unknown = "n/a"
+
+// everyDatacenter is what no datacenter chosen reads as.
+const everyDatacenter = "all"
 
 // headerHeight is fixed so that the list below never moves, whatever the
 // header has to show. It holds both the info and the art in the corner.
@@ -35,6 +38,8 @@ type namespaceKey struct {
 // everywhere are not here, they are in help.
 type header struct {
 	address      string
+	region       string
+	datacenter   string
 	version      string
 	nomadVersion string
 	usage        string
@@ -106,6 +111,8 @@ func infoColumn(h header, width int) string {
 		value string
 	}{
 		{"Address:", h.address},
+		{"Region:", orUnknown(h.region)},
+		{"DC:", orEvery(h.datacenter)},
 		{"Urga Rev:", h.version},
 		{"Nomad Rev:", orUnknown(h.nomadVersion)},
 		{"CPU:", orUnknown(h.usage)},
@@ -206,6 +213,15 @@ func orUnknown(value string) string {
 	}
 
 	return value
+}
+
+// orEvery is a datacenter, or every one of them when none was chosen.
+func orEvery(datacenter string) string {
+	if datacenter == "" {
+		return everyDatacenter
+	}
+
+	return datacenter
 }
 
 func pad(s string, width int) string {

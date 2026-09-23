@@ -14,6 +14,10 @@ import (
 func serversServer(t *testing.T, members, leader string) *nomad.Client {
 	t.Helper()
 
+	// The servers are those of the region asked in; one left in the
+	// environment of whoever runs the tests is not that region.
+	t.Setenv("NOMAD_REGION", "")
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 

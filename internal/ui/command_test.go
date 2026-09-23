@@ -74,6 +74,7 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal([]string{
 		"allocations", "clients", "deployments", "evaluations", "jobs",
 		"namespaces", "nodepools", "servers", "services", "variables",
+		"dc", "region",
 	}, matchingCommands(""))
 
 	// A word that is an alias of its own comes first, whatever other names
@@ -89,4 +90,50 @@ func TestMatchingCommands(t *testing.T) {
 
 	// Nothing fits a word that names nothing.
 	r.Empty(matchingCommands("zz"))
+}
+
+func TestParseCommand_SwitchesTheRegionOrTheDatacenter(t *testing.T) {
+	tests := []struct {
+		input     string
+		switching scope
+		name      string
+	}{
+		{input: "region eu", switching: scopeRegion, name: "eu"},
+		{input: "region", switching: scopeRegion},
+		{input: "reg eu", switching: scopeRegion, name: "eu"},
+		{input: "dc dc2", switching: scopeDatacenter, name: "dc2"},
+		{input: "dc all", switching: scopeDatacenter, name: "all"},
+		{input: "dc", switching: scopeDatacenter},
+	}
+
+	for _, test := range tests {
+		t.Run(test.input, func(t *testing.T) {
+			r := require.New(t)
+
+			cmd, ok := parseCommand(test.input)
+			r.True(ok)
+			r.Equal(test.switching, cmd.switching)
+			r.Equal(test.name, cmd.name)
+		})
+	}
+}
+
+func TestParseCommand_AResourceComesBeforeASwitch(t *testing.T) {
+	r := require.New(t)
+
+	// `d` has opened the deployments since the first day, a datacenter
+	// must not take it over.
+	cmd, ok := parseCommand("d")
+	r.True(ok)
+	r.Equal(screenDeployments, cmd.kind)
+	r.Equal(scopeNone, cmd.switching)
+}
+
+func TestMatchingCommands_OfferTheSwitchesAfterTheResources(t *testing.T) {
+	r := require.New(t)
+
+	r.Equal([]string{"deployments", "dc"}, matchingCommands("d"))
+	r.Equal([]string{"dc"}, matchingCommands("dc"))
+	r.Equal([]string{"region"}, matchingCommands("r"))
+	r.Equal([]string{"region"}, matchingCommands("region eu"))
 }

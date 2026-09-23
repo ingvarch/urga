@@ -114,27 +114,34 @@ func TestJobs_WithoutASummary(t *testing.T) {
 	r.True(jobs[0].SubmitTime.IsZero())
 }
 
-func TestVersion_ReadsTheAgentBuild(t *testing.T) {
+func TestAgent_ReadsTheBuildAndTheRegion(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := recorder(t, `{"member": {"Name": "server-01", "Tags": {"build": "1.11.1"}}}`)
+	client, asked := recorder(t, `{
+		"config": {"Region": "eu"},
+		"member": {"Name": "server-01", "Tags": {"build": "1.11.1"}}
+	}`)
 
-	version, err := client.Version(context.Background())
+	agent, err := client.Agent(context.Background())
 	r.NoError(err)
 
 	r.Equal("/v1/agent/self", asked.URL.Path)
-	r.Equal("1.11.1", version)
+	r.Equal("1.11.1", agent.Version)
+
+	// The region of the agent is where a request without one goes.
+	r.Equal("eu", agent.Region)
 }
 
-func TestVersion_WithoutABuildTag(t *testing.T) {
+func TestAgent_WithoutABuildTag(t *testing.T) {
 	r := require.New(t)
 
 	client, _ := recorder(t, `{"member": {"Name": "server-01"}}`)
 
-	version, err := client.Version(context.Background())
+	agent, err := client.Agent(context.Background())
 
 	// An agent that does not say answers with nothing, not with an error the
 	// header would have to show.
 	r.NoError(err)
-	r.Empty(version)
+	r.Empty(agent.Version)
+	r.Empty(agent.Region)
 }

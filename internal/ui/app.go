@@ -19,7 +19,10 @@ import (
 // namespace it asks in.
 type Client interface {
 	Address() string
-	Version(ctx context.Context) (string, error)
+	Region() string
+	Agent(ctx context.Context) (nomad.Agent, error)
+	Regions(ctx context.Context) ([]string, error)
+	Datacenters(ctx context.Context) ([]string, error)
 	Jobs(ctx context.Context, namespace string) ([]nomad.Job, error)
 	DescribeJob(ctx context.Context, namespace, jobID string) (string, error)
 	DescribeAllocation(ctx context.Context, namespace, allocID string) (string, error)
@@ -27,7 +30,7 @@ type Client interface {
 	DescribeService(ctx context.Context, namespace, name string) (string, error)
 	JobSpec(ctx context.Context, namespace, jobID string) (string, error)
 	Logs(ctx context.Context, namespace, allocID, task, source string) (*nomad.LogStream, error)
-	Usage(ctx context.Context) (nomad.Usage, error)
+	Usage(ctx context.Context, datacenter string) (nomad.Usage, error)
 	AllocationUsage(ctx context.Context, namespace, allocID string) (nomad.ResourceUse, error)
 	NodeUsage(ctx context.Context, nodeID string) (nomad.ResourceUse, error)
 
@@ -90,6 +93,10 @@ type Options struct {
 
 	// Shell runs a shell inside a task. It may be nil.
 	Shell Shell
+
+	// InRegion is the same cluster asked in another region. It may be nil,
+	// and switching regions then says so.
+	InRegion func(region string) Client
 }
 
 const (
@@ -149,8 +156,15 @@ type (
 		err   error
 	}
 
-	usageMsg     nomad.Usage
-	versionMsg   string
+	// usageMsg carries where it was read: numbers of a region or a
+	// datacenter the session has left must not stand under the new name.
+	usageMsg struct {
+		region     string
+		datacenter string
+		usage      nomad.Usage
+	}
+
+	agentMsg     nomad.Agent
 	errMsg       struct{ err error }
 	pollMsg      struct{}
 	pollUsageMsg struct{}
@@ -251,6 +265,10 @@ type Model struct {
 	// said so about: every screen asks again, and every screen is refused.
 	refused bool
 
+	// asked counts the screens put up, so that an answer to one that is no
+	// longer up is dropped.
+	asked int
+
 	// polling says a timer is already on its way with the next ask. Every
 	// answer would otherwise schedule one, and a screen that is answered
 	// from several sides would end up with a timer per answer.
@@ -265,6 +283,19 @@ type Model struct {
 
 	nomadVersion string
 	usage        nomad.Usage
+
+	// usageDue says the timer for the next reading of the header is on its
+	// way. A switch reads at once, and its answer must not start a second
+	// timer next to the first.
+	usageDue bool
+
+	// agentRegion is the region of the agent, which answers a session that
+	// names none. regions and datacenters are what the command line can
+	// switch to, datacenter the one the lists are narrowed to.
+	agentRegion string
+	regions     []string
+	datacenters []string
+	datacenter  string
 
 	// rowUsage is what each row on the screen takes, by its id, and why the
 	// rest of them said nothing.
@@ -299,9 +330,11 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.fetch(),
 		m.watch(),
-		fetchVersion(client),
-		fetchClusterUsage(client),
+		fetchAgent(client),
+		m.fetchClusterUsage(),
 		fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
+		fetchRegions(client),
+		fetchDatacenters(client),
 	)
 }
 
@@ -332,8 +365,15 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 
+	case answerMsg:
+		if msg.asked != m.asked {
+			return m, nil
+		}
+
+		return m.update(msg.msg)
+
 	case jobsMsg:
-		return m.applyList(screenJobs, func(m *Model) { m.jobs = msg })
+		return m.applyList(screenJobs, func(m *Model) { m.jobs = m.jobsInView(msg) })
 
 	case allocsMsg:
 		next, cmd := m.applyList(screenAllocations, func(m *Model) { m.allocs = msg })
@@ -363,7 +403,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.applyList(screenEvaluations, func(m *Model) { m.evaluations = msg })
 
 	case nodesMsg:
-		next, cmd := m.applyList(screenNodes, func(m *Model) { m.nodes = msg })
+		next, cmd := m.applyList(screenNodes, func(m *Model) { m.nodes = m.nodesInView(msg) })
 
 		return next, tea.Batch(cmd, next.usageOnce())
 
@@ -374,20 +414,48 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.applyList(screenNodePools, func(m *Model) { m.nodePools = msg })
 
 	case serversMsg:
-		return m.applyList(screenServers, func(m *Model) { m.servers = msg })
+		return m.applyList(screenServers, func(m *Model) { m.servers = m.serversInView(msg) })
 
-	case versionMsg:
-		m.nomadVersion = string(msg)
+	case agentMsg:
+		m.nomadVersion = msg.Version
+		m.agentRegion = msg.Region
 
 		return m, nil
 
+	case regionsMsg:
+		// Kept whatever is on the screen: the command line checks a name
+		// against them.
+		m.regions = msg
+
+		return m.applyList(screenRegions, func(*Model) {})
+
+	case datacentersMsg:
+		// The names belong to the region they were asked in.
+		if msg.region != m.client.Region() {
+			return m, nil
+		}
+
+		m.datacenters = msg.names
+
+		return m.applyList(screenDatacenters, func(*Model) {})
+
 	case usageMsg:
-		m.usage = nomad.Usage(msg)
+		if msg.region == m.client.Region() && msg.datacenter == m.datacenter {
+			m.usage = msg.usage
+		}
+
+		if m.usageDue {
+			return m, nil
+		}
+
+		m.usageDue = true
 
 		return m, tea.Tick(usageEvery, func(time.Time) tea.Msg { return pollUsageMsg{} })
 
 	case pollUsageMsg:
-		return m, fetchClusterUsage(m.client)
+		m.usageDue = false
+
+		return m, m.fetchClusterUsage()
 
 	case rowUsageMsg:
 		m.rowUsage = msg.readings
@@ -833,6 +901,8 @@ func (m Model) render() string {
 func (m Model) headerData() header {
 	return header{
 		address:      m.client.Address(),
+		region:       m.regionInUse(),
+		datacenter:   m.datacenter,
 		version:      m.opts.Version,
 		nomadVersion: m.nomadVersion,
 		usage:        percentOf(m.usage.CPUPercent),
@@ -954,12 +1024,19 @@ func percentOf(value int) string {
 	return fmt.Sprintf("%d%%", value)
 }
 
-// fetchClusterUsage reads what the whole cluster is busy with, which the
-// header shows. What one row takes is read by Model.fetchUsage.
-func fetchClusterUsage(client Client) tea.Cmd {
-	return request(client.Usage, func(usage nomad.Usage) tea.Msg { return usageMsg(usage) })
+// fetchClusterUsage reads what the datacenter in use is busy with, or the
+// whole region, which the header shows. What one row takes is read by
+// Model.fetchUsage.
+func (m Model) fetchClusterUsage() tea.Cmd {
+	client, datacenter := m.client, m.datacenter
+
+	return request(func(ctx context.Context) (nomad.Usage, error) {
+		return client.Usage(ctx, datacenter)
+	}, func(usage nomad.Usage) tea.Msg {
+		return usageMsg{region: client.Region(), datacenter: datacenter, usage: usage}
+	})
 }
 
-func fetchVersion(client Client) tea.Cmd {
-	return request(client.Version, func(version string) tea.Msg { return versionMsg(version) })
+func fetchAgent(client Client) tea.Cmd {
+	return request(client.Agent, func(agent nomad.Agent) tea.Msg { return agentMsg(agent) })
 }

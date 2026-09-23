@@ -60,6 +60,12 @@ var (
 			Foreground(lipgloss.Color("#1c1f24")).
 			Background(colorActive)
 
+	// A marked row under the cursor is painted in the color of the mark:
+	// standing on a mark must not hide it.
+	styleSelectedMark = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#1c1f24")).
+				Background(colorMark)
+
 	// A button of a dialog. The one under the cursor is filled, which is the
 	// only thing that tells the two of them apart.
 	styleButton = lipgloss.NewStyle().

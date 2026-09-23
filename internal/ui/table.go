@@ -102,6 +102,8 @@ func (t tableModel) view() string {
 		line := t.line(t.rows[i].cells, widths)
 
 		switch {
+		case i == t.cursor && t.rows[i].marked:
+			line = styleSelectedMark.Render(line)
 		case i == t.cursor:
 			line = styleSelected.Render(line)
 		case t.rows[i].marked:

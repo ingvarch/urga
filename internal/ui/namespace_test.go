@@ -105,3 +105,20 @@ func TestNamespaceKeys_NothingToSwitchTo(t *testing.T) {
 	r.Equal("production", m.namespace)
 	r.Nil(cmd)
 }
+
+func TestNamespaceKeys_DropTheAnswerAskedBefore(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{jobs: twoJobs(), namespaces: threeNamespaces()})
+	m, _ = m.update(namespacesMsg(threeNamespaces()))
+
+	// The jobs of production are on their way when the session moves on.
+	late := m.fetch()
+
+	m, _ = m.update(key('3'))
+	m, _ = m.update(late())
+
+	// They must not stand under the name of staging.
+	r.Empty(m.jobs)
+	r.NotContains(plain(m.render()), "cron")
+}

@@ -53,22 +53,31 @@ type RaftPeer struct {
 	Protocol string
 }
 
-// Servers lists the servers of the cluster and says which one leads.
+// Servers lists the servers of the region the client asks in and says which
+// one leads.
 func (c *Client) Servers(ctx context.Context) ([]Server, error) {
 	members, err := c.api.Agent().MembersOpts(c.query(ctx, ""))
 	if err != nil {
 		return nil, err
 	}
 
+	// The gossip spans every region. A client that names none is answered
+	// in the one of the agent, which the answer says itself.
+	region := c.region
+	if region == "" {
+		region = members.ServerRegion
+	}
+
 	// Who leads is a separate question, and one the cluster may not be able
 	// to answer during an election. The list is worth showing either way.
 	// That endpoint takes no options, so it carries no context of its own.
-	leader, _ := c.api.Status().Leader()
+	// Every region has a leader of its own.
+	leader, _ := c.api.Status().RegionLeader(c.region)
 
 	servers := make([]Server, 0, len(members.Members))
 
 	for _, member := range members.Members {
-		if member == nil {
+		if member == nil || (region != "" && member.Tags["region"] != region) {
 			continue
 		}
 
