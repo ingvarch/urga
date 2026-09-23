@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -88,20 +89,19 @@ func TestDatacenter_NarrowsTheClients(t *testing.T) {
 	r.Equal([]string{"n1"}, idsOf(m.nodes, func(n nomad.Node) string { return n.ID }))
 }
 
-func TestDatacenter_NarrowsTheServersToTheRegionInUse(t *testing.T) {
+func TestDatacenter_NarrowsTheServers(t *testing.T) {
 	r := require.New(t)
 
 	m := newTestModel(&fakeClient{region: "eu"})
 	m.datacenter = "dc1"
 	m, _ = m.show(screenServers)
 
+	// The cluster answers with the servers of the region in use.
 	m, _ = m.update(serversMsg([]nomad.Server{
 		{Name: "eu-1", Region: "eu", Datacenter: "dc1"},
 		{Name: "eu-2", Region: "eu", Datacenter: "dc2"},
-		{Name: "us-1", Region: "us", Datacenter: "dc1"},
 	}))
 
-	// Datacenters are named per region: dc1 of us is not dc1 of eu.
 	r.Equal([]string{"eu-1"}, idsOf(m.servers, func(s nomad.Server) string { return s.Name }))
 }
 
@@ -116,7 +116,7 @@ func TestDatacenter_EveryOneOfThem(t *testing.T) {
 		{Name: "us-1", Region: "us", Datacenter: "dc2"},
 	}))
 
-	// No datacenter chosen and no region known yet: nothing is left out.
+	// No datacenter chosen: nothing is left out.
 	r.Len(m.servers, 2)
 }
 
@@ -470,4 +470,94 @@ func TestInRegionOf_AsksTheClusterInThatRegion(t *testing.T) {
 
 	r.Equal("eu", eu.Region())
 	r.Equal("us", client.Region())
+}
+
+func TestRegionCommand_LetsGoOfWhatTheRegionItLeftSaid(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs()}
+	m := regionalModel(t, client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	// The next region does not answer: a token of one region is refused in
+	// another.
+	client.err = errors.New("ACL token not found")
+
+	m, cmd := runLine(m, "region us")
+	m = drain(m, cmd)
+
+	// The jobs of eu must not stand under the name of us, and keys on them
+	// would act in us.
+	r.Empty(m.jobs)
+
+	out := plain(m.render())
+	r.NotContains(out, "cron")
+	r.Contains(out, "ACL token not found")
+}
+
+func TestRegionCommand_LetsGoOfTheMarks(t *testing.T) {
+	r := require.New(t)
+
+	m := regionalModel(t, &fakeClient{jobs: twoJobs()})
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(space())
+	r.NotEmpty(m.marks)
+
+	m, _ = runLine(m, "region us")
+
+	// A mark names a job of eu; in us the same name is another job.
+	r.Empty(m.marks)
+}
+
+func TestRegionCommand_TheNumbersOfTheRegionLeftAreGone(t *testing.T) {
+	r := require.New(t)
+
+	m := regionalModel(t, &fakeClient{})
+	m, _ = m.update(usageMsg{usage: nomad.Usage{CPUPercent: 15, MemoryPercent: 31}})
+	r.Contains(headerOf(m), "CPU:       15%")
+
+	m, _ = runLine(m, "region us")
+
+	r.Contains(headerOf(m), "CPU:       n/a")
+	r.Contains(headerOf(m), "MEM:       n/a")
+}
+
+func TestDatacenterCommand_NarrowsWhatIsOnTheScreenAtOnce(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: []nomad.Job{
+		{ID: "web", Datacenters: []string{"dc1"}},
+		{ID: "api", Datacenters: []string{"dc2"}},
+	}}
+	m := newTestModel(client)
+	m, _ = m.update(datacentersMsg{names: []string{"dc1", "dc2"}})
+	m, _ = m.update(jobsMsg(client.jobs))
+
+	// What the other screens held when they were left.
+	m.nodes = []nomad.Node{{ID: "n1", Datacenter: "dc1"}, {ID: "n2", Datacenter: "dc2"}}
+	m.servers = []nomad.Server{{Name: "s1", Datacenter: "dc1"}, {Name: "s2", Datacenter: "dc2"}}
+
+	client.err = errors.New("connection refused")
+
+	m, cmd := runLine(m, "dc dc2")
+	m = drain(m, cmd)
+
+	// Nothing of dc1 stands under the name of dc2, whether or not the
+	// cluster answers.
+	r.Equal([]string{"api"}, idsOf(m.jobs, func(j nomad.Job) string { return j.ID }))
+	r.Equal([]string{"n2"}, idsOf(m.nodes, func(n nomad.Node) string { return n.ID }))
+	r.Equal([]string{"s2"}, idsOf(m.servers, func(s nomad.Server) string { return s.Name }))
+}
+
+func TestDatacenterCommand_TheNumbersOfTheDatacenterLeftAreGone(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{})
+	m, _ = m.update(datacentersMsg{names: []string{"dc1", "dc2"}})
+	m, _ = m.update(usageMsg{usage: nomad.Usage{CPUPercent: 15, MemoryPercent: 31}})
+
+	m, _ = runLine(m, "dc dc1")
+
+	r.Contains(headerOf(m), "CPU:       n/a")
+	r.Contains(headerOf(m), "MEM:       n/a")
 }

@@ -193,3 +193,41 @@ func TestServers_MarkTheLeaderOfTheRegion(t *testing.T) {
 	// the one to mark.
 	r.Equal("eu", leaderAsked)
 }
+
+// federation is the gossip of two regions: the agent answering is a server
+// of global, and it knows the servers of eu as well.
+const federation = `{
+	"ServerName": "server-01",
+	"ServerRegion": "global",
+	"Members": [
+		{"Name": "server-01.global", "Addr": "10.0.0.5", "Status": "alive", "Tags": {"region": "global", "dc": "dc1", "port": "4647"}},
+		{"Name": "server-01.eu", "Addr": "10.1.0.5", "Status": "alive", "Tags": {"region": "eu", "dc": "dc1", "port": "4647"}}
+	]
+}`
+
+func TestServers_AreThoseOfTheRegionAskedIn(t *testing.T) {
+	r := require.New(t)
+
+	client := serversServer(t, federation, `""`)
+
+	servers, err := client.InRegion("eu").Servers(context.Background())
+	r.NoError(err)
+
+	// The gossip spans every region; the list is the region in use.
+	r.Len(servers, 1)
+	r.Equal("server-01.eu", servers[0].Name)
+}
+
+func TestServers_WithoutARegionAreThoseOfTheAgent(t *testing.T) {
+	r := require.New(t)
+
+	client := serversServer(t, federation, `""`)
+
+	servers, err := client.Servers(context.Background())
+	r.NoError(err)
+
+	// A client that names no region is answered in the one of the agent,
+	// which the same answer says.
+	r.Len(servers, 1)
+	r.Equal("server-01.global", servers[0].Name)
+}

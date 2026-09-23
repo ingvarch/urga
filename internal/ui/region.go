@@ -143,15 +143,27 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 	m.closeLogs()
 
 	m.client = m.opts.InRegion(region)
-	m.datacenter, m.datacenters = "", nil
-	m.usage = nomad.Usage{}
-
+	m = m.forgetRegion()
 	m.screen, m.history = m.listScreen(), nil
-	m.marks = nil
 
 	next, cmd := m.arrive()
 
 	return next, tea.Batch(cmd, fetchDatacenters(next.client), next.fetchClusterUsage())
+}
+
+// forgetRegion lets go of what the cluster said in the region that was
+// left. None of it holds in the next one, and a key on a row of it would act
+// there: an empty list until the next region answers is the truth.
+func (m Model) forgetRegion() Model {
+	m.jobs, m.allocs, m.groups, m.versions = nil, nil, nil, nil
+	m.deployments, m.services, m.evaluations = nil, nil, nil
+	m.nodes, m.variables, m.nodePools, m.servers = nil, nil, nil, nil
+	m.rowUsage = nil
+	m.marks = nil
+	m.usage = nomad.Usage{}
+	m.datacenter, m.datacenters = "", nil
+
+	return m
 }
 
 // switchDatacenter narrows the lists and the header to a datacenter, empty
@@ -169,6 +181,10 @@ func (m Model) switchDatacenter(datacenter string) (Model, tea.Cmd) {
 func (m Model) narrow(datacenter string, show func(Model) (Model, tea.Cmd)) (Model, tea.Cmd) {
 	m.datacenter = datacenter
 	m.usage = nomad.Usage{}
+
+	// What is held is narrowed at once: until the cluster answers, and when
+	// it does not, nothing of another datacenter stands under the new name.
+	m.jobs, m.nodes, m.servers = m.jobsInView(m.jobs), m.nodesInView(m.nodes), m.serversInView(m.servers)
 
 	next, cmd := show(m)
 
@@ -221,14 +237,8 @@ func (m Model) nodesInView(nodes []nomad.Node) []nomad.Node {
 	return keep(nodes, func(node nomad.Node) bool { return m.inDatacenter(node.Datacenter) })
 }
 
-// serversInView are the servers of the region in use: the cluster lists
-// every region it gossips with, and datacenters are named per region.
 func (m Model) serversInView(servers []nomad.Server) []nomad.Server {
-	region := m.regionInUse()
-
-	return keep(servers, func(server nomad.Server) bool {
-		return (region == "" || server.Region == region) && m.inDatacenter(server.Datacenter)
-	})
+	return keep(servers, func(server nomad.Server) bool { return m.inDatacenter(server.Datacenter) })
 }
 
 func (m Model) inDatacenter(datacenter string) bool {
