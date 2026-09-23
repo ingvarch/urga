@@ -29,6 +29,7 @@ func everyScreen(t *testing.T) map[string]Model {
 		nodeAllocs:  clientAllocs(),
 		nodeDetail:  clientDetail(),
 		nodeMeta:    clientMeta(),
+		versions:    threeVersions(),
 		variables:   []nomad.Variable{{Path: "nomad/jobs/web", Namespace: "production"}},
 		nodePools:   []nomad.NodePool{{Name: "default"}},
 		use:         map[string]nomad.ResourceUse{"node-1": {}},
@@ -98,6 +99,13 @@ func everyScreen(t *testing.T) map[string]Model {
 
 	driver, cmd := open["drivers"].update(enter())
 	open["driver"] = drain(driver, cmd)
+
+	// The screens that hang off a job and a task.
+	versions, cmd := jobs.update(key('v'))
+	open["versions"] = drain(versions, cmd)
+
+	events, _ := open["tasks"].update(key('e'))
+	open["taskevents"] = events
 
 	return open
 }

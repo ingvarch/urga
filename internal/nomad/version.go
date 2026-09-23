@@ -10,8 +10,13 @@ import (
 	"github.com/hashicorp/nomad/api"
 )
 
-// ErrNoDiff is a version with nothing before it to compare against.
-var ErrNoDiff = errors.New("no version before this one")
+var (
+	// ErrNoDiff is a version with nothing before it to compare against.
+	ErrNoDiff = errors.New("no version before this one")
+
+	// ErrNoVersion is a version the cluster does not have.
+	ErrNoVersion = errors.New("no such version")
+)
 
 // JobVersion is one version of a job as the cluster kept it.
 type JobVersion struct {
@@ -62,8 +67,8 @@ func (c *Client) JobVersions(ctx context.Context, namespace, jobID string) ([]Jo
 
 		// The cluster answers with one diff per step between versions, so
 		// the oldest one has none.
-		if i < len(diffs) {
-			version.Changes = countChanges(diffs[i])
+		if i < len(diffs) && diffs[i] != nil {
+			version.Changes = countChanges(writeJobDiff(diffs[i]))
 		}
 
 		out = append(out, version)
@@ -91,7 +96,7 @@ func (c *Client) JobVersionDiff(ctx context.Context, namespace, jobID string, ve
 		return writeJobDiff(diffs[i]), nil
 	}
 
-	return "", ErrNoDiff
+	return "", ErrNoVersion
 }
 
 // RevertJobTo puts the version it is given back in place.
@@ -107,56 +112,25 @@ func (c *Client) versions(ctx context.Context, namespace, jobID string) ([]*api.
 	return jobs, diffs, err
 }
 
-// countChanges is how many fields a diff touches, however deep they sit.
-func countChanges(diff *api.JobDiff) int {
-	if diff == nil {
-		return 0
-	}
+// countChanges is how many fields a diff touches, read off what the diff
+// says: one walk of the tree rather than two that have to agree.
+func countChanges(diff string) int {
+	count := 0
 
-	count := len(diff.Fields)
-
-	for _, object := range diff.Objects {
-		count += countObject(object)
-	}
-
-	for _, group := range diff.TaskGroups {
-		if group == nil {
-			continue
-		}
-
-		count += len(group.Fields)
-
-		for _, object := range group.Objects {
-			count += countObject(object)
-		}
-
-		for _, task := range group.Tasks {
-			if task == nil {
-				continue
-			}
-
-			count += len(task.Fields)
-
-			for _, object := range task.Objects {
-				count += countObject(object)
-			}
+	for _, line := range strings.Split(diff, "\n") {
+		if changed(strings.TrimSpace(line)) {
+			count++
 		}
 	}
 
 	return count
 }
 
-func countObject(object *api.ObjectDiff) int {
-	if object == nil {
-		return 0
-	}
-
-	count := len(object.Fields)
-	for _, inner := range object.Objects {
-		count += countObject(inner)
-	}
-
-	return count
+// changed says the line is a field that was added, taken away or edited.
+func changed(line string) bool {
+	return strings.HasPrefix(line, "+ ") ||
+		strings.HasPrefix(line, "- ") ||
+		strings.HasPrefix(line, "~ ")
 }
 
 // writeJobDiff puts a diff in the shape it reads in: the job, then its task

@@ -20,16 +20,25 @@ const (
 	slowPoll = 30 * time.Second
 )
 
-// Messages of the stream.
+// Messages of the stream. Each carries the stream it came from: a screen
+// that was left closes its stream, and the answers that were in flight when
+// it did must not touch the one that is up.
 type (
 	// watchingMsg is the cluster agreeing to say when things change.
-	watchingMsg struct{ changes *nomad.Changes }
+	watchingMsg struct {
+		id      int
+		changes *nomad.Changes
+	}
 
-	// watchEndedMsg is the stream stopping, however it stopped.
-	watchEndedMsg struct{ err error }
+	// watchEndedMsg is the stream stopping, however it stopped. Why it
+	// stopped is not shown: a cluster that will not stream is one urga
+	// polls, which is what it did before.
+	watchEndedMsg struct{ id int }
 
-	// changeMsg is one thing that changed.
-	changeMsg struct{ change nomad.Change }
+	// changeMsg is the cluster saying that the screen is no longer what it
+	// shows. What it now holds is read the usual way, so what exactly
+	// changed is not carried here.
+	changeMsg struct{ id int }
 
 	// settleMsg is the end of a burst of changes.
 	settleMsg struct{}
@@ -44,15 +53,15 @@ func (m Model) watch() tea.Cmd {
 		return nil
 	}
 
-	client, namespace := m.client, m.screen.namespace
+	client, namespace, id := m.client, m.screen.namespace, m.watchID
 
 	return func() tea.Msg {
 		changes, err := client.Events(context.Background(), namespace, topics)
 		if err != nil {
-			return watchEndedMsg{err: err}
+			return watchEndedMsg{id: id}
 		}
 
-		return watchingMsg{changes: changes}
+		return watchingMsg{id: id, changes: changes}
 	}
 }
 
@@ -63,23 +72,32 @@ func (m Model) waitForChange() tea.Cmd {
 		return nil
 	}
 
+	id := m.watchID
+
 	return func() tea.Msg {
 		select {
-		case change, ok := <-changes.C:
+		case _, ok := <-changes.C:
 			if !ok {
-				return watchEndedMsg{}
+				return watchEndedMsg{id: id}
 			}
 
-			return changeMsg{change: change}
+			return changeMsg{id: id}
 
-		case err := <-changes.Err:
-			return watchEndedMsg{err: err}
+		case <-changes.Err:
+			return watchEndedMsg{id: id}
 		}
 	}
 }
 
-// startWatching keeps the stream and starts reading it.
+// startWatching keeps the stream and starts reading it. A stream that comes
+// up after the screen that asked for it is gone is closed instead.
 func (m Model) startWatching(msg watchingMsg) (Model, tea.Cmd) {
+	if msg.id != m.watchID {
+		msg.changes.Close()
+
+		return m, nil
+	}
+
 	m.stopWatching()
 
 	m.changes = msg.changes
@@ -103,12 +121,19 @@ func (m Model) keepChange() (Model, tea.Cmd) {
 }
 
 // endWatch lets the stream go. What it was watching is polled again, and a
-// cluster that will not stream is not an error of the screen.
+// cluster that will not stream is not an error of the screen. The count goes
+// up so that whatever was in flight for that stream is known to be stale.
 func (m Model) endWatch() Model {
 	m.stopWatching()
 	m.watching = false
+	m.watchID++
 
 	return m
+}
+
+// current says the answer belongs to the stream the model is holding.
+func (m Model) current(id int) bool {
+	return id == m.watchID
 }
 
 // stopWatching closes the stream, which stops the request behind it.

@@ -103,14 +103,18 @@ func TestNode_ReadsTheMachineItself(t *testing.T) {
 	r.Equal(4000, node.CPUShares)
 }
 
-// metaServer answers what the agent says about its metadata and keeps what
-// was sent to it.
-func metaServer(t *testing.T, body string) (*nomad.Client, *[]byte) {
+// metaServer answers with the given body and keeps what was sent to it, as
+// well as the request it was asked: some of what a call says travels in the
+// body and some of it in the query.
+func metaServer(t *testing.T, body string) (*nomad.Client, *[]byte, *http.Request) {
 	t.Helper()
 
 	sent := &[]byte{}
+	asked := &http.Request{}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		*asked = *req
+
 		if req.Method == http.MethodPost || req.Method == http.MethodPut {
 			*sent, _ = io.ReadAll(req.Body)
 		}
@@ -123,7 +127,7 @@ func metaServer(t *testing.T, body string) (*nomad.Client, *[]byte) {
 	client, err := nomad.New(nomad.Config{Address: server.URL})
 	require.NoError(t, err)
 
-	return client, sent
+	return client, sent, asked
 }
 
 const nodeMeta = `{
@@ -135,7 +139,7 @@ const nodeMeta = `{
 func TestNodeMeta_SaysWhereEachKeyComesFrom(t *testing.T) {
 	r := require.New(t)
 
-	client, _ := metaServer(t, nodeMeta)
+	client, _, _ := metaServer(t, nodeMeta)
 
 	meta, err := client.NodeMeta(context.Background(), "node-1")
 	r.NoError(err)
@@ -154,7 +158,7 @@ func TestNodeMeta_SaysWhereEachKeyComesFrom(t *testing.T) {
 func TestNodeMetaSpec_IsWhatCanBeChanged(t *testing.T) {
 	r := require.New(t)
 
-	client, _ := metaServer(t, nodeMeta)
+	client, _, _ := metaServer(t, nodeMeta)
 
 	spec, err := client.NodeMetaSpec(context.Background(), "node-1")
 	r.NoError(err)
@@ -168,7 +172,7 @@ func TestNodeMetaSpec_IsWhatCanBeChanged(t *testing.T) {
 func TestSubmitNodeMeta_SendsWhatChanged(t *testing.T) {
 	r := require.New(t)
 
-	client, sent := metaServer(t, nodeMeta)
+	client, sent, _ := metaServer(t, nodeMeta)
 
 	err := client.SubmitNodeMeta(context.Background(), "node-1", `{"team": "pelmeni"}`)
 	r.NoError(err)

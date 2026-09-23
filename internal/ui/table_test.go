@@ -188,3 +188,20 @@ func TestTable_CursorStaysInTheRows(t *testing.T) {
 	r.Equal(0, tbl.cursor)
 	r.Contains(lines(tbl.view())[1], "a")
 }
+
+func TestTable_AMarkedRowOnAScreenWithNoRoom(t *testing.T) {
+	r := require.New(t)
+
+	// A window dragged narrower than the margin must not take the program
+	// down with it.
+	table := tableModel{
+		titles: []string{"ID"},
+		rows:   []tableRow{{cells: []string{"af1f37df"}, marked: true}},
+		height: 3,
+	}
+
+	for _, width := range []int{0, 1, 2, 4} {
+		table.width = width
+		r.NotPanics(func() { table.view() }, "width %d", width)
+	}
+}

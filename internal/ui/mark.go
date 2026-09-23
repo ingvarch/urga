@@ -53,15 +53,23 @@ func (m Model) markAll() (Model, tea.Cmd) {
 	}
 
 	shown := m.shownIDs(ids(m))
+	if len(shown) == 0 {
+		return m, nil
+	}
 
-	if len(m.marks) >= len(shown) && len(shown) > 0 {
+	// All of them already taken means let them go; otherwise take the rest.
+	// Counting would clear a mark the filter is hiding.
+	if m.allMarked(shown) {
 		m.marks = nil
 		m.layout()
 
 		return m, nil
 	}
 
-	m.marks = map[string]bool{}
+	if m.marks == nil {
+		m.marks = map[string]bool{}
+	}
+
 	for _, id := range shown {
 		m.marks[id] = true
 	}
@@ -87,6 +95,17 @@ func (m Model) showMarks(rows []tableRow) {
 	}
 }
 
+// allMarked says every row on the screen is taken.
+func (m Model) allMarked(shown []string) bool {
+	for _, id := range shown {
+		if !m.marks[id] {
+			return false
+		}
+	}
+
+	return true
+}
+
 // shownIDs are the ids of the rows that are on the screen, which is what a
 // filter narrows.
 func (m Model) shownIDs(all []string) []string {
@@ -101,31 +120,37 @@ func (m Model) shownIDs(all []string) []string {
 	return out
 }
 
-// marked are the resources that carry a mark, in the order they are shown.
-// Without a mark anywhere, what the cursor is on is the answer, which is how
-// every action reads a list.
+// marked are the resources that carry a mark. A mark is on the resource, not
+// on the line it sits on, so a filter or a sort does not change what an
+// action takes. Without a mark anywhere, what the cursor is on is the answer,
+// which is how every action reads a list.
 func marked[T any](m Model, kind screenKind, items []T) []T {
 	res := m.screen.of()
 
-	if len(m.marks) == 0 || res.ids == nil || m.screen.kind != kind {
-		one, ok := selectedOf(m, kind, items)
-		if !ok {
-			return nil
-		}
+	out := []T{}
 
-		return []T{one}
-	}
+	if len(m.marks) > 0 && res.ids != nil && m.screen.kind == kind {
+		all := res.ids(m)
 
-	all := res.ids(m)
-
-	out := make([]T, 0, len(m.marks))
-	for _, at := range m.index {
-		if at < len(all) && at < len(items) && m.marks[all[at]] {
-			out = append(out, items[at])
+		for at := range items {
+			if at < len(all) && m.marks[all[at]] {
+				out = append(out, items[at])
+			}
 		}
 	}
 
-	return out
+	// Marks that name nothing on this screen any more leave the cursor to
+	// answer, rather than the key doing nothing at all.
+	if len(out) > 0 {
+		return out
+	}
+
+	one, ok := selectedOf(m, kind, items)
+	if !ok {
+		return nil
+	}
+
+	return []T{one}
 }
 
 // allocIDs name the allocations of the screen, so that a mark belongs to the

@@ -36,6 +36,12 @@ type textModel struct {
 // visible are the lines the filter leaves, as they are read: with the time
 // they arrived when that is asked for.
 func (t textModel) visible() []string {
+	// A log arrives a line at a time and is read as often as it arrives:
+	// with nothing to filter and nothing to stamp, the lines are the answer.
+	if t.filter == "" && !t.times {
+		return t.lines
+	}
+
 	kept := make([]string, 0, len(t.lines))
 
 	match := func(string) bool { return true }
@@ -87,20 +93,15 @@ func (t textModel) rows() []string {
 	return out
 }
 
-// wrapLine breaks a line into rows of the given width.
+// wrapLine breaks a line into rows of the given width, by what the line
+// looks like rather than by the bytes it takes: the colour a task writes in
+// is not width.
 func wrapLine(line string, width int) []string {
 	if width < 1 || ansi.StringWidth(line) <= width {
 		return []string{line}
 	}
 
-	out := []string{}
-	for rest := line; rest != ""; {
-		row := ansi.Truncate(rest, width, "")
-		out = append(out, row)
-		rest = strings.TrimPrefix(rest, row)
-	}
-
-	return out
+	return strings.Split(ansi.Hardwrap(line, width, true), "\n")
 }
 
 func newTextModel(content string) textModel {

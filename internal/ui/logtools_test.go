@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -133,4 +134,97 @@ func TestLogs_SaveADescriptionToo(t *testing.T) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.txt"))
 	r.NoError(err)
 	r.Len(files, 1)
+}
+
+func TestLogs_WrapALineThatCarriesColour(t *testing.T) {
+	r := require.New(t)
+
+	// What a service writes is usually coloured. Wrapping must cut it by
+	// what it looks like, not by the bytes the colour takes.
+	coloured := "\x1b[31m" + strings.Repeat("error ", 40) + "\x1b[0m"
+
+	done := make(chan []string, 1)
+	go func() { done <- wrapLine(coloured, 20) }()
+
+	select {
+	case rows := <-done:
+		r.Greater(len(rows), 1)
+		r.Contains(plain(rows[0]), "error")
+	case <-time.After(2 * time.Second):
+		t.Fatal("wrapping a coloured line did not finish")
+	}
+}
+
+func TestLogs_WrapALineOfWideCharacters(t *testing.T) {
+	r := require.New(t)
+
+	done := make(chan []string, 1)
+	go func() { done <- wrapLine("восток東京восток", 1) }()
+
+	select {
+	case rows := <-done:
+		// A column too narrow for a character still takes it, rather than
+		// coming back with nothing to show for it.
+		r.NotEmpty(rows)
+	case <-time.After(2 * time.Second):
+		t.Fatal("wrapping a wide line did not finish")
+	}
+}
+
+func TestLogs_SaveWhatTheFilterLeft(t *testing.T) {
+	r := require.New(t)
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	m, _ := onLogs(t, "ready to serve\n", "connection refused\n")
+
+	m, _ = m.update(key('/'))
+	m = typeIn(m, "refused")
+	m, _ = m.update(enter())
+
+	m, cmd := m.update(ctrlKey('s'))
+	drain(m, cmd)
+
+	files, _ := filepath.Glob(filepath.Join(dir, "*.log"))
+	r.Len(files, 1)
+
+	saved, err := os.ReadFile(files[0])
+	r.NoError(err)
+
+	// Narrowing a log down to what matters and keeping that is the point of
+	// having both keys on the same screen.
+	r.Contains(string(saved), "connection refused")
+	r.NotContains(string(saved), "ready to serve")
+}
+
+func TestLogs_TimesBelongToTheLogAlone(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), describe: "one\ntwo"}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, cmd := m.update(key('d'))
+	m = drain(m, cmd)
+
+	before := plain(m.render())
+	m, _ = m.update(key('t'))
+
+	// A description has no times to show, so the key leaves it alone
+	// instead of shifting every line to the right.
+	r.Equal(before, plain(m.render()))
+}
+
+func TestLogs_ASaveNameIsAName(t *testing.T) {
+	r := require.New(t)
+
+	// Everything a file name cannot hold is taken out, and what is left
+	// does not start with a dash: a file that does is a nuisance for every
+	// command that reads it afterwards.
+	r.Equal("urga", plainName("///"))
+	r.Equal("urga", plainName(""))
+	r.Equal("web", plainName("/web/"))
+	r.Equal("Job-web", plainName("Job: web"))
 }

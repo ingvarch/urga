@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image/color"
 
@@ -24,6 +25,10 @@ func (m Model) openVersions() (Model, tea.Cmd) {
 	if !ok {
 		return m, nil
 	}
+
+	// What was read of another job is let go of: the screen holds nothing
+	// until this one is answered for.
+	m.versions = nil
 
 	return m.push(screen{kind: screenJobVersions, namespace: job.Namespace, jobID: job.ID})
 }
@@ -91,7 +96,17 @@ func (m Model) openVersionDiff() (Model, tea.Cmd) {
 
 	return m, describe(fmt.Sprintf("%s version %d", screen.jobID, version.Version),
 		func(ctx context.Context) (string, error) {
-			return client.JobVersionDiff(ctx, screen.namespace, screen.jobID, version.Version)
+			text, err := client.JobVersionDiff(ctx, screen.namespace, screen.jobID, version.Version)
+
+			// The first version of a job changed nothing: there is nothing
+			// before it to compare it with.
+			if errors.Is(err, nomad.ErrNoDiff) {
+				return fmt.Sprintf(
+					"Version %d of %s is the first one the cluster kept.\n\n"+
+						"There is nothing before it to compare it with.", version.Version, screen.jobID), nil
+			}
+
+			return text, err
 		})
 }
 

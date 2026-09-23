@@ -126,7 +126,13 @@ type (
 	serversMsg     []nomad.Server
 	serverMsg      nomad.Server
 	nodeDetailMsg  nomad.NodeDetail
-	versionsMsg    []nomad.JobVersion
+
+	// versionsMsg carries the job it was asked of: version numbers belong
+	// to one job, and the ones of another must not stand under its name.
+	versionsMsg struct {
+		jobID    string
+		versions []nomad.JobVersion
+	}
 
 	// nodeMetaMsg carries the machine it was asked of, like every answer
 	// that belongs to one client.
@@ -235,6 +241,15 @@ type Model struct {
 	// stream is the task output the log screen follows.
 	stream    *nomad.LogStream
 	following bool
+
+	// watchID counts the streams this session has opened, so that an answer
+	// from one that was let go of does not touch the one that is up.
+	watchID int
+
+	// polling says a timer is already on its way with the next ask. Every
+	// answer would otherwise schedule one, and a screen that is answered
+	// from several sides would end up with a timer per answer.
+	polling bool
 
 	// changes is the cluster saying when what the screen shows changed,
 	// watching that it agreed to, and settling a burst of them waiting to
@@ -379,7 +394,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		// an empty cluster.
 		m.err = msg.err
 
-		return m, m.schedulePoll()
+		return m.schedulePoll()
 
 	case describeMsg:
 		return m.showDescribe(msg)
@@ -426,6 +441,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case doneMsg:
 		if msg.err != nil {
 			m.err = msg.err
+			m.layout()
 
 			return m, nil
 		}
@@ -433,11 +449,20 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.err = nil
 		m.said = msg.said
 
+		// What was asked about has happened, so the marks that asked for it
+		// are let go of.
+		m.marks = nil
+		m.layout()
+
 		// The list is stale the moment the cluster changed, ask again.
 		return m, m.fetch()
 
 	case versionsMsg:
-		return m.applyList(screenJobVersions, func(m *Model) { m.versions = msg })
+		if m.screen.jobID != msg.jobID {
+			return m, nil
+		}
+
+		return m.applyList(screenJobVersions, func(m *Model) { m.versions = msg.versions })
 
 	case nodeDetailMsg:
 		// The answer belongs to the machine it was asked of: leaving one
@@ -450,7 +475,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.err = nil
 		m.layout()
 
-		return m, m.schedulePoll()
+		return m.schedulePoll()
 
 	case nodeMetaMsg:
 		if m.screen.nodeID != msg.nodeID {
@@ -468,7 +493,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.err = nil
 		m.layout()
 
-		return m, m.schedulePoll()
+		return m.schedulePoll()
 
 	case raftMsg:
 		m.raft, m.raftErr = msg.peers, msg.err
@@ -492,6 +517,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.startWatching(msg)
 
 	case changeMsg:
+		if !m.current(msg.id) {
+			return m, nil
+		}
+
 		return m.keepChange()
 
 	case settleMsg:
@@ -501,10 +530,19 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case watchEndedMsg:
 		// A cluster that will not stream is one urga asks on its own, which
-		// is what it did before. Nothing about that belongs over the rows.
-		return m.endWatch(), m.schedulePoll()
+		// is what it did before. Nothing about that belongs over the rows,
+		// and the timer it already has goes on without help.
+		if !m.current(msg.id) {
+			return m, nil
+		}
+
+		return m.endWatch(), nil
 
 	case pollMsg:
+		// The timer has fired and there is room for the next one, which the
+		// answer to this ask will set.
+		m.polling = false
+
 		return m, m.fetch()
 	}
 
@@ -522,7 +560,7 @@ func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
 	m.err = nil
 	m.layout()
 
-	return m, m.schedulePoll()
+	return m.schedulePoll()
 }
 
 // handleKey is the one place that decides who gets a key press: an overlay
@@ -897,8 +935,16 @@ func (m *Model) layout() {
 	m.table.show(rows, m.sort)
 }
 
-func (m Model) schedulePoll() tea.Cmd {
-	return tea.Tick(m.pollEvery(), func(time.Time) tea.Msg { return pollMsg{} })
+// schedulePoll asks for the next poll, unless one is already on its way.
+// The caller keeps the model it is given: the promise to poll lives in it.
+func (m Model) schedulePoll() (Model, tea.Cmd) {
+	if m.polling {
+		return m, nil
+	}
+
+	m.polling = true
+
+	return m, tea.Tick(m.pollEvery(), func(time.Time) tea.Msg { return pollMsg{} })
 }
 
 // percentOf is a reading of the cluster, empty until there is one.

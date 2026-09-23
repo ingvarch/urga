@@ -22,7 +22,10 @@ func (m Model) saveText() tea.Cmd {
 	}
 
 	name := saveName(m.screen)
-	content := strings.Join(m.text.lines, "\n")
+
+	// What is kept is what is read: the filter, the wrapping and the times
+	// are how the screen was narrowed down to what matters.
+	content := strings.Join(m.text.rows(), "\n")
 
 	return request(func(context.Context) (savedMsg, error) {
 		if err := os.WriteFile(name, []byte(content), 0o600); err != nil {
@@ -48,10 +51,10 @@ func saveName(s screen) string {
 var notInAName = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
 func plainName(what string) string {
-	name := notInAName.ReplaceAllString(what, "-")
+	name := strings.Trim(notInAName.ReplaceAllString(what, "-"), "-")
 	if name == "" {
 		return "urga"
 	}
 
-	return strings.Trim(name, "-")
+	return name
 }

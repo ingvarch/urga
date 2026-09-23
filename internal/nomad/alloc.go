@@ -52,8 +52,6 @@ type TaskEvent struct {
 
 	// Failed says this event is what took the task down.
 	Failed bool
-
-	Details map[string]string
 }
 
 // Allocations lists the allocations of a job. An empty job lists every
@@ -154,7 +152,6 @@ func newTaskEvents(events []*api.TaskEvent) []TaskEvent {
 			Type:    event.Type,
 			Message: message,
 			Failed:  event.FailsTask,
-			Details: event.Details,
 		})
 	}
 

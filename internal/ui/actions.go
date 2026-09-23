@@ -3,8 +3,11 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // doneMsg is what came of an action.
@@ -84,16 +87,13 @@ func (m Model) confirmKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// applyConfirm does what was asked about and lets go of the marks it was
-// asked about: left up, they would be taken into the next action by surprise.
+// applyConfirm does what was asked about. The marks stay until it is known
+// to have worked: what did not happen is still marked, and the same key
+// tries it again.
 func (m Model) applyConfirm() (Model, tea.Cmd) {
 	apply := m.confirm.apply
 
-	m = m.closeConfirm()
-	m.marks = nil
-	m.layout()
-
-	return m, apply
+	return m.closeConfirm(), apply
 }
 
 // closeConfirm takes the question off the screen.
@@ -158,49 +158,68 @@ func (m Model) revertJob() (Model, tea.Cmd) {
 
 // restartAllocation restarts every task of an allocation.
 func (m Model) restartAllocation() (Model, tea.Cmd) {
-	allocs := marked(m, screenAllocations, m.visibleAllocs())
-	if len(allocs) == 0 {
-		return m, nil
-	}
-
 	client := m.client
-	label := allocLabel(allocs)
 
-	return m.ask(
-		fmt.Sprintf("Really restart %s?", label),
-		act(fmt.Sprintf("Restarted %s.", label), func(ctx context.Context) error {
-			for _, alloc := range allocs {
-				if err := client.RestartAllocation(ctx, alloc.Namespace, alloc.ID); err != nil {
-					return err
-				}
-			}
-
-			return nil
-		}),
-	)
+	return m.askEachAlloc("restart", "Restarted", func(ctx context.Context, alloc nomad.Alloc) error {
+		return client.RestartAllocation(ctx, alloc.Namespace, alloc.ID)
+	})
 }
 
 // stopAllocation stops an allocation. The scheduler places a new one when the
 // job still asks for it.
 func (m Model) stopAllocation() (Model, tea.Cmd) {
+	client := m.client
+
+	return m.askEachAlloc("stop", "Stopped", func(ctx context.Context, alloc nomad.Alloc) error {
+		return client.StopAllocation(ctx, alloc.Namespace, alloc.ID)
+	})
+}
+
+// askEachAlloc asks about the allocations an action is to take, and then
+// takes each of them on its own: one that will not answer must not stop the
+// rest, and a screenful of them must not share one timeout.
+func (m Model) askEachAlloc(verb, done string, do func(context.Context, nomad.Alloc) error) (Model, tea.Cmd) {
 	allocs := marked(m, screenAllocations, m.visibleAllocs())
 	if len(allocs) == 0 {
 		return m, nil
 	}
 
-	client := m.client
 	label := allocLabel(allocs)
 
 	return m.ask(
-		fmt.Sprintf("Really stop %s?", label),
-		act(fmt.Sprintf("Stopped %s.", label), func(ctx context.Context) error {
-			for _, alloc := range allocs {
-				if err := client.StopAllocation(ctx, alloc.Namespace, alloc.ID); err != nil {
-					return err
-				}
+		fmt.Sprintf("Really %s %s?", verb, label),
+		eachAlloc(done, label, allocs, do),
+	)
+}
+
+// eachAlloc runs the action against every allocation and says how far it
+// got, so that a failure halfway through is not read as nothing happening.
+func eachAlloc(done, label string, allocs []nomad.Alloc, do func(context.Context, nomad.Alloc) error) tea.Cmd {
+	return func() tea.Msg {
+		out := doneMsg{said: fmt.Sprintf("%s %s.", done, label)}
+
+		went := 0
+		failed := []string{}
+
+		for _, alloc := range allocs {
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			err := do(ctx, alloc)
+
+			cancel()
+
+			if err != nil {
+				failed = append(failed, err.Error())
+
+				continue
 			}
 
-			return nil
-		}),
-	)
+			went++
+		}
+
+		if len(failed) > 0 {
+			out.err = fmt.Errorf("%s %d of %d: %s", strings.ToLower(done), went, len(allocs), failed[0])
+		}
+
+		return out
+	}
 }

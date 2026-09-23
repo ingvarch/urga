@@ -63,24 +63,6 @@ func TestVersions_OpenWhatAVersionChanged(t *testing.T) {
 	r.Contains(plain(m.render()), "~ Priority: 50 -> 70")
 }
 
-func TestVersions_AVersionWithNothingBeforeIt(t *testing.T) {
-	r := require.New(t)
-
-	client := &fakeClient{jobs: twoJobs(), versions: threeVersions(), diffErr: nomad.ErrNoDiff}
-
-	m := newTestModel(client)
-	m, _ = m.update(jobsMsg(twoJobs()))
-	m, cmd := m.update(key('v'))
-	m = drain(m, cmd)
-
-	m, cmd = m.update(enter())
-	m = drain(m, cmd)
-
-	// The first version of a job changed nothing, and the screen says that
-	// instead of showing an empty page.
-	r.Contains(plain(m.render()), "no version before this one")
-}
-
 func TestVersions_RevertToTheOneUnderTheCursor(t *testing.T) {
 	r := require.New(t)
 
@@ -112,4 +94,49 @@ func TestVersions_TheJobScreenStillRevertsToThePrevious(t *testing.T) {
 	// The key that was there keeps its meaning on the list of jobs.
 	r.Contains(plain(m.render()), "revert")
 	r.Equal(screenJobs, m.screen.kind)
+}
+
+func TestVersions_OfAnotherJobAreNotShownHere(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), versions: threeVersions()}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, cmd := m.update(key('v'))
+	m = drain(m, cmd)
+
+	m, _ = m.update(escape())
+	m, _ = m.update(key('j'))
+	m, _ = m.update(key('v'))
+
+	// Until the cluster answers for this job, the screen holds nothing:
+	// version numbers belong to one job, and the ones of another must not
+	// stand under its name.
+	r.Contains(plain(m.render()), "Versions (Job: cron) [0]")
+
+	// And a late answer for the job that was left is dropped.
+	m, _ = m.update(versionsMsg{jobID: "web", versions: threeVersions()})
+	r.Contains(plain(m.render()), "[0]")
+}
+
+func TestVersions_TheFirstVersionIsNotAnError(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), versions: threeVersions(), diffErr: nomad.ErrNoDiff}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, cmd := m.update(key('v'))
+	m = drain(m, cmd)
+
+	m, cmd = m.update(enter())
+	m = drain(m, cmd)
+
+	// Nothing came before the first version of a job. That is how jobs
+	// begin, not something gone wrong.
+	r.Equal(screenDescribe, m.screen.kind)
+	r.Nil(m.err)
+	r.Contains(plain(m.render()), "nothing before it")
 }

@@ -29,6 +29,7 @@ var (
 		{Key: "<r>", Description: "Restart"},
 		{Key: "<ctrl-k>", Description: "Stop"},
 		{Key: "<space>", Description: "Mark"},
+		{Key: "<ctrl-a>", Description: "Mark all"},
 	}
 
 	serverHints = []hint{{Key: "<enter>", Description: "Details"}}
@@ -271,6 +272,7 @@ var resources = map[screenKind]resource{
 		stored:  "evaluations",
 		aliases: []string{"evaluations", "evaluation", "evals", "eval", "ev"},
 		titles:  evaluationTitles,
+		topics:  []string{nomad.TopicEvaluation},
 		fetch: func(m Model) tea.Cmd {
 			client, namespace := m.client, m.namespace
 
@@ -450,8 +452,7 @@ var resources = map[screenKind]resource{
 	},
 
 	screenTaskEvents: {
-		titles:  taskEventTitles,
-		cluster: true,
+		titles: taskEventTitles,
 
 		title: func(m Model, count int) string {
 			return sprintf("Events (Task: %s) [%d]", m.screen.task, count)
@@ -460,9 +461,8 @@ var resources = map[screenKind]resource{
 	},
 
 	screenJobVersions: {
-		titles:  versionTitles,
-		hints:   versionHints,
-		cluster: true,
+		titles: versionTitles,
+		hints:  versionHints,
 
 		title: func(m Model, count int) string {
 			return sprintf("Versions (Job: %s) [%d]", m.screen.jobID, count)
@@ -472,7 +472,9 @@ var resources = map[screenKind]resource{
 
 			return fetchList(func(ctx context.Context) ([]nomad.JobVersion, error) {
 				return client.JobVersions(ctx, screen.namespace, screen.jobID)
-			}, func(items []nomad.JobVersion) tea.Msg { return versionsMsg(items) })
+			}, func(items []nomad.JobVersion) tea.Msg {
+				return versionsMsg{jobID: screen.jobID, versions: items}
+			})
 		},
 		rows: func(m Model) []tableRow { return versionRows(m.versions) },
 	},

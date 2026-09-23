@@ -5,10 +5,56 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
 )
+
+// fire runs what a model asked for, without waiting on the commands that
+// are waiting on the cluster.
+func fire(t *testing.T, cmd tea.Cmd) {
+	t.Helper()
+
+	if cmd == nil {
+		return
+	}
+
+	done := make(chan tea.Msg, 1)
+	go func() { done <- cmd() }()
+
+	select {
+	case msg := <-done:
+		if batch, ok := msg.(tea.BatchMsg); ok {
+			for _, next := range batch {
+				fire(t, next)
+			}
+		}
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestWatch_ArrivingAtAScreenOpensItsStream(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges()}
+
+	m := newTestModel(client)
+
+	// Opening urga watches what the first screen shows, without anything
+	// asking for it by hand.
+	fire(t, m.Init())
+	r.Equal([]string{nomad.TopicJob}, client.watchedTopics)
+
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	_, cmd := m.update(enter())
+	fire(t, cmd)
+
+	// And walking into the allocations watches allocations.
+	r.Equal([]string{nomad.TopicAllocation}, client.watchedTopics)
+}
 
 // watching is a model whose screen the cluster says changes about. The
 // stream itself is read by hand: a test must not wait on it.
@@ -47,7 +93,7 @@ func TestWatch_AChangeAsksTheClusterOnceTheBurstSettles(t *testing.T) {
 	// A deploy fires events by the dozen. One answer is enough for all of
 	// them: the screen must not ask once per event.
 	for range 20 {
-		m, _ = m.update(changeMsg{change: nomad.Change{Topic: nomad.TopicJob}})
+		m, _ = m.update(changeMsg{})
 	}
 
 	r.Equal(before, client.calls)
@@ -69,7 +115,7 @@ func TestWatch_TheScreenPollsSlowlyWhileTheStreamIsUp(t *testing.T) {
 	// Watching is the reason a screen may take its time asking again.
 	r.Equal(slowPoll, m.pollEvery())
 
-	m, _ = m.update(watchEndedMsg{err: errors.New("Permission denied")})
+	m, _ = m.update(watchEndedMsg{})
 
 	// Without the stream, the screen goes back to asking on its own.
 	r.False(m.watching)
@@ -144,4 +190,146 @@ func TestWatch_ANewNamespaceIsWatchedInstead(t *testing.T) {
 
 	m.update(m.watch()())
 	r.Equal("staging", client.watchedNamespace)
+}
+
+func TestWatch_OneTimerHoweverManyAnswersArrive(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges()}
+
+	m := watching(t, client)
+
+	// The timer that was set when the list first arrived has fired, so
+	// there is room for exactly one more.
+	m, _ = m.update(pollMsg{})
+
+	// Every answer from the cluster used to schedule a poll of its own, so
+	// a talkative cluster ended up with a timer per burst, for the rest of
+	// the session.
+	timers := 0
+
+	for range 10 {
+		var cmd tea.Cmd
+
+		m, cmd = m.update(jobsMsg(twoJobs()))
+		if cmd != nil {
+			timers++
+		}
+	}
+
+	r.Equal(1, timers)
+
+	// The timer that fired makes room for the next one, and no more.
+	m, _ = m.update(pollMsg{})
+
+	m, cmd := m.update(jobsMsg(twoJobs()))
+	r.NotNil(cmd)
+
+	_, cmd = m.update(jobsMsg(twoJobs()))
+	r.Nil(cmd)
+}
+
+func TestWatch_ASettledBurstStartsNoTimerOfItsOwn(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges()}
+
+	m := watching(t, client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, _ = m.update(changeMsg{})
+
+	next, cmd := m.update(settleMsg{})
+	r.NotNil(cmd)
+
+	// Asking because the cluster said so is still one chain: the answer to
+	// it must not add another timer.
+	_, cmd = next.update(jobsMsg(twoJobs()))
+	r.Nil(cmd)
+}
+
+func TestWatch_TheEndOfAStreamThatWasLeftIsNotThisOne(t *testing.T) {
+	r := require.New(t)
+
+	first, second := newChanges(), newChanges()
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), changes: first}
+
+	m := watching(t, client)
+
+	// Into the allocations: the stream of the jobs closes, and the reader
+	// that was waiting on it answers late.
+	m, _ = m.update(enter())
+	client.changes = second
+	m, _ = m.update(m.watch()())
+
+	m, _ = m.update(watchEndedMsg{})
+
+	// The end of a stream that was let go of says nothing about the one
+	// that is up.
+	r.True(m.watching)
+	r.False(second.closed)
+}
+
+func TestWatch_AStreamThatArrivesTooLateIsLetGoOf(t *testing.T) {
+	r := require.New(t)
+
+	late := newChanges()
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges()}
+
+	m := watching(t, client)
+
+	m, _ = m.update(enter())
+	m, _ = m.update(m.watch()())
+
+	// The stream the jobs screen asked for comes up after the screen is
+	// gone: it is closed rather than left running.
+	m.update(watchingMsg{changes: late.stream()})
+
+	r.True(late.closed)
+}
+
+func TestWatch_TheStreamFollowsTheNamespaceTheRowsComeFrom(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), namespaces: twoNamespaces(), changes: newChanges()}
+
+	m := watching(t, client)
+	m, _ = m.update(namespacesMsg(twoNamespaces()))
+
+	// Down into the allocations, switch namespace there, and back.
+	m, _ = m.update(enter())
+	m, _ = m.update(allocsMsg(twoAllocs()))
+	m, _ = m.update(key('2'))
+	m, _ = m.update(escape())
+
+	// The jobs screen reads the namespace of the session, so the stream
+	// has to watch that one and not the one the screen was opened in.
+	r.Equal("staging", m.screen.namespace)
+
+	m.update(m.watch()())
+	r.Equal("staging", client.watchedNamespace)
+}
+
+func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
+	r := require.New(t)
+
+	// A list the cluster has a topic for is watched; one it does not, like
+	// the namespaces or the variables, is asked for on a timer.
+	watched := map[screenKind][]string{
+		screenJobs:        {nomad.TopicJob},
+		screenAllocations: {nomad.TopicAllocation},
+		screenDeployments: {nomad.TopicDeployment},
+		screenEvaluations: {nomad.TopicEvaluation},
+		screenNodes:       {nomad.TopicNode},
+		screenServices:    {nomad.TopicService},
+		screenNodePools:   {nomad.TopicNodePool},
+	}
+
+	for kind, topics := range watched {
+		r.Equal(topics, resources[kind].topics, "screen %d", kind)
+	}
+
+	for _, kind := range []screenKind{screenNamespaces, screenVariables, screenServers} {
+		r.Empty(resources[kind].topics, "screen %d", kind)
+	}
 }

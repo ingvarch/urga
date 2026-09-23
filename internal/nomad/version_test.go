@@ -2,6 +2,7 @@ package nomad_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -100,10 +101,22 @@ func TestJobVersionDiff_OfTheOldestVersion(t *testing.T) {
 func TestRevertJobTo_TakesTheVersionItIsGiven(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := recorder(t, `{}`)
+	client, sent, asked := metaServer(t, `{}`)
 
 	err := client.RevertJobTo(context.Background(), "production", "web", 2)
 	r.NoError(err)
 
+	request := struct {
+		JobID      string
+		JobVersion uint64
+	}{}
+	r.NoError(json.Unmarshal(*sent, &request))
+
+	// The version travels in the body of the request.
+	r.Equal("web", request.JobID)
+	r.Equal(uint64(2), request.JobVersion)
+
+	// The namespace travels with it, the way it does with every call.
 	r.Equal("/v1/job/web/revert", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
 }

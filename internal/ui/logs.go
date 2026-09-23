@@ -120,6 +120,10 @@ func (m Model) logsKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	case "r":
 		m.following = true
 		m.text.move(len(m.text.lines))
+	case "t":
+		// Only a log has times to show: they are when urga read a line,
+		// and nothing else on a text screen has any.
+		m.text.times = !m.text.times
 	default:
 		return m, nil, false
 	}
@@ -135,9 +139,6 @@ func (m Model) textKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 		m.text.wrap = !m.text.wrap
 		m.text.follow()
 
-	case "t":
-		m.text.times = !m.text.times
-
 	case "ctrl+s":
 		return m, m.saveText(), true
 
@@ -152,12 +153,13 @@ var logHints = []hint{
 	{Key: "<s>", Description: "Stop following"},
 	{Key: "<r>", Description: "Resume"},
 	{Key: "<w>", Description: "Wrap lines"},
-	{Key: "<t>", Description: "Times"},
+	{Key: "<t>", Description: "When urga read it"},
 	{Key: "<ctrl-s>", Description: "Save"},
 }
 
 var taskHints = []hint{
 	{Key: "<enter>", Description: "Logs"},
+	{Key: "<e>", Description: "Events"},
 	{Key: "<ctrl-e>", Description: "Logs (stderr)"},
 	{Key: "<s>", Description: "Shell"},
 }

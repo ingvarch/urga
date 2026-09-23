@@ -100,8 +100,8 @@ namespace with it, as in `jobs production`. `q` leaves.
 | `c` | Copy the value under the cursor, on a screen of fields |
 | `ctrl-e` | Logs of a task, stderr |
 | `w` | Wrap long lines, on logs and descriptions |
-| `t` | Show when each log line arrived |
-| `ctrl-s` | Save what is on the screen to a file |
+| `t` | Show when urga read each log line; a task writes no time of its own |
+| `ctrl-s` | Save what is on the screen to a file, as the filter left it |
 | `q` | Quit |
 
 ## What works

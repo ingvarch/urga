@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -154,9 +155,88 @@ func TestMarks_AreLetGoOfWhenTheActionIsDone(t *testing.T) {
 	r.Contains(plain(m.render()), "•")
 
 	m, _ = m.update(key('r'))
-	m, _ = answerYes(m)
 
-	// What was marked was acted on; leaving the marks up would take them
-	// along into the next action by surprise.
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	// What was marked has been acted on; leaving the marks up would take
+	// them along into the next action by surprise.
 	r.NotContains(plain(m.render()), "•")
+}
+
+func TestMarks_AreActedOnEvenWhenTheFilterHidesThem(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onAllocations(t)
+
+	m, _ = m.update(space())
+
+	m, _ = m.update(key('/'))
+	m = typeIn(m, "backend")
+	m, _ = m.update(enter())
+
+	// The mark is on an allocation, not on a line of the screen. A key that
+	// silently does nothing is worse than either answer.
+	m, _ = m.update(key('r'))
+	r.Contains(plain(m.render()), "restart the allocation af1f37df")
+
+	_, cmd := answerYes(m)
+	drain(m, cmd)
+
+	r.Equal(1, client.restarted)
+}
+
+func TestMarks_AnActionThatFailsPartWaySaysHowFar(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onAllocations(t)
+	client.actionErr = errors.New("connection refused")
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(key('r'))
+
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	// Every marked row is tried, not only the ones before the first
+	// failure, and the screen says what came of it.
+	r.Equal(2, client.restarted)
+
+	out := plain(m.render())
+	r.Contains(out, "0 of 2")
+	r.Contains(out, "connection refused")
+}
+
+func TestMarks_AreKeptWhenTheActionFails(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onAllocations(t)
+	client.actionErr = errors.New("connection refused")
+
+	m, _ = m.update(space())
+	m, _ = m.update(key('r'))
+
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	// What did not happen is still marked, so the same key tries it again.
+	r.Contains(plain(m.render()), "•")
+}
+
+func TestMarks_MarkingAllUnderAFilterTakesWhatIsShown(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onAllocations(t)
+
+	m, _ = m.update(space())
+
+	m, _ = m.update(key('/'))
+	m = typeIn(m, "backend")
+	m, _ = m.update(enter())
+
+	m, _ = m.update(ctrlKey('a'))
+
+	// One row is shown and one mark is hidden: marking all of what is shown
+	// adds it, rather than clearing what is not.
+	r.Len(m.marks, 2)
 }
