@@ -330,7 +330,7 @@ func (m Model) back() (Model, tea.Cmd) {
 	}
 
 	// What the screen held on to is let go of before leaving it.
-	m.closeLogs()
+	m.logs.stop()
 
 	m.screen = m.history[len(m.history)-1]
 	m.history = m.history[:len(m.history)-1]
@@ -371,9 +371,9 @@ func (m Model) enter() (Model, tea.Cmd) {
 
 	// What the screen that was left was watching is let go of: the new one
 	// watches what it shows, if the cluster will say.
-	m = m.endWatch()
+	m.watch = m.watch.end()
 
-	return m, tea.Batch(m.fetch(), m.watch())
+	return m, tea.Batch(m.fetch(), m.watchScreen())
 }
 
 // stackText opens a screen that reads as text rather than as a list.

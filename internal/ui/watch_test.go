@@ -64,7 +64,7 @@ func watching(t *testing.T, client *fakeClient) Model {
 	m := newTestModel(client)
 	m = drain(m, m.fetch())
 
-	m, _ = m.update(m.watch()())
+	m, _ = m.update(m.watchScreen()())
 
 	return m
 }
@@ -79,7 +79,7 @@ func TestWatch_AScreenAsksForTheTopicItShows(t *testing.T) {
 	// The jobs screen watches jobs, in the namespace it is looking at.
 	r.Equal([]string{nomad.TopicJob}, client.watchedTopics)
 	r.Equal("production", client.watchedNamespace)
-	r.True(m.watching)
+	r.True(m.watch.live())
 }
 
 func TestWatch_AChangeAsksTheClusterOnceTheBurstSettles(t *testing.T) {
@@ -97,7 +97,7 @@ func TestWatch_AChangeAsksTheClusterOnceTheBurstSettles(t *testing.T) {
 	}
 
 	r.Equal(before, client.calls)
-	r.True(m.settling)
+	r.True(m.watch.settling)
 
 	m, cmd := m.update(settleMsg{})
 	drain(m, cmd)
@@ -118,7 +118,7 @@ func TestWatch_TheScreenPollsSlowlyWhileTheStreamIsUp(t *testing.T) {
 	m, _ = m.update(watchEndedMsg{})
 
 	// Without the stream, the screen goes back to asking on its own.
-	r.False(m.watching)
+	r.False(m.watch.live())
 	r.Equal(time.Millisecond, m.pollEvery())
 }
 
@@ -130,11 +130,11 @@ func TestWatch_AStreamTheClusterRefusesIsNotAnError(t *testing.T) {
 	m := newTestModel(client)
 	m = drain(m, m.fetch())
 
-	m, _ = m.update(m.watch()())
+	m, _ = m.update(m.watchScreen()())
 
 	// A cluster that will not stream is a cluster urga polls, and says
 	// nothing about it over the rows.
-	r.False(m.watching)
+	r.False(m.watch.live())
 	r.NotEqual(flashErr, m.flash.level)
 	r.Contains(plain(m.render()), "web")
 }
@@ -153,7 +153,7 @@ func TestWatch_LeavingAScreenLetsItsStreamGo(t *testing.T) {
 	// the allocations watch allocations.
 	r.True(changes.closed)
 
-	m.update(m.watch()())
+	m.update(m.watchScreen()())
 	r.Equal([]string{nomad.TopicAllocation}, client.watchedTopics)
 }
 
@@ -169,8 +169,8 @@ func TestWatch_AScreenWithNothingToWatchAsksOnItsOwn(t *testing.T) {
 
 	// The cluster says nothing about namespaces, so there is nothing to
 	// ask it for.
-	r.Nil(m.watch())
-	r.False(m.watching)
+	r.Nil(m.watchScreen())
+	r.False(m.watch.live())
 }
 
 func TestWatch_ANewNamespaceIsWatchedInstead(t *testing.T) {
@@ -188,7 +188,7 @@ func TestWatch_ANewNamespaceIsWatchedInstead(t *testing.T) {
 	// closes what was open and asks again for the other.
 	r.True(changes.closed)
 
-	m.update(m.watch()())
+	m.update(m.watchScreen()())
 	r.Equal("staging", client.watchedNamespace)
 }
 
@@ -260,13 +260,13 @@ func TestWatch_TheEndOfAStreamThatWasLeftIsNotThisOne(t *testing.T) {
 	// that was waiting on it answers late.
 	m, _ = m.update(enter())
 	client.changes = second
-	m, _ = m.update(m.watch()())
+	m, _ = m.update(m.watchScreen()())
 
 	m, _ = m.update(watchEndedMsg{})
 
 	// The end of a stream that was let go of says nothing about the one
 	// that is up.
-	r.True(m.watching)
+	r.True(m.watch.live())
 	r.False(second.closed)
 }
 
@@ -279,7 +279,7 @@ func TestWatch_AStreamThatArrivesTooLateIsLetGoOf(t *testing.T) {
 	m := watching(t, client)
 
 	m, _ = m.update(enter())
-	m, _ = m.update(m.watch()())
+	m, _ = m.update(m.watchScreen()())
 
 	// The stream the jobs screen asked for comes up after the screen is
 	// gone: it is closed rather than left running.
@@ -306,7 +306,7 @@ func TestWatch_TheStreamFollowsTheNamespaceTheRowsComeFrom(t *testing.T) {
 	// has to watch that one and not the one the screen was opened in.
 	r.Equal("staging", m.screen.namespace)
 
-	m.update(m.watch()())
+	m.update(m.watchScreen()())
 	r.Equal("staging", client.watchedNamespace)
 }
 
@@ -342,7 +342,7 @@ func TestWatch_AClusterThatWillNotStreamSaysSo(t *testing.T) {
 	m := newTestModel(client)
 	m = drain(m, m.fetch())
 
-	m, _ = m.update(m.watch()())
+	m, _ = m.update(m.watchScreen()())
 
 	// Nothing is broken, but the screen is no longer live and the person
 	// at the keyboard has no other way of knowing.
@@ -365,7 +365,7 @@ func TestWatch_LeavingAScreenSaysNothing(t *testing.T) {
 
 	// The stream of a screen that was left ends because urga closed it.
 	// Nothing about that is news.
-	m, _ = m.update(watchEndedMsg{id: m.watchID})
+	m, _ = m.update(watchEndedMsg{id: m.watch.id})
 
 	r.Empty(m.flash.text)
 }
@@ -384,7 +384,7 @@ func TestWatch_AStreamThatDropsKeepsItsReason(t *testing.T) {
 		client := &fakeClient{jobs: twoJobs(), changes: changes}
 
 		m := watching(t, client)
-		m, _ = m.update(m.waitForChange()())
+		m, _ = m.update(m.watch.waitForChange()())
 
 		r.Contains(m.flash.text, "EOF")
 	}
@@ -398,7 +398,7 @@ func TestWatch_AClusterThatWillNotStreamIsSaidOnce(t *testing.T) {
 	m := newTestModel(client)
 	m = drain(m, m.fetch())
 
-	m, _ = m.update(m.watch()())
+	m, _ = m.update(m.watchScreen()())
 	r.Contains(m.flash.text, "Permission denied")
 
 	// Walking around a cluster that will not stream must not put the same
@@ -406,7 +406,7 @@ func TestWatch_AClusterThatWillNotStreamIsSaidOnce(t *testing.T) {
 	m = m.quiet()
 
 	m, _ = m.update(enter())
-	m, _ = m.update(m.watch()())
+	m, _ = m.update(m.watchScreen()())
 
 	r.Empty(m.flash.text)
 }
@@ -420,7 +420,61 @@ func TestWatch_AStreamThatComesBackAndGoesAgainSaysSo(t *testing.T) {
 	m = m.quiet()
 
 	// The stream was up, so its going away is news again.
-	m, _ = m.update(watchEndedMsg{id: m.watchID, err: errors.New("EOF")})
+	m, _ = m.update(watchEndedMsg{id: m.watch.id, err: errors.New("EOF")})
+
+	r.Contains(m.flash.text, "EOF")
+}
+
+func TestWatch_ASecondStreamForTheSameScreenClosesTheFirst(t *testing.T) {
+	r := require.New(t)
+
+	first, second := newChanges(), newChanges()
+	client := &fakeClient{jobs: twoJobs(), changes: first}
+
+	m := watching(t, client)
+
+	// Two asks of the same screen both came up: one stream is kept, the
+	// other must not run for the rest of the session.
+	m, _ = m.update(watchingMsg{id: m.watch.id, changes: second.stream()})
+
+	r.True(first.closed)
+	r.False(second.closed)
+	r.True(m.watch.live())
+}
+
+func TestWatch_AChangeOfAStreamThatWasLeftAsksNothing(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges()}
+
+	m := watching(t, client)
+	left := m.watch.id
+
+	m, _ = m.update(enter())
+
+	// The reader of the jobs stream was waiting when the screen moved on.
+	m, cmd := m.update(changeMsg{id: left})
+
+	r.Nil(cmd)
+	r.False(m.watch.settling)
+}
+
+func TestWatch_AClusterThatStreamsAgainIsNewsWhenItStops(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), watchErr: errors.New("Permission denied")}
+
+	m := newTestModel(client)
+	m = drain(m, m.fetch())
+	m, _ = m.update(m.watchScreen()())
+	m = m.quiet()
+
+	// The next screen is streamed: the refusal is over.
+	client.watchErr, client.changes = nil, newChanges()
+	m, _ = m.update(enter())
+	m, _ = m.update(m.watchScreen()())
+
+	m, _ = m.update(watchEndedMsg{id: m.watch.id, err: errors.New("EOF")})
 
 	r.Contains(m.flash.text, "EOF")
 }

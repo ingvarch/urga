@@ -208,11 +208,49 @@ type Model struct {
 	// namespaceOrder is which namespace each number key stands for.
 	namespaceOrder []string
 
+	// namespaces are kept across a switch of region: the command line and
+	// the number keys need them, and the switch does not ask for them again.
+	namespaces []nomad.Namespace
+
+	clusterData
+
+	table tableModel
+	text  textModel
+	logs  logState
+
+	// asked counts the screens put up, so that an answer to one that is no
+	// longer up is dropped.
+	asked int
+
+	// polling says a timer is already on its way with the next ask. Every
+	// answer would otherwise schedule one, and a screen that is answered
+	// from several sides would end up with a timer per answer.
+	polling bool
+
+	// watch is the cluster saying when what the screen shows changed.
+	watch watchState
+
+	nomadVersion string
+
+	// usage is what the cluster and the rows on the screen are busy with.
+	usage usageState
+
+	// agentRegion is the region of the agent, which answers a session that
+	// names none. regions and datacenters are what the command line can
+	// switch to, datacenter the one the lists are narrowed to.
+	agentRegion string
+	regions     []string
+	datacenters []string
+	datacenter  string
+}
+
+// clusterData is what the cluster last said in the region the session asks
+// in, kept in one place so that leaving the region lets go of all of it.
+type clusterData struct {
 	jobs        []nomad.Job
 	allocs      []nomad.Alloc
 	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
-	namespaces  []nomad.Namespace
 	services    []nomad.Service
 	evaluations []nomad.Evaluation
 	nodes       []nomad.Node
@@ -235,50 +273,6 @@ type Model struct {
 	server  nomad.Server
 	raft    []nomad.RaftPeer
 	raftErr error
-
-	table tableModel
-	text  textModel
-
-	// stream is the task output the log screen follows.
-	stream    *nomad.LogStream
-	following bool
-
-	// watchID counts the streams this session has opened, so that an answer
-	// from one that was let go of does not touch the one that is up.
-	watchID int
-
-	// refused says the cluster has already turned the stream down and been
-	// said so about: every screen asks again, and every screen is refused.
-	refused bool
-
-	// asked counts the screens put up, so that an answer to one that is no
-	// longer up is dropped.
-	asked int
-
-	// polling says a timer is already on its way with the next ask. Every
-	// answer would otherwise schedule one, and a screen that is answered
-	// from several sides would end up with a timer per answer.
-	polling bool
-
-	// changes is the cluster saying when what the screen shows changed,
-	// watching that it agreed to, and settling a burst of them waiting to
-	// be asked about.
-	changes  *nomad.Changes
-	watching bool
-	settling bool
-
-	nomadVersion string
-
-	// usage is what the cluster and the rows on the screen are busy with.
-	usage usageState
-
-	// agentRegion is the region of the agent, which answers a session that
-	// names none. regions and datacenters are what the command line can
-	// switch to, datacenter the one the lists are narrowed to.
-	agentRegion string
-	regions     []string
-	datacenters []string
-	datacenter  string
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -306,7 +300,7 @@ func (m Model) Init() tea.Cmd {
 
 	return tea.Batch(
 		m.fetch(),
-		m.watch(),
+		m.watchScreen(),
 		fetchAgent(client),
 		m.fetchClusterUsage(),
 		fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
@@ -429,13 +423,18 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.say(fmt.Sprintf("Shell in %s closed.", msg.task)), nil
 
 	case logStreamMsg:
-		return m.followLog(msg)
+		var cmd tea.Cmd
+		m.logs, cmd = m.logs.opened(msg.stream)
+
+		return m, cmd
 
 	case logLineMsg:
 		return m.appendLog(string(msg))
 
 	case logEndMsg:
-		return m.endLog(), nil
+		m.logs = m.logs.ended()
+
+		return m, nil
 
 	case savedMsg:
 		return m.say(fmt.Sprintf("Saved to %s.", msg.path)), nil
@@ -485,10 +484,16 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.keepHostUse(msg), nil
 
 	case watchingMsg:
-		return m.startWatching(msg)
+		var cmd tea.Cmd
+		m.watch, cmd = m.watch.start(msg)
+
+		return m, cmd
 
 	case changeMsg:
-		return m.keepChange(msg)
+		var cmd tea.Cmd
+		m.watch, cmd = m.watch.keepChange(msg)
+
+		return m, cmd
 
 	case settleMsg:
 		return m.settled()

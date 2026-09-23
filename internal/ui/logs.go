@@ -18,6 +18,13 @@ type (
 	logEndMsg    struct{}
 )
 
+// logState is the output of a task that the log screen reads.
+type logState struct {
+	// stream is the task output the log screen follows.
+	stream    *nomad.LogStream
+	following bool
+}
+
 // openLogs follows what the task under the cursor writes.
 func (m Model) openLogs(source string) (Model, tea.Cmd) {
 	task, ok := selectedOf(m, screenTasks, m.tasks())
@@ -31,7 +38,7 @@ func (m Model) openLogs(source string) (Model, tea.Cmd) {
 	next.source = source
 
 	m = m.stackText(next, "")
-	m.following = true
+	m.logs.following = true
 
 	return m, m.startLogs()
 }
@@ -52,8 +59,8 @@ func (m Model) startLogs() tea.Cmd {
 }
 
 // waitForLog waits for the next thing the task writes.
-func (m Model) waitForLog() tea.Cmd {
-	stream := m.stream
+func (l logState) waitForLog() tea.Cmd {
+	stream := l.stream
 	if stream == nil {
 		return nil
 	}
@@ -77,11 +84,11 @@ func (m Model) waitForLog() tea.Cmd {
 	}
 }
 
-// followLog keeps the stream that was opened and waits for its first line.
-func (m Model) followLog(msg logStreamMsg) (Model, tea.Cmd) {
-	m.stream = msg.stream
+// opened keeps the stream that was opened and waits for its first line.
+func (l logState) opened(stream *nomad.LogStream) (logState, tea.Cmd) {
+	l.stream = stream
 
-	return m, m.waitForLog()
+	return l, l.waitForLog()
 }
 
 // appendLog puts what arrived at the end and follows it, unless following was
@@ -103,25 +110,25 @@ func (m Model) appendLog(chunk string) (Model, tea.Cmd) {
 		m.text.lines = append(m.text.lines, line)
 	}
 
-	if m.following {
+	if m.logs.following {
 		m.text.toEnd()
 	}
 
-	return m, m.waitForLog()
+	return m, m.logs.waitForLog()
 }
 
-// endLog lets go of a stream that has ended on its own.
-func (m Model) endLog() Model {
-	m.stream = nil
+// ended lets go of a stream that has ended on its own.
+func (l logState) ended() logState {
+	l.stream = nil
 
-	return m
+	return l
 }
 
-// closeLogs stops the stream, which stops the request behind it.
-func (m *Model) closeLogs() {
-	if m.stream != nil {
-		m.stream.Close()
-		m.stream = nil
+// stop closes the stream, which stops the request behind it.
+func (l *logState) stop() {
+	if l.stream != nil {
+		l.stream.Close()
+		l.stream = nil
 	}
 }
 
@@ -134,9 +141,9 @@ func logsTitle(s screen) string {
 func (m Model) logsKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	switch msg.String() {
 	case "s":
-		m.following = false
+		m.logs.following = false
 	case "r":
-		m.following = true
+		m.logs.following = true
 		m.text.toEnd()
 	case "t":
 		// Only a log has times to show: they are when urga read a line,

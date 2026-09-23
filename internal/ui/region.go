@@ -161,7 +161,7 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 		return m.fail(errNoRegions), nil
 	}
 
-	m.closeLogs()
+	m.logs.stop()
 
 	m.client = m.opts.InRegion(region)
 	m = m.forgetRegion()
@@ -176,9 +176,7 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 // left. None of it holds in the next one, and a key on a row of it would act
 // there: an empty list until the next region answers is the truth.
 func (m Model) forgetRegion() Model {
-	m.jobs, m.allocs, m.groups, m.versions = nil, nil, nil, nil
-	m.deployments, m.services, m.evaluations = nil, nil, nil
-	m.nodes, m.variables, m.nodePools, m.servers = nil, nil, nil, nil
+	m.clusterData = clusterData{}
 	m.marks = nil
 	m.usage.cluster = nomad.Usage{}
 	m.datacenter, m.datacenters = "", nil

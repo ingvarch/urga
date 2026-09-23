@@ -44,8 +44,8 @@ func TestLogs_OpenOnATask(t *testing.T) {
 	r.Equal("production", client.askedNamespace)
 
 	// What the task writes lands on the screen as it comes.
-	m = drain(m, m.waitForLog())
-	m = drain(m, m.waitForLog())
+	m = drain(m, m.logs.waitForLog())
+	m = drain(m, m.logs.waitForLog())
 
 	out := plain(m.render())
 	r.Contains(out, "Logs (Task: server) [stdout]")
@@ -81,16 +81,16 @@ func TestLogs_FollowCanBeStopped(t *testing.T) {
 
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
-	m = drain(m, m.waitForLog())
+	m = drain(m, m.logs.waitForLog())
 
-	r.True(m.following)
+	r.True(m.logs.following)
 
 	// Stopping leaves the window where it is, resuming jumps back to the end.
 	m, _ = m.update(key('s'))
-	r.False(m.following)
+	r.False(m.logs.following)
 
 	m, _ = m.update(key('r'))
-	r.True(m.following)
+	r.True(m.logs.following)
 }
 
 func TestLogs_Stderr(t *testing.T) {
@@ -122,7 +122,7 @@ func TestLogs_FilterNarrowsTheLines(t *testing.T) {
 	m = drain(m, cmd)
 
 	for range 3 {
-		m = drain(m, m.waitForLog())
+		m = drain(m, m.logs.waitForLog())
 	}
 
 	m, _ = m.update(key('/'))
@@ -135,4 +135,48 @@ func TestLogs_FilterNarrowsTheLines(t *testing.T) {
 	// Escape puts the rest of the output back.
 	m, _ = m.update(escape())
 	r.Contains(plain(m.render()), "starting up")
+}
+
+func TestLogs_ScrollingByHandStopsFollowing(t *testing.T) {
+	r := require.New(t)
+
+	lines := make(chan string, 1)
+	lines <- "first line\n"
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: &nomad.LogStream{Lines: lines}}
+	m := openTasks(t, client)
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	m = drain(m, m.logs.waitForLog())
+	r.True(m.logs.following)
+
+	// Reading back through the output must not be pulled to the end by the
+	// next line.
+	m, _ = m.update(key('k'))
+
+	r.False(m.logs.following)
+}
+
+func TestLogs_AStreamThatEndedIsLetGoOf(t *testing.T) {
+	r := require.New(t)
+
+	lines := make(chan string)
+	close(lines)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: &nomad.LogStream{Lines: lines}}
+	m := openTasks(t, client)
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	// The task is done writing: there is nothing more to wait for, and
+	// nothing to close on the way out.
+	m = drain(m, m.logs.waitForLog())
+	r.Nil(m.logs.waitForLog())
+
+	m, _ = m.update(escape())
+
+	r.Equal(screenTasks, m.screen.kind)
+	r.False(client.logsClosed)
 }
