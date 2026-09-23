@@ -71,6 +71,11 @@ type resource struct {
 	// can do different things with them.
 	hintsFor func(s screen) []hint
 
+	// topics are what the cluster is asked to say about: a change in one of
+	// them is this screen no longer being what it shows. A screen with none
+	// is asked on its own.
+	topics []string
+
 	// cluster says the screen holds what belongs to the cluster rather than
 	// to a namespace, so its title carries no namespace.
 	cluster bool
@@ -109,6 +114,7 @@ var resources = map[screenKind]resource{
 		aliases: []string{"jobs", "job", "jb"},
 		titles:  jobTitles,
 		hints:   jobHints,
+		topics:  []string{nomad.TopicJob},
 		fetch: func(m Model) tea.Cmd {
 			client, namespace := m.client, m.namespace
 
@@ -124,6 +130,7 @@ var resources = map[screenKind]resource{
 		titles:  allocTitles,
 		hints:   allocHints,
 		ids:     allocIDs,
+		topics:  []string{nomad.TopicAllocation},
 
 		// The allocations of a client sit on the screen of that client,
 		// which answers for the machine as well as for the work on it.
@@ -218,6 +225,7 @@ var resources = map[screenKind]resource{
 		aliases: []string{"deployments", "deployment", "dp"},
 		titles:  deploymentTitles,
 		hints:   deploymentHints,
+		topics:  []string{nomad.TopicDeployment},
 		fetch: func(m Model) tea.Cmd {
 			client, namespace := m.client, m.namespace
 
@@ -247,6 +255,7 @@ var resources = map[screenKind]resource{
 		aliases: []string{"services", "service", "svc"},
 		titles:  serviceTitles,
 		hints:   describeHints,
+		topics:  []string{nomad.TopicService},
 		fetch: func(m Model) tea.Cmd {
 			client, namespace := m.client, m.namespace
 
@@ -280,6 +289,7 @@ var resources = map[screenKind]resource{
 		aliases: []string{"clients", "client", "nodes", "node", "no"},
 		titles:  nodeTitles,
 		hints:   nodeHints,
+		topics:  []string{nomad.TopicNode},
 		cluster: true,
 
 		readings: func(m Model) []rowRef {
@@ -321,6 +331,7 @@ var resources = map[screenKind]resource{
 		stored:  "nodepools",
 		aliases: []string{"nodepools", "nodepool", "np"},
 		titles:  nodePoolTitles,
+		topics:  []string{nomad.TopicNodePool},
 		cluster: true,
 		fetch: func(m Model) tea.Cmd {
 			return fetchList(m.client.NodePools, func(items []nomad.NodePool) tea.Msg { return nodePoolsMsg(items) })

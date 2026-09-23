@@ -107,8 +107,10 @@ namespace with it, as in `jobs production`. `q` leaves.
 ## What works
 
 Jobs, allocations, tasks, task groups, deployments, namespaces, services,
-evaluations, clients, servers, variables and node pools, refreshed while they
-are open. Logs follow a task as it writes; the filter lights up what it matched, long
+evaluations, clients, servers, variables and node pools. A screen that the
+cluster will talk about follows its event stream and is asked again the moment
+something changes; the rest, and a cluster whose stream an ACL holds back, are
+asked on a timer. Logs follow a task as it writes; the filter lights up what it matched, long
 lines wrap, and what is on the screen saves to a file. A job or a namespace opens in your
 editor and goes back to the cluster when you save. Jobs start, stop, revert and
 scale; a job keeps its versions, each saying what it changed, and goes back to

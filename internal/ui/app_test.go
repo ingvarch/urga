@@ -33,6 +33,7 @@ type fakeClient struct {
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
 	servers     []nomad.Server
+	changes     *fakeChanges
 	server      nomad.Server
 	raft        []nomad.RaftPeer
 
@@ -74,16 +75,19 @@ type fakeClient struct {
 	err     error
 	raftErr error
 
-	askedNamespace string
-	askedJobID     string
-	askedNodeID    string
-	usageNamespace string
-	askedServer    string
-	metaSpec       string
-	metaSubmitted  string
-	askedVersion   uint64
-	revertedTo     uint64
-	diffErr        error
+	askedNamespace   string
+	askedJobID       string
+	askedNodeID      string
+	usageNamespace   string
+	askedServer      string
+	metaSpec         string
+	metaSubmitted    string
+	askedVersion     uint64
+	watchedTopics    []string
+	watchedNamespace string
+	watchErr         error
+	revertedTo       uint64
+	diffErr          error
 
 	calls      int
 	allocCalls int
@@ -378,6 +382,20 @@ func (f *fakeClient) NodePools(context.Context) ([]nomad.NodePool, error) {
 	return f.nodePools, f.err
 }
 
+func (f *fakeClient) Events(_ context.Context, namespace string, topics []string) (*nomad.Changes, error) {
+	f.watchedNamespace, f.watchedTopics = namespace, topics
+
+	if f.watchErr != nil {
+		return nil, f.watchErr
+	}
+
+	if f.changes == nil {
+		return nil, errors.New("no stream")
+	}
+
+	return f.changes.stream(), nil
+}
+
 func (f *fakeClient) Servers(context.Context) ([]nomad.Server, error) {
 	return f.servers, f.err
 }
@@ -586,4 +604,19 @@ func TestModel_ReadsWhatTheClusterIsUsing(t *testing.T) {
 // clipboardOf is what a command puts on the clipboard.
 func clipboardOf(cmd tea.Cmd) string {
 	return fmt.Sprintf("%s", cmd())
+}
+
+// fakeChanges is the cluster saying when things change, without a cluster.
+type fakeChanges struct {
+	c      chan nomad.Change
+	errs   chan error
+	closed bool
+}
+
+func newChanges() *fakeChanges {
+	return &fakeChanges{c: make(chan nomad.Change), errs: make(chan error, 1)}
+}
+
+func (f *fakeChanges) stream() *nomad.Changes {
+	return nomad.NewChanges(f.c, f.errs, func() { f.closed = true })
 }

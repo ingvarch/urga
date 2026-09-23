@@ -312,7 +312,11 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m.sort = newSortState()
 	m.layout()
 
-	return m, m.fetch()
+	// What the screen that was left was watching is let go of: the new one
+	// watches what it shows, if the cluster will say.
+	m = m.endWatch()
+
+	return m, tea.Batch(m.fetch(), m.watch())
 }
 
 // stackText opens a screen that reads as text rather than as a list.

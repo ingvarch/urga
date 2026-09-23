@@ -65,6 +65,7 @@ type Client interface {
 	Variables(ctx context.Context, namespace string) ([]nomad.Variable, error)
 	NodePools(ctx context.Context) ([]nomad.NodePool, error)
 	Servers(ctx context.Context) ([]nomad.Server, error)
+	Events(ctx context.Context, namespace string, topics []string) (*nomad.Changes, error)
 	Server(ctx context.Context, name string) (nomad.Server, error)
 	RaftPeers(ctx context.Context) ([]nomad.RaftPeer, error)
 }
@@ -235,6 +236,13 @@ type Model struct {
 	stream    *nomad.LogStream
 	following bool
 
+	// changes is the cluster saying when what the screen shows changed,
+	// watching that it agreed to, and settling a burst of them waiting to
+	// be asked about.
+	changes  *nomad.Changes
+	watching bool
+	settling bool
+
 	nomadVersion string
 	usage        nomad.Usage
 
@@ -271,6 +279,7 @@ func (m Model) Init() tea.Cmd {
 
 	return tea.Batch(
 		m.fetch(),
+		m.watch(),
 		fetchVersion(client),
 		fetchClusterUsage(client),
 		fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
@@ -478,6 +487,22 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case hostUseMsg:
 		return m.keepHostUse(msg), nil
+
+	case watchingMsg:
+		return m.startWatching(msg)
+
+	case changeMsg:
+		return m.keepChange()
+
+	case settleMsg:
+		m.settling = false
+
+		return m, m.fetch()
+
+	case watchEndedMsg:
+		// A cluster that will not stream is one urga asks on its own, which
+		// is what it did before. Nothing about that belongs over the rows.
+		return m.endWatch(), m.schedulePoll()
 
 	case pollMsg:
 		return m, m.fetch()
@@ -870,7 +895,7 @@ func (m *Model) layout() {
 }
 
 func (m Model) schedulePoll() tea.Cmd {
-	return tea.Tick(m.opts.PollEvery, func(time.Time) tea.Msg { return pollMsg{} })
+	return tea.Tick(m.pollEvery(), func(time.Time) tea.Msg { return pollMsg{} })
 }
 
 // percentOf is a reading of the cluster, empty until there is one.
