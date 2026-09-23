@@ -589,9 +589,12 @@ func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	case "e":
 		// The same key opens the events of a client and edits what can be
 		// edited, because a screen never offers both.
-		if m.screen.isClient() {
+		switch {
+		case m.screen.isClient():
 			next, cmd = m.openNodeScreen(screenNodeEvents)
-		} else {
+		case m.screen.kind == screenTasks:
+			next, cmd = m.openTaskEvents()
+		default:
 			next, cmd = m.edit()
 		}
 

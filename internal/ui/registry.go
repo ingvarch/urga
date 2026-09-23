@@ -449,6 +449,16 @@ var resources = map[screenKind]resource{
 		rows:  func(m Model) []tableRow { return metaRows(m.nodeMeta) },
 	},
 
+	screenTaskEvents: {
+		titles:  taskEventTitles,
+		cluster: true,
+
+		title: func(m Model, count int) string {
+			return sprintf("Events (Task: %s) [%d]", m.screen.task, count)
+		},
+		rows: func(m Model) []tableRow { return taskEventRows(m.taskEvents()) },
+	},
+
 	screenJobVersions: {
 		titles:  versionTitles,
 		hints:   versionHints,

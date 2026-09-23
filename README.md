@@ -71,7 +71,7 @@ namespace with it, as in `jobs production`. `q` leaves.
 | Key | What it does |
 | --- | --- |
 | `:` | Command line |
-| `/` | Filter what is on the screen |
+| `/` | Filter what is on the screen: a pattern, `!` for everything else, `-f ` for the letters in that order |
 | `?` | Help, with the keys of the open resource |
 | `0`–`9` | Switch namespace, `0` is all of them |
 | `A`–`Z` | Sort by the column that starts with that letter, again to reverse |
@@ -80,7 +80,7 @@ namespace with it, as in `jobs production`. `q` leaves.
 | `esc` | Back |
 | `d` | Describe |
 | `h` | The job file the job was submitted with |
-| `e` | Edit a job, a namespace or the metadata of a client in `$EDITOR`, or the events of a client |
+| `e` | Edit a job, a namespace or the metadata of a client in `$EDITOR`; the events of a client or of a task |
 | `t` | Task groups of a job |
 | `s` | Scale a task group, or a shell in a task |
 | `ctrl-s` | Start or stop a job |
@@ -110,7 +110,8 @@ Jobs, allocations, tasks, task groups, deployments, namespaces, services,
 evaluations, clients, servers, variables and node pools. A screen that the
 cluster will talk about follows its event stream and is asked again the moment
 something changes; the rest, and a cluster whose stream an ACL holds back, are
-asked on a timer. Logs follow a task as it writes; the filter lights up what it matched, long
+asked on a timer. A task says what happened to it, from the moment the client received it.
+Logs follow a task as it writes; the filter lights up what it matched, long
 lines wrap, and what is on the screen saves to a file. A job or a namespace opens in your
 editor and goes back to the cluster when you save. Jobs start, stop, revert and
 scale; a job keeps its versions, each saying what it changed, and goes back to

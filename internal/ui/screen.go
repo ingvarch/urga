@@ -31,6 +31,7 @@ const (
 	screenNodeAttributes
 	screenNodeMeta
 	screenJobVersions
+	screenTaskEvents
 	screenDescribe
 	screenLogs
 	screenTaskGroups
