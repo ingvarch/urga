@@ -199,17 +199,13 @@ func (m Model) show(kind screenKind) (Model, tea.Cmd) {
 		return m.push(screen{kind: kind, namespace: m.namespace})
 	}
 
-	entered, cmd := m.enter()
-
-	return entered, tea.Batch(cmd, entered.remember())
+	return m.arrive()
 }
 
 // push opens a list on top of the one that is there, which is where escape
 // comes back to.
 func (m Model) push(next screen) (Model, tea.Cmd) {
-	entered, cmd := m.stack(next).enter()
-
-	return entered, tea.Batch(cmd, entered.remember())
+	return m.stack(next).arrive()
 }
 
 // stack puts a screen on top of the one that is there and leaves behind what
@@ -238,7 +234,16 @@ func (m Model) back() (Model, tea.Cmd) {
 	m.history = m.history[:len(m.history)-1]
 	m.err = nil
 
-	return m.enter()
+	return m.arrive()
+}
+
+// arrive puts the screen up and writes the session down. Every way of
+// arriving at a screen goes through here, so that where the session is
+// looking is never one screen behind what is on display.
+func (m Model) arrive() (Model, tea.Cmd) {
+	entered, cmd := m.enter()
+
+	return entered, tea.Batch(cmd, entered.remember())
 }
 
 // enter puts the screen on the table and asks the cluster for its rows.

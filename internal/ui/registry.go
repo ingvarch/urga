@@ -247,7 +247,6 @@ var resources = map[screenKind]resource{
 	},
 
 	screenDescribe: {
-		hints: describeHints,
 		title: func(m Model, _ int) string { return m.screen.label },
 	},
 

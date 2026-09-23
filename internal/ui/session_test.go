@@ -117,3 +117,23 @@ func TestSession_RemembersANamespaceFromTheCommandLine(t *testing.T) {
 	r.NotNil(cfg.Namespace)
 	r.Equal("staging", *cfg.Namespace)
 }
+
+func TestSession_RemembersTheScreenAfterGoingBack(t *testing.T) {
+	r := require.New(t)
+
+	m, cfg := sessionModel(t, &fakeClient{jobs: twoJobs()})
+
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "dp")
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	r.Equal("deployments", cfg.Screen)
+
+	// Escape comes back to the job list, and that is where the next run has
+	// to open, not on the screen that was left.
+	m, cmd = m.update(escape())
+	drain(m, cmd)
+
+	r.Equal(screenJobs, m.screen.kind)
+	r.Equal("jobs", cfg.Screen)
+}
