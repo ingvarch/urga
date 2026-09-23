@@ -20,6 +20,11 @@ type Server struct {
 	Version    string
 	Status     string
 
+	// RPCAddress is where the server takes calls, which is the address the
+	// rest of the cluster names it by. An agent may gossip on one address
+	// and take calls on another.
+	RPCAddress string
+
 	// Leader says this is the server the others follow.
 	Leader bool
 
@@ -49,14 +54,15 @@ type RaftPeer struct {
 }
 
 // Servers lists the servers of the cluster and says which one leads.
-func (c *Client) Servers(_ context.Context) ([]Server, error) {
-	members, err := c.api.Agent().Members()
+func (c *Client) Servers(ctx context.Context) ([]Server, error) {
+	members, err := c.api.Agent().MembersOpts(c.query(ctx, ""))
 	if err != nil {
 		return nil, err
 	}
 
 	// Who leads is a separate question, and one the cluster may not be able
 	// to answer during an election. The list is worth showing either way.
+	// That endpoint takes no options, so it carries no context of its own.
 	leader, _ := c.api.Status().Leader()
 
 	servers := make([]Server, 0, len(members.Members))
@@ -76,12 +82,13 @@ func (c *Client) Servers(_ context.Context) ([]Server, error) {
 			Status:     member.Status,
 		}
 
+		server.RPCAddress = rpcAddress(member.Addr, member.Tags)
 		server.Tags = member.Tags
 		server.Protocol = int(member.ProtocolCur)
 		server.ProtocolMin = int(member.ProtocolMin)
 		server.ProtocolMax = int(member.ProtocolMax)
 
-		server.Leader = leads(member.Addr, member.Tags["port"], leader)
+		server.Leader = leader != "" && server.RPCAddress == leader
 
 		servers = append(servers, server)
 	}
@@ -133,12 +140,18 @@ func (c *Client) RaftPeers(ctx context.Context) ([]RaftPeer, error) {
 	return peers, nil
 }
 
-// leads compares a member with the address the cluster gives for its leader,
-// which is the RPC address rather than the one the members gossip on.
-func leads(address, rpcPort, leader string) bool {
-	if leader == "" || rpcPort == "" {
-		return false
+// rpcAddress is where a member takes calls. The cluster names its leader and
+// its raft peers by that address, and an agent may advertise one of its own
+// instead of the address it gossips on.
+func rpcAddress(address string, tags map[string]string) string {
+	if advertised := tags["rpc_addr"]; advertised != "" {
+		address = advertised
 	}
 
-	return net.JoinHostPort(address, rpcPort) == leader
+	port := tags["port"]
+	if address == "" || port == "" {
+		return ""
+	}
+
+	return net.JoinHostPort(address, port)
 }

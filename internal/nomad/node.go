@@ -60,6 +60,30 @@ type NodeDetail struct {
 	Attributes map[string]string
 }
 
+// Node is one machine of the cluster, asked of the cluster rather than read
+// out of the list, so that a screen open on it says what it is now.
+func (c *Client) Node(ctx context.Context, nodeID string) (Node, error) {
+	node, _, err := c.api.Nodes().Info(nodeID, c.query(ctx, ""))
+	if err != nil {
+		return Node{}, err
+	}
+
+	// The machine answers with more than the list carries; cutting it down
+	// to what a list entry holds keeps the reading of one in one place.
+	return newNode(&api.NodeListStub{
+		ID:                    node.ID,
+		Name:                  node.Name,
+		Datacenter:            node.Datacenter,
+		NodePool:              node.NodePool,
+		Version:               node.Attributes["nomad.version"],
+		Status:                node.Status,
+		SchedulingEligibility: node.SchedulingEligibility,
+		Drain:                 node.Drain,
+		Address:               node.HTTPAddr,
+		NodeResources:         node.NodeResources,
+	}), nil
+}
+
 // NodeDetail reads everything the cluster holds about one client.
 func (c *Client) NodeDetail(ctx context.Context, nodeID string) (NodeDetail, error) {
 	node, _, err := c.api.Nodes().Info(nodeID, c.query(ctx, ""))

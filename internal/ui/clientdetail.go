@@ -12,7 +12,7 @@ import (
 
 // The columns of what a client says about itself.
 var (
-	nodeEventTitles = []string{"Time", "Subsystem", "Message"}
+	nodeEventTitles = []string{"Age", "Subsystem", "Message"}
 	driverTitles    = []string{"Driver", "Detected", "Healthy", "Updated", "Description"}
 	volumeTitles    = []string{"Name", "Path", "Read only"}
 	metaTitles      = []string{"Field", "Value", "Set by"}
@@ -20,14 +20,16 @@ var (
 
 // The keys each of those screens answers.
 var (
-	clientHints = []hint{
-		{Key: "<enter>", Description: "Tasks"},
+	// clientHints are the keys of the machine, and after them the keys of
+	// the allocations on it, which answer here as on any other list of
+	// allocations.
+	clientHints = append([]hint{
 		{Key: "<e>", Description: "Events"},
 		{Key: "<ctrl-d>", Description: "Drivers"},
 		{Key: "<ctrl-h>", Description: "Host volumes"},
 		{Key: "<a>", Description: "Attributes"},
 		{Key: "<m>", Description: "Meta"},
-	}
+	}, allocHints...)
 
 	driverHints = []hint{{Key: "<enter>", Description: "What the driver says"}}
 
@@ -74,7 +76,7 @@ func fetchNodeMeta(m Model) tea.Cmd {
 
 	return fetchList(func(ctx context.Context) ([]nomad.MetaEntry, error) {
 		return client.NodeMeta(ctx, nodeID)
-	}, func(meta []nomad.MetaEntry) tea.Msg { return nodeMetaMsg(meta) })
+	}, func(meta []nomad.MetaEntry) tea.Msg { return nodeMetaMsg{nodeID: nodeID, meta: meta} })
 }
 
 func nodeEventRows(events []nomad.NodeEvent) []tableRow {

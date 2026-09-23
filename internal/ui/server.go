@@ -35,7 +35,9 @@ func (m Model) copyField() (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	field, value := row.cells[0], row.cells[len(row.cells)-1]
+	// The value is the second column on every screen of fields; a screen
+	// may carry more after it, like where the value came from.
+	field, value := row.cells[0], row.cells[1]
 	m.said = sprintf("Copied %s.", field)
 
 	return m, tea.SetClipboard(value)
@@ -67,7 +69,7 @@ func serverDetailRows(server nomad.Server, peers []nomad.RaftPeer, failed error)
 		{"Leader", yesNo(server.Leader), leaderColor(server.Leader)},
 		{"Address", server.Address, nil},
 		{"Serf port", port(server.Port), nil},
-		{"RPC address", rpcAddress(server), nil},
+		{"RPC address", server.RPCAddress, nil},
 		{"Datacenter", server.Datacenter, nil},
 		{"Region", server.Region, nil},
 		{"Version", server.Version, nil},
@@ -105,7 +107,7 @@ type fieldRow struct {
 // or by the address it talks on.
 func peerOf(server nomad.Server, peers []nomad.RaftPeer) (nomad.RaftPeer, bool) {
 	for _, peer := range peers {
-		if peer.Node == server.Name || peer.Address == rpcAddress(server) {
+		if peer.Node == server.Name || peer.Address == server.RPCAddress {
 			return peer, true
 		}
 	}
@@ -148,21 +150,6 @@ func leaderColor(leader bool) color.Color {
 	}
 
 	return nil
-}
-
-// rpcAddress is where the server takes calls, which is the address the rest
-// of the cluster names it by.
-func rpcAddress(server nomad.Server) string {
-	host, port := server.Tags["rpc_addr"], server.Tags["port"]
-	if host == "" {
-		host = server.Address
-	}
-
-	if port == "" {
-		return ""
-	}
-
-	return host + ":" + port
 }
 
 // gossip is the version of the protocol the members speak to each other, and

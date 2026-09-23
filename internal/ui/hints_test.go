@@ -10,8 +10,10 @@ import (
 )
 
 // everyScreen is one model per screen, each with rows on it: a key that acts
-// on a row says nothing about itself when there is no row.
-func everyScreen(t *testing.T) map[screenKind]Model {
+// on a row says nothing about itself when there is no row. The screens are
+// kept by name rather than by kind: the allocations of a job and the screen
+// of one client are the same kind and answer different keys.
+func everyScreen(t *testing.T) map[string]Model {
 	t.Helper()
 
 	client := &fakeClient{
@@ -28,6 +30,7 @@ func everyScreen(t *testing.T) map[screenKind]Model {
 		nodeMeta:    clientMeta(),
 		variables:   []nomad.Variable{{Path: "nomad/jobs/web", Namespace: "production"}},
 		nodePools:   []nomad.NodePool{{Name: "default"}},
+		use:         map[string]nomad.ResourceUse{"node-1": {}},
 		servers:     twoServers(),
 		describe:    "{}",
 		spec:        "job \"web\" {}",
@@ -45,7 +48,7 @@ func everyScreen(t *testing.T) map[screenKind]Model {
 		"servers":     serversMsg(client.servers),
 	}
 
-	open := map[screenKind]Model{}
+	open := map[string]Model{}
 
 	for name, filled := range rows {
 		m := newTestModel(client)
@@ -54,43 +57,46 @@ func everyScreen(t *testing.T) map[screenKind]Model {
 		m, _ = m.update(enter())
 		m, _ = m.update(filled)
 
-		open[m.screen.kind] = m
+		open[name] = m
 	}
 
-	jobs := open[screenJobs]
+	jobs := open["jobs"]
 
 	allocs, _ := jobs.update(enter())
 	allocs, _ = allocs.update(allocsMsg(twoAllocs()))
-	open[screenAllocations] = allocs
+	open["allocations"] = allocs
 
 	tasks, _ := allocs.update(enter())
-	open[screenTasks] = tasks
+	open["tasks"] = tasks
 
 	groups, _ := jobs.update(key('t'))
 	groups, _ = groups.update(taskGroupsMsg(twoGroups()))
-	open[screenTaskGroups] = groups
+	open["taskgroups"] = groups
 
 	described, cmd := jobs.update(key('d'))
-	open[screenDescribe] = drain(described, cmd)
+	open["describe"] = drain(described, cmd)
 
-	server, _ := open[screenServers].update(enter())
-	open[screenServer] = server
+	server, _ := open["servers"].update(enter())
+	open["server"] = server
 
 	// The screens of one client, each opened by the key that offers it.
-	machine, machineCmd := open[screenNodes].update(enter())
+	machine, machineCmd := open["nodes"].update(enter())
 	machine = drain(machine, machineCmd)
-	open[machine.screen.kind] = machine
+	open["client"] = machine
 
-	for _, press := range []tea.KeyPressMsg{key('e'), ctrlKey('d'), ctrlKey('h'), key('a'), key('m')} {
+	for name, press := range map[string]tea.KeyPressMsg{
+		"events":     key('e'),
+		"drivers":    ctrlKey('d'),
+		"volumes":    ctrlKey('h'),
+		"attributes": key('a'),
+		"meta":       key('m'),
+	} {
 		next, cmd := machine.update(press)
-		next = drain(next, cmd)
-
-		open[next.screen.kind] = next
+		open[name] = drain(next, cmd)
 	}
 
-	drivers := open[screenNodeDrivers]
-	driver, cmd := drivers.update(enter())
-	open[screenNodeDriver] = drain(driver, cmd)
+	driver, cmd := open["drivers"].update(enter())
+	open["driver"] = drain(driver, cmd)
 
 	return open
 }
@@ -98,7 +104,11 @@ func everyScreen(t *testing.T) map[screenKind]Model {
 func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 	r := require.New(t)
 
-	for kind, m := range everyScreen(t) {
+	for name, m := range everyScreen(t) {
+		// Whatever the screen was left holding says nothing about the key
+		// that is about to be pressed.
+		m.err = nil
+
 		for _, h := range m.screen.hints() {
 			// A key in the header is a promise: pressing it opens something,
 			// asks the cluster something or puts a question up. A key that
@@ -108,14 +118,17 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 			did := cmd != nil ||
 				next.screen != m.screen ||
 				next.overlay != m.overlay ||
-				next.err != nil
+				next.err != nil ||
+				next.said != m.said
 
-			r.True(did, "screen %d offers %s and nothing happens", kind, h.Key)
+			r.True(did, "the %s screen offers %s and nothing happens", name, h.Key)
 		}
 	}
 }
 
-// keyOf reads a key the way the header writes it: <enter>, <ctrl-s>, <d>.
+// keyOf reads a key the way the header writes it: <enter>, <ctrl-s>, <d>. A
+// key it cannot spell would be pressed as its first letter, which is why
+// every control key has a case of its own here.
 func keyOf(shown string) tea.KeyPressMsg {
 	name := shown[1 : len(shown)-1]
 
@@ -130,6 +143,8 @@ func keyOf(shown string) tea.KeyPressMsg {
 		return ctrlKey('d')
 	case "ctrl-e":
 		return ctrlKey('e')
+	case "ctrl-h":
+		return ctrlKey('h')
 	}
 
 	return key(rune(name[0]))

@@ -45,11 +45,20 @@ func clientAllocs() []nomad.Alloc {
 	}}
 }
 
+// reading is what the machine of the open screen answers.
+func reading(cpu int) hostUseMsg {
+	return hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{CPUPercent: cpu}}
+}
+
 // clientScreen drills into the one client of the cluster.
 func clientScreen(t *testing.T) (Model, *fakeClient) {
 	t.Helper()
 
-	client := &fakeClient{nodes: busyClient(), nodeAllocs: clientAllocs()}
+	client := &fakeClient{
+		nodes:      busyClient(),
+		nodeAllocs: clientAllocs(),
+		use:        map[string]nomad.ResourceUse{"node-1": {}},
+	}
 
 	m, _ := nodeModelOf(client)
 	m, cmd := m.update(enter())
@@ -88,7 +97,7 @@ func TestClient_DrawsWhatTheHostIsDoing(t *testing.T) {
 
 	m, _ := clientScreen(t)
 
-	m, _ = m.update(hostUseMsg{use: nomad.ResourceUse{
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{
 		CPUPercent: 29, CPUTicks: 1165,
 		MemoryPercent: 22, MemoryMB: 857, MemoryMBAllowed: 3820,
 	}})
@@ -112,7 +121,7 @@ func TestClient_TheChartIsDroppedOnAShortScreen(t *testing.T) {
 	r := require.New(t)
 
 	m, _ := clientScreen(t)
-	m, _ = m.update(hostUseMsg{use: nomad.ResourceUse{CPUPercent: 29}})
+	m, _ = m.update(reading(29))
 
 	m, _ = m.update(tea.WindowSizeMsg{Width: 120, Height: 16})
 	out := plain(m.render())
@@ -129,12 +138,16 @@ func TestClient_TheChartKeepsTheReadings(t *testing.T) {
 
 	m, _ := clientScreen(t)
 
+	before := len(m.hostTrail)
+
 	for _, at := range []int{10, 20, 30} {
-		m, _ = m.update(hostUseMsg{use: nomad.ResourceUse{CPUPercent: at}})
+		m, _ = m.update(reading(at))
 	}
 
-	r.Len(m.hostTrail, 3)
-	r.Equal(30, m.hostTrail[2].CPUPercent)
+	// Every reading is kept, the newest last: that is what the chart draws
+	// from left to right.
+	r.Len(m.hostTrail, before+3)
+	r.Equal(30, m.hostTrail[len(m.hostTrail)-1].CPUPercent)
 }
 
 func TestClient_AReadingThatFailsKeepsTheChart(t *testing.T) {
@@ -142,12 +155,14 @@ func TestClient_AReadingThatFailsKeepsTheChart(t *testing.T) {
 
 	m, _ := clientScreen(t)
 
-	m, _ = m.update(hostUseMsg{use: nomad.ResourceUse{CPUPercent: 10}})
-	m, _ = m.update(hostUseMsg{err: errTest})
+	m, _ = m.update(reading(10))
+	kept := len(m.hostTrail)
+
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", err: errTest})
 
 	// A machine that does not answer says so, and what it said before stays
 	// on the chart.
-	r.Len(m.hostTrail, 1)
+	r.Len(m.hostTrail, kept)
 	r.Contains(plain(m.render()), "no answer")
 }
 
@@ -156,15 +171,15 @@ func TestClient_AnotherClientStartsItsOwnChart(t *testing.T) {
 
 	m, _ := clientScreen(t)
 
-	m, _ = m.update(hostUseMsg{use: nomad.ResourceUse{CPUPercent: 10}})
-	r.Len(m.hostTrail, 1)
+	m, _ = m.update(reading(10))
+	r.Contains(m.hostTrail, nomad.ResourceUse{CPUPercent: 10})
 
 	m, _ = m.update(escape())
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
 	// The readings belong to the machine they were taken on.
-	r.Empty(m.hostTrail)
+	r.NotContains(m.hostTrail, nomad.ResourceUse{CPUPercent: 10})
 }
 
 func TestClient_ReadsAnAllocationInItsOwnNamespace(t *testing.T) {
@@ -203,7 +218,7 @@ func TestClient_TheChartBelongsToTheClientScreenOnly(t *testing.T) {
 	r := require.New(t)
 
 	m, _ := clientScreen(t)
-	m, _ = m.update(hostUseMsg{use: nomad.ResourceUse{CPUPercent: 29}})
+	m, _ = m.update(reading(29))
 
 	r.Contains(plain(m.render()), "Status")
 
@@ -215,4 +230,40 @@ func TestClient_TheChartBelongsToTheClientScreenOnly(t *testing.T) {
 	out := plain(next.render())
 	r.NotContains(out, "Datacenter")
 	r.NotContains(out, "100%")
+}
+
+func TestClient_AReadingOfTheMachineYouLeftIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := clientScreen(t)
+
+	before := len(m.hostTrail)
+
+	m, _ = m.update(hostUseMsg{nodeID: "node-9", use: nomad.ResourceUse{CPUPercent: 99}})
+
+	// A reading that was asked of another machine says nothing about this
+	// one, on the chart or in the error line.
+	r.Len(m.hostTrail, before)
+
+	m, _ = m.update(hostUseMsg{nodeID: "node-9", err: errTest})
+	r.Nil(m.err)
+}
+
+func TestClient_TheMachineInThePanelKeepsUp(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := clientScreen(t)
+	r.Contains(plain(m.render()), "ready")
+
+	m, _ = m.update(hostMsg(nomad.Node{ID: "node-1", Name: "nomad-server-01", Status: "down", Drain: true}))
+
+	// The machine is polled with everything else on the screen: a client
+	// that goes down must not still read as ready.
+	out := plain(m.render())
+	r.Contains(out, "down")
+	r.Contains(out, "draining")
+
+	// And the answer of another machine is not this one.
+	m, _ = m.update(hostMsg(nomad.Node{ID: "node-9", Name: "somewhere-else", Status: "ready"}))
+	r.NotContains(plain(m.render()), "somewhere-else")
 }

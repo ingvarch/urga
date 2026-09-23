@@ -3,6 +3,8 @@ package nomad
 import (
 	"context"
 	"time"
+
+	"github.com/hashicorp/nomad/api"
 )
 
 // Deployment is a rollout of a job version.
@@ -152,27 +154,32 @@ func (c *Client) Nodes(ctx context.Context) ([]Node, error) {
 
 	out := make([]Node, 0, len(list))
 	for _, n := range list {
-		node := Node{
-			ID:          n.ID,
-			Name:        n.Name,
-			Datacenter:  n.Datacenter,
-			NodePool:    n.NodePool,
-			Version:     n.Version,
-			Status:      n.Status,
-			Eligibility: n.SchedulingEligibility,
-			Drain:       n.Drain,
-			Address:     n.Address,
-		}
-
-		if n.NodeResources != nil {
-			node.CPUShares = int(n.NodeResources.Cpu.CpuShares)
-			node.MemoryMB = int(n.NodeResources.Memory.MemoryMB)
-		}
-
-		out = append(out, node)
+		out = append(out, newNode(n))
 	}
 
 	return out, nil
+}
+
+// newNode reads one machine of the list.
+func newNode(n *api.NodeListStub) Node {
+	node := Node{
+		ID:          n.ID,
+		Name:        n.Name,
+		Datacenter:  n.Datacenter,
+		NodePool:    n.NodePool,
+		Version:     n.Version,
+		Status:      n.Status,
+		Eligibility: n.SchedulingEligibility,
+		Drain:       n.Drain,
+		Address:     n.Address,
+	}
+
+	if n.NodeResources != nil {
+		node.CPUShares = int(n.NodeResources.Cpu.CpuShares)
+		node.MemoryMB = int(n.NodeResources.Memory.MemoryMB)
+	}
+
+	return node
 }
 
 // Variable is an entry of the variable store. Only what the list says, the

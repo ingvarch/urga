@@ -49,6 +49,7 @@ type Client interface {
 	FailDeployment(ctx context.Context, namespace, deploymentID string) error
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 	NodeAllocations(ctx context.Context, nodeID string) ([]nomad.Alloc, error)
+	Node(ctx context.Context, nodeID string) (nomad.Node, error)
 	NodeDetail(ctx context.Context, nodeID string) (nomad.NodeDetail, error)
 	NodeMeta(ctx context.Context, nodeID string) ([]nomad.MetaEntry, error)
 	NodeMetaSpec(ctx context.Context, nodeID string) (string, error)
@@ -121,7 +122,13 @@ type (
 	serversMsg     []nomad.Server
 	serverMsg      nomad.Server
 	nodeDetailMsg  nomad.NodeDetail
-	nodeMetaMsg    []nomad.MetaEntry
+
+	// nodeMetaMsg carries the machine it was asked of, like every answer
+	// that belongs to one client.
+	nodeMetaMsg struct {
+		nodeID string
+		meta   []nomad.MetaEntry
+	}
 
 	// raftMsg is what the raft of the cluster says about its servers. An
 	// ACL may hold it back, and then the reason is shown where the answer
@@ -420,7 +427,11 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, m.schedulePoll()
 
 	case nodeMetaMsg:
-		return m.applyList(screenNodeMeta, func(m *Model) { m.nodeMeta = msg })
+		if m.screen.nodeID != msg.nodeID {
+			return m, nil
+		}
+
+		return m.applyList(screenNodeMeta, func(m *Model) { m.nodeMeta = msg.meta })
 
 	case serverMsg:
 		if m.screen.kind != screenServer {
@@ -436,6 +447,15 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case raftMsg:
 		m.raft, m.raftErr = msg.peers, msg.err
 		m.layout()
+
+		return m, nil
+
+	case hostMsg:
+		if m.screen.nodeID != msg.ID {
+			return m, nil
+		}
+
+		m.host = nomad.Node(msg)
 
 		return m, nil
 

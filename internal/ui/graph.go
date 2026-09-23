@@ -155,6 +155,13 @@ func (c chart) draw(rows [][]chartCell, column int, value float64, height int) {
 
 		rows[row][column] = chartCell{glyph: '█', kind: cellFill}
 	}
+
+	// A reading of nothing has no height, and a column with nothing in it
+	// reads as a reading that was never taken. It is drawn on the floor of
+	// the plot, where it is.
+	if top {
+		rows[height-1][column] = chartCell{glyph: chartHair, kind: cellEdge}
+	}
 }
 
 // mark lays the lines of the scale over the readings. A line runs along the

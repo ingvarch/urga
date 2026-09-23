@@ -108,6 +108,18 @@ func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.
 	return f.nodeAllocs, f.err
 }
 
+func (f *fakeClient) Node(_ context.Context, nodeID string) (nomad.Node, error) {
+	f.askedNodeID = nodeID
+
+	for _, node := range f.nodes {
+		if node.ID == nodeID {
+			return node, f.err
+		}
+	}
+
+	return nomad.Node{}, f.err
+}
+
 func (f *fakeClient) NodeDetail(_ context.Context, nodeID string) (nomad.NodeDetail, error) {
 	f.askedNodeID = nodeID
 

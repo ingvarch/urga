@@ -76,6 +76,10 @@ func TestClient_ShowsWhatHappenedToIt(t *testing.T) {
 
 	out := plain(m.render())
 	r.Contains(out, "Events (Client: nomad-server-01) [2]")
+
+	// The column holds how long ago it was, which is what the rest of the
+	// screens call that.
+	r.Contains(out, "Age")
 	r.Contains(out, "Driver docker is healthy")
 	r.Contains(out, "Cluster")
 }
@@ -161,6 +165,12 @@ func TestClient_ShowsItsMetadataAndWhereItComesFrom(t *testing.T) {
 	// which keys those are.
 	r.Contains(out, "api")
 	r.Contains(out, "agent")
+
+	// The value is what copies, not the column that says where it came
+	// from: this screen carries one more column than the other field
+	// screens.
+	_, cmd := m.update(key('c'))
+	r.Equal("igor", clipboardOf(cmd))
 }
 
 func TestClient_EditsTheMetadata(t *testing.T) {
@@ -197,4 +207,34 @@ func TestClient_EditsTheMetadata(t *testing.T) {
 	r.NotEmpty(editor.opened)
 	r.Equal(`{"owner": "ingvar"}`, client.metaSubmitted)
 	r.Equal("node-1", client.askedNodeID)
+}
+
+func TestClient_TheMetadataOfAnotherMachineIsNotShownHere(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := pressed(t, key('m'))
+
+	m, _ = m.update(nodeMetaMsg{nodeID: "node-9", meta: []nomad.MetaEntry{{Key: "owner", Value: "somebody else"}}})
+
+	// An answer for the machine that was left must not turn up under the
+	// name of the one that is open.
+	r.NotContains(plain(m.render()), "somebody else")
+}
+
+func TestClient_KeepsOfferingWhatTheAllocationsAnswer(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onAClient(t)
+
+	keys := []string{}
+	for _, h := range m.screen.hints() {
+		keys = append(keys, h.Key)
+	}
+
+	// The screen of a client answers for the machine and for the work on
+	// it, so the header offers both.
+	r.Contains(keys, "<m>")
+	r.Contains(keys, "<r>")
+	r.Contains(keys, "<d>")
+	r.Contains(keys, "<ctrl-k>")
 }

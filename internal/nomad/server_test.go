@@ -81,6 +81,44 @@ func TestServers_Read(t *testing.T) {
 	r.True(servers[1].Leader)
 }
 
+func TestServers_TheLeaderBehindAnAdvertisedAddress(t *testing.T) {
+	r := require.New(t)
+
+	// The agent gossips on one address and takes calls on another, which is
+	// what an advertise block does. The cluster names its leader by the
+	// address it takes calls on.
+	members := `{"Members": [{
+		"Name": "server-01.global",
+		"Addr": "10.0.0.5",
+		"Port": 4648,
+		"Status": "alive",
+		"Tags": {"rpc_addr": "192.168.1.5", "port": "4647", "dc": "dc1"}
+	}]}`
+
+	client := serversServer(t, members, `"192.168.1.5:4647"`)
+
+	servers, err := client.Servers(context.Background())
+	r.NoError(err)
+	r.Len(servers, 1)
+
+	r.True(servers[0].Leader)
+	r.Equal("192.168.1.5:4647", servers[0].RPCAddress)
+}
+
+func TestServers_TakeTheContext(t *testing.T) {
+	r := require.New(t)
+
+	client := serversServer(t, members, `""`)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// The list of servers is a request like any other: it stops when the
+	// screen that asked for it is gone.
+	_, err := client.Servers(ctx)
+	r.Error(err)
+}
+
 func TestServers_WithoutALeader(t *testing.T) {
 	r := require.New(t)
 

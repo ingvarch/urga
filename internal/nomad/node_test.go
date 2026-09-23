@@ -56,7 +56,8 @@ func TestNodeDetail_Read(t *testing.T) {
 	r.Equal("Driver", detail.Events[0].Subsystem)
 	r.Equal("docker", detail.Events[0].Details["driver"])
 
-	// The drivers come out of a map, in the order they read.
+	// The drivers come out of a map, so they are put in the order of their
+	// names: the list would shuffle under the cursor otherwise.
 	r.Len(detail.Drivers, 2)
 	r.Equal("docker", detail.Drivers[0].Name)
 	r.True(detail.Drivers[0].Detected)
@@ -74,6 +75,32 @@ func TestNodeDetail_Read(t *testing.T) {
 	r.False(detail.Volumes[1].ReadOnly)
 
 	r.Equal("amd64", detail.Attributes["cpu.arch"])
+}
+
+func TestNode_ReadsTheMachineItself(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{
+		"ID": "node-1",
+		"Name": "nomad-server-01",
+		"Datacenter": "dc1",
+		"NodePool": "default",
+		"Status": "down",
+		"SchedulingEligibility": "ineligible",
+		"Drain": true,
+		"NodeResources": {"Cpu": {"CpuShares": 4000}, "Memory": {"MemoryMB": 3820}}
+	}`)
+
+	node, err := client.Node(context.Background(), "node-1")
+	r.NoError(err)
+
+	// What the list says about one machine, asked of the machine itself, so
+	// that a screen open on it does not freeze at what it was.
+	r.Equal("/v1/node/node-1", asked.URL.Path)
+	r.Equal("nomad-server-01", node.Name)
+	r.Equal("down", node.Status)
+	r.True(node.Drain)
+	r.Equal(4000, node.CPUShares)
 }
 
 // metaServer answers what the agent says about its metadata and keeps what

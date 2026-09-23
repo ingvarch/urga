@@ -38,10 +38,25 @@ const (
 	hostTrailMax = 240
 )
 
-// hostUseMsg is a reading of the machine the client screen is open on.
-type hostUseMsg struct {
-	use nomad.ResourceUse
-	err error
+// Messages of the machine a client screen is open on. Both carry the id of
+// the machine they were asked of: an answer that arrives after the screen
+// moved on belongs to another client.
+type (
+	hostUseMsg struct {
+		nodeID string
+		use    nomad.ResourceUse
+		err    error
+	}
+
+	hostMsg nomad.Node
+)
+
+// fetchHost reads the machine itself, so that what the panel says about it
+// keeps up with the rest of the screen.
+func fetchHost(client Client, nodeID string) tea.Cmd {
+	return request(func(ctx context.Context) (nomad.Node, error) {
+		return client.Node(ctx, nodeID)
+	}, func(node nomad.Node) tea.Msg { return hostMsg(node) })
 }
 
 // fetchHostUse reads what the machine itself is doing, which is more than
@@ -53,7 +68,7 @@ func fetchHostUse(client Client, nodeID string) tea.Cmd {
 
 		use, err := client.NodeUsage(ctx, nodeID)
 
-		return hostUseMsg{use: use, err: err}
+		return hostUseMsg{nodeID: nodeID, use: use, err: err}
 	}
 }
 
@@ -61,6 +76,10 @@ func fetchHostUse(client Client, nodeID string) tea.Cmd {
 // says so and keeps what it said before: a chart that empties on one timeout
 // reads as a machine that stopped working.
 func (m Model) keepHostUse(msg hostUseMsg) Model {
+	if msg.nodeID != m.screen.nodeID {
+		return m
+	}
+
 	if msg.err != nil {
 		m.err = msg.err
 

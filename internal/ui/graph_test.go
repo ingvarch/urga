@@ -141,6 +141,21 @@ func TestChart_TheLinesAreDotted(t *testing.T) {
 	r.Equal(cellFill, cells[3][3].kind)
 }
 
+func TestChart_AReadingOfNothingIsStillAReading(t *testing.T) {
+	r := require.New(t)
+
+	cells := aChart(0.1, 0).cells(2, 8)
+
+	// Nothing running is not the same as nothing read yet: the reading is
+	// drawn on the floor of the plot, where it belongs, so the area does
+	// not break where a machine went quiet.
+	r.Equal(cellEdge, cells[7][1].kind)
+	r.Equal(chartHair, cells[7][1].glyph)
+
+	// And a column that has no reading at all stays empty.
+	r.Equal(cellAir, aChart(1).cells(2, 8)[7][0].kind)
+}
+
 func TestChart_TheNewestReadingIsAtTheRight(t *testing.T) {
 	r := require.New(t)
 

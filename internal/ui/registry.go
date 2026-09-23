@@ -158,6 +158,7 @@ var resources = map[screenKind]resource{
 					fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
 						return client.NodeAllocations(ctx, screen.nodeID)
 					}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
+					fetchHost(client, screen.nodeID),
 					fetchHostUse(client, screen.nodeID),
 				)
 			}
