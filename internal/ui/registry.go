@@ -15,6 +15,7 @@ var (
 	jobHints = []hint{
 		{Key: "<enter>", Description: "Allocations"},
 		{Key: "<space>", Description: "Mark"},
+		{Key: "<ctrl-a>", Description: "Mark all"},
 		{Key: "<t>", Description: "Task groups"},
 		{Key: "<d>", Description: "Describe"},
 		{Key: "<h>", Description: "Job spec"},

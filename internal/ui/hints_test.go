@@ -169,3 +169,47 @@ func keyOf(shown string) tea.KeyPressMsg {
 
 	return key(rune(name[0]))
 }
+
+// screenKeys are the keys a screen could answer on its own: every letter and
+// every control letter, enter and space, less the keys that work on every
+// screen and are listed in help instead.
+func screenKeys() []tea.KeyPressMsg {
+	everywhere := map[string]bool{"j": true, "k": true, "g": true, "q": true, "ctrl+b": true, "ctrl+f": true, "ctrl+c": true}
+
+	keys := []tea.KeyPressMsg{{Code: tea.KeyEnter}, space()}
+
+	for letter := 'a'; letter <= 'z'; letter++ {
+		for _, press := range []tea.KeyPressMsg{key(letter), ctrlKey(letter)} {
+			if !everywhere[press.String()] {
+				keys = append(keys, press)
+			}
+		}
+	}
+
+	return keys
+}
+
+func TestHints_EveryKeyThatDoesSomethingIsInTheHeader(t *testing.T) {
+	r := require.New(t)
+
+	// A key that edits writes its file before anything else happens.
+	t.Setenv("TMPDIR", t.TempDir())
+
+	for name, m := range everyScreen(t) {
+		m = m.quiet()
+
+		offered := map[string]bool{}
+		for _, h := range m.screen.hints() {
+			offered[keyOf(h.Key).String()] = true
+		}
+
+		for _, press := range screenKeys() {
+			next, cmd := m.handleKey(press)
+			did := cmd != nil || !reflect.DeepEqual(next, m)
+
+			// The header is where a key is found: one that works without
+			// being there is one nobody learns about.
+			r.False(did && !offered[press.String()], "the %s screen answers %s without offering it", name, press.String())
+		}
+	}
+}

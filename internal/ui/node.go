@@ -147,6 +147,7 @@ var (
 		{Key: "<ctrl-d>", Description: "Drain"},
 		{Key: "<i>", Description: "Eligibility"},
 		{Key: "<space>", Description: "Mark"},
+		{Key: "<ctrl-a>", Description: "Mark all"},
 	}
 
 	deploymentHints = []hint{
