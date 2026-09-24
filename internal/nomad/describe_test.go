@@ -64,6 +64,34 @@ func TestJobSpec_FromWhatWasSubmitted(t *testing.T) {
 	r.Equal("job \"web\" {\n  type = \"service\"\n}", out)
 }
 
+func TestJobSpec_WhenTheClusterAnswersThereIsNone(t *testing.T) {
+	r := require.New(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/v1/job/web/submission" {
+			// What the cluster answers for a job that was registered through
+			// the API, from JSON or by a provider, with no file.
+			http.Error(w, "job source not found", http.StatusNotFound)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ID": "web", "Version": 3}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	out, err := client.JobSpec(context.Background(), "production", "web")
+
+	// That is no failure: the job is there, only its file is not, and the
+	// editor opens the job as JSON instead.
+	r.ErrorIs(err, nomad.ErrNoSource)
+	r.Empty(out)
+}
+
 func TestJobSpec_WithoutASource(t *testing.T) {
 	r := require.New(t)
 

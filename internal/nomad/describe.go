@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+
+	"github.com/hashicorp/nomad/api"
 )
 
 // ErrNoSource says the cluster does not have the file a job was submitted
@@ -68,6 +71,14 @@ func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (string, 
 	}
 
 	submission, _, err := c.api.Jobs().Submission(jobID, version, c.query(ctx, namespace))
+
+	// The job was read a moment ago, so a submission that is not found is a
+	// job that was registered without its file.
+	var answer api.UnexpectedResponseError
+	if errors.As(err, &answer) && answer.StatusCode() == http.StatusNotFound {
+		return "", ErrNoSource
+	}
+
 	if err != nil {
 		return "", err
 	}
