@@ -140,8 +140,8 @@ func logsTitle(s screen) string {
 // logBindings are the keys of the log screen: the ones of any text, and
 // the ones of a stream that is still being followed.
 var logBindings = []binding{
-	{press: "s", label: "Stop following", do: stopFollowing},
-	{press: "r", label: "Resume", do: resumeFollowing},
+	{press: "s", label: "Stop following", do: stopFollowing, offered: following},
+	{press: "r", label: "Resume", do: resumeFollowing, offered: notFollowing},
 	{press: "w", label: "Wrap lines", do: wrapLines},
 	{press: "t", label: "When urga read it", do: showTimes},
 	{press: "ctrl+s", label: "Save", do: saveScreen},
@@ -156,6 +156,12 @@ var taskBindings = []binding{
 	// The same key opens a shell here and scales a task group elsewhere.
 	{press: "s", label: "Shell", do: shell, writes: true},
 }
+
+// following and notFollowing say which of stop and resume would do
+// something: only one of them ever does.
+func following(m Model) bool { return m.logs.following }
+
+func notFollowing(m Model) bool { return !m.logs.following }
 
 func stopFollowing(m Model) (Model, tea.Cmd) {
 	m.logs.following = false

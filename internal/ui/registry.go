@@ -21,6 +21,10 @@ type binding struct {
 
 	// writes says the key changes the cluster, which read-only takes away.
 	writes bool
+
+	// offered says the key does something in the state the screen is in.
+	// Nil is always.
+	offered func(m Model) bool
 }
 
 // hint is the binding as the header and help write it: ctrl+s is <ctrl-s>.

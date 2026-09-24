@@ -102,7 +102,7 @@ func TestBack_ComesBackToTheRowOfEveryKeyThatOpensAScreen(t *testing.T) {
 		m, _ = m.update(down())
 		left := cursorName(m)
 
-		for _, h := range m.screen.hints() {
+		for _, h := range m.hints() {
 			next := opened(m, keyOf(h.Key))
 			if len(next.history) <= len(m.history) {
 				continue

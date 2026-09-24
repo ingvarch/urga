@@ -36,6 +36,7 @@ func everyScreen(t *testing.T) map[string]Model {
 		servers:     twoServers(),
 		describe:    "{}",
 		spec:        nomad.JobSource{Source: "job \"web\" {}"},
+		logs:        &nomad.LogStream{Lines: make(chan string)},
 	}
 
 	rows := map[string]tea.Msg{
@@ -107,6 +108,9 @@ func everyScreen(t *testing.T) map[string]Model {
 	events, _ := open["tasks"].update(key('e'))
 	open["taskevents"] = events
 
+	logs, cmd := open["tasks"].update(enter())
+	open["logs"] = drain(logs, cmd)
+
 	// The lists a region and a datacenter are picked from.
 	regions, _ := jobs.update(regionsMsg([]string{"eu", "us"}))
 	regions, _ = runLine(regions, "region")
@@ -127,7 +131,7 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 		// that is about to be pressed.
 		m = m.quiet()
 
-		for _, h := range m.screen.hints() {
+		for _, h := range m.hints() {
 			// A key in the header is a promise: pressing it opens something,
 			// asks the cluster something or puts a question up. A key that
 			// is drawn and does nothing is worse than no key.
@@ -199,7 +203,7 @@ func TestHints_EveryKeyThatDoesSomethingIsInTheHeader(t *testing.T) {
 		m = m.quiet()
 
 		offered := map[string]bool{}
-		for _, h := range m.screen.hints() {
+		for _, h := range m.hints() {
 			offered[keyOf(h.Key).String()] = true
 		}
 

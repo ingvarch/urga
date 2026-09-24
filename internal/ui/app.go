@@ -545,7 +545,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.overlayKey(msg)
 	}
 
-	if b, ok := m.screen.binding(msg.String()); ok {
+	if b, ok := m.binding(msg.String()); ok {
 		return b.do(m)
 	}
 
@@ -692,7 +692,7 @@ func (m Model) headerData() header {
 		usage:        percentOf(m.usage.cluster.CPUPercent),
 		memory:       percentOf(m.usage.cluster.MemoryPercent),
 		namespaces:   m.namespaceColumnData(),
-		hints:        m.screen.hints(),
+		hints:        m.hints(),
 	}
 }
 

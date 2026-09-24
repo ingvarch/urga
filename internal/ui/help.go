@@ -39,7 +39,7 @@ var navigationHints = []hint{
 func (m Model) helpSections() []helpSection {
 	sections := []helpSection{}
 
-	if hints := m.screen.hints(); len(hints) > 0 {
+	if hints := m.hints(); len(hints) > 0 {
 		sections = append(sections, helpSection{title: "RESOURCE", hints: hints})
 	}
 
