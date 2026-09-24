@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // blockedEvaluation is what the cluster says of an evaluation that could not
@@ -86,4 +88,37 @@ func TestEvaluation_SaysWhyEachGroupWasNotPlaced(t *testing.T) {
 	r.Equal(map[string]int{"memory": 2}, web.DimensionExhausted)
 
 	r.Equal([]string{"cpu exhausted (500 needed > 400 limit)"}, eval.Failures[0].QuotaExhausted)
+}
+
+func TestFailedPlacement_TheNewestEvaluationWithFailures(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `[
+		{"ID": "old", "JobID": "web", "Status": "complete", "CreateIndex": 5,
+		 "FailedTGAllocs": {"web": {"NodesEvaluated": 1}}},
+		{"ID": "blocked", "JobID": "web", "Status": "blocked", "CreateIndex": 20,
+		 "FailedTGAllocs": {"web": {"NodesEvaluated": 3, "NodesExhausted": 3}}},
+		{"ID": "placed", "JobID": "web", "Status": "complete", "CreateIndex": 30}
+	]`)
+
+	eval, err := client.FailedPlacement(context.Background(), "production", "web")
+	r.NoError(err)
+
+	r.Equal("/v1/job/web/evaluations", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+
+	// The newest decision that failed to place something is what says why
+	// the job waits now, as the nomad command reads it. A newer one that
+	// placed everything else says nothing about what still waits.
+	r.Equal("blocked", eval.ID)
+	r.Equal(3, eval.Failures[0].NodesExhausted)
+}
+
+func TestFailedPlacement_WhenNoneFailed(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{"ID": "placed", "JobID": "web", "Status": "complete", "CreateIndex": 30}]`)
+
+	_, err := client.FailedPlacement(context.Background(), "production", "web")
+	r.ErrorIs(err, nomad.ErrNoFailures)
 }

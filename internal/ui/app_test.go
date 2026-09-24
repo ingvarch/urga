@@ -31,13 +31,15 @@ type fakeClient struct {
 	services    []nomad.Service
 	evaluations []nomad.Evaluation
 	evaluation  nomad.EvaluationDetail
-	nodes       []nomad.Node
-	variables   []nomad.Variable
-	nodePools   []nomad.NodePool
-	servers     []nomad.Server
-	changes     *fakeChanges
-	server      nomad.Server
-	raft        []nomad.RaftPeer
+
+	placementErr error
+	nodes        []nomad.Node
+	variables    []nomad.Variable
+	nodePools    []nomad.NodePool
+	servers      []nomad.Server
+	changes      *fakeChanges
+	server       nomad.Server
+	raft         []nomad.RaftPeer
 
 	describe      string
 	spec          nomad.JobSource
@@ -143,6 +145,12 @@ func (f *fakeClient) Evaluation(_ context.Context, namespace, evalID string) (no
 	f.askedNamespace, f.askedID = namespace, evalID
 
 	return f.evaluation, f.err
+}
+
+func (f *fakeClient) FailedPlacement(_ context.Context, namespace, jobID string) (nomad.EvaluationDetail, error) {
+	f.askedNamespace, f.askedJobID = namespace, jobID
+
+	return f.evaluation, f.placementErr
 }
 
 func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.Alloc, error) {

@@ -94,6 +94,9 @@ func TestJobs_ReadsTheList(t *testing.T) {
 	// counting them reads as a job that never comes up.
 	r.Equal(4, job.Running)
 	r.Equal(6, job.Desired)
+
+	// What waits for a place is a question of its own: why it is not placed.
+	r.Equal(1, job.Queued)
 }
 
 func TestJobs_WithoutASummary(t *testing.T) {
