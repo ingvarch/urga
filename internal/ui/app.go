@@ -67,6 +67,8 @@ type Client interface {
 	AllocationChecks(ctx context.Context, namespace, allocID string) ([]nomad.Check, error)
 	Files(ctx context.Context, namespace, allocID, path string) ([]nomad.File, error)
 	Token(ctx context.Context) (nomad.Token, error)
+	ServiceInstances(ctx context.Context, namespace, name string) ([]nomad.ServiceInstance, error)
+	DeleteServiceRegistration(ctx context.Context, namespace, name, id string) error
 	Deployment(ctx context.Context, namespace, deploymentID string) (nomad.DeploymentDetail, error)
 	DeploymentAllocations(ctx context.Context, namespace, deploymentID string) ([]nomad.Alloc, error)
 	File(ctx context.Context, namespace, allocID, path string) (*nomad.LogStream, error)
@@ -332,6 +334,11 @@ type clusterData struct {
 	// the logs of that task in every allocation that runs it.
 	logPick logPick
 	jobLogs jobLogsState
+
+	// instances are the instances of a service, and instanceChecks what
+	// their checks last said.
+	instances      []nomad.ServiceInstance
+	instanceChecks instanceChecksState
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -602,6 +609,15 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case deploymentMsg:
 		return m.keepDeployment(msg)
+
+	case instancesMsg:
+		return instanceChecksOnce(m.applyList(screenServiceInstances, func(m *Model) { m.instances = msg }))
+
+	case instanceChecksMsg:
+		return m.keepInstanceChecks(msg)
+
+	case pollInstanceChecksMsg:
+		return m.pollInstanceChecks()
 
 	case filesMsg:
 		return m.applyList(screenFiles, func(m *Model) { m.dir = dirState(msg) })

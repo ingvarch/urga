@@ -59,10 +59,29 @@ The number keys `1` to `9` switch to a namespace, and `0` shows all
 namespaces. The header shows which namespace each key opens. urga keeps this
 order between runs.
 
-## Services, variables and node pools
+## Services
 
-- `:services` lists the services registered in the cluster. `d` describes
-  one.
+`:services` lists the services registered in the cluster. `d` describes one.
+
+`enter` on a service opens its instances: one row per registration, with the
+address and port where it takes traffic, the allocation and client that
+registered it, its tags, its checks and its status.
+
+- **Checks** are read every 5 seconds from the client that runs each
+  allocation: `2 passing`, `1 failing` or `1 pending`, only the checks of this
+  service. urga shows the checks of services with `provider = "nomad"`.
+- **Status** is the status of the allocation. A registration whose
+  allocation is complete, failed or lost, or no longer exists, is **stale**:
+  its status says `stale: alloc lost` or `stale: alloc gone`, and the row is
+  red. Stale registrations happen when a client stops without removing them,
+  and they send traffic to an address where nothing runs.
+
+`ctrl-d` deletes the stale registration under the cursor, after you confirm.
+It is not offered on a registration that still takes traffic. `enter` on an
+instance opens the tasks of its allocation.
+
+## Variables and node pools
+
 - `:variables` lists the variables by path, with their age and last change.
   urga does not show their values.
 - `:nodepools` lists the node pools and their schedulers.

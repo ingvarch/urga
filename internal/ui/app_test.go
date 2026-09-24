@@ -159,6 +159,13 @@ type fakeClient struct {
 	// token is the token the session sends, as the cluster sees it.
 	token      nomad.Token
 	tokenCalls int
+
+	// instances are the instances of any service, and which service was
+	// asked for last; deletedRegistration the last one deleted.
+	instances           []nomad.ServiceInstance
+	instancesNamespace  string
+	instancesName       string
+	deletedRegistration string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -208,6 +215,19 @@ func (f *fakeClient) File(_ context.Context, namespace, allocID, path string) (*
 	f.fileCalls++
 
 	return f.file, f.fileErr
+}
+
+func (f *fakeClient) ServiceInstances(_ context.Context, namespace, name string) ([]nomad.ServiceInstance, error) {
+	f.instancesNamespace, f.instancesName = namespace, name
+
+	return f.instances, f.err
+}
+
+func (f *fakeClient) DeleteServiceRegistration(_ context.Context, namespace, name, id string) error {
+	f.wrote("DeleteServiceRegistration")
+	f.askedNamespace, f.instancesName, f.deletedRegistration = namespace, name, id
+
+	return f.actionErr
 }
 
 func (f *fakeClient) Token(context.Context) (nomad.Token, error) {
