@@ -81,7 +81,7 @@ func showJobSpec(m Model) (Model, tea.Cmd) {
 	client := m.client
 
 	return m, describe(fmt.Sprintf("Job spec: %s", job.ID), func(ctx context.Context) (string, error) {
-		source, err := client.JobSpec(ctx, job.Namespace, job.ID)
+		spec, err := client.JobSpec(ctx, job.Namespace, job.ID)
 
 		// The cluster has no file to show. Saying so is the job of the
 		// screen, the client answers with an error and no prose.
@@ -92,7 +92,7 @@ func showJobSpec(m Model) (Model, tea.Cmd) {
 					"without one. <e> edits what the cluster does have of it.", job.ID), nil
 		}
 
-		return source, err
+		return spec.Source, err
 	})
 }
 

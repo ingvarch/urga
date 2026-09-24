@@ -4,15 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/nomad/api"
 )
 
 // SubmitJob sends a job file to the cluster. HCL and JSON are both taken,
-// which is what the editor hands back.
-func (c *Client) SubmitJob(ctx context.Context, namespace, source string) error {
-	job, err := c.parseJob(source)
+// which is what the editor hands back. The file is kept with the version it
+// makes, and so are the values of its variables: the next edit opens the same
+// file, and the job runs with the values it ran with before.
+func (c *Client) SubmitJob(ctx context.Context, namespace, source string, vars JobVariables) error {
+	job, kept, err := c.parseJob(ctx, namespace, source, vars)
 	if err != nil {
 		return err
 	}
@@ -21,28 +25,71 @@ func (c *Client) SubmitJob(ctx context.Context, namespace, source string) error 
 		job.Namespace = &namespace
 	}
 
-	_, _, err = c.api.Jobs().Register(job, c.write(ctx, namespace))
+	_, _, err = c.api.Jobs().RegisterOpts(job, &api.RegisterOptions{Submission: kept}, c.write(ctx, namespace))
 
 	return err
 }
 
-// parseJob reads a job file the way the cluster does.
-func (c *Client) parseJob(source string) (*api.Job, error) {
+// parseJob reads a job file the way the cluster does, and says what of it to
+// keep with the version.
+func (c *Client) parseJob(ctx context.Context, namespace, source string, vars JobVariables) (*api.Job, *api.JobSubmission, error) {
 	if strings.HasPrefix(strings.TrimSpace(source), "{") {
 		job := &api.Job{}
 		if err := json.Unmarshal([]byte(source), job); err != nil {
-			return nil, fmt.Errorf("the job is not valid JSON: %w", err)
+			return nil, nil, fmt.Errorf("the job is not valid JSON: %w", err)
 		}
 
-		return job, nil
+		// Variables are a thing of HCL, a JSON job has none.
+		return job, &api.JobSubmission{Source: source, Format: FormatJSON}, nil
 	}
 
-	job, err := c.api.Jobs().ParseHCL(source, true)
-	if err != nil {
-		return nil, fmt.Errorf("the job was not accepted: %w", err)
+	request := &api.JobsParseRequest{JobHCL: source, Variables: vars.file(), Canonicalize: true}
+
+	// The client of the API parses without a namespace, which is the default
+	// one, and a token may be allowed to parse jobs in its own namespace only.
+	job := &api.Job{}
+	if _, err := c.api.Raw().Write("/v1/jobs/parse", request, job, c.write(ctx, namespace)); err != nil {
+		return nil, nil, fmt.Errorf("the job was not accepted: %w", err)
 	}
 
-	return job, nil
+	return job, &api.JobSubmission{
+		Source:        source,
+		Format:        formatHCL2,
+		VariableFlags: vars.Flags,
+		Variables:     vars.File,
+	}, nil
+}
+
+// file is the variables as one variables file, the only form the cluster
+// parses them in. A flag becomes a line of its own, its value a string: the
+// type of the variable converts it, the way it does for a value typed after
+// -var.
+func (v JobVariables) file() string {
+	var b strings.Builder
+
+	for _, name := range slices.Sorted(maps.Keys(v.Flags)) {
+		fmt.Fprintf(&b, "%s = %s\n", name, hclString(v.Flags[name]))
+	}
+
+	b.WriteString(v.File)
+
+	return b.String()
+}
+
+// hclString quotes text as an HCL string. Beyond the escapes, ${ and %{ are
+// doubled: in HCL they start a template, and a flag holds plain text.
+func hclString(text string) string {
+	quoted := strings.NewReplacer(
+		`\`, `\\`,
+		`"`, `\"`,
+		"\n", `\n`,
+		"\r", `\r`,
+		"\t", `\t`,
+		"${", "$${",
+		"%{", "%%{",
+	).Replace(text)
+
+	return `"` + quoted + `"`
 }
 
 // NamespaceSpec is a namespace as a file, which is how it is edited.

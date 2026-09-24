@@ -35,7 +35,7 @@ func everyScreen(t *testing.T) map[string]Model {
 		use:         map[string]nomad.ResourceUse{"node-1": {}},
 		servers:     twoServers(),
 		describe:    "{}",
-		spec:        "job \"web\" {}",
+		spec:        nomad.JobSource{Source: "job \"web\" {}"},
 	}
 
 	rows := map[string]tea.Msg{

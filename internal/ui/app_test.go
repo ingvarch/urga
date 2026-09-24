@@ -38,7 +38,7 @@ type fakeClient struct {
 	raft        []nomad.RaftPeer
 
 	describe      string
-	spec          string
+	spec          nomad.JobSource
 	specErr       error
 	logs          *nomad.LogStream
 	usage         nomad.Usage
@@ -49,6 +49,7 @@ type fakeClient struct {
 
 	submitted           int
 	submittedSource     string
+	submittedVars       nomad.JobVariables
 	submittedNamespaces int
 
 	stopped       int
@@ -208,11 +209,11 @@ func (f *fakeClient) DescribeService(_ context.Context, namespace, name string) 
 	return f.describe, f.err
 }
 
-func (f *fakeClient) JobSpec(_ context.Context, namespace, jobID string) (string, error) {
+func (f *fakeClient) JobSpec(_ context.Context, namespace, jobID string) (nomad.JobSource, error) {
 	f.askedNamespace, f.askedID = namespace, jobID
 
 	if f.specErr != nil {
-		return "", f.specErr
+		return nomad.JobSource{}, f.specErr
 	}
 
 	return f.spec, f.err
@@ -280,8 +281,8 @@ func (f *fakeClient) TaskGroups(_ context.Context, namespace, jobID string) ([]n
 	return f.groups, f.err
 }
 
-func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string) error {
-	f.askedNamespace, f.submittedSource = namespace, source
+func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string, vars nomad.JobVariables) error {
+	f.askedNamespace, f.submittedSource, f.submittedVars = namespace, source, vars
 	f.submitted++
 
 	return f.actionErr

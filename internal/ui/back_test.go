@@ -55,7 +55,7 @@ func TestBack_ComesBackToTheRowADescriptionWasAskedFrom(t *testing.T) {
 		deployments: []nomad.Deployment{{ID: "dep-1", JobID: "web"}, {ID: "dep-2", JobID: "cron"}},
 		services:    []nomad.Service{{Name: "api"}, {Name: "web"}},
 		describe:    "{}",
-		spec:        `job "cron" {}`,
+		spec:        nomad.JobSource{Source: `job "cron" {}`},
 	}
 
 	tests := []struct {

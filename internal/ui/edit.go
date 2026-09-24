@@ -75,23 +75,11 @@ func editJob(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	client := m.client
-
-	return m, openEditor(jobFile(client, job), func(source string) tea.Cmd {
-		return act(fmt.Sprintf("Job %s submitted.", job.ID), func(ctx context.Context) error {
-			return client.SubmitJob(ctx, job.Namespace, source)
-		})
-	})
+	return m, openEditor(jobFile(m.client, job))
 }
 
 func editMeta(m Model) (Model, tea.Cmd) {
-	client, nodeID, name := m.client, m.screen.nodeID, m.screen.label
-
-	return m, openEditor(metaFile(client, nodeID), func(source string) tea.Cmd {
-		return act(fmt.Sprintf("Metadata of %s submitted.", name), func(ctx context.Context) error {
-			return client.SubmitNodeMeta(ctx, nodeID, source)
-		})
-	})
+	return m, openEditor(metaFile(m.client, m.screen.nodeID, m.screen.label))
 }
 
 func editNamespace(m Model) (Model, tea.Cmd) {
@@ -100,61 +88,82 @@ func editNamespace(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	client := m.client
-
-	return m, openEditor(namespaceFile(client, namespace.Name), func(source string) tea.Cmd {
-		return act(fmt.Sprintf("Namespace %s submitted.", namespace.Name), func(ctx context.Context) error {
-			return client.SubmitNamespace(ctx, source)
-		})
-	})
+	return m, openEditor(namespaceFile(m.client, namespace.Name))
 }
 
 // file is what the editor is given: the name to save it under and what is in
-// it.
-type file func(ctx context.Context) (extension, content string, err error)
+// it, and how what comes back goes to the cluster. How it goes back is decided
+// when it is read: a job goes back with the values its variables had.
+type file struct {
+	extension string
+	content   string
+	submit    func(source string) tea.Cmd
+}
+
+// load reads a resource as a file.
+type load func(ctx context.Context) (file, error)
 
 // jobFile is the job as a file: what it was submitted with, and what the
 // cluster does have of it when that was not kept.
-func jobFile(client Client, job nomad.Job) file {
-	return func(ctx context.Context) (string, string, error) {
-		source, err := client.JobSpec(ctx, job.Namespace, job.ID)
-		if err == nil {
-			return "hcl", source, nil
+func jobFile(client Client, job nomad.Job) load {
+	return func(ctx context.Context) (file, error) {
+		spec, err := client.JobSpec(ctx, job.Namespace, job.ID)
+		if errors.Is(err, nomad.ErrNoSource) {
+			spec = nomad.JobSource{Format: nomad.FormatJSON}
+			spec.Source, err = client.DescribeJob(ctx, job.Namespace, job.ID)
 		}
 
-		if !errors.Is(err, nomad.ErrNoSource) {
-			return "", "", err
+		if err != nil {
+			return file{}, err
 		}
 
-		source, err = client.DescribeJob(ctx, job.Namespace, job.ID)
-
-		return "json", source, err
+		// The editor holds the file only, the values of the variables are
+		// sent back beside it.
+		return file{extension: jobExtension(spec.Format), content: spec.Source, submit: func(source string) tea.Cmd {
+			return act(fmt.Sprintf("Job %s submitted.", job.ID), func(ctx context.Context) error {
+				return client.SubmitJob(ctx, job.Namespace, source, spec.Variables)
+			})
+		}}, nil
 	}
 }
 
+// jobExtension names a job file after how it is written, which is what an
+// editor colors and checks it by.
+func jobExtension(format string) string {
+	if format == nomad.FormatJSON {
+		return "json"
+	}
+
+	return "hcl"
+}
+
 // namespaceFile is a namespace as a file.
-func namespaceFile(client Client, name string) file {
-	return func(ctx context.Context) (string, string, error) {
+func namespaceFile(client Client, name string) load {
+	return func(ctx context.Context) (file, error) {
 		content, err := client.NamespaceSpec(ctx, name)
 
-		return "json", content, err
+		return file{extension: "json", content: content, submit: func(source string) tea.Cmd {
+			return act(fmt.Sprintf("Namespace %s submitted.", name), func(ctx context.Context) error {
+				return client.SubmitNamespace(ctx, source)
+			})
+		}}, err
 	}
 }
 
 // openEditor puts what the cluster has in a file and hands it over.
-func openEditor(load file, submit func(string) tea.Cmd) tea.Cmd {
+func openEditor(read load) tea.Cmd {
 	return request(func(ctx context.Context) (editFileMsg, error) {
-		extension, content, err := load(ctx)
+		loaded, err := read(ctx)
 		if err != nil {
 			return editFileMsg{}, err
 		}
 
-		file, err := os.CreateTemp("", "urga-*."+extension)
+		file, err := os.CreateTemp("", "urga-*."+loaded.extension)
 		if err != nil {
 			return editFileMsg{}, err
 		}
 
-		if _, err := file.WriteString(content); err != nil {
+		if _, err := file.WriteString(loaded.content); err != nil {
 			return editFileMsg{}, err
 		}
 
@@ -162,7 +171,7 @@ func openEditor(load file, submit func(string) tea.Cmd) tea.Cmd {
 			return editFileMsg{}, err
 		}
 
-		return editFileMsg{path: file.Name(), original: content, submit: submit}, nil
+		return editFileMsg{path: file.Name(), original: loaded.content, submit: loaded.submit}, nil
 	}, func(msg editFileMsg) tea.Msg { return msg })
 }
 

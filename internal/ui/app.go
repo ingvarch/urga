@@ -28,7 +28,7 @@ type Client interface {
 	DescribeAllocation(ctx context.Context, namespace, allocID string) (string, error)
 	DescribeDeployment(ctx context.Context, namespace, deploymentID string) (string, error)
 	DescribeService(ctx context.Context, namespace, name string) (string, error)
-	JobSpec(ctx context.Context, namespace, jobID string) (string, error)
+	JobSpec(ctx context.Context, namespace, jobID string) (nomad.JobSource, error)
 	Logs(ctx context.Context, namespace, allocID, task, source string) (*nomad.LogStream, error)
 	Usage(ctx context.Context, datacenter string) (nomad.Usage, error)
 	AllocationUsage(ctx context.Context, namespace, allocID string) (nomad.ResourceUse, error)
@@ -36,7 +36,7 @@ type Client interface {
 
 	TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
 
-	SubmitJob(ctx context.Context, namespace, source string) error
+	SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables) error
 	NamespaceSpec(ctx context.Context, name string) (string, error)
 	SubmitNamespace(ctx context.Context, source string) error
 
