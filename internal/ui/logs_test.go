@@ -260,3 +260,124 @@ func TestLogs_TheNextLogStartsAfresh(t *testing.T) {
 	r.Contains(out, "Logs (Task: server) [stderr]")
 	r.NotContains(out, "task finished")
 }
+
+// openLog opens the stdout of the first task on a stream of the test.
+func openLog(t *testing.T, client *fakeClient, stream *nomad.LogStream) Model {
+	t.Helper()
+
+	client.logs = stream
+
+	m := openTasks(t, client)
+	m, cmd := m.update(enter())
+
+	return drain(m, cmd)
+}
+
+func TestLogs_SwitchBetweenStdoutAndStderr(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
+	m, _ = m.update(key('w'))
+
+	// The header says where the key goes: the other of the two.
+	r.Contains(plain(m.render()), "Stderr")
+
+	client.logs = &nomad.LogStream{Lines: make(chan string)}
+
+	m, cmd := m.update(ctrlKey('e'))
+	r.True(client.logsClosed, "the stream of stdout is still open")
+
+	m = drain(m, cmd)
+
+	r.Equal(nomad.LogStderr, client.askedSource)
+
+	out := plain(m.render())
+	r.Contains(out, "Logs (Task: server) [stderr]")
+	r.Contains(out, "Stdout")
+
+	// It is the same screen read another way: wrapped as it was, and
+	// escape goes back to the tasks, not to stdout.
+	r.True(m.text.wrap)
+
+	m, _ = m.update(escape())
+	r.Equal(screenTasks, m.screen.kind)
+}
+
+func TestLogs_ALineOfTheStreamLeftIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	stdout := make(chan string, 1)
+	stdout <- "from stdout\n"
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openLog(t, client, &nomad.LogStream{Lines: stdout})
+	left := m.logs.stream
+
+	// A read of stdout is on its way when the screen switches.
+	late := m.logs.waitForLog()
+
+	stderr := &nomad.LogStream{Lines: make(chan string)}
+	client.logs = stderr
+
+	m, cmd := m.update(ctrlKey('e'))
+	m = drain(m, cmd)
+
+	m, _ = m.update(late())
+	r.NotContains(plain(m.render()), "from stdout")
+
+	// Nor does the end of the stream left end the one that is open.
+	close(stdout)
+
+	m, _ = m.update(logState{stream: left}.waitForLog()())
+	r.Same(stderr, m.logs.stream)
+}
+
+func TestLogs_AStreamOpenedForAnotherLogIsLetGo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: &nomad.LogStream{Lines: make(chan string)}}
+	m := openTasks(t, client)
+
+	// Stdout is asked for, and the screen switches before it arrives.
+	m, openStdout := m.update(enter())
+
+	stderr := &nomad.LogStream{Lines: make(chan string)}
+	client.logs = stderr
+
+	m, cmd := m.update(ctrlKey('e'))
+	m = drain(m, cmd)
+
+	client.logs = &nomad.LogStream{Lines: make(chan string)}
+	client.logsClosed = false
+
+	m = drain(m, openStdout)
+
+	// The stream of stdout belongs to no screen: kept, it would feed stdout
+	// into stderr, and nothing would ever close it.
+	r.True(client.logsClosed)
+	r.Same(stderr, m.logs.stream)
+}
+
+func TestLogs_OneStreamPerLog(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openTasks(t, client)
+
+	// The same log is asked for twice before either answer arrives.
+	m, first := m.update(enter())
+	m, _ = m.update(escape())
+	m, second := m.update(enter())
+
+	kept := &nomad.LogStream{Lines: make(chan string)}
+	client.logs = kept
+	m = drain(m, first)
+
+	client.logs = &nomad.LogStream{Lines: make(chan string)}
+	client.logsClosed = false
+	m = drain(m, second)
+
+	r.True(client.logsClosed, "a second stream of the same log is left open")
+	r.Same(kept, m.logs.stream)
+}

@@ -33,6 +33,14 @@ type textModel struct {
 	height int
 }
 
+// emptied is the same window with nothing in it: another text, read the way
+// this one was.
+func (t textModel) emptied() textModel {
+	t.lines, t.stamps, t.top = nil, nil, 0
+
+	return t
+}
+
 // visible are the lines the filter leaves, as they are read: with the time
 // they arrived when that is asked for.
 func (t textModel) visible() []string {

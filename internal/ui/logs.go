@@ -11,11 +11,26 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// Messages of a log stream.
+// Messages of a log stream. Each carries the stream it is about: a screen
+// that switched or was left lets its stream go, and what that stream still
+// says must not reach the one that is open.
 type (
-	logStreamMsg struct{ stream *nomad.LogStream }
-	logLineMsg   string
-	logEndMsg    struct{}
+	// logStreamMsg also carries the log it was opened for: one that arrives
+	// after the screen moved on belongs to no screen.
+	logStreamMsg struct {
+		stream *nomad.LogStream
+
+		allocID string
+		task    string
+		source  string
+	}
+
+	logLineMsg struct {
+		stream *nomad.LogStream
+		text   string
+	}
+
+	logEndMsg struct{ stream *nomad.LogStream }
 )
 
 // logState is the output of a task that the log screen reads.
@@ -58,8 +73,32 @@ func (m Model) startLogs() tea.Cmd {
 			return errMsg{err: err}
 		}
 
-		return logStreamMsg{stream: stream}
+		return logStreamMsg{stream: stream, allocID: screen.allocID, task: screen.task, source: screen.source}
 	}
+}
+
+// openedLog keeps a stream that was opened for the log on the screen. One
+// that arrives after the screen moved on, or next to a stream the screen
+// already reads, is let go of: nothing else would ever close it.
+func (m Model) openedLog(msg logStreamMsg) (Model, tea.Cmd) {
+	s := m.screen
+
+	ours := s.kind == screenLogs && s.allocID == msg.allocID && s.task == msg.task && s.source == msg.source
+	if !ours || m.logs.stream != nil {
+		msg.stream.Close()
+
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.logs, cmd = m.logs.opened(msg.stream)
+
+	return m, cmd
+}
+
+// fromOpenStream says a message came from the stream the screen reads.
+func (m Model) fromOpenStream(stream *nomad.LogStream) bool {
+	return stream == m.logs.stream
 }
 
 // waitForLog waits for the next thing the task writes.
@@ -73,17 +112,17 @@ func (l logState) waitForLog() tea.Cmd {
 		select {
 		case line, ok := <-stream.Lines:
 			if !ok {
-				return logEndMsg{}
+				return logEndMsg{stream: stream}
 			}
 
-			return logLineMsg(line)
+			return logLineMsg{stream: stream, text: line}
 
 		case err := <-stream.Err:
 			if err != nil {
 				return errMsg{err: err}
 			}
 
-			return logEndMsg{}
+			return logEndMsg{stream: stream}
 		}
 	}
 }
@@ -153,6 +192,10 @@ func logsTitle(s screen, finished bool) string {
 var logBindings = []binding{
 	{press: "s", label: "Stop following", do: stopFollowing, offered: following},
 	{press: "r", label: "Resume", do: resumeFollowing, offered: notFollowing},
+	// The key that opens stderr from the tasks switches to the other of
+	// the two here, and says which one it goes to.
+	{press: "ctrl+e", label: "Stderr", do: switchSource, offered: onSource(nomad.LogStdout)},
+	{press: "ctrl+e", label: "Stdout", do: switchSource, offered: onSource(nomad.LogStderr)},
 	{press: "w", label: "Wrap lines", do: wrapLines},
 	{press: "t", label: "When urga read it", do: showTimes},
 	{press: "ctrl+s", label: "Save", do: saveScreen},
@@ -166,6 +209,33 @@ var taskBindings = []binding{
 	{press: "ctrl+e", label: "Logs (stderr)", do: openStderr},
 	// The same key opens a shell here and scales a task group elsewhere.
 	{press: "s", label: "Shell", do: shell, writes: true},
+}
+
+// onSource says the log screen reads the source.
+func onSource(source string) func(m Model) bool {
+	return func(m Model) bool { return m.screen.source == source }
+}
+
+// switchSource reads the other of the two a task writes to, on the same
+// screen and the same way: escape still goes back to the tasks.
+func switchSource(m Model) (Model, tea.Cmd) {
+	m.logs.stop()
+	m.logs = logState{following: true}
+
+	m.screen.source = otherSource(m.screen.source)
+	m.text = m.text.emptied()
+	m.layout()
+
+	return m, m.startLogs()
+}
+
+// otherSource is the other of the two a task writes to.
+func otherSource(source string) string {
+	if source == nomad.LogStdout {
+		return nomad.LogStderr
+	}
+
+	return nomad.LogStdout
 }
 
 // following and notFollowing say which of stop and resume would do
