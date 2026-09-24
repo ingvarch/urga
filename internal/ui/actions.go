@@ -119,7 +119,7 @@ func act(said string, do func(ctx context.Context) error) tea.Cmd {
 }
 
 // startStopJob stops a job that runs, starts one that is dead.
-func (m Model) startStopJob() (Model, tea.Cmd) {
+func startStopJob(m Model) (Model, tea.Cmd) {
 	jobs := marked(m, screenJobs, m.jobs)
 	if len(jobs) == 0 {
 		return m, nil
@@ -153,7 +153,7 @@ func jobLabel(jobs []nomad.Job) string {
 }
 
 // revertJob puts the version before the one that runs back in place.
-func (m Model) revertJob() (Model, tea.Cmd) {
+func revertJob(m Model) (Model, tea.Cmd) {
 	job, ok := selectedOf(m, screenJobs, m.jobs)
 	if !ok {
 		return m, nil
@@ -170,7 +170,7 @@ func (m Model) revertJob() (Model, tea.Cmd) {
 }
 
 // restartAllocation restarts every task of an allocation.
-func (m Model) restartAllocation() (Model, tea.Cmd) {
+func restartAllocation(m Model) (Model, tea.Cmd) {
 	client := m.client
 
 	return m.askEachAlloc("restart", "Restarted", func(ctx context.Context, alloc nomad.Alloc) error {
@@ -180,7 +180,7 @@ func (m Model) restartAllocation() (Model, tea.Cmd) {
 
 // stopAllocation stops an allocation. The scheduler places a new one when the
 // job still asks for it.
-func (m Model) stopAllocation() (Model, tea.Cmd) {
+func stopAllocation(m Model) (Model, tea.Cmd) {
 	client := m.client
 
 	return m.askEachAlloc("stop", "Stopped", func(ctx context.Context, alloc nomad.Alloc) error {

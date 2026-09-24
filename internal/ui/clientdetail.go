@@ -33,22 +33,22 @@ var (
 		{press: "m", label: "Meta", do: nodeScreen(screenNodeMeta)},
 	}, allocBindings...)
 
-	driverBindings = []binding{{press: "enter", label: "What the driver says", do: Model.openDriver}}
+	driverBindings = []binding{{press: "enter", label: "What the driver says", do: openDriver}}
 
 	metaBindings = []binding{
-		{press: "c", label: "Copy the value", do: Model.copyField},
+		{press: "c", label: "Copy the value", do: copyField},
 		{press: "e", label: "Edit", do: editMeta},
 	}
 )
 
 // nodeScreen is a key that opens one of the screens of the client.
 func nodeScreen(kind screenKind) func(Model) (Model, tea.Cmd) {
-	return func(m Model) (Model, tea.Cmd) { return m.openNodeScreen(kind) }
+	return func(m Model) (Model, tea.Cmd) { return openNodeScreen(m, kind) }
 }
 
 // openNodeScreen opens one of the screens of the client the cursor came
 // from. They all read the same answer from the machine.
-func (m Model) openNodeScreen(kind screenKind) (Model, tea.Cmd) {
+func openNodeScreen(m Model, kind screenKind) (Model, tea.Cmd) {
 	if !m.screen.isClient() {
 		return m, nil
 	}
@@ -57,7 +57,7 @@ func (m Model) openNodeScreen(kind screenKind) (Model, tea.Cmd) {
 }
 
 // openDriver opens what one driver says about itself.
-func (m Model) openDriver() (Model, tea.Cmd) {
+func openDriver(m Model) (Model, tea.Cmd) {
 	driver, ok := selectedOf(m, screenNodeDrivers, m.nodeDetail.Drivers)
 	if !ok {
 		return m, nil

@@ -9,7 +9,7 @@ import (
 // mark takes the row under the cursor, or lets it go. The cursor stays where
 // it is: a mark is a toggle, and taking one back must not need the cursor
 // walked back to it.
-func (m Model) mark() (Model, tea.Cmd) {
+func mark(m Model) (Model, tea.Cmd) {
 	ids := m.screen.of().ids
 	if ids == nil {
 		return m, nil
@@ -42,7 +42,7 @@ func (m Model) mark() (Model, tea.Cmd) {
 
 // markAll takes every row of the screen, or lets them all go when they are
 // already taken.
-func (m Model) markAll() (Model, tea.Cmd) {
+func markAll(m Model) (Model, tea.Cmd) {
 	ids := m.screen.of().ids
 	if ids == nil {
 		return m, nil

@@ -25,7 +25,7 @@ var serverTags = map[string]bool{
 // copyField puts the value of the field under the cursor on the clipboard,
 // which is how an address or an id gets out of the screen and into a command
 // somewhere else. It goes over OSC52, so it works through ssh as well.
-func (m Model) copyField() (Model, tea.Cmd) {
+func copyField(m Model) (Model, tea.Cmd) {
 	if !m.screen.of().fields {
 		return m, nil
 	}

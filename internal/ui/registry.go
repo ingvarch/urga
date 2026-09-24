@@ -30,31 +30,31 @@ func (b binding) hint() hint {
 var (
 	jobBindings = []binding{
 		{press: "enter", label: "Allocations", do: openJobAllocations},
-		{press: "space", label: "Mark", do: Model.mark},
-		{press: "ctrl+a", label: "Mark all", do: Model.markAll},
-		{press: "t", label: "Task groups", do: Model.openTaskGroups},
+		{press: "space", label: "Mark", do: mark},
+		{press: "ctrl+a", label: "Mark all", do: markAll},
+		{press: "t", label: "Task groups", do: openJobGroups},
 		{press: "d", label: "Describe", do: describeJob},
 		{press: "h", label: "Job spec", do: showJobSpec},
-		{press: "ctrl+s", label: "Start or stop", do: Model.startStopJob},
+		{press: "ctrl+s", label: "Start or stop", do: startStopJob},
 		// The list of jobs reverts to the version before the one that runs;
 		// the list of versions reverts to the one under the cursor.
-		{press: "u", label: "Revert", do: Model.revertJob},
-		{press: "v", label: "Versions", do: Model.openVersions},
+		{press: "u", label: "Revert", do: revertJob},
+		{press: "v", label: "Versions", do: openVersions},
 		{press: "e", label: "Edit", do: editJob},
 	}
 
 	allocBindings = []binding{
 		{press: "enter", label: "Tasks", do: openAllocation},
 		{press: "d", label: "Describe", do: describeAllocation},
-		{press: "r", label: "Restart", do: Model.restartAllocation},
-		{press: "ctrl+k", label: "Stop", do: Model.stopAllocation},
-		{press: "space", label: "Mark", do: Model.mark},
-		{press: "ctrl+a", label: "Mark all", do: Model.markAll},
+		{press: "r", label: "Restart", do: restartAllocation},
+		{press: "ctrl+k", label: "Stop", do: stopAllocation},
+		{press: "space", label: "Mark", do: mark},
+		{press: "ctrl+a", label: "Mark all", do: markAll},
 	}
 
 	serverBindings = []binding{{press: "enter", label: "Details", do: openServer}}
 
-	fieldBindings = []binding{{press: "c", label: "Copy the value", do: Model.copyField}}
+	fieldBindings = []binding{{press: "c", label: "Copy the value", do: copyField}}
 
 	serviceBindings = []binding{{press: "d", label: "Describe", do: describeService}}
 
@@ -69,8 +69,8 @@ var (
 
 	// regionBindings and datacenterBindings are the keys of a list a region
 	// or a datacenter is picked from.
-	regionBindings     = []binding{{press: "enter", label: "Switch", do: Model.chooseRegion}}
-	datacenterBindings = []binding{{press: "enter", label: "Switch", do: Model.chooseDatacenter}}
+	regionBindings     = []binding{{press: "enter", label: "Switch", do: chooseRegion}}
+	datacenterBindings = []binding{{press: "enter", label: "Switch", do: chooseDatacenter}}
 )
 
 // resource is everything a screen knows about itself: what it is called, what
