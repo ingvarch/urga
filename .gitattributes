@@ -1,0 +1,2 @@
+# LF on every OS: gofmt and the build config tests read files as committed.
+* text=auto eol=lf
