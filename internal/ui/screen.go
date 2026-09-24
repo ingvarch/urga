@@ -332,6 +332,12 @@ func (m Model) back() (Model, tea.Cmd) {
 
 	arrived, cmd := m.arrive()
 
+	if arrived.screen.kind == screenLogs {
+		var read tea.Cmd
+		arrived, read = arrived.readAgain()
+		cmd = tea.Batch(cmd, read)
+	}
+
 	return arrived.returnTo(arrived.screen.left), cmd
 }
 

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
@@ -48,7 +49,7 @@ func TestLogs_OpenOnATask(t *testing.T) {
 	m = drain(m, m.logs.waitForLog())
 
 	out := plain(m.render())
-	r.Contains(out, "Logs (Task: server) [stdout]")
+	r.Contains(out, "Logs (Task: server, Allocation: af1f37df) [stdout]")
 	r.Contains(out, "first line")
 	r.Contains(out, "second line")
 }
@@ -231,7 +232,7 @@ func TestLogs_AFinishedTaskSaysSo(t *testing.T) {
 	// the title says why nothing more arrives.
 	out := plain(m.render())
 	r.Contains(out, "last words")
-	r.Contains(out, "Logs (Task: server) [stdout, task finished]")
+	r.Contains(out, "Logs (Task: server, Allocation: af1f37df) [stdout, task finished]")
 	r.NotContains(out, "Stop following")
 	r.NotContains(out, "Resume")
 }
@@ -257,7 +258,7 @@ func TestLogs_TheNextLogStartsAfresh(t *testing.T) {
 	m = drain(m, cmd)
 
 	out := plain(m.render())
-	r.Contains(out, "Logs (Task: server) [stderr]")
+	r.Contains(out, "Logs (Task: server, Allocation: af1f37df) [stderr]")
 	r.NotContains(out, "task finished")
 }
 
@@ -293,7 +294,7 @@ func TestLogs_SwitchBetweenStdoutAndStderr(t *testing.T) {
 	r.Equal(nomad.LogStderr, client.askedSource)
 
 	out := plain(m.render())
-	r.Contains(out, "Logs (Task: server) [stderr]")
+	r.Contains(out, "Logs (Task: server, Allocation: af1f37df) [stderr]")
 	r.Contains(out, "Stdout")
 
 	// It is the same screen read another way: wrapped as it was, and
@@ -380,4 +381,82 @@ func TestLogs_OneStreamPerLog(t *testing.T) {
 
 	r.True(client.logsClosed, "a second stream of the same log is left open")
 	r.Same(kept, m.logs.stream)
+}
+
+// replaced is an allocation of twoAllocs placed again: the one it replaced
+// is named on its stream.
+const replaced = "0ld0a11c-0000-0000-0000-000000000000"
+
+func TestLogs_OpenTheAllocationBefore(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string), Previous: replaced})
+
+	// A task that crashed was placed again, and its new log starts empty:
+	// why it crashed is in the allocation it replaced.
+	r.Contains(plain(m.render()), "Allocation before")
+
+	client.logs = &nomad.LogStream{Lines: make(chan string)}
+
+	m, cmd := m.update(key('p'))
+	r.True(client.logsClosed, "the stream of the newer allocation is still open")
+
+	m = drain(m, cmd)
+
+	r.Equal(replaced, client.askedID)
+	r.Equal("server", client.askedTask)
+	r.Equal(nomad.LogStdout, client.askedSource)
+	r.Contains(plain(m.render()), "Logs (Task: server, Allocation: 0ld0a11c) [stdout]")
+
+	// Escape comes back to the newer log, read again: the text on the
+	// screen is not the log of the older one.
+	client.logs = &nomad.LogStream{Lines: make(chan string)}
+
+	m, cmd = m.update(escape())
+	m = drain(m, cmd)
+
+	r.Equal(screenLogs, m.screen.kind)
+	r.Equal(twoAllocs()[0].ID, client.askedID)
+	r.Same(client.logs, m.logs.stream)
+	r.Contains(plain(m.render()), "Logs (Task: server, Allocation: af1f37df) [stdout]")
+}
+
+func TestLogs_TheFirstAllocationHasNoneBefore(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
+
+	r.NotContains(plain(m.render()), "Allocation before")
+}
+
+func TestLogs_BackOnALogReadsItAgain(t *testing.T) {
+	r := require.New(t)
+
+	old := make(chan string, 1)
+	old <- "why it crashed\n"
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string), Previous: replaced})
+
+	client.logs = &nomad.LogStream{Lines: old}
+
+	m, cmd := m.update(key('p'))
+	m = drain(m, cmd)
+
+	// The line is read the way the program reads it, and a stream that
+	// holds none is not waited on for good.
+	if line := within(m.logs.waitForLog(), time.Second); line != nil {
+		m, _ = m.update(line)
+	}
+
+	r.Contains(plain(m.render()), "why it crashed")
+
+	client.logs = &nomad.LogStream{Lines: make(chan string)}
+
+	m, cmd = m.update(escape())
+	m = drain(m, cmd)
+
+	r.NotContains(plain(m.render()), "why it crashed")
 }

@@ -42,6 +42,9 @@ type logState struct {
 	// finished says the task has stopped: the stream holds all it wrote,
 	// and there is nothing to follow.
 	finished bool
+
+	// previous is the allocation this one replaced, empty for the first.
+	previous string
 }
 
 // openLogs follows what the task under the cursor writes.
@@ -131,6 +134,7 @@ func (l logState) waitForLog() tea.Cmd {
 func (l logState) opened(stream *nomad.LogStream) (logState, tea.Cmd) {
 	l.stream = stream
 	l.finished = stream.Finished
+	l.previous = stream.Previous
 
 	return l, l.waitForLog()
 }
@@ -176,15 +180,15 @@ func (l *logState) stop() {
 	}
 }
 
-// logsTitle says whose output this is, which of the two it is, and whether
-// the task has stopped writing it.
+// logsTitle says whose output this is, in which allocation, which of the two
+// it is, and whether the task has stopped writing it.
 func logsTitle(s screen, finished bool) string {
 	source := s.source
 	if finished {
 		source += ", task finished"
 	}
 
-	return fmt.Sprintf("Logs (Task: %s) [%s]", s.task, source)
+	return fmt.Sprintf("Logs (Task: %s, Allocation: %s) [%s]", s.task, shortID(s.allocID), source)
 }
 
 // logBindings are the keys of the log screen: the ones of any text, and
@@ -196,6 +200,7 @@ var logBindings = []binding{
 	// the two here, and says which one it goes to.
 	{press: "ctrl+e", label: "Stderr", do: switchSource, offered: onSource(nomad.LogStdout)},
 	{press: "ctrl+e", label: "Stdout", do: switchSource, offered: onSource(nomad.LogStderr)},
+	{press: "p", label: "Allocation before", do: openPrevious, offered: hasPrevious},
 	{press: "w", label: "Wrap lines", do: wrapLines},
 	{press: "t", label: "When urga read it", do: showTimes},
 	{press: "ctrl+s", label: "Save", do: saveScreen},
@@ -225,6 +230,32 @@ func switchSource(m Model) (Model, tea.Cmd) {
 	m.screen.source = otherSource(m.screen.source)
 	m.text = m.text.emptied()
 	m.layout()
+
+	return m, m.startLogs()
+}
+
+// hasPrevious says the allocation of the log replaced another one.
+func hasPrevious(m Model) bool { return m.logs.previous != "" }
+
+// openPrevious reads the same task in the allocation this one replaced, on
+// top of this log: escape comes back to it. A task that crashed and was
+// placed again starts an empty log, and why it crashed is in the one before.
+func openPrevious(m Model) (Model, tea.Cmd) {
+	next := m.screen
+	next.allocID = m.logs.previous
+
+	m.logs.stop()
+	m = m.stackText(next, "")
+	m.logs = logState{following: true}
+
+	return m, m.startLogs()
+}
+
+// readAgain opens the stream of a log screen that is come back to. What the
+// text held was the log of the screen that was on top of it.
+func (m Model) readAgain() (Model, tea.Cmd) {
+	m.text = m.text.emptied()
+	m.logs = logState{following: true}
 
 	return m, m.startLogs()
 }
