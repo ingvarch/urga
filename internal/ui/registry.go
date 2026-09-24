@@ -318,6 +318,7 @@ func init() {
 			stored:  "evaluations",
 			aliases: []string{"evaluations", "evaluation", "evals", "eval", "ev"},
 			titles:  evaluationTitles,
+			keys:    evaluationBindings,
 			topics:  []string{nomad.TopicEvaluation},
 			fetch: func(m Model) tea.Cmd {
 				client, namespace := m.client, m.namespace

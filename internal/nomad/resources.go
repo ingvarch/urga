@@ -110,21 +110,22 @@ func (c *Client) Evaluations(ctx context.Context, namespace string) ([]Evaluatio
 
 	out := make([]Evaluation, 0, len(list))
 	for _, e := range list {
-		eval := Evaluation{
-			ID:          e.ID,
-			JobID:       e.JobID,
-			Namespace:   e.Namespace,
-			Type:        e.Type,
-			TriggeredBy: e.TriggeredBy,
-			Status:      e.Status,
-		}
-
-		eval.Created = unixTime(e.CreateTime)
-
-		out = append(out, eval)
+		out = append(out, newEvaluation(e))
 	}
 
 	return out, nil
+}
+
+func newEvaluation(e *api.Evaluation) Evaluation {
+	return Evaluation{
+		ID:          e.ID,
+		JobID:       e.JobID,
+		Namespace:   e.Namespace,
+		Type:        e.Type,
+		TriggeredBy: e.TriggeredBy,
+		Status:      e.Status,
+		Created:     unixTime(e.CreateTime),
+	}
 }
 
 // Node is a client of the cluster, the machine work is placed on.
