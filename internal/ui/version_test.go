@@ -21,7 +21,10 @@ func threeVersions() []nomad.JobVersion {
 func onVersions(t *testing.T) (Model, *fakeClient) {
 	t.Helper()
 
-	client := &fakeClient{jobs: twoJobs(), versions: threeVersions(), diff: "~ Priority: 50 -> 70"}
+	client := &fakeClient{jobs: twoJobs(), versions: threeVersions(), diff: []nomad.DiffLine{
+		{Kind: nomad.DiffDeleted, Text: "priority = 50"},
+		{Kind: nomad.DiffAdded, Text: "priority = 70"},
+	}}
 
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
@@ -60,7 +63,11 @@ func TestVersions_OpenWhatAVersionChanged(t *testing.T) {
 
 	r.Equal(screenDescribe, m.screen.kind)
 	r.Equal(uint64(3), client.askedVersion)
-	r.Contains(plain(m.render()), "~ Priority: 50 -> 70")
+	// As git diff reads, in colour.
+	out := m.render()
+	r.Contains(plain(out), "- priority = 50")
+	r.Contains(plain(out), "+ priority = 70")
+	r.Contains(out, opening(styleAdded)+"+ priority = 70")
 }
 
 func TestVersions_RevertToTheOneUnderTheCursor(t *testing.T) {

@@ -99,13 +99,14 @@ func (m Model) showPlan(msg planMsg) Model {
 
 	if m.screen.kind == screenPlan && m.screen.jobID == state.jobID {
 		m.plan = state
-		m.text.lines = strings.Split(planText(msg.plan), "\n")
+		planned := paintedText(planText(msg.plan))
+		m.text.lines, m.text.paint = planned.lines, planned.paint
 		m.layout()
 
 		return m
 	}
 
-	m = m.stackText(screen{kind: screenPlan, namespace: state.namespace, jobID: state.jobID}, planText(msg.plan))
+	m = m.stackText(screen{kind: screenPlan, namespace: state.namespace, jobID: state.jobID}, paintedText(planText(msg.plan)))
 	m.plan = state
 
 	return m
@@ -156,40 +157,37 @@ func (m Model) finishPlan(msg planDoneMsg) Model {
 	return m.say(msg.said)
 }
 
-// planText is a plan as a page: what would change, what the scheduler would
-// do to each group, what it could not place, and what the cluster warns of.
-func planText(plan nomad.Plan) string {
-	lines := []string{"Changes", ""}
+// planText is a plan as a page: what would change, as git diff shows it,
+// what the scheduler would do to each group, what it could not place, and
+// what the cluster warns of.
+func planText(plan nomad.Plan) []paintedLine {
+	lines := plainLines("Changes\n")
 
-	// A diff parts the job from its groups with an empty line, which leads
-	// it when nothing changed on the job itself.
-	diff := strings.Trim(plan.Diff, "\n")
-
-	if diff == "" {
-		lines = append(lines, "Nothing in the job changes.")
+	if len(plan.Diff) == 0 {
+		lines = append(lines, paintedLine{text: "Nothing in the job changes."})
 	} else {
-		lines = append(lines, strings.Split(diff, "\n")...)
+		lines = append(lines, diffLines(plan.Diff)...)
 	}
 
 	if len(plan.Groups) > 0 {
-		lines = append(lines, "", "Scheduler", "")
+		lines = append(lines, plainLines("\nScheduler\n")...)
 
 		for _, group := range plan.Groups {
-			lines = append(lines, fmt.Sprintf("  Task group %q: %s", group.Name, groupUpdates(group)))
+			lines = append(lines, paintedLine{text: fmt.Sprintf("  Task group %q: %s", group.Name, groupUpdates(group))})
 		}
 	}
 
 	if len(plan.Failures) > 0 {
-		lines = append(lines, "", "Placement failures", "")
-		lines = append(lines, placementLines(plan.Failures)...)
+		lines = append(lines, plainLines("\nPlacement failures\n")...)
+		lines = append(lines, plainLines(strings.Join(placementLines(plan.Failures), "\n"))...)
 	}
 
 	if plan.Warnings != "" {
-		lines = append(lines, "", "Warnings", "")
-		lines = append(lines, strings.Split(strings.TrimRight(plan.Warnings, "\n"), "\n")...)
+		lines = append(lines, plainLines("\nWarnings\n")...)
+		lines = append(lines, plainLines(strings.TrimRight(plan.Warnings, "\n"))...)
 	}
 
-	return strings.Join(lines, "\n")
+	return lines
 }
 
 // groupUpdates says what the scheduler would do to a group, in the words of

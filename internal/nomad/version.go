@@ -3,8 +3,6 @@ package nomad
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -77,11 +75,11 @@ func (c *Client) JobVersions(ctx context.Context, namespace, jobID string) ([]Jo
 	return out, nil
 }
 
-// JobVersionDiff is what one version changed, as text.
-func (c *Client) JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) (string, error) {
+// JobVersionDiff is what one version changed, laid out as the job file.
+func (c *Client) JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) ([]DiffLine, error) {
 	jobs, diffs, err := c.versions(ctx, namespace, jobID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	for i, job := range jobs {
@@ -90,13 +88,13 @@ func (c *Client) JobVersionDiff(ctx context.Context, namespace, jobID string, ve
 		}
 
 		if i >= len(diffs) || diffs[i] == nil {
-			return "", ErrNoDiff
+			return nil, ErrNoDiff
 		}
 
-		return writeJobDiff(diffs[i]), nil
+		return hclDiff(diffs[i]), nil
 	}
 
-	return "", ErrNoVersion
+	return nil, ErrNoVersion
 }
 
 // RevertJobTo puts the version it is given back in place, if the job is
@@ -157,80 +155,6 @@ func countFields(fields []*api.FieldDiff, objects []*api.ObjectDiff) int {
 	}
 
 	return count
-}
-
-// writeJobDiff puts a diff in the shape it reads in: the job, then its task
-// groups, then the tasks under them.
-func writeJobDiff(diff *api.JobDiff) string {
-	lines := []string{}
-
-	lines = append(lines, fieldLines(diff.Fields, 0)...)
-	lines = append(lines, objectLines(diff.Objects, 0)...)
-
-	for _, group := range diff.TaskGroups {
-		if group == nil {
-			continue
-		}
-
-		lines = append(lines, "", fmt.Sprintf("Task Group: %s (%s)", group.Name, strings.ToLower(group.Type)))
-		lines = append(lines, fieldLines(group.Fields, 1)...)
-		lines = append(lines, objectLines(group.Objects, 1)...)
-
-		for _, task := range group.Tasks {
-			if task == nil {
-				continue
-			}
-
-			lines = append(lines, "", fmt.Sprintf("  Task: %s (%s)", task.Name, strings.ToLower(task.Type)))
-			lines = append(lines, fieldLines(task.Fields, 2)...)
-			lines = append(lines, objectLines(task.Objects, 2)...)
-		}
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-func objectLines(objects []*api.ObjectDiff, depth int) []string {
-	lines := []string{}
-
-	for _, object := range objects {
-		if object == nil {
-			continue
-		}
-
-		lines = append(lines, indentLine(fmt.Sprintf("%s:", object.Name), depth))
-		lines = append(lines, fieldLines(object.Fields, depth+1)...)
-		lines = append(lines, objectLines(object.Objects, depth+1)...)
-	}
-
-	return lines
-}
-
-// fieldLines read the way a diff reads: what was added, what went away, and
-// what changed from one value to another.
-func fieldLines(fields []*api.FieldDiff, depth int) []string {
-	lines := make([]string, 0, len(fields))
-
-	for _, field := range fields {
-		if field == nil {
-			continue
-		}
-
-		switch field.Type {
-		case "Added":
-			lines = append(lines, indentLine(fmt.Sprintf("+ %s: %s", field.Name, field.New), depth))
-		case "Deleted":
-			lines = append(lines, indentLine(fmt.Sprintf("- %s: %s", field.Name, field.Old), depth))
-		default:
-			lines = append(lines, indentLine(fmt.Sprintf("~ %s: %s -> %s", field.Name, field.Old, field.New), depth))
-		}
-	}
-
-	return lines
-}
-
-func indentLine(line string, depth int) string {
-	return strings.Repeat("  ", depth) + line
 }
 
 func uintOf(value *uint64) uint64 {

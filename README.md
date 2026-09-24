@@ -155,11 +155,12 @@ place, which nodes were filtered out and which ran out of room. A job or a task
 group whose allocations wait for a place opens the same page for the newest
 evaluation that could not place them. A job or a namespace opens in your
 editor and goes back to the cluster when you save; a job is planned first. The
-plan says what would change, what the scheduler would do to each group and what
-it could not place; `y` submits it, `r` plans it again, and a job that changed
+plan says what would change, laid out as the job file with the lines it takes
+out in red and the ones it puts in in green, what the scheduler would do to each
+group and what it could not place; `y` submits it, `r` plans it again, and a job that changed
 since the plan is refused rather than overwritten. Reverting a job goes through
 the same plan. Jobs start, stop, revert and
-scale; a job keeps its versions, each saying what it changed, and goes back to
+scale; a job keeps its versions, each saying what it changed the same way, and goes back to
 any of them; allocations restart and stop; jobs start and stop; clients drain and take work
 again — one of them, or as many as are marked; a task opens a shell. Clients drain and
 take work again, deployments promote their canaries or fail. The servers list

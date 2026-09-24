@@ -24,7 +24,7 @@ type fakeClient struct {
 	nodeDetail  nomad.NodeDetail
 	nodeMeta    []nomad.MetaEntry
 	versions    []nomad.JobVersion
-	diff        string
+	diff        []nomad.DiffLine
 	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
 	namespaces  []nomad.Namespace
@@ -172,7 +172,7 @@ func (f *fakeClient) JobVersions(_ context.Context, _, jobID string) ([]nomad.Jo
 	return f.versions, f.err
 }
 
-func (f *fakeClient) JobVersionDiff(_ context.Context, _, jobID string, version uint64) (string, error) {
+func (f *fakeClient) JobVersionDiff(_ context.Context, _, jobID string, version uint64) ([]nomad.DiffLine, error) {
 	f.askedJobID, f.askedVersion = jobID, version
 
 	return f.diff, f.diffErr

@@ -45,7 +45,7 @@ type Client interface {
 	StartJob(ctx context.Context, namespace, jobID string) error
 	StopJob(ctx context.Context, namespace, jobID string) error
 	JobVersions(ctx context.Context, namespace, jobID string) ([]nomad.JobVersion, error)
-	JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) (string, error)
+	JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) ([]nomad.DiffLine, error)
 	RevertJobTo(ctx context.Context, namespace, jobID string, version, from uint64) error
 	ScaleJob(ctx context.Context, namespace, jobID, group string, count int) error
 	RestartAllocation(ctx context.Context, namespace, allocID string) error

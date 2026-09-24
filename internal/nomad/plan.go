@@ -18,8 +18,8 @@ var ErrJobChanged = errors.New("the job changed since it was planned")
 // Plan is what submitting a job would do, asked of the cluster without doing
 // it.
 type Plan struct {
-	// Diff is what would change in the job, in the shape of a version diff.
-	Diff string
+	// Diff is what would change in the job, laid out as the job file.
+	Diff []DiffLine
 
 	// Groups are what the scheduler would do to each group, by name.
 	Groups []PlanGroup
@@ -74,9 +74,7 @@ func newPlan(answer *api.JobPlanResponse) Plan {
 		Index:    answer.JobModifyIndex,
 	}
 
-	if answer.Diff != nil {
-		plan.Diff = writeJobDiff(answer.Diff)
-	}
+	plan.Diff = hclDiff(answer.Diff)
 
 	if answer.Annotations == nil {
 		return plan

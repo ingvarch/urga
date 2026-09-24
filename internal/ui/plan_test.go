@@ -13,9 +13,12 @@ import (
 // task is replaced, and one group is short of memory.
 func changedEnv() nomad.Plan {
 	return nomad.Plan{
-		// A diff with nothing changed on the job itself starts with the line
-		// that parts the job from its groups.
-		Diff: "\nTask Group: web (edited)\n\n  Task: server (edited)\n    ~ Env[V]: 2 -> 3",
+		Diff: []nomad.DiffLine{
+			{Kind: nomad.DiffContext, Text: `group "web" {`},
+			{Kind: nomad.DiffContext, Indent: 1, Text: `task "server" {`},
+			{Kind: nomad.DiffDeleted, Indent: 3, Text: `V = "2"`},
+			{Kind: nomad.DiffAdded, Indent: 3, Text: `V = "3"`},
+		},
 		Groups: []nomad.PlanGroup{
 			{Name: "api"},
 			{Name: "web", Destructive: 2, Canary: 1},
@@ -33,13 +36,13 @@ func TestPlanText(t *testing.T) {
 
 	text := planText(changedEnv())
 
-	r.Equal(strings.Join([]string{
+	r.Equal([]string{
 		"Changes",
 		"",
-		"Task Group: web (edited)",
-		"",
-		"  Task: server (edited)",
-		"    ~ Env[V]: 2 -> 3",
+		`  group "web" {`,
+		`    task "server" {`,
+		`-       V = "2"`,
+		`+       V = "3"`,
 		"",
 		"Scheduler",
 		"",
@@ -57,13 +60,13 @@ func TestPlanText(t *testing.T) {
 		"1 warning:",
 		"",
 		`* Group "web" has warnings`,
-	}, "\n"), text)
+	}, texts(text))
 }
 
 func TestPlanText_NothingChanges(t *testing.T) {
 	r := require.New(t)
 
-	text := planText(nomad.Plan{Groups: []nomad.PlanGroup{{Name: "web"}}})
+	text := strings.Join(texts(planText(nomad.Plan{Groups: []nomad.PlanGroup{{Name: "web"}}})), "\n")
 
 	r.Contains(text, "Nothing in the job changes.")
 	r.NotContains(text, "Placement failures")

@@ -4,6 +4,8 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/lipgloss/v2"
+
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -27,6 +29,11 @@ type textModel struct {
 	// times puts the time a line arrived in front of it.
 	times bool
 
+	// paint is the style of the lines urga drew in a colour of their own,
+	// by line. The lines stay words: the filter reads them and a file keeps
+	// them, and the colour goes on only when they are drawn.
+	paint map[int]lipgloss.Style
+
 	top int
 
 	width  int
@@ -41,28 +48,56 @@ func (t textModel) emptied() textModel {
 	return t
 }
 
-// visible are the lines the filter leaves, as they are read: with the time
-// they arrived when that is asked for.
-func (t textModel) visible() []string {
-	// A log arrives a line at a time and is read as often as it arrives:
-	// with nothing to filter and nothing to stamp, the lines are the answer.
-	if t.filter == "" && !t.times {
-		return t.lines
+// textRow is a line, or the part of one that fits a row, and the style it is
+// drawn in.
+type textRow struct {
+	text  string
+	style lipgloss.Style
+}
+
+// paintedLine is a line to put on a text screen, in a style of its own when
+// it has one.
+type paintedLine struct {
+	text  string
+	style *lipgloss.Style
+}
+
+// paintedText holds lines that urga drew, some in a colour of their own.
+func paintedText(lines []paintedLine) textModel {
+	t := textModel{paint: map[int]lipgloss.Style{}}
+
+	for i, line := range lines {
+		t.lines = append(t.lines, line.text)
+
+		if line.style != nil {
+			t.paint[i] = *line.style
+		}
 	}
 
-	kept := make([]string, 0, len(t.lines))
+	return t
+}
 
+// visible are the lines the filter leaves, as they are read: with the time
+// they arrived when that is asked for, and in their own colour.
+func (t textModel) visible() []textRow {
 	match := func(string) bool { return true }
 	if t.filter != "" {
 		match = matcher(t.filter)
 	}
+
+	kept := make([]textRow, 0, len(t.lines))
 
 	for i, line := range t.lines {
 		if !match(line) {
 			continue
 		}
 
-		kept = append(kept, t.stamped(i, line))
+		style, painted := t.paint[i]
+		if !painted {
+			style = styleText
+		}
+
+		kept = append(kept, textRow{text: t.stamped(i, line), style: style})
 	}
 
 	return kept
@@ -87,15 +122,18 @@ const logTimeFormat = "15:04:05"
 
 // rows are the lines as they go on the screen: cut at the edge, or laid over
 // as many rows as they take.
-func (t textModel) rows() []string {
+func (t textModel) rows() []textRow {
 	lines := t.visible()
 	if !t.wrap {
 		return lines
 	}
 
-	out := make([]string, 0, len(lines))
+	out := make([]textRow, 0, len(lines))
 	for _, line := range lines {
-		out = append(out, wrapLine(line, t.width)...)
+		// Every row of a wrapped line is in the colour of the line.
+		for _, part := range wrapLine(line.text, t.width) {
+			out = append(out, textRow{text: part, style: line.style})
+		}
 	}
 
 	return out
@@ -159,13 +197,14 @@ func (t textModel) view() string {
 	return strings.Join(rows, "\n")
 }
 
-// line draws one row, with what the filter matched lit up in it.
-func (t textModel) line(line string) string {
-	line = truncate(line, t.width)
+// line draws one row in its colour, with what the filter matched lit up in
+// it.
+func (t textModel) line(row textRow) string {
+	line := truncate(row.text, t.width)
 	gap := strings.Repeat(" ", max(t.width-ansi.StringWidth(line), 0))
 
 	if t.filter == "" {
-		return styleText.Render(line + gap)
+		return row.style.Render(line + gap)
 	}
 
 	out := strings.Builder{}
@@ -173,16 +212,16 @@ func (t textModel) line(line string) string {
 	for rest := line; rest != ""; {
 		at := matchIn(rest, t.filter)
 		if at == nil {
-			out.WriteString(styleText.Render(rest))
+			out.WriteString(row.style.Render(rest))
 
 			break
 		}
 
-		out.WriteString(styleText.Render(rest[:at[0]]))
+		out.WriteString(row.style.Render(rest[:at[0]]))
 		out.WriteString(styleMatch.Render(rest[at[0]:at[1]]))
 
 		rest = rest[at[1]:]
 	}
 
-	return out.String() + styleText.Render(gap)
+	return out.String() + row.style.Render(gap)
 }

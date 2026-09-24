@@ -148,7 +148,7 @@ func TestJobVersions_CountsAValueOnManyLinesOnce(t *testing.T) {
 	r.Equal(1, versions[0].Changes)
 }
 
-func TestJobVersionDiff_ReadsAsText(t *testing.T) {
+func TestJobVersionDiff_ReadsAsTheJobFile(t *testing.T) {
 	r := require.New(t)
 
 	client, _ := recorder(t, jobVersions)
@@ -156,13 +156,15 @@ func TestJobVersionDiff_ReadsAsText(t *testing.T) {
 	diff, err := client.JobVersionDiff(context.Background(), "production", "web", 3)
 	r.NoError(err)
 
-	// What changed, in the shape a diff reads in: the job, its groups and
-	// the tasks under them.
-	r.Contains(diff, "~ Priority: 50 -> 70")
-	r.Contains(diff, "Task Group: bot")
-	r.Contains(diff, "~ Count: 1 -> 3")
-	r.Contains(diff, "Task: bot")
-	r.Contains(diff, "+ Env[DEBUG]: true")
+	// What changed, in the shape the job file reads in: the job, its groups
+	// and the tasks under them, each change as the line it was and the line
+	// it is.
+	r.Contains(diff, nomad.DiffLine{Kind: nomad.DiffDeleted, Text: "priority = 50"})
+	r.Contains(diff, nomad.DiffLine{Kind: nomad.DiffAdded, Text: "priority = 70"})
+	r.Contains(diff, nomad.DiffLine{Kind: nomad.DiffContext, Text: `group "bot" {`})
+	r.Contains(diff, nomad.DiffLine{Kind: nomad.DiffAdded, Indent: 1, Text: "count = 3"})
+	r.Contains(diff, nomad.DiffLine{Kind: nomad.DiffContext, Indent: 1, Text: `task "bot" {`})
+	r.Contains(diff, nomad.DiffLine{Kind: nomad.DiffAdded, Indent: 3, Text: `DEBUG = "true"`})
 }
 
 func TestJobVersionDiff_OfTheOldestVersion(t *testing.T) {

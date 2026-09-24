@@ -49,6 +49,10 @@ var (
 	styleWarn   = lipgloss.NewStyle().Foreground(colorAttention)
 	styleError  = lipgloss.NewStyle().Foreground(colorDead)
 
+	// A line a diff adds, and one it takes away, as git diff paints them.
+	styleAdded   = lipgloss.NewStyle().Foreground(colorAccent)
+	styleDeleted = lipgloss.NewStyle().Foreground(colorDead)
+
 	styleTableHeader = lipgloss.NewStyle().Foreground(colorAccent)
 
 	// styleMatch lights up what a filter matched inside a line of text.

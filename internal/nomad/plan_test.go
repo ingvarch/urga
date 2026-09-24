@@ -49,7 +49,8 @@ func TestPlanJob(t *testing.T) {
 	// the job changed in between.
 	r.Equal(uint64(42), plan.Index)
 
-	r.Contains(plan.Diff, "~ Env[V]: 2 -> 3")
+	r.Contains(plan.Diff, nomad.DiffLine{Kind: nomad.DiffDeleted, Indent: 3, Text: `V = "2"`})
+	r.Contains(plan.Diff, nomad.DiffLine{Kind: nomad.DiffAdded, Indent: 3, Text: `V = "3"`})
 
 	// What the scheduler would do to each group, in the order of their names.
 	r.Equal([]nomad.PlanGroup{
