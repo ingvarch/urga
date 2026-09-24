@@ -70,6 +70,14 @@ func renderHeader(h header, width int) string {
 
 	// One more gap so the keys never touch the art in the corner.
 	taken := infoWide + keysWide + 3*columnGap
+
+	// The keys come before the art: when they do not all fit beside it, it
+	// gives its place up to them. The info column keeps the width it had,
+	// or it would take that place instead.
+	if art != "" && hintsWidth(h.hints) > rest-taken {
+		art, rest = "", width
+	}
+
 	hints := hintColumns(h.hints, rest-taken)
 
 	rows := make([]string, 0, headerHeight)
@@ -211,6 +219,15 @@ func hintCells(hints []hint, describe lipgloss.Style) []string {
 }
 
 // hintColumns lays the keys of the screen out for the header.
+// hintsWidth is what the keys take laid out whole.
+func hintsWidth(hints []hint) int {
+	if len(hints) == 0 {
+		return 0
+	}
+
+	return blockWidth(grid(hintCells(hints, styleValue), headerHeight))
+}
+
 func hintColumns(hints []hint, width int) string {
 	if len(hints) == 0 || width <= 0 {
 		return ""
