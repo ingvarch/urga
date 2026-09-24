@@ -213,13 +213,13 @@ func init() {
 
 				if screen.nodeID != "" {
 					// The machine answers for its allocations and for itself:
-					// the chart above them is what the host is doing.
+					// the chart above them is what the host is doing. That is
+					// read on the timer of the chart, not with the list.
 					return tea.Batch(
 						fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
 							return client.NodeAllocations(ctx, screen.nodeID)
 						}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
 						fetchHost(client, screen.nodeID),
-						fetchHostUse(client, screen.nodeID),
 					)
 				}
 

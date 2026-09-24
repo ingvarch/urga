@@ -33,9 +33,13 @@ const (
 	// the screen. The charts give way to them, not the other way around.
 	hostRowsKept = 3
 
-	// hostTrailMax is how many readings a chart keeps. At one reading per
-	// poll that is the last few minutes of the machine.
+	// hostTrailMax is how many readings a chart keeps. At one reading every
+	// hostUseEvery that is the last twenty minutes of the machine.
 	hostTrailMax = 240
+
+	// hostUseEvery is how often the chart takes a reading: as often as the
+	// rows under it, on a timer of its own.
+	hostUseEvery = rowUsageEvery
 )
 
 // Messages of the machine a client screen is open on. Both carry the id of
@@ -49,6 +53,9 @@ type (
 	}
 
 	hostMsg nomad.Node
+
+	// pollHostMsg is the timer of the chart going off.
+	pollHostMsg struct{}
 )
 
 // hostModel is the machine a client screen is open on, and the readings
@@ -56,6 +63,11 @@ type (
 type hostModel struct {
 	node  nomad.Node
 	trail []nomad.ResourceUse
+
+	// due says the next reading or its timer is on its way. The list is
+	// answered on every poll, and none of those answers may start a second
+	// chain of readings next to the first.
+	due bool
 }
 
 // fetchHost reads the machine itself, so that what the panel says about it
@@ -79,6 +91,34 @@ func fetchHostUse(client Client, nodeID string) tea.Cmd {
 	}
 }
 
+// hostOnce takes the first reading of the chart when the list of a client is
+// filled, and only then: the timer of the chart keeps them coming after that.
+func hostOnce(m Model, filled tea.Cmd) (Model, tea.Cmd) {
+	if !m.screen.isClient() || m.host.due {
+		return m, filled
+	}
+
+	m.host.due = true
+
+	return m, tea.Batch(filled, m.readHost())
+}
+
+// readHost takes a reading of the machine the screen is open on. Like the
+// screen, it belongs to the ask it was made for.
+func (m Model) readHost() tea.Cmd {
+	return askedFor(m.asked, fetchHostUse(m.client, m.screen.nodeID))
+}
+
+// pollHost takes the next reading of the chart. Its timer has gone off, and
+// the answer sets the next one.
+func (m Model) pollHost() (Model, tea.Cmd) {
+	if !m.screen.isClient() {
+		return m, nil
+	}
+
+	return m, m.readHost()
+}
+
 // keepHost keeps what the panel says about the machine up with it.
 func (m Model) keepHost(node hostMsg) Model {
 	if node.ID != m.screen.nodeID {
@@ -93,19 +133,23 @@ func (m Model) keepHost(node hostMsg) Model {
 // keepHostUse puts a reading on the chart. A machine that does not answer
 // says so and keeps what it said before: a chart that empties on one timeout
 // reads as a machine that stopped working.
-func (m Model) keepHostUse(msg hostUseMsg) Model {
+func (m Model) keepHostUse(msg hostUseMsg) (Model, tea.Cmd) {
 	if msg.nodeID != m.screen.nodeID {
-		return m
+		return m, nil
 	}
 
+	// The next reading is due whatever came of this one: a machine that did
+	// not answer once is asked again.
+	next := askedFor(m.asked, tea.Tick(hostUseEvery, func(time.Time) tea.Msg { return pollHostMsg{} }))
+
 	if msg.err != nil {
-		return m.fail(msg.err)
+		return m.fail(msg.err), next
 	}
 
 	m = m.forget()
 	m.host = m.host.keep(msg.use)
 
-	return m
+	return m, next
 }
 
 // keep puts a reading at the end of the chart, which holds the last few
@@ -173,7 +217,7 @@ func (m Model) rowsForPanel() int {
 
 // hostPanel is the panel of the machine, sized to the screen.
 func (m Model) hostPanel(width int) []string {
-	return m.host.view(width, m.chartWidth(), m.chartHeight(), m.opts.PollEvery)
+	return m.host.view(width, m.chartWidth(), m.chartHeight(), hostUseEvery)
 }
 
 // view is what a client shows above its allocations: what kind of machine
