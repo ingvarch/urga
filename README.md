@@ -11,6 +11,11 @@
 **A terminal UI for HashiCorp Nomad.**
 One binary, no config to write, no browser.
 
+[![ci](https://github.com/ingvarch/urga/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ingvarch/urga/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/ingvarch/urga)](https://github.com/ingvarch/urga/releases/latest)
+[![Go](https://img.shields.io/github/go-mod/go-version/ingvarch/urga)](go.mod)
+[![license](https://img.shields.io/github/license/ingvarch/urga)](LICENSE)
+
 </div>
 
 ```
