@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -225,12 +227,11 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		m.prompt.text = m.prompt.line()
 		m.prompt = m.prompt.narrow()
 
-	// A terminal set to send ^H for backspace hands it over as ctrl+h.
+	// A terminal set to send ^H for backspace hands it over as ctrl+h. A
+	// letter can take more than one byte, and goes as a whole.
 	case "backspace", "ctrl+h":
-		if n := len(m.prompt.text); n > 0 {
-			m.prompt.text = m.prompt.text[:n-1]
-		}
-
+		_, size := utf8.DecodeLastRuneInString(m.prompt.text)
+		m.prompt.text = m.prompt.text[:len(m.prompt.text)-size]
 		m.prompt = m.prompt.narrow()
 
 	case "ctrl+u":
@@ -244,13 +245,50 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		}
 	}
 
-	// Only the filter changes what is on the table under the line.
+	return m.followFilter(), nil
+}
+
+// followFilter narrows the table to the line being typed. Only the filter
+// changes what is on the table under the line.
+func (m Model) followFilter() Model {
 	if m.overlay == overlayFilter {
 		m.filter = m.prompt.text
 		m.layout()
 	}
 
-	return m, nil
+	return m
+}
+
+// paste puts pasted text on the line being typed, as if it were typed. With
+// no line open nothing takes text, and a paste presses no keys.
+func (m Model) paste(content string) (Model, tea.Cmd) {
+	if !m.overlay.asksForALine() {
+		return m, nil
+	}
+
+	m.prompt.text += oneLine(content)
+	m.prompt = m.prompt.narrow()
+
+	return m.followFilter(), nil
+}
+
+// oneLine is pasted text as a line can hold it. A copied line brings its
+// break along, which is dropped; breaks and tabs inside become spaces, and
+// what would move the terminal around is left out.
+func oneLine(text string) string {
+	text = strings.TrimRight(text, "\r\n")
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+
+	return strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n' || r == '\r' || r == '\t':
+			return ' '
+		case r == utf8.RuneError || unicode.IsControl(r):
+			return -1
+		}
+
+		return r
+	}, text)
 }
 
 // commit does what the line says, which is what it offers when it offers

@@ -329,6 +329,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
 
+	case tea.PasteMsg:
+		return m.paste(msg.Content)
+
 	case answerMsg:
 		if msg.asked != m.asked {
 			return m, nil

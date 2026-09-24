@@ -185,6 +185,64 @@ func TestPrompt_BackspaceThatSendsCtrlH(t *testing.T) {
 	r.Equal("jo", m.prompt.text)
 }
 
+func TestPrompt_BackspaceErasesACharacter(t *testing.T) {
+	r := require.New(t)
+
+	m := loadedModel(t)
+	m, _ = m.update(key('/'))
+	m = typeIn(m, "жук")
+
+	// A letter can take more than one byte. Cutting one byte leaves half a
+	// letter on the line, and a filter nothing matches.
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	r.Equal("жу", m.prompt.text)
+}
+
+func TestFilter_TakesAPaste(t *testing.T) {
+	r := require.New(t)
+
+	m := loadedModel(t)
+	m, _ = m.update(key('/'))
+
+	// A name copied out of a log or a chat is pasted, not typed. Copying a
+	// whole line brings its line break along.
+	m, _ = m.update(tea.PasteMsg{Content: "cron\n"})
+
+	r.Equal("cron", m.prompt.text)
+
+	out := plain(m.render())
+	r.Contains(out, "cron")
+	r.NotContains(out, "web")
+}
+
+func TestPrompt_APasteStaysOnOneLine(t *testing.T) {
+	r := require.New(t)
+
+	m := loadedModel(t)
+	m, _ = m.update(key(':'))
+
+	// The line is one line. Breaks and tabs inside a paste are spaces, and
+	// what would move the terminal around is left out.
+	m, _ = m.update(tea.PasteMsg{Content: "jobs\tproduction\r\nnow\x1b[2J"})
+
+	r.Equal("jobs production now[2J", m.prompt.text)
+}
+
+func TestPaste_WithNoLineOpenChangesNothing(t *testing.T) {
+	r := require.New(t)
+
+	m := loadedModel(t)
+
+	// Nothing on a list takes text. A paste is not a string of keys, and
+	// must not press any of them.
+	next, cmd := m.update(tea.PasteMsg{Content: "q"})
+
+	r.Nil(cmd)
+	r.Equal(overlayNone, next.overlay)
+	r.Equal(m.screen.kind, next.screen.kind)
+	r.Empty(next.filter)
+}
+
 func TestFilter_NarrowsTheList(t *testing.T) {
 	r := require.New(t)
 
