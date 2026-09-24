@@ -117,6 +117,12 @@ type fakeClient struct {
 	checksNamespace string
 	checksAllocID   string
 	checksCalls     int
+
+	// restartedTask and signalledTask are the tasks restarted and signalled
+	// on their own, signal what the last one was sent.
+	restartedTask string
+	signalledTask string
+	signal        string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -318,6 +324,22 @@ func (f *fakeClient) RestartAllocation(_ context.Context, namespace, allocID str
 	f.wrote("RestartAllocation")
 	f.askedNamespace, f.askedID = namespace, allocID
 	f.restarted++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) RestartTask(_ context.Context, namespace, allocID, task string) error {
+	f.wrote("RestartTask")
+	f.askedNamespace, f.askedID = namespace, allocID
+	f.restartedTask = task
+
+	return f.actionErr
+}
+
+func (f *fakeClient) SignalTask(_ context.Context, namespace, allocID, task, signal string) error {
+	f.wrote("SignalTask")
+	f.askedNamespace, f.askedID = namespace, allocID
+	f.signalledTask, f.signal = task, signal
 
 	return f.actionErr
 }

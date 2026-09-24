@@ -49,6 +49,8 @@ type Client interface {
 	RevertJobTo(ctx context.Context, namespace, jobID string, version, from uint64) error
 	ScaleJob(ctx context.Context, namespace, jobID, group string, count int) error
 	RestartAllocation(ctx context.Context, namespace, allocID string) error
+	RestartTask(ctx context.Context, namespace, allocID, task string) error
+	SignalTask(ctx context.Context, namespace, allocID, task, signal string) error
 	StopAllocation(ctx context.Context, namespace, allocID string) error
 	DrainNode(ctx context.Context, nodeID string, drain bool) error
 	SetNodeEligible(ctx context.Context, nodeID string, eligible bool) error
@@ -597,7 +599,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 // overlayKey hands the key to whatever took the keyboard.
 func (m Model) overlayKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch m.overlay {
-	case overlayPrompt, overlayFilter, overlayScale:
+	case overlayPrompt, overlayFilter, overlayScale, overlaySignal:
 		return m.promptKey(msg)
 
 	case overlayHelp:

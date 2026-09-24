@@ -92,6 +92,18 @@ func (c *Client) RestartAllocation(ctx context.Context, namespace, allocID strin
 	return c.api.Allocations().Restart(alloc, "", c.query(ctx, namespace))
 }
 
+// RestartTask restarts one task of an allocation, in place; the rest keep
+// running. The client refuses a task that is not running.
+func (c *Client) RestartTask(ctx context.Context, namespace, allocID, task string) error {
+	return c.api.Allocations().Restart(&api.Allocation{ID: allocID}, task, c.query(ctx, namespace))
+}
+
+// SignalTask sends a signal, named the way the client names it (SIGHUP), to
+// one task of an allocation.
+func (c *Client) SignalTask(ctx context.Context, namespace, allocID, task, signal string) error {
+	return c.api.Allocations().Signal(&api.Allocation{ID: allocID}, c.query(ctx, namespace), task, signal)
+}
+
 // StopAllocation stops an allocation. The scheduler places a new one when the
 // job still asks for it.
 func (c *Client) StopAllocation(ctx context.Context, namespace, allocID string) error {

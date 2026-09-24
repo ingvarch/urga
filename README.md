@@ -119,8 +119,9 @@ header shows both under the address.
 | `space` | Mark a row, on jobs, allocations and clients; an action then takes every marked row |
 | `ctrl-a` | Mark every row on the screen, or none |
 | `ctrl-s` | Start or stop a job, or every marked one |
-| `r` | Restart an allocation, or every marked one; on a plan, plan it again |
+| `r` | Restart an allocation, or every marked one; on the tasks of an allocation, the task under the cursor; on a plan, plan it again |
 | `ctrl-k` | Stop an allocation, or every marked one |
+| `x` | Send a signal to the task under the cursor: `hup`, `SIGUSR1`, any name the client knows |
 | `ctrl-d` | Drain a client, or every marked one; on a client, what it can run |
 | `ctrl-h` | Host volumes of a client |
 | `a` | Attributes of a client |
@@ -171,7 +172,7 @@ plan is refused rather than overwritten. Reverting a job goes through
 the same plan. Jobs start, stop, revert and
 scale; a job keeps its versions, each saying what it changed the same way, and goes back to
 any of them; allocations restart and stop; jobs start and stop; clients drain and take work
-again — one of them, or as many as are marked; a task opens a shell. Clients drain and
+again — one of them, or as many as are marked; a task restarts on its own, takes a signal, or opens a shell. A signal the client does not know is refused before it is sent: the client would send SIGINT in its place. Clients drain and
 take work again, deployments promote their canaries or fail. The servers list
 says which one leads, and a server opens on everything its agent carries: the
 addresses and ports, the gossip it speaks, whether the raft still counts its
