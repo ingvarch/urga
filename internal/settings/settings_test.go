@@ -42,8 +42,11 @@ color           = "red"
 func TestLoad(t *testing.T) {
 	r := require.New(t)
 
+	// The home directory, where each system reads it from: Windows from
+	// USERPROFILE, the others from HOME.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	s, err := settings.Load(write(t, twoClusters))
 	r.NoError(err)
