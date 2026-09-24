@@ -172,6 +172,19 @@ func TestPrompt_Backspace(t *testing.T) {
 	r.Empty(m.prompt.text)
 }
 
+func TestPrompt_BackspaceThatSendsCtrlH(t *testing.T) {
+	r := require.New(t)
+
+	m := loadedModel(t)
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "job")
+
+	// A terminal set to send ^H for its backspace key hands the key over as
+	// ctrl+h. On a line being typed that can only mean one thing.
+	m, _ = m.update(tea.KeyPressMsg{Code: 'h', Mod: tea.ModCtrl})
+	r.Equal("jo", m.prompt.text)
+}
+
 func TestFilter_NarrowsTheList(t *testing.T) {
 	r := require.New(t)
 
