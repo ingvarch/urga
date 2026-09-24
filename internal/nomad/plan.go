@@ -50,6 +50,9 @@ type PlanGroup struct {
 	Canary      int
 	Migrate     int
 	Preemptions int
+
+	// Ignore are the allocations the plan leaves as they are.
+	Ignore int
 }
 
 // PlanJob asks the cluster what submitting the job file would do.
@@ -97,6 +100,7 @@ func newPlan(answer *api.JobPlanResponse) Plan {
 			Canary:      int(update.Canary),
 			Migrate:     int(update.Migrate),
 			Preemptions: int(update.Preemptions),
+			Ignore:      int(update.Ignore),
 		})
 	}
 

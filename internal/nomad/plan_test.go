@@ -24,7 +24,7 @@ const webPlan = `{
 	]},
 	"Annotations": {"DesiredTGUpdates": {
 		"web": {"DestructiveUpdate": 2, "Canary": 1},
-		"api": {"InPlaceUpdate": 1, "Place": 1}
+		"api": {"InPlaceUpdate": 1, "Place": 1, "Ignore": 2}
 	}},
 	"FailedTGAllocs": {"web": {"NodesEvaluated": 1, "NodesExhausted": 1, "DimensionExhausted": {"memory": 1}}},
 	"Warnings": "1 warning:\n\n* Group \"web\" has warnings"
@@ -54,7 +54,7 @@ func TestPlanJob(t *testing.T) {
 
 	// What the scheduler would do to each group, in the order of their names.
 	r.Equal([]nomad.PlanGroup{
-		{Name: "api", Place: 1, InPlace: 1},
+		{Name: "api", Place: 1, InPlace: 1, Ignore: 2},
 		{Name: "web", Destructive: 2, Canary: 1},
 	}, plan.Groups)
 

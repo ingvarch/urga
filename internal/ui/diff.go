@@ -6,7 +6,7 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// diffLines lay a job diff out the way git diff shows a change to a file: a
+// diffLines lay a job diff out as a unified diff shows a change to a file: a
 // column for what happened to the line, then the line as deep in the job as
 // it sits. Added lines are green, deleted ones red, and the blocks that lead
 // to them step back.

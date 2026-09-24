@@ -43,13 +43,13 @@ func (c confirmModel) view(width int) string {
 	return dialog("Confirm", []string{
 		styleText.Render(c.question),
 		"",
-		c.button("cancel", buttonCancel) + "   " + c.button("confirm", buttonConfirm),
+		button("cancel", c.choice == buttonCancel) + "   " + button("confirm", c.choice == buttonConfirm),
 	}, width)
 }
 
-// button is one of the two, filled when the cursor is on it.
-func (c confirmModel) button(label string, at int) string {
-	if c.choice == at {
+// button is one of the two of a question, filled when the cursor is on it.
+func button(label string, on bool) string {
+	if on {
 		return styleButtonOn.Render(" " + label + " ")
 	}
 

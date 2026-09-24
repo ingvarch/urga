@@ -1,9 +1,11 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -20,35 +22,32 @@ func changedEnv() nomad.Plan {
 			{Kind: nomad.DiffAdded, Indent: 3, Text: `V = "3"`},
 		},
 		Groups: []nomad.PlanGroup{
-			{Name: "api"},
-			{Name: "web", Destructive: 2, Canary: 1},
-		},
-		Failures: []nomad.PlacementFailure{
-			{Group: "web", Unplaced: 1, NodesEvaluated: 1, NodesExhausted: 1, DimensionExhausted: map[string]int{"memory": 1}},
+			{Name: "api", Ignore: 3},
+			{Name: "web", Destructive: 2, Canary: 1, Ignore: 1},
 		},
 		Warnings: "1 warning:\n\n* Group \"web\" has warnings",
 		Index:    42,
 	}
 }
 
+// shortOfMemory is the same change on a cluster with no room for it.
+func shortOfMemory() nomad.Plan {
+	plan := changedEnv()
+	plan.Failures = []nomad.PlacementFailure{
+		{Group: "web", Unplaced: 1, NodesEvaluated: 1, NodesExhausted: 1, DimensionExhausted: map[string]int{"memory": 1}},
+	}
+
+	return plan
+}
+
 func TestPlanText(t *testing.T) {
 	r := require.New(t)
 
-	text := planText(changedEnv())
+	text := planText(shortOfMemory(), false)
 
+	// What stops the submit comes first, then what the scheduler would do,
+	// then the change itself.
 	r.Equal([]string{
-		"Changes",
-		"",
-		`  group "web" {`,
-		`    task "server" {`,
-		`-       V = "2"`,
-		`+       V = "3"`,
-		"",
-		"Scheduler",
-		"",
-		`  Task group "api": no change`,
-		`  Task group "web": 2 create/destroy update, 1 canary`,
-		"",
 		"Placement failures",
 		"",
 		`Task group "web" failed to place 1 allocation:`,
@@ -60,17 +59,81 @@ func TestPlanText(t *testing.T) {
 		"1 warning:",
 		"",
 		`* Group "web" has warnings`,
+		"",
+		"What will happen when you submit this job:",
+		"",
+		`  Task group "api"`,
+		"    No changes - 3 allocations will remain unchanged",
+		"",
+		`  Task group "web"`,
+		"    ● 2 allocations will be recreated (destructive update)",
+		"    ● 1 canary allocation will be deployed",
+		"    ● 1 allocation unchanged",
+		"",
+		"Changes",
+		"",
+		`  group "web" {`,
+		`    task "server" {`,
+		`-       V = "2"`,
+		`+       V = "3"`,
 	}, texts(text))
+
+	// Each part in the colour of what it says.
+	style := func(line string) string {
+		for _, painted := range text {
+			if painted.text == line && painted.style != nil {
+				return opening(*painted.style)
+			}
+		}
+
+		return ""
+	}
+
+	r.Equal(opening(styleError), style("Placement failures"))
+	r.Equal(opening(styleWarn), style("Warnings"))
+	r.Equal(opening(styleDestructive), style("    ● 2 allocations will be recreated (destructive update)"))
+	r.Equal(opening(styleCanary), style("    ● 1 canary allocation will be deployed"))
+	r.Equal(opening(styleMuted), style("    ● 1 allocation unchanged"))
+	r.Equal(opening(styleMuted), style("    No changes - 3 allocations will remain unchanged"))
+}
+
+func TestPlanText_EveryUpdate(t *testing.T) {
+	r := require.New(t)
+
+	text := planText(nomad.Plan{Groups: []nomad.PlanGroup{
+		{Name: "web", Place: 1, Stop: 2, Migrate: 1, InPlace: 3, Preemptions: 1},
+	}}, false)
+
+	r.Subset(texts(text), []string{
+		"    ● 1 new allocation will be created",
+		"    ● 2 allocations will be stopped",
+		"    ● 1 allocation will be migrated to another node",
+		"    ● 3 allocations will be updated in-place (no restart)",
+		"    ● 1 allocation of another job will be preempted",
+	})
 }
 
 func TestPlanText_NothingChanges(t *testing.T) {
 	r := require.New(t)
 
-	text := strings.Join(texts(planText(nomad.Plan{Groups: []nomad.PlanGroup{{Name: "web"}}})), "\n")
+	text := strings.Join(texts(planText(nomad.Plan{Groups: []nomad.PlanGroup{{Name: "web"}}}, false)), "\n")
 
+	r.Contains(text, "No allocations affected")
 	r.Contains(text, "Nothing in the job changes.")
 	r.NotContains(text, "Placement failures")
 	r.NotContains(text, "Warnings")
+
+	// A plan the scheduler said nothing about.
+	text = strings.Join(texts(planText(nomad.Plan{}, false)), "\n")
+	r.Contains(text, "No changes detected")
+}
+
+func TestPlanText_OfARevert(t *testing.T) {
+	r := require.New(t)
+
+	text := texts(planText(changedEnv(), true))
+
+	r.Contains(text, "What will happen when you revert this job:")
 }
 
 // planned is the job list after web was edited and its plan came back.
@@ -100,8 +163,7 @@ func TestPlan_ComesBeforeTheSubmit(t *testing.T) {
 
 	out := plain(m.render())
 	r.Contains(out, "Plan (Job: web)")
-	r.Contains(out, "2 create/destroy update")
-	r.Contains(out, "Submit")
+	r.Contains(out, "2 allocations will be recreated")
 }
 
 func TestPlan_SubmitsAtItsIndex(t *testing.T) {
@@ -160,7 +222,7 @@ func TestPlan_PlansTheSameFileAgain(t *testing.T) {
 	r.Equal(2, client.planCalls)
 	r.Equal("job \"web\" {\n  type = \"batch\"\n}", client.plannedSource)
 	r.Equal(screenPlan, m.screen.kind)
-	r.Contains(strings.Join(m.text.lines, "\n"), "3 in-place update")
+	r.Contains(strings.Join(m.text.lines, "\n"), "3 allocations will be updated in-place")
 
 	// Submitted after a new plan, it goes at the new index.
 	m, cmd = m.update(key('y'))
@@ -177,6 +239,104 @@ func TestPlan_EscapeLeavesTheJobAsItIs(t *testing.T) {
 	m, _ = m.update(escape())
 
 	r.Equal(screenJobs, m.screen.kind)
+	r.Zero(client.submitted)
+}
+
+// buttons is the line of the plan with its buttons, and whether it is the
+// last line inside the box.
+func buttons(m Model) (line string, last bool) {
+	rows := lines(plain(m.render()))
+
+	for i, row := range rows {
+		if strings.Contains(row, "Cancel") {
+			return row, i+1 < len(rows) && strings.Contains(rows[i+1], "╰")
+		}
+	}
+
+	return "", false
+}
+
+func TestPlan_AsksAtTheBottom(t *testing.T) {
+	r := require.New(t)
+
+	long := changedEnv()
+	for i := 0; i < 100; i++ {
+		long.Diff = append(long.Diff, nomad.DiffLine{Kind: nomad.DiffAdded, Indent: 3, Text: fmt.Sprintf("K%d = \"v\"", i)})
+	}
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: long}
+	m := planned(t, client)
+
+	// The question and its buttons stay at the foot of the plan, however
+	// long it is and wherever it is scrolled to.
+	line, last := buttons(m)
+	r.True(last)
+	r.Contains(line, "Submit web?")
+	r.Contains(line, "Submit")
+
+	m, _ = m.update(key('G'))
+	_, last = buttons(m)
+	r.True(last)
+	r.Contains(plain(m.render()), "K99")
+
+	// The cursor starts on cancel: enter out of habit sends nothing.
+	r.Contains(m.render(), opening(styleButtonOn)+" Cancel ")
+}
+
+func TestPlan_EnterOnCancelLeavesTheJobAsItIs(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	m := planned(t, client)
+
+	// Over to submit and back.
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyLeft})
+
+	m, cmd := m.update(enter())
+	drain(m, cmd)
+
+	r.Equal(screenJobs, m.screen.kind)
+	r.Zero(client.submitted)
+}
+
+func TestPlan_EnterOnSubmitSendsIt(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	m := planned(t, client)
+
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r.Contains(m.render(), opening(styleButtonOn)+" Submit ")
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	r.Equal(1, client.submitted)
+	r.Equal(uint64(42), client.submittedIndex)
+	r.Equal(screenJobs, m.screen.kind)
+}
+
+func TestPlan_WhatCannotBePlacedIsNotSent(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: shortOfMemory()}
+	m := planned(t, client)
+
+	// The cluster has no room for it: the button says so, and neither the
+	// button nor the key sends it.
+	line, _ := buttons(m)
+	r.Contains(line, "Can't submit: placement failed")
+	r.False(offers(m, "y"))
+
+	m, cmd := m.update(key('y'))
+	m = drain(m, cmd)
+	r.Equal(screenPlan, m.screen.kind)
+
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyRight})
+	m, cmd = m.update(enter())
+	drain(m, cmd)
+
 	r.Zero(client.submitted)
 }
 
@@ -226,6 +386,6 @@ func TestPlan_ARevertSaysWhatItDoes(t *testing.T) {
 	r.True(offers(m, "y"))
 
 	out := plain(m.render())
-	r.Contains(out, "Revert")
+	r.Contains(out, "Revert web to version 3?")
 	r.NotContains(out, "Submit")
 }

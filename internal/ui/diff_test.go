@@ -36,7 +36,7 @@ func TestDiffLines(t *testing.T) {
 		{Kind: nomad.DiffContext, Text: "}"},
 	})
 
-	// As git diff reads: a column for what happened to the line, then the
+	// As a unified diff reads: a column for what happened to the line, then the
 	// line as deep in the job as it sits.
 	r.Equal([]string{
 		`  group "web" {`,

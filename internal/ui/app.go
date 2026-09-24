@@ -570,6 +570,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.warn(fmt.Sprintf("read-only: %s is off", b.label)), nil
 	}
 
+	if next, cmd, handled := m.planButtonKey(msg); handled {
+		return next, cmd
+	}
+
 	if next, handled := m.scrollKey(msg); handled {
 		return next, nil
 	}
@@ -741,6 +745,14 @@ func (m Model) body(width int) (title, content string) {
 			return m.title(), m.logToggles(width) + "\n" + m.text.view()
 		}
 
+		// The question stays at the foot of the box, however short the plan.
+		if m.barRows() > 0 {
+			view := m.text.view()
+			gap := strings.Repeat("\n", max(m.text.height-strings.Count(view, "\n")-1, 0))
+
+			return m.title(), view + gap + "\n" + m.planBar(width)
+		}
+
 		return m.title(), m.text.view()
 	}
 
@@ -798,7 +810,7 @@ func (m *Model) layout() {
 	// The table sits inside the box: the margin, its two border lines and the
 	// header row of the table itself are not rows.
 	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3-m.panelHeight(), 1))
-	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2-m.toggleRows(), 1))
+	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2-m.toggleRows()-m.barRows(), 1))
 
 	m.text.filter = m.filter
 	m.text.follow()

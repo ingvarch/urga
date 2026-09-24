@@ -52,7 +52,7 @@ func TestHCLDiff(t *testing.T) {
 	var diff api.JobDiff
 	r.NoError(json.Unmarshal([]byte(editedWeb), &diff))
 
-	// The way the job file reads, the way git diff shows a change to it:
+	// The way the job file reads, as a unified diff shows a change to it:
 	// the blocks that lead to a change, and every changed value as the line
 	// it was and the line it is. What did not change is left out.
 	r.Equal([]DiffLine{

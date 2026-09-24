@@ -63,7 +63,7 @@ func TestVersions_OpenWhatAVersionChanged(t *testing.T) {
 
 	r.Equal(screenDescribe, m.screen.kind)
 	r.Equal(uint64(3), client.askedVersion)
-	// As git diff reads, in colour.
+	// As a unified diff reads, in colour.
 	out := m.render()
 	r.Contains(plain(out), "- priority = 50")
 	r.Contains(plain(out), "+ priority = 70")

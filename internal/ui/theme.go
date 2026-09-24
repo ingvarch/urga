@@ -35,6 +35,9 @@ var (
 	colorPending   = lipgloss.Color("#e5c07b")
 	colorDead      = lipgloss.Color("#e06c75")
 	colorSpent     = lipgloss.Color("#6b7178")
+
+	// colorCanary is an allocation put out to try a change before the rest.
+	colorCanary = lipgloss.Color("#c678dd")
 )
 
 var (
@@ -49,9 +52,14 @@ var (
 	styleWarn   = lipgloss.NewStyle().Foreground(colorAttention)
 	styleError  = lipgloss.NewStyle().Foreground(colorDead)
 
-	// A line a diff adds, and one it takes away, as git diff paints them.
+	// A line a diff adds, and one it takes away.
 	styleAdded   = lipgloss.NewStyle().Foreground(colorAccent)
 	styleDeleted = lipgloss.NewStyle().Foreground(colorDead)
+
+	// What a plan would do to allocations, each kind in a colour of its own.
+	stylePending     = lipgloss.NewStyle().Foreground(colorPending)
+	styleDestructive = lipgloss.NewStyle().Foreground(colorAttention)
+	styleCanary      = lipgloss.NewStyle().Foreground(colorCanary)
 
 	styleTableHeader = lipgloss.NewStyle().Foreground(colorAccent)
 
@@ -80,4 +88,9 @@ var (
 			Foreground(lipgloss.Color("#1c1f24")).
 			Background(colorActive).
 			Bold(true)
+
+	// styleButtonOff is a button that does nothing, and says why.
+	styleButtonOff = lipgloss.NewStyle().
+			Foreground(colorMuted).
+			Background(colorPanel)
 )
