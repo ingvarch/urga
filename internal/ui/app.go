@@ -12,6 +12,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
@@ -65,6 +66,7 @@ type Client interface {
 	Allocation(ctx context.Context, namespace, allocID string) (nomad.Alloc, error)
 	AllocationChecks(ctx context.Context, namespace, allocID string) ([]nomad.Check, error)
 	Files(ctx context.Context, namespace, allocID, path string) ([]nomad.File, error)
+	Token(ctx context.Context) (nomad.Token, error)
 	Deployment(ctx context.Context, namespace, deploymentID string) (nomad.DeploymentDetail, error)
 	DeploymentAllocations(ctx context.Context, namespace, deploymentID string) ([]nomad.Alloc, error)
 	File(ctx context.Context, namespace, allocID, path string) (*nomad.LogStream, error)
@@ -270,6 +272,10 @@ type Model struct {
 	// connection counts the clusters the session connected to. What was
 	// asked of one it left is answered for no one.
 	connection int
+
+	// token is the token the session sends, as the cluster sees it; nil
+	// until it has said.
+	token *nomad.Token
 }
 
 // clusterData is what the cluster last said in the region the session asks
@@ -391,6 +397,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case connectedMsg:
 		return m.connected(Connection(msg))
+
+	case tokenMsg:
+		return m.keepToken(msg), nil
 
 	case jobsMsg:
 		return m.applyList(screenJobs, func(m *Model) { m.jobs = m.jobsInView(msg) })
@@ -861,6 +870,26 @@ func (m Model) body(width int) (title, content string) {
 func (m Model) status() string {
 	width := m.width - 2*headerPadX
 
+	if m.token == nil {
+		return m.statusLeft(width)
+	}
+
+	value, style, ok := tokenStatus(*m.token, time.Now())
+	if !ok {
+		return m.statusLeft(width)
+	}
+
+	// The token against the right edge; what is on the left gives way to it.
+	wide := ansi.StringWidth(tokenLabel + value)
+	left := m.statusLeft(width - wide - columnGap)
+	gap := max(width-ansi.StringWidth(left)-wide, columnGap)
+
+	return left + strings.Repeat(" ", gap) + styleLabel.Render(tokenLabel) + style.Render(value)
+}
+
+// statusLeft is what the status line says on the left: a message, the mode
+// the list is in, or the keys that work everywhere.
+func (m Model) statusLeft(width int) string {
 	if m.flash.fresh() {
 		return m.flash.view(width)
 	}
