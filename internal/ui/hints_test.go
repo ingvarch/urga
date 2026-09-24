@@ -41,6 +41,22 @@ func everyScreen(t *testing.T) map[string]Model {
 		spec:        nomad.JobSource{Source: "job \"web\" {}"},
 		logs:        &nomad.LogStream{Lines: make(chan string)},
 
+		// The deployment of the list, with a canary of web that waits to be
+		// promoted under the cursor.
+		deployment: nomad.DeploymentDetail{
+			Deployment: nomad.Deployment{ID: "dep-1", JobID: "web", Namespace: "production", Status: "running"},
+			Groups:     []nomad.DeploymentGroup{{Name: "frontend", DesiredTotal: 2, Placed: 1, DesiredCanaries: 1, PlacedCanaries: 1}},
+		},
+		deploymentAllocs: []nomad.Alloc{
+			{ID: "canary-1", Namespace: "production", JobID: "web", TaskGroup: "frontend", Status: "running", Canary: true},
+		},
+
+		// The directory of the task server, with a file to open.
+		files: map[string][]nomad.File{
+			"/server": {{Name: "local", Dir: true}, {Name: "app.env", Size: 42, Mode: "-rw-r--r--"}},
+		},
+		file: &nomad.LogStream{Lines: make(chan string)},
+
 		// A registration left behind first: there is one to delete.
 		instances: []nomad.ServiceInstance{
 			{ID: "reg-1", Service: "api", Namespace: "production", JobID: "web", AllocID: "alloc-lost", Address: "10.0.0.7", Port: 80, AllocStatus: "lost"},
@@ -124,6 +140,43 @@ func everyScreen(t *testing.T) map[string]Model {
 	instances, cmd := open["services"].update(enter())
 	open["instances"] = drain(instances, cmd)
 
+	// The screen of a deployment, opened from the list of them.
+	deployment, cmd := open["deployments"].update(enter())
+	open["deployment"] = drain(deployment, cmd)
+
+	// The files of a task, and one of them open.
+	files, cmd := open["tasks"].update(key('b'))
+	open["files"] = drain(files, cmd)
+
+	files, _ = open["files"].update(key('G'))
+	file, cmd := files.update(enter())
+	open["file"] = drain(file, cmd)
+
+	// The logs of a job: which task, then that task in every allocation.
+	pick, cmd := jobs.update(key('l'))
+	open["logtasks"] = drain(pick, cmd)
+
+	jobLogs, cmd := open["logtasks"].update(enter())
+	open["joblogs"] = drain(jobLogs, cmd)
+
+	// The plan of an edited job: the file changed, or there is nothing to
+	// plan.
+	editing := jobs
+	editing.opts.Editor = &fakeEditor{replace: "job \"web\" {\n  type = \"batch\"\n}"}
+	edited, cmd := editing.update(key('e'))
+	open["plan"] = follow(edited, cmd, 6)
+
+	// The list the clusters of the settings are picked from.
+	clusters := New(client, Options{
+		Cluster:  "dev",
+		Clusters: []string{"dev", "prod"},
+		Connect:  func(name string) (Connection, error) { return Connection{Name: name, Client: client}, nil },
+		Version:  "v-test",
+	})
+	clusters, _ = clusters.update(sizeMsg())
+	clusters, _ = runLine(clusters, "ctx")
+	open["clusters"] = clusters
+
 	// The lists a region and a datacenter are picked from.
 	regions, _ := jobs.update(regionsMsg([]string{"eu", "us"}))
 	regions, _ = runLine(regions, "region")
@@ -152,7 +205,7 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 
 			// Anything at all: another screen, a question, a mark, a way
 			// of reading the text, or a request to the cluster.
-			did := cmd != nil || !reflect.DeepEqual(next, m)
+			did := cmd != nil || changed(m, next)
 
 			r.True(did, "the %s screen offers %s and nothing happens", name, h.Key)
 		}
@@ -161,25 +214,17 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 
 // keyOf reads a key the way the header writes it: <enter>, <ctrl-s>, <d>. A
 // key it cannot spell would be pressed as its first letter, which is why
-// every control key has a case of its own here.
+// every control key is read as one, whichever letter it takes.
 func keyOf(shown string) tea.KeyPressMsg {
 	name := shown[1 : len(shown)-1]
+
+	if letter, ok := strings.CutPrefix(name, "ctrl-"); ok && len(letter) == 1 {
+		return ctrlKey(rune(letter[0]))
+	}
 
 	switch name {
 	case "enter":
 		return tea.KeyPressMsg{Code: tea.KeyEnter}
-	case "ctrl-s":
-		return ctrlKey('s')
-	case "ctrl-k":
-		return ctrlKey('k')
-	case "ctrl-d":
-		return ctrlKey('d')
-	case "ctrl-e":
-		return ctrlKey('e')
-	case "ctrl-h":
-		return ctrlKey('h')
-	case "ctrl-a":
-		return ctrlKey('a')
 	case "space":
 		return space()
 	}
@@ -221,8 +266,15 @@ func TestHints_EveryKeyThatDoesSomethingIsInTheHeader(t *testing.T) {
 		}
 
 		for _, press := range screenKeys() {
+			// The buttons at the foot of a plan are chosen and pressed the
+			// way the buttons of a question are: those keys are the
+			// dialog's, and help names them.
+			if _, _, buttons := m.planButtonKey(press); buttons {
+				continue
+			}
+
 			next, cmd := m.handleKey(press)
-			did := cmd != nil || !reflect.DeepEqual(next, m)
+			did := cmd != nil || changed(m, next)
 
 			// The header is where a key is found: one that works without
 			// being there is one nobody learns about.
@@ -250,4 +302,29 @@ func TestHints_EveryKeyIsNamedInOneOrTwoWords(t *testing.T) {
 	for _, h := range slices.Concat(generalHints, navigationHints) {
 		named(h.Key+" in help", h.Description)
 	}
+}
+
+func TestEveryScreen_CoversEveryKindOfScreen(t *testing.T) {
+	r := require.New(t)
+
+	covered := map[screenKind]bool{}
+	for _, m := range everyScreen(t) {
+		covered[m.screen.kind] = true
+	}
+
+	// A screen left out of the tests of the keys is a screen whose keys
+	// read-only is never checked against.
+	for kind := range resources {
+		r.True(covered[kind], "no screen of kind %d in everyScreen", kind)
+	}
+}
+
+// changed says a key did something to the model. What a model is given to
+// connect and switch with is a function, and two functions are never equal:
+// they are left out of the comparison.
+func changed(before, after Model) bool {
+	before.opts.Connect, after.opts.Connect = nil, nil
+	before.opts.InRegion, after.opts.InRegion = nil, nil
+
+	return !reflect.DeepEqual(before, after)
 }
