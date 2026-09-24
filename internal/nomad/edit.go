@@ -34,9 +34,20 @@ func (c *Client) SubmitJob(ctx context.Context, namespace, source string, vars J
 // keep with the version.
 func (c *Client) parseJob(ctx context.Context, namespace, source string, vars JobVariables) (*api.Job, *api.JobSubmission, error) {
 	if strings.HasPrefix(strings.TrimSpace(source), "{") {
-		job := &api.Job{}
-		if err := json.Unmarshal([]byte(source), job); err != nil {
+		// The file holds the job or wraps it in a Job key. The cluster takes
+		// both, and keeps the file as it was written.
+		var either struct {
+			Wrapped *api.Job `json:"Job"`
+			api.Job
+		}
+
+		if err := json.Unmarshal([]byte(source), &either); err != nil {
 			return nil, nil, fmt.Errorf("the job is not valid JSON: %w", err)
+		}
+
+		job := &either.Job
+		if either.Wrapped != nil {
+			job = either.Wrapped
 		}
 
 		// Variables are a thing of HCL, a JSON job has none.
