@@ -236,7 +236,15 @@ when the group under the cursor has canaries waiting to be promoted.
 | Key | What it does | Changes |
 | --- | --- | --- |
 | `e` | Edit a namespace in your editor | yes |
+| `enter` | Instances of a service | |
 | `d` | Describe a service | |
+
+### Instances of a service
+
+| Key | What it does | Changes |
+| --- | --- | --- |
+| `enter` | Tasks of the allocation that registered the instance | |
+| `ctrl-d` | Delete a stale registration. Shown only on a stale one. | yes |
 
 ### Clients
 

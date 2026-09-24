@@ -43,6 +43,7 @@ const (
 	screenClusters
 	screenLogTasks
 	screenJobLogs
+	screenServiceInstances
 )
 
 // screen is what is open: the resource and what it was opened for. The
@@ -418,6 +419,7 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m.usage = m.usage.forgetRows()
 	m.host.due = false
 	m.checks.due = false
+	m.instanceChecks.due = false
 
 	m.table = newTableModel(m.screen.titles())
 	m.filter = ""

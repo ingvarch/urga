@@ -40,6 +40,12 @@ func everyScreen(t *testing.T) map[string]Model {
 		describe:    "{}",
 		spec:        nomad.JobSource{Source: "job \"web\" {}"},
 		logs:        &nomad.LogStream{Lines: make(chan string)},
+
+		// A registration left behind first: there is one to delete.
+		instances: []nomad.ServiceInstance{
+			{ID: "reg-1", Service: "api", Namespace: "production", JobID: "web", AllocID: "alloc-lost", Address: "10.0.0.7", Port: 80, AllocStatus: "lost"},
+			{ID: "reg-2", Service: "api", Namespace: "production", JobID: "web", AllocID: "alloc-1", Address: "10.0.0.8", Port: 80, AllocStatus: "running"},
+		},
 	}
 
 	rows := map[string]tea.Msg{
@@ -113,6 +119,10 @@ func everyScreen(t *testing.T) map[string]Model {
 
 	logs, cmd := open["tasks"].update(enter())
 	open["logs"] = drain(logs, cmd)
+
+	// The instances of a service.
+	instances, cmd := open["services"].update(enter())
+	open["instances"] = drain(instances, cmd)
 
 	// The lists a region and a datacenter are picked from.
 	regions, _ := jobs.update(regionsMsg([]string{"eu", "us"}))

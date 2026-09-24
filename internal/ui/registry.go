@@ -66,7 +66,10 @@ var (
 
 	fieldBindings = []binding{{press: "c", label: "Copy", do: copyField}}
 
-	serviceBindings = []binding{{press: "d", label: "Describe", do: describeService}}
+	serviceBindings = []binding{
+		{press: "enter", label: "Instances", do: openServiceInstances},
+		{press: "d", label: "Describe", do: describeService},
+	}
 
 	// textBindings are the keys of a screen that reads as text rather than
 	// as a list.
@@ -295,6 +298,18 @@ func init() {
 			keys:    clusterBindings,
 			cluster: true,
 			rows:    func(m Model) []tableRow { return choiceRows(m.opts.Clusters, m.opts.Cluster) },
+		},
+
+		screenServiceInstances: {
+			titles: instanceTitles,
+			keys:   instanceBindings,
+			topics: []string{nomad.TopicService},
+			fetch:  fetchInstances,
+
+			title: func(m Model, count int) string {
+				return sprintf("Service %s (%s) [%d]", m.screen.label, namespaceLabel(m.screen.namespace), count)
+			},
+			rows: func(m Model) []tableRow { return instanceRows(m.instances, m.instanceChecks.byAlloc) },
 		},
 
 		screenLogTasks: {
