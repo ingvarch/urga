@@ -110,8 +110,9 @@ func TestLogs_TheEndsAreAKeyAway(t *testing.T) {
 	m, _ = m.update(key('G'))
 	r.Contains(plain(m.render()), "line-039")
 
+	// Going to the top stopped autoscroll; turning it on goes to the end.
 	m, _ = m.update(key('g'))
-	m, _ = m.update(key('r'))
+	m, _ = m.update(key('s'))
 	r.Contains(plain(m.render()), "line-039")
 }
 
@@ -126,7 +127,7 @@ func TestLogs_FollowingReachesTheLastWrappedRow(t *testing.T) {
 	r.Contains(plain(m.render()), "end-039")
 }
 
-func TestLogs_ResumeReachesTheLastWrappedRow(t *testing.T) {
+func TestLogs_AutoscrollReachesTheLastWrappedRow(t *testing.T) {
 	r := require.New(t)
 
 	m, _ := onLogs(t)
@@ -135,7 +136,8 @@ func TestLogs_ResumeReachesTheLastWrappedRow(t *testing.T) {
 	m, _ = m.update(lineOf(m, strings.Join(longLines(40), "\n")+"\n"))
 	r.Contains(plain(m.render()), "line-000")
 
-	m, _ = m.update(key('r'))
+	// Turned back on, autoscroll goes back to the end.
+	m, _ = m.update(key('s'))
 	r.Contains(plain(m.render()), "end-039")
 }
 

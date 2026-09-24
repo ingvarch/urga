@@ -112,7 +112,13 @@ func wrapLine(line string, width int) []string {
 	return strings.Split(ansi.Hardwrap(line, width, true), "\n")
 }
 
+// newTextModel holds content as lines. Nothing is no line at all, not one
+// empty line: a log that starts empty starts with what the task writes next.
 func newTextModel(content string) textModel {
+	if content == "" {
+		return textModel{}
+	}
+
 	return textModel{lines: strings.Split(content, "\n")}
 }
 

@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"fmt"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -215,5 +218,26 @@ func TestHints_EveryKeyThatDoesSomethingIsInTheHeader(t *testing.T) {
 			// being there is one nobody learns about.
 			r.False(did && !offered[press.String()], "the %s screen answers %s without offering it", name, press.String())
 		}
+	}
+}
+
+func TestHints_EveryKeyIsNamedInOneOrTwoWords(t *testing.T) {
+	r := require.New(t)
+
+	// The header is read at a glance: a key says what it does in a word or
+	// two, and a sentence there is cut off or pushes the other keys out.
+	named := func(where, label string) {
+		words := len(strings.Fields(label))
+		r.True(words >= 1 && words <= 2, "%s is named %q, %d words", where, label, words)
+	}
+
+	for name, m := range everyScreen(t) {
+		for _, b := range m.screen.bindings() {
+			named(fmt.Sprintf("%s on the %s screen", b.press, name), b.label)
+		}
+	}
+
+	for _, h := range slices.Concat(generalHints, navigationHints) {
+		named(h.Key+" in help", h.Description)
 	}
 }

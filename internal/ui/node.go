@@ -143,16 +143,16 @@ func failDeployment(m Model) (Model, tea.Cmd) {
 
 var (
 	nodeBindings = []binding{
-		{press: "enter", label: "What it runs", do: openClient},
+		{press: "enter", label: "Allocations", do: openClient},
 		{press: "ctrl+d", label: "Drain", do: drainNode, writes: true},
-		{press: "i", label: "Eligibility", do: toggleEligibility, writes: true},
+		{press: "i", label: "Toggle Eligibility", do: toggleEligibility, writes: true},
 		{press: "space", label: "Mark", do: mark},
-		{press: "ctrl+a", label: "Mark all", do: markAll},
+		{press: "ctrl+a", label: "Mark All", do: markAll},
 	}
 
 	deploymentBindings = []binding{
 		{press: "d", label: "Describe", do: describeDeployment},
-		{press: "p", label: "Promote canaries", do: promoteDeployment, writes: true},
+		{press: "p", label: "Promote", do: promoteDeployment, writes: true},
 		{press: "f", label: "Fail", do: failDeployment, writes: true},
 	}
 )

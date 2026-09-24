@@ -727,6 +727,10 @@ func (m Model) body(width int) (title, content string) {
 		return "Help", renderHelp(m.helpSections(), width)
 
 	case m.readsAsText():
+		if m.toggleRows() > 0 {
+			return m.title(), m.logToggles(width) + "\n" + m.text.view()
+		}
+
 		return m.title(), m.text.view()
 	}
 
@@ -784,7 +788,7 @@ func (m *Model) layout() {
 	// The table sits inside the box: the margin, its two border lines and the
 	// header row of the table itself are not rows.
 	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3-m.panelHeight(), 1))
-	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2, 1))
+	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2-m.toggleRows(), 1))
 
 	m.text.filter = m.filter
 	m.text.follow()
