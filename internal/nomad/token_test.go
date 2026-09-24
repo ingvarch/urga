@@ -2,6 +2,7 @@ package nomad_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -66,4 +67,23 @@ func TestToken_Refused(t *testing.T) {
 	token, err := client.Token(context.Background())
 	r.NoError(err)
 	r.True(token.Refused)
+}
+
+func TestForbidden(t *testing.T) {
+	r := require.New(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "Permission denied", http.StatusForbidden)
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	// The token may not do it: the cluster answered, and said no.
+	_, err = client.Jobs(context.Background(), "default")
+	r.True(nomad.Forbidden(err))
+
+	r.False(nomad.Forbidden(errors.New("connection refused")))
+	r.False(nomad.Forbidden(nil))
 }

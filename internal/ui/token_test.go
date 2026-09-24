@@ -144,3 +144,16 @@ func TestToken_OfTheClusterLeftGoesWithIt(t *testing.T) {
 
 	r.NotContains(plain(statusLine(m)), "dev-bot")
 }
+
+func TestToken_ARefusalOfTheClusterLeftIsNotExplainedByTheNext(t *testing.T) {
+	r := require.New(t)
+
+	// dev refused a request before it said whose token it is.
+	m, clusters := onDev(t)
+	m, _ = m.update(errMsg{err: forbidden(t)})
+
+	m, _ = m.update(connectedMsg(Connection{Name: "prod", Client: clusters.prod}))
+	m, _ = m.update(tokenMsg(nomad.Token{Anonymous: true}))
+
+	r.NotContains(plain(statusLine(m)), "no token is set")
+}
