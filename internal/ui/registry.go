@@ -557,7 +557,7 @@ func init() {
 
 		screenPlan: {
 			keys:  planBindings,
-			title: func(m Model, _ int) string { return sprintf("Plan (Job: %s)", m.screen.jobID) },
+			title: func(m Model, _ int) string { return planTitle(m) },
 		},
 
 		screenLogs: {

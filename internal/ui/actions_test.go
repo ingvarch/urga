@@ -121,17 +121,27 @@ func TestAction_StopAnAllocation(t *testing.T) {
 func TestAction_RevertAJob(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs()}
+	client := &fakeClient{jobs: twoJobs(), plan: nomad.Plan{To: 3, Version: 4, Index: 42}}
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
 
-	m, _ = m.update(key('u'))
-	r.Contains(plain(m.render()), "previous version")
+	// Going back is submitting an older version, and it is planned first
+	// like any other submit: the version before the one that runs.
+	m, cmd := m.update(key('u'))
+	m = drain(m, cmd)
 
-	_, cmd := answerYes(m)
-	drain(m, cmd)
+	r.Nil(client.plannedTo)
+	r.Equal(screenPlan, m.screen.kind)
+	r.Contains(plain(m.render()), "Revert (Job: web, Version: 3)")
 
-	r.Equal(1, client.reverted)
+	m, cmd = m.update(key('y'))
+	m = drain(m, cmd)
+
+	// From the version it was planned at: a job that moved on is not moved
+	// back.
+	r.Equal(uint64(3), client.revertedTo)
+	r.Equal(uint64(4), client.revertedFrom)
+	r.Contains(plain(m.render()), "Job web reverted to version 3")
 }
 
 func TestAction_FailureIsSaid(t *testing.T) {

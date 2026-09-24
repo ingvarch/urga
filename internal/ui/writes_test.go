@@ -18,7 +18,7 @@ import (
 var (
 	clientWrites = []string{
 		"SubmitJob", "SubmitNamespace", "SubmitNodeMeta",
-		"StartJob", "StopJob", "RevertJob", "RevertJobTo", "ScaleJob",
+		"StartJob", "StopJob", "RevertJobTo", "ScaleJob",
 		"RestartAllocation", "StopAllocation",
 		"DrainNode", "SetNodeEligible",
 		"PromoteDeployment", "FailDeployment",
@@ -26,7 +26,7 @@ var (
 
 	clientReads = []string{
 		"Address", "Region", "Agent", "Regions", "Datacenters",
-		"Jobs", "JobSpec", "JobVersions", "JobVersionDiff", "TaskGroups", "PlanJob",
+		"Jobs", "JobSpec", "JobVersions", "JobVersionDiff", "TaskGroups", "PlanJob", "PlanRevert",
 		"DescribeJob", "DescribeAllocation", "DescribeDeployment", "DescribeService",
 		"Allocations", "NodeAllocations", "Allocation", "Logs",
 		"Usage", "AllocationUsage", "NodeUsage",

@@ -68,13 +68,18 @@ func TestVersions_RevertToTheOneUnderTheCursor(t *testing.T) {
 
 	m, client := onVersions(t)
 
+	client.plan = nomad.Plan{To: 2, Version: 3}
+
 	// Down to version 2, which is not the one that runs.
 	m, _ = m.update(key('j'))
-	m, _ = m.update(key('u'))
+	m, cmd := m.update(key('u'))
+	m = drain(m, cmd)
 
-	r.Contains(plain(m.render()), "revert web to version 2")
+	r.NotNil(client.plannedTo)
+	r.Equal(uint64(2), *client.plannedTo)
+	r.Contains(plain(m.render()), "Revert (Job: web, Version: 2)")
 
-	_, cmd := answerYes(m)
+	m, cmd = m.update(key('y'))
 	drain(m, cmd)
 
 	r.Equal(uint64(2), client.revertedTo)
@@ -89,11 +94,13 @@ func TestVersions_TheJobScreenStillRevertsToThePrevious(t *testing.T) {
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
 
-	m, _ = m.update(key('u'))
+	m, cmd := m.update(key('u'))
+	drain(m, cmd)
 
-	// The key that was there keeps its meaning on the list of jobs.
-	r.Contains(plain(m.render()), "revert")
-	r.Equal(screenJobs, m.screen.kind)
+	// The key that was there keeps its meaning on the list of jobs: the
+	// version before the one that runs.
+	r.Nil(client.plannedTo)
+	r.Equal("web", client.askedJobID)
 }
 
 func TestVersions_OfAnotherJobAreNotShownHere(t *testing.T) {

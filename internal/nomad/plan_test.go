@@ -113,3 +113,115 @@ func TestSubmitJob_WhenTheJobChangedSinceItsPlan(t *testing.T) {
 	err = client.SubmitJob(context.Background(), "production", `{"ID": "web"}`, nomad.JobVariables{}, 42)
 	r.ErrorIs(err, nomad.ErrJobChanged)
 }
+
+// webVersions are the versions of web, newest first: 5 runs, 4 was before it.
+const webVersions = `{"Versions": [
+	{"ID": "web", "Name": "web", "Version": 5, "Priority": 70},
+	{"ID": "web", "Name": "web", "Version": 4, "Priority": 50},
+	{"ID": "web", "Name": "web", "Version": 3, "Priority": 30}
+], "Diffs": null}`
+
+// plannedJob is the job a plan request asked about.
+func plannedJob(t *testing.T, asked []sent) map[string]any {
+	t.Helper()
+
+	for _, req := range asked {
+		if req.path == "/v1/job/web/plan" {
+			job, ok := req.body["Job"].(map[string]any)
+			require.True(t, ok)
+
+			return job
+		}
+	}
+
+	t.Fatal("no plan was asked for")
+
+	return nil
+}
+
+func TestPlanRevert_ToTheVersionBefore(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := jobServer(t, map[string]string{"/v1/job/web/versions": webVersions, "/v1/job/web/plan": webPlan})
+
+	plan, err := client.PlanRevert(context.Background(), "production", "web", nil)
+	r.NoError(err)
+
+	r.Equal("/v1/job/web/versions", (*asked)[0].path)
+	r.Equal("production", (*asked)[0].namespace)
+
+	// Going back is submitting the version before the one that runs; its
+	// plan says what that would change.
+	r.Equal(float64(50), plannedJob(t, *asked)["Priority"])
+	r.Equal(uint64(4), plan.To)
+	r.Equal(uint64(5), plan.Version)
+	r.Equal(uint64(42), plan.Index)
+}
+
+func TestPlanRevert_ToTheVersionGiven(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := jobServer(t, map[string]string{"/v1/job/web/versions": webVersions, "/v1/job/web/plan": webPlan})
+
+	to := uint64(3)
+	plan, err := client.PlanRevert(context.Background(), "production", "web", &to)
+	r.NoError(err)
+
+	r.Equal(float64(30), plannedJob(t, *asked)["Priority"])
+	r.Equal(uint64(3), plan.To)
+}
+
+func TestPlanRevert_AtTheFirstVersion(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := jobServer(t, map[string]string{
+		"/v1/job/web/versions": `{"Versions": [{"ID": "web", "Version": 0}]}`,
+	})
+
+	// There is nothing behind the first version, and saying so is better than
+	// a cluster error.
+	_, err := client.PlanRevert(context.Background(), "production", "web", nil)
+	r.ErrorContains(err, "no earlier version")
+}
+
+func TestPlanRevert_ToAVersionThatIsGone(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := jobServer(t, map[string]string{"/v1/job/web/versions": webVersions})
+
+	to := uint64(1)
+	_, err := client.PlanRevert(context.Background(), "production", "web", &to)
+	r.ErrorContains(err, "no version 1")
+}
+
+func TestRevertJobTo_FromTheVersionItWasPlannedAt(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := jobServer(t, map[string]string{"/v1/job/web/revert": `{"EvalID": "eval-1"}`})
+
+	r.NoError(client.RevertJobTo(context.Background(), "production", "web", 4, 5))
+
+	// The version travels in the body, with the one the job had when the
+	// revert was planned: a job that moved on since is not moved back.
+	body := (*asked)[0].body
+	r.Equal("web", body["JobID"])
+	r.Equal(float64(4), body["JobVersion"])
+	r.Equal(float64(5), body["EnforcePriorVersion"])
+	r.Equal("production", (*asked)[0].namespace)
+}
+
+func TestRevertJobTo_WhenTheJobChangedSinceItsPlan(t *testing.T) {
+	r := require.New(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// What the cluster answers when the job is not at that version any
+		// more.
+		http.Error(w, "Current job has version 6; enforcing version 5", http.StatusInternalServerError)
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	r.ErrorIs(client.RevertJobTo(context.Background(), "production", "web", 4, 5), nomad.ErrJobChanged)
+}

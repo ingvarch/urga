@@ -99,9 +99,13 @@ func (c *Client) JobVersionDiff(ctx context.Context, namespace, jobID string, ve
 	return "", ErrNoVersion
 }
 
-// RevertJobTo puts the version it is given back in place.
-func (c *Client) RevertJobTo(ctx context.Context, namespace, jobID string, version uint64) error {
-	_, _, err := c.api.Jobs().Revert(jobID, version, nil, c.write(ctx, namespace), "", "")
+// RevertJobTo puts the version it is given back in place, if the job is
+// still at the version from which the revert was planned.
+func (c *Client) RevertJobTo(ctx context.Context, namespace, jobID string, version, from uint64) error {
+	_, _, err := c.api.Jobs().Revert(jobID, version, &from, c.write(ctx, namespace), "", "")
+	if jobChanged(err) {
+		return ErrJobChanged
+	}
 
 	return err
 }

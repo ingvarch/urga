@@ -176,3 +176,53 @@ func TestPlan_EscapeLeavesTheJobAsItIs(t *testing.T) {
 	r.Equal(screenJobs, m.screen.kind)
 	r.Zero(client.submitted)
 }
+
+func TestPlan_ARevertThatTheJobMovedPast(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), plan: nomad.Plan{To: 3, Version: 4}, actionErr: nomad.ErrJobChanged}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, cmd := m.update(key('u'))
+	m = drain(m, cmd)
+
+	m, cmd = m.update(key('y'))
+	m = drain(m, cmd)
+
+	r.Equal(screenPlan, m.screen.kind)
+	r.Contains(plain(m.render()), "web changed since this plan: r plans it again")
+
+	// Planned again, it is the same revert: to the version it was asked for.
+	client.plan = nomad.Plan{To: 3, Version: 5}
+
+	m, cmd = m.update(key('r'))
+	m = drain(m, cmd)
+
+	r.NotNil(client.plannedTo)
+	r.Equal(uint64(3), *client.plannedTo)
+
+	client.actionErr = nil
+	m, cmd = m.update(key('y'))
+	drain(m, cmd)
+
+	r.Equal(uint64(5), client.revertedFrom)
+}
+
+func TestPlan_ARevertSaysWhatItDoes(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), plan: nomad.Plan{To: 3, Version: 4}}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, cmd := m.update(key('u'))
+	m = drain(m, cmd)
+
+	// The key that sends it says what it sends.
+	r.True(offers(m, "y"))
+
+	out := plain(m.render())
+	r.Contains(out, "Revert")
+	r.NotContains(out, "Submit")
+}

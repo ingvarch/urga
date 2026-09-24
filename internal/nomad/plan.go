@@ -3,6 +3,7 @@ package nomad
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -31,6 +32,11 @@ type Plan struct {
 	// Index is the one the job had when it was planned. Submitting at it
 	// fails when the job changed in between.
 	Index uint64
+
+	// To is the version a revert goes back to, and Version the one the job
+	// had when the revert was planned.
+	To      uint64
+	Version uint64
 }
 
 // PlanGroup is what the scheduler would do to the allocations of a group.
@@ -99,10 +105,57 @@ func newPlan(answer *api.JobPlanResponse) Plan {
 	return plan
 }
 
-// jobChanged says the cluster refused a job for an index that is no longer
-// the one the job has.
+// jobChanged says the cluster refused a change planned on a job that has
+// moved on since: a register at an index, or a revert from a version, that
+// are no longer the job's.
 func jobChanged(err error) bool {
 	var answer api.UnexpectedResponseError
+	if !errors.As(err, &answer) {
+		return false
+	}
 
-	return errors.As(err, &answer) && strings.Contains(answer.Body(), "conflicting job modify index")
+	body := answer.Body()
+
+	return strings.Contains(body, "conflicting job modify index") || strings.Contains(body, "; enforcing version")
+}
+
+// PlanRevert asks the cluster what going back to a version of the job would
+// do, which is submitting that version again. No version given is the one
+// before the version that runs.
+func (c *Client) PlanRevert(ctx context.Context, namespace, jobID string, to *uint64) (Plan, error) {
+	versions, _, err := c.versions(ctx, namespace, jobID)
+	if err != nil {
+		return Plan{}, err
+	}
+
+	// The versions come newest first: the first is the one that runs.
+	if len(versions) == 0 {
+		return Plan{}, fmt.Errorf("%s has no versions", jobID)
+	}
+
+	current := uintOf(versions[0].Version)
+
+	if to == nil {
+		if current == 0 {
+			return Plan{}, fmt.Errorf("%s has no earlier version to go back to", jobID)
+		}
+
+		previous := current - 1
+		to = &previous
+	}
+
+	i := slices.IndexFunc(versions, func(job *api.Job) bool { return uintOf(job.Version) == *to })
+	if i < 0 {
+		return Plan{}, fmt.Errorf("%s has no version %d", jobID, *to)
+	}
+
+	answer, _, err := c.api.Jobs().PlanOpts(versions[i], &api.PlanOptions{Diff: true}, c.write(ctx, namespace))
+	if err != nil {
+		return Plan{}, err
+	}
+
+	plan := newPlan(answer)
+	plan.To, plan.Version = *to, current
+
+	return plan, nil
 }

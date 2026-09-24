@@ -121,7 +121,7 @@ func jobFile(client Client, job nomad.Job) load {
 		// sent back beside it. What comes back is planned first: a changed
 		// file can restart every allocation of the job.
 		return file{extension: jobExtension(spec.Format), content: spec.Source, submit: func(source string) tea.Cmd {
-			return planOf(client, planState{
+			return planFor(client, planState{
 				namespace: job.Namespace,
 				jobID:     job.ID,
 				source:    source,

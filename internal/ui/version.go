@@ -110,19 +110,15 @@ func openVersionDiff(m Model) (Model, tea.Cmd) {
 		})
 }
 
-// revertToVersion puts the version under the cursor back in place.
+// revertToVersion puts the version under the cursor back in place, after its
+// plan.
 func revertToVersion(m Model) (Model, tea.Cmd) {
 	version, ok := selectedOf(m, screenJobVersions, m.versions)
 	if !ok {
 		return m, nil
 	}
 
-	client, screen := m.client, m.screen
+	to := version.Version
 
-	return m.ask(
-		fmt.Sprintf("Really revert %s to version %d?", screen.jobID, version.Version),
-		act(fmt.Sprintf("Job %s reverted to version %d.", screen.jobID, version.Version), func(ctx context.Context) error {
-			return client.RevertJobTo(ctx, screen.namespace, screen.jobID, version.Version)
-		}),
-	)
+	return m, planFor(m.client, planState{revert: true, to: &to, namespace: m.screen.namespace, jobID: m.screen.jobID})
 }

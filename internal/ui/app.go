@@ -37,16 +37,16 @@ type Client interface {
 	TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
 
 	PlanJob(ctx context.Context, namespace, source string, vars nomad.JobVariables) (nomad.Plan, error)
+	PlanRevert(ctx context.Context, namespace, jobID string, to *uint64) (nomad.Plan, error)
 	SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error
 	NamespaceSpec(ctx context.Context, name string) (string, error)
 	SubmitNamespace(ctx context.Context, source string) error
 
 	StartJob(ctx context.Context, namespace, jobID string) error
 	StopJob(ctx context.Context, namespace, jobID string) error
-	RevertJob(ctx context.Context, namespace, jobID string) error
 	JobVersions(ctx context.Context, namespace, jobID string) ([]nomad.JobVersion, error)
 	JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) (string, error)
-	RevertJobTo(ctx context.Context, namespace, jobID string, version uint64) error
+	RevertJobTo(ctx context.Context, namespace, jobID string, version, from uint64) error
 	ScaleJob(ctx context.Context, namespace, jobID, group string, count int) error
 	RestartAllocation(ctx context.Context, namespace, allocID string) error
 	StopAllocation(ctx context.Context, namespace, allocID string) error

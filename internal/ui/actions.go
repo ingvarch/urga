@@ -152,21 +152,15 @@ func jobLabel(jobs []nomad.Job) string {
 	return many(len(jobs), "the job "+jobs[0].ID, "jobs")
 }
 
-// revertJob puts the version before the one that runs back in place.
+// revertJob puts the version before the one that runs back in place, which
+// is submitting it again: it is planned first, like any submit.
 func revertJob(m Model) (Model, tea.Cmd) {
 	job, ok := selectedOf(m, screenJobs, m.jobs)
 	if !ok {
 		return m, nil
 	}
 
-	client := m.client
-
-	return m.ask(
-		fmt.Sprintf("Really revert the job %s to its previous version?", job.ID),
-		act(fmt.Sprintf("Job %s reverted.", job.ID), func(ctx context.Context) error {
-			return client.RevertJob(ctx, job.Namespace, job.ID)
-		}),
-	)
+	return m, planFor(m.client, planState{revert: true, namespace: job.Namespace, jobID: job.ID})
 }
 
 // restartAllocation restarts every task of an allocation.

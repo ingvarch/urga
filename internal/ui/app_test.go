@@ -60,13 +60,14 @@ type fakeClient struct {
 	planCalls           int
 	plannedSource       string
 	plannedVars         nomad.JobVariables
+	plannedTo           *uint64
+	revertedFrom        uint64
 	submittedNamespaces int
 
 	stopped       int
 	started       int
 	restarted     int
 	stoppedAllocs int
-	reverted      int
 	drained       bool
 	drainCalls    int
 	eligible      bool
@@ -177,11 +178,18 @@ func (f *fakeClient) JobVersionDiff(_ context.Context, _, jobID string, version 
 	return f.diff, f.diffErr
 }
 
-func (f *fakeClient) RevertJobTo(_ context.Context, _, jobID string, version uint64) error {
-	f.wrote("RevertJobTo")
-	f.askedJobID, f.revertedTo = jobID, version
+func (f *fakeClient) PlanRevert(_ context.Context, namespace, jobID string, to *uint64) (nomad.Plan, error) {
+	f.askedNamespace, f.askedJobID, f.plannedTo = namespace, jobID, to
+	f.planCalls++
 
-	return f.err
+	return f.plan, f.err
+}
+
+func (f *fakeClient) RevertJobTo(_ context.Context, _, jobID string, version, from uint64) error {
+	f.wrote("RevertJobTo")
+	f.askedJobID, f.revertedTo, f.revertedFrom = jobID, version, from
+
+	return f.actionErr
 }
 
 func (f *fakeClient) Node(_ context.Context, nodeID string) (nomad.Node, error) {
@@ -280,14 +288,6 @@ func (f *fakeClient) StopJob(_ context.Context, namespace, jobID string) error {
 	f.wrote("StopJob")
 	f.askedNamespace, f.askedID = namespace, jobID
 	f.stopped++
-
-	return f.actionErr
-}
-
-func (f *fakeClient) RevertJob(_ context.Context, namespace, jobID string) error {
-	f.wrote("RevertJob")
-	f.askedNamespace, f.askedID = namespace, jobID
-	f.reverted++
 
 	return f.actionErr
 }
