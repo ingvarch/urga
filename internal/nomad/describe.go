@@ -54,15 +54,39 @@ func (c *Client) DescribeService(ctx context.Context, namespace, name string) (s
 	return asJSON(registrations)
 }
 
+// How a job file is written, as the cluster names it.
+const (
+	FormatJSON = "json"
+	formatHCL2 = "hcl2"
+)
+
+// JobSource is what a job was submitted with: the file, how it is written,
+// and the values its variables were given.
+type JobSource struct {
+	Source string
+
+	// Format is hcl2 or FormatJSON.
+	Format string
+
+	Variables JobVariables
+}
+
+// JobVariables are the values of the variables of an HCL job: the -var flags
+// and the variables file it was run with.
+type JobVariables struct {
+	Flags map[string]string
+	File  string
+}
+
 // JobSpec is the file the job was submitted with. A cluster that did not keep
 // it says so.
-func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (string, error) {
+func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (JobSource, error) {
 	// Which version runs is asked first: a submission is kept per version,
 	// and version zero is the first file ever submitted, not the current
 	// one. Guessing it here would put an old job in front of the editor.
 	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
 	if err != nil {
-		return "", err
+		return JobSource{}, err
 	}
 
 	version := 0
@@ -76,18 +100,22 @@ func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (string, 
 	// job that was registered without its file.
 	var answer api.UnexpectedResponseError
 	if errors.As(err, &answer) && answer.StatusCode() == http.StatusNotFound {
-		return "", ErrNoSource
+		return JobSource{}, ErrNoSource
 	}
 
 	if err != nil {
-		return "", err
+		return JobSource{}, err
 	}
 
 	if submission == nil || submission.Source == "" {
-		return "", ErrNoSource
+		return JobSource{}, ErrNoSource
 	}
 
-	return submission.Source, nil
+	return JobSource{
+		Source:    submission.Source,
+		Format:    submission.Format,
+		Variables: JobVariables{Flags: submission.VariableFlags, File: submission.Variables},
+	}, nil
 }
 
 func asJSON(v any) (string, error) {

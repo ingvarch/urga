@@ -61,7 +61,27 @@ func TestJobSpec_FromWhatWasSubmitted(t *testing.T) {
 
 	// The file the job was submitted with, the way it was written.
 	r.Equal("/v1/job/web/submission", asked.URL.Path)
-	r.Equal("job \"web\" {\n  type = \"service\"\n}", out)
+	r.Equal("job \"web\" {\n  type = \"service\"\n}", out.Source)
+	r.Equal("hcl2", out.Format)
+}
+
+func TestJobSpec_KeepsTheVariables(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `{
+		"Source": "job \"web\" {}",
+		"Format": "hcl2",
+		"VariableFlags": {"image": "nginx:1.27"},
+		"Variables": "count = 3\n"
+	}`)
+
+	out, err := client.JobSpec(context.Background(), "production", "web")
+	r.NoError(err)
+
+	// The file alone is not the job: submitting it without the values its
+	// variables had would run the defaults instead.
+	r.Equal(map[string]string{"image": "nginx:1.27"}, out.Variables.Flags)
+	r.Equal("count = 3\n", out.Variables.File)
 }
 
 func TestJobSpec_WhenTheClusterAnswersThereIsNone(t *testing.T) {

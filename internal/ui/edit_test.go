@@ -52,7 +52,7 @@ func editModel(t *testing.T, client *fakeClient) (Model, *fakeEditor) {
 func TestEdit_OpensTheJobFile(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: "job \"web\" {\n  type = \"service\"\n}"}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {\n  type = \"service\"\n}"}}
 	m, editor := editModel(t, client)
 	editor.replace = "job \"web\" {\n  type = \"batch\"\n}"
 
@@ -71,10 +71,48 @@ func TestEdit_OpensTheJobFile(t *testing.T) {
 	r.Contains(plain(m.render()), "Job web submitted")
 }
 
+func TestEdit_AJSONSourceOpensAsJSON(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs: twoJobs(),
+		spec: nomad.JobSource{Source: `{"ID": "web"}`, Format: nomad.FormatJSON},
+	}
+	m, editor := editModel(t, client)
+
+	_, cmd := m.update(key('e'))
+	follow(m, cmd, 5)
+
+	// A job submitted as JSON is JSON in the editor too: named .hcl, the
+	// editor colors it and checks it as the wrong language.
+	r.Equal(".json", filepath.Ext(editor.opened))
+}
+
+func TestEdit_KeepsTheVariables(t *testing.T) {
+	r := require.New(t)
+
+	vars := nomad.JobVariables{Flags: map[string]string{"image": "nginx:1.27"}, File: "count = 3\n"}
+
+	client := &fakeClient{
+		jobs: twoJobs(),
+		spec: nomad.JobSource{Source: "job \"web\" {}", Format: "hcl2", Variables: vars},
+	}
+	m, editor := editModel(t, client)
+	editor.replace = "job \"web\" {\n  type = \"batch\"\n}"
+
+	_, cmd := m.update(key('e'))
+	follow(m, cmd, 5)
+
+	// The editor holds the file only. The values the job ran with go back
+	// with it, or the edit quietly changes them to the defaults.
+	r.Equal(1, client.submitted)
+	r.Equal(vars, client.submittedVars)
+}
+
 func TestEdit_UnchangedFileChangesNothing(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: "job \"web\" {}"}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}}
 	m, _ := editModel(t, client)
 
 	m, cmd := m.update(key('e'))

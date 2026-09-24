@@ -7,6 +7,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 func TestDescribe_OpensForAJob(t *testing.T) {
@@ -50,7 +52,7 @@ func TestDescribe_ForAnAllocation(t *testing.T) {
 func TestDescribe_JobSpec(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: "job \"web\" {\n  type = \"service\"\n}"}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {\n  type = \"service\"\n}"}}
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
 
