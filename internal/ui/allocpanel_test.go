@@ -35,7 +35,7 @@ func replacedCanary() nomad.Alloc {
 func TestAllocPanel(t *testing.T) {
 	r := require.New(t)
 
-	lines := allocPanel(replacedCanary(), 120)
+	lines := allocPanel(replacedCanary(), nil, 120, 100)
 
 	for i := range lines {
 		lines[i] = plain(lines[i])
@@ -57,7 +57,7 @@ func TestAllocPanel_SaysOnlyWhatThereIs(t *testing.T) {
 	alloc := twoAllocs()[0]
 	alloc.DesiredStatus = "run"
 
-	text := strings.Join(allocPanel(alloc, 120), "\n")
+	text := strings.Join(allocPanel(alloc, nil, 120, 100), "\n")
 
 	// No deployment, no ports, nothing before or after it: no line for any
 	// of it.
@@ -65,7 +65,7 @@ func TestAllocPanel_SaysOnlyWhatThereIs(t *testing.T) {
 	r.NotContains(text, "Ports")
 	r.NotContains(text, "Previous")
 	r.Contains(plain(text), "Version 0")
-	r.Len(allocPanel(alloc, 120), 2)
+	r.Len(allocPanel(alloc, nil, 120, 100), 2)
 }
 
 // openCanary is the tasks of the first allocation, once the full reading of
