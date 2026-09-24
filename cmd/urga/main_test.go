@@ -40,7 +40,7 @@ func twoClusters() settings.Settings {
 		Default: "dev",
 		Clusters: map[string]settings.Cluster{
 			"dev":  {Address: "http://127.0.0.1:4646", Namespace: "default"},
-			"prod": {Address: "https://nomad.prod:4646", Region: "eu", Token: "the-token-of-prod", ReadOnly: true, CACert: "/ca.pem"},
+			"prod": {Address: "https://nomad.prod:4646", Region: "eu", Token: "the-token-of-prod", ReadOnly: true, CACert: "/ca.pem", Color: "red"},
 		},
 	}
 }
@@ -102,6 +102,7 @@ func TestStartOn_AClusterByName(t *testing.T) {
 	// Read-only is the settings or the command line, whichever says so.
 	r.True(st.readOnly)
 	r.Empty(st.namespace)
+	r.Equal("red", st.color)
 }
 
 func TestStartOn_TheCommandLineWins(t *testing.T) {

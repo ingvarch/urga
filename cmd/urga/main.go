@@ -70,6 +70,7 @@ func run() error {
 
 	model := ui.New(client, ui.Options{
 		Cluster:        st.cluster,
+		Color:          st.color,
 		Namespace:      ui.NamespaceOrAll(st.namespace),
 		NamespaceGiven: st.namespaceGiven,
 		ReadOnly:       st.readOnly,
@@ -117,6 +118,7 @@ func parseFlags(args []string) (cmdline, error) {
 // be with it, and the namespace to look at.
 type start struct {
 	cluster        string
+	color          string
 	nomad          nomad.Config
 	readOnly       bool
 	namespace      string
@@ -155,7 +157,7 @@ func startOn(cl cmdline, s settings.Settings) (start, error) {
 		return start{}, fmt.Errorf("cluster %q: %w", name, err)
 	}
 
-	st.cluster = name
+	st.cluster, st.color = name, cluster.Color
 	st.readOnly = st.readOnly || cluster.ReadOnly
 	st.nomad = nomad.Config{
 		Named:   true,

@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -10,6 +11,11 @@ import (
 // border. The body is cut to fit, a line that wraps shifts everything below
 // it.
 func frame(title, body string, width, height int) string {
+	return paintedFrame(title, body, width, height, styleBorder)
+}
+
+// paintedFrame is a frame with its border in a style of its own.
+func paintedFrame(title, body string, width, height int, border lipgloss.Style) string {
 	if width < 2 || height < 2 {
 		return ""
 	}
@@ -17,14 +23,14 @@ func frame(title, body string, width, height int) string {
 	inner := width - 2
 
 	rows := make([]string, 0, height)
-	rows = append(rows, styleBorder.Render("╭")+titleBorder(title, inner)+styleBorder.Render("╮"))
+	rows = append(rows, border.Render("╭")+titleBorder(title, inner, border)+border.Render("╮"))
 
-	side := styleBorder.Render("│")
+	side := border.Render("│")
 	for _, line := range bodyLines(body, inner, height-2) {
 		rows = append(rows, side+line+side)
 	}
 
-	rows = append(rows, styleBorder.Render("╰"+strings.Repeat("─", inner)+"╯"))
+	rows = append(rows, border.Render("╰"+strings.Repeat("─", inner)+"╯"))
 
 	return strings.Join(rows, "\n")
 }
@@ -42,9 +48,9 @@ func indent(block string, by int) string {
 }
 
 // titleBorder centers the title in a line of dashes.
-func titleBorder(title string, width int) string {
+func titleBorder(title string, width int, border lipgloss.Style) string {
 	if title == "" {
-		return styleBorder.Render(strings.Repeat("─", width))
+		return border.Render(strings.Repeat("─", width))
 	}
 
 	label := " " + title + " "
@@ -55,9 +61,9 @@ func titleBorder(title string, width int) string {
 	left := (width - ansi.StringWidth(label)) / 2
 	right := width - ansi.StringWidth(label) - left
 
-	return styleBorder.Render(strings.Repeat("─", left)) +
+	return border.Render(strings.Repeat("─", left)) +
 		styleTitle.Render(label) +
-		styleBorder.Render(strings.Repeat("─", right))
+		border.Render(strings.Repeat("─", right))
 }
 
 // bodyLines cuts the body to the box and pads what is short, so that every

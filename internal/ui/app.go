@@ -5,11 +5,13 @@ package ui
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 	"unicode"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
@@ -85,8 +87,9 @@ type Client interface {
 // Options are what the session starts with.
 type Options struct {
 	// Cluster is the name the settings give the cluster, empty for the one
-	// of the environment.
+	// of the environment. Color is what the settings paint it in.
 	Cluster string
+	Color   string
 
 	// Namespace the session looks at. Empty is every namespace.
 	Namespace string
@@ -721,7 +724,7 @@ func (m Model) render() string {
 
 	title, body := m.body(width - 2)
 
-	framed := frame(title, body, width, m.bodyHeight())
+	framed := paintedFrame(title, body, width, m.bodyHeight(), m.border())
 
 	// A question floats over the screen, next to the row it was asked about.
 	if m.overlay == overlayConfirm {
@@ -736,20 +739,36 @@ func (m Model) render() string {
 	return strings.Join(parts, "\n")
 }
 
+// clusterColour is what the settings paint the cluster in, nil for none.
+func (m Model) clusterColour() color.Color {
+	return clusterColours[m.opts.Color]
+}
+
+// border is the style of the box around the screen: the colour of the
+// cluster, seen out of the corner of an eye while reading the rows.
+func (m Model) border() lipgloss.Style {
+	if paint := m.clusterColour(); paint != nil {
+		return lipgloss.NewStyle().Foreground(paint)
+	}
+
+	return styleBorder
+}
+
 // headerData is what the top of the screen says about the session.
 func (m Model) headerData() header {
 	return header{
-		cluster:      m.opts.Cluster,
-		address:      m.client.Address(),
-		region:       m.regionInUse(),
-		datacenter:   m.datacenter,
-		version:      m.opts.Version,
-		nomadVersion: m.nomadVersion,
-		usage:        percentOf(m.usage.cluster.CPUPercent),
-		memory:       percentOf(m.usage.cluster.MemoryPercent),
-		namespaces:   m.namespaceColumnData(),
-		hints:        m.hints(),
-		readOnly:     m.opts.ReadOnly,
+		cluster:       m.opts.Cluster,
+		clusterColour: m.clusterColour(),
+		address:       m.client.Address(),
+		region:        m.regionInUse(),
+		datacenter:    m.datacenter,
+		version:       m.opts.Version,
+		nomadVersion:  m.nomadVersion,
+		usage:         percentOf(m.usage.cluster.CPUPercent),
+		memory:        percentOf(m.usage.cluster.MemoryPercent),
+		namespaces:    m.namespaceColumnData(),
+		hints:         m.hints(),
+		readOnly:      m.opts.ReadOnly,
 	}
 }
 

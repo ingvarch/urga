@@ -1,6 +1,10 @@
 package ui
 
-import "charm.land/lipgloss/v2"
+import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
+)
 
 // The palette. Green carries the cluster: borders, values, the header of a
 // table. Cyan marks what is named or in use. Lime labels a field.
@@ -94,3 +98,15 @@ var (
 			Foreground(colorMuted).
 			Background(colorPanel)
 )
+
+// clusterColours are the colours a cluster can be painted in, by the names
+// the settings use.
+var clusterColours = map[string]color.Color{
+	"red":    colorDead,
+	"orange": colorAttention,
+	"yellow": colorPending,
+	"green":  colorAccent,
+	"cyan":   colorTitle,
+	"blue":   lipgloss.Color("#61afef"),
+	"purple": colorCanary,
+}
