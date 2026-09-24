@@ -123,6 +123,13 @@ type fakeClient struct {
 	restartedTask string
 	signalledTask string
 	signal        string
+
+	// files are the directories of any allocation by path, and which one
+	// was listed last.
+	files          map[string][]nomad.File
+	filesNamespace string
+	filesAllocID   string
+	filesPath      string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -159,6 +166,12 @@ func (f *fakeClient) AllocationChecks(_ context.Context, namespace, allocID stri
 	f.checksCalls++
 
 	return f.checks, f.err
+}
+
+func (f *fakeClient) Files(_ context.Context, namespace, allocID, path string) ([]nomad.File, error) {
+	f.filesNamespace, f.filesAllocID, f.filesPath = namespace, allocID, path
+
+	return f.files[path], f.err
 }
 
 func (f *fakeClient) Allocation(_ context.Context, namespace, allocID string) (nomad.Alloc, error) {

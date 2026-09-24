@@ -38,6 +38,7 @@ const (
 	screenRegions
 	screenDatacenters
 	screenPlan
+	screenFiles
 )
 
 // screen is what is open: the resource and what it was opened for. The
@@ -62,6 +63,9 @@ type screen struct {
 	// task and source are whose output the log screen follows.
 	task   string
 	source string
+
+	// path is the directory of an allocation the files screen lists.
+	path string
 
 	// left is where the screen was when another one was opened on top of
 	// it, which is where escape comes back to.

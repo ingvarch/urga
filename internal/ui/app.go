@@ -60,6 +60,7 @@ type Client interface {
 	NodeAllocations(ctx context.Context, nodeID string) ([]nomad.Alloc, error)
 	Allocation(ctx context.Context, namespace, allocID string) (nomad.Alloc, error)
 	AllocationChecks(ctx context.Context, namespace, allocID string) ([]nomad.Check, error)
+	Files(ctx context.Context, namespace, allocID, path string) ([]nomad.File, error)
 	Node(ctx context.Context, nodeID string) (nomad.Node, error)
 	NodeDetail(ctx context.Context, nodeID string) (nomad.NodeDetail, error)
 	NodeMeta(ctx context.Context, nodeID string) ([]nomad.MetaEntry, error)
@@ -285,6 +286,9 @@ type clusterData struct {
 	// checks are what its checks last said.
 	alloc  nomad.Alloc
 	checks checkState
+
+	// dir is the directory of an allocation the files screen last listed.
+	dir dirState
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -515,6 +519,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case checksMsg:
 		return m.keepChecks(msg)
+
+	case filesMsg:
+		return m.applyList(screenFiles, func(m *Model) { m.dir = dirState(msg) })
 
 	case pollChecksMsg:
 		return m.pollChecks()

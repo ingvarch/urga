@@ -216,6 +216,7 @@ var taskBindings = []binding{
 	{press: "s", label: "Shell", do: shell, writes: true},
 	{press: "r", label: "Restart", do: restartTask, writes: true, offered: taskRuns},
 	{press: "x", label: "Signal", do: askSignal, writes: true, offered: taskRuns},
+	{press: "b", label: "Browse", do: browse},
 	{press: "c", label: "Client", do: openAllocNode, offered: allocHas(func(a nomad.Alloc) string { return a.NodeID })},
 	{press: "p", label: "Previous", do: openReplaced, offered: allocHas(func(a nomad.Alloc) string { return a.Previous })},
 	{press: "n", label: "Next", do: openReplacement, offered: allocHas(func(a nomad.Alloc) string { return a.Next })},

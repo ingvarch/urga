@@ -122,6 +122,7 @@ header shows both under the address.
 | `r` | Restart an allocation, or every marked one; on the tasks of an allocation, the task under the cursor; on a plan, plan it again |
 | `ctrl-k` | Stop an allocation, or every marked one |
 | `x` | Send a signal to the task under the cursor: `hup`, `SIGUSR1`, any name the client knows |
+| `b` | Browse the files of the task under the cursor, from its directory; `..` goes up to the allocation |
 | `ctrl-d` | Drain a client, or every marked one; on a client, what it can run |
 | `ctrl-h` | Host volumes of a client |
 | `a` | Attributes of a client |
@@ -150,6 +151,8 @@ its status, the client it runs on, the version of its job, how its deployment
 judged it, the ports it listens on, the allocations before and after it, and
 while it runs, its checks: the failing ones first, each with why it failed.
 Checks are read every few seconds, for services the cluster registers itself.
+The files of a task open on its directory, where `local/` holds what its
+templates rendered; `..` goes up to the directory its allocation shares.
 A task says what happened to it, from the moment the client received it.
 Logs open on the last of what a task wrote and follow it as it writes; a task
 that finished is read to its end. stdout and stderr are a key apart, and so is

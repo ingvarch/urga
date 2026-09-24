@@ -25,7 +25,7 @@ var (
 	}
 
 	clientReads = []string{
-		"Address", "Region", "Agent", "Regions", "Datacenters", "AllocationChecks",
+		"Address", "Region", "Agent", "Regions", "Datacenters", "AllocationChecks", "Files",
 		"Jobs", "JobSpec", "JobVersions", "JobVersionDiff", "TaskGroups", "PlanJob", "PlanRevert",
 		"DescribeJob", "DescribeAllocation", "DescribeDeployment", "DescribeService",
 		"Allocations", "NodeAllocations", "Allocation", "Logs",
