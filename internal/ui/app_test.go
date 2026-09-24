@@ -155,6 +155,10 @@ type fakeClient struct {
 	// allocations whose log was opened, in order.
 	logsByAlloc map[string]*nomad.LogStream
 	logsOpened  []string
+
+	// token is the token the session sends, as the cluster sees it.
+	token      nomad.Token
+	tokenCalls int
 }
 
 // wrote keeps a call that changes the cluster.
@@ -204,6 +208,12 @@ func (f *fakeClient) File(_ context.Context, namespace, allocID, path string) (*
 	f.fileCalls++
 
 	return f.file, f.fileErr
+}
+
+func (f *fakeClient) Token(context.Context) (nomad.Token, error) {
+	f.tokenCalls++
+
+	return f.token, nil
 }
 
 func (f *fakeClient) Allocation(_ context.Context, namespace, allocID string) (nomad.Alloc, error) {

@@ -51,6 +51,25 @@ of these keys, the status line says that it is off. The header shows
 The shell is off in read-only mode because a shell in a task can change
 anything the task can.
 
+## Token
+
+The right end of the status line shows the ACL token urga sends. The
+`Token:` label has the color of the labels in the header; the value after it
+has a color that shows how long the token has left:
+
+| Status line | Meaning |
+| --- | --- |
+| `Token: deploy-bot`, the name in green | The token does not expire, or expires in more than 30 days. |
+| `Token: deploy-bot`, the name in yellow | It expires in 14 to 30 days. |
+| `Token: deploy-bot`, the name in orange | It expires in 5 to 14 days. |
+| `Token: expires in 4 days` in red | It expires in less than 5 days. Under a day, in hours, then minutes. |
+| `Token: expired` in red | It has expired. |
+| `Token: not valid` in red | The cluster does not accept the token: it is wrong, deleted or expired. |
+| `Token: anonymous` in grey | No token is set. The cluster answers with what anonymous access allows. |
+
+On a cluster without ACLs there is no token, and the status line shows
+nothing about it.
+
 ## Editor
 
 urga opens jobs, namespaces and client metadata in the editor set in

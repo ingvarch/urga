@@ -100,7 +100,7 @@ func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 	m.opts.NamespaceGiven = false
 
 	m = m.forgetRegion()
-	m.regionState, m.nomadVersion = regionState{}, ""
+	m.regionState, m.nomadVersion, m.token = regionState{}, "", nil
 
 	m.namespace, m.namespaceOrder = NamespaceOrAll(conn.Namespace), nil
 	m.screen, m.history = screen{kind: screenJobs, namespace: m.namespace}, nil
@@ -121,6 +121,7 @@ func (m Model) askAboutTheCluster() tea.Cmd {
 	return tea.Batch(
 		m.onConnection(tea.Batch(
 			fetchAgent(client),
+			fetchToken(client),
 			fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
 			fetchRegions(client),
 			fetchDatacenters(client),
