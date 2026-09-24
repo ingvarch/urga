@@ -89,26 +89,9 @@ func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (JobSourc
 		return JobSource{}, err
 	}
 
-	version := 0
-	if job.Version != nil {
-		version = int(*job.Version)
-	}
-
-	submission, _, err := c.api.Jobs().Submission(jobID, version, c.query(ctx, namespace))
-
-	// The job was read a moment ago, so a submission that is not found is a
-	// job that was registered without its file.
-	var answer api.UnexpectedResponseError
-	if errors.As(err, &answer) && answer.StatusCode() == http.StatusNotFound {
-		return JobSource{}, ErrNoSource
-	}
-
+	submission, err := c.submissionOf(ctx, namespace, jobID, versionOf(job))
 	if err != nil {
 		return JobSource{}, err
-	}
-
-	if submission == nil || submission.Source == "" {
-		return JobSource{}, ErrNoSource
 	}
 
 	return JobSource{
@@ -116,6 +99,37 @@ func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (JobSourc
 		Format:    submission.Format,
 		Variables: JobVariables{Flags: submission.VariableFlags, File: submission.Variables},
 	}, nil
+}
+
+// versionOf is the version of the job that runs.
+func versionOf(job *api.Job) int {
+	if job.Version == nil {
+		return 0
+	}
+
+	return int(*job.Version)
+}
+
+// submissionOf is the file a version of the job was submitted with.
+func (c *Client) submissionOf(ctx context.Context, namespace, jobID string, version int) (*api.JobSubmission, error) {
+	submission, _, err := c.api.Jobs().Submission(jobID, version, c.query(ctx, namespace))
+
+	// The job was read a moment ago, so a submission that is not found is a
+	// job that was registered without its file.
+	var answer api.UnexpectedResponseError
+	if errors.As(err, &answer) && answer.StatusCode() == http.StatusNotFound {
+		return nil, ErrNoSource
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	if submission == nil || submission.Source == "" {
+		return nil, ErrNoSource
+	}
+
+	return submission, nil
 }
 
 func asJSON(v any) (string, error) {

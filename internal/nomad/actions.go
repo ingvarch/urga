@@ -2,7 +2,9 @@ package nomad
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -16,7 +18,9 @@ func (c *Client) StopJob(ctx context.Context, namespace, jobID string) error {
 	return err
 }
 
-// StartJob submits a stopped job again.
+// StartJob submits a stopped job again. The new version keeps the file the
+// job was submitted with, and gets back the scaling policies that stopping
+// turned off.
 func (c *Client) StartJob(ctx context.Context, namespace, jobID string) error {
 	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
 	if err != nil {
@@ -25,9 +29,57 @@ func (c *Client) StartJob(ctx context.Context, namespace, jobID string) error {
 
 	job.Stop = boolPtr(false)
 
-	_, _, err = c.api.Jobs().Register(job, c.write(ctx, namespace))
+	// A job registered through the API has no file, and starts without one.
+	kept, err := c.submissionOf(ctx, namespace, jobID, versionOf(job))
+	if err != nil && !errors.Is(err, ErrNoSource) {
+		return err
+	}
+
+	if kept != nil {
+		if err := c.restoreScaling(ctx, namespace, job, kept); err != nil {
+			return err
+		}
+	}
+
+	_, _, err = c.api.Jobs().RegisterOpts(job, &api.RegisterOptions{Submission: kept}, c.write(ctx, namespace))
 
 	return err
+}
+
+// restoreScaling turns the scaling policies of a stopped job back to what its
+// file says they are. Stopping turns every one of them off, and the stopped
+// job does not remember which were on.
+func (c *Client) restoreScaling(ctx context.Context, namespace string, job *api.Job, kept *api.JobSubmission) error {
+	// Without a policy there is nothing to restore, and no reason to parse a
+	// file the cluster may no longer read.
+	scaled := slices.ContainsFunc(job.TaskGroups, func(group *api.TaskGroup) bool { return group.Scaling != nil })
+	if !scaled {
+		return nil
+	}
+
+	submitted, _, err := c.parseJob(ctx, namespace, kept.Source, JobVariables{Flags: kept.VariableFlags, File: kept.Variables})
+	if err != nil {
+		return fmt.Errorf("the scaling policies could not be turned back on: %w", err)
+	}
+
+	enabled := map[string]*bool{}
+	for _, group := range submitted.TaskGroups {
+		if group.Name != nil && group.Scaling != nil {
+			enabled[*group.Name] = group.Scaling.Enabled
+		}
+	}
+
+	for _, group := range job.TaskGroups {
+		if group.Name == nil || group.Scaling == nil {
+			continue
+		}
+
+		if on, ok := enabled[*group.Name]; ok {
+			group.Scaling.Enabled = on
+		}
+	}
+
+	return nil
 }
 
 // RestartAllocation restarts every task of an allocation.
