@@ -1,0 +1,49 @@
+name: Bug report
+description: Something in urga does not work the way it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. urga --namespace production
+        2. :jobs
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: urga-version
+    attributes:
+      label: urga version
+      description: The output of `urga --version`.
+      placeholder: urga v0.1.0 (df1b55f), built 2026-09-24T10:39:34Z
+    validations:
+      required: true
+  - type: input
+    id: nomad-version
+    attributes:
+      label: Nomad version
+      description: The one urga shows as Nomad Rev in the header, or the output of `nomad version`.
+      placeholder: 2.0.5
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: OS and terminal
+      placeholder: macOS 26, Ghostty
+    validations:
+      required: true
+  - type: textarea
+    id: screen
+    attributes:
+      label: Screen or logs
+      description: A screenshot or the text on the screen. Remove tokens and addresses you do not want public.

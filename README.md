@@ -164,22 +164,11 @@ and one key leaves only what needs attention.
 The session comes back where it was left: the namespace, the resource and which
 namespace each number key stands for.
 
-## Develop
+## Contributing
 
-```sh
-make check   # fmt, vet, lint, test, build
-make dist    # the whole release, published nowhere
-```
-
-`make dist` needs goreleaser, the version named in `.tool-versions`.
-
-Every push runs the checks on Linux, the tests on Linux, macOS and Windows,
-and the release without publishing it: every platform, the deb and rpm
-packages and the Homebrew cask. A tag starting with `v` publishes the release
-and updates the cask in [ingvarch/homebrew-tap](https://github.com/ingvarch/homebrew-tap).
-
-Tests come before the code they cover. The architecture rules live in
-`CLAUDE.md` and are not negotiated per change.
+How to build urga, run the checks and send a change is in
+[CONTRIBUTING.md](CONTRIBUTING.md). Security problems are reported privately,
+see [SECURITY.md](SECURITY.md).
 
 ## License
 
