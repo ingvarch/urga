@@ -250,6 +250,17 @@ func init() {
 			rows: func(m Model) []tableRow { return taskRows(m.tasks()) },
 		},
 
+		screenFiles: {
+			titles: fileTitles,
+			keys:   fileBindings,
+			fetch:  fetchFiles,
+
+			title: func(m Model, count int) string {
+				return sprintf("Files (Allocation: %s, %s) [%d]", shortID(m.screen.allocID), m.screen.path, count)
+			},
+			rows: func(m Model) []tableRow { return fileRows(m.entries()) },
+		},
+
 		screenTaskGroups: {
 			titles: taskGroupTitles,
 			keys:   taskGroupBindings,
