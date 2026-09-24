@@ -202,3 +202,61 @@ func TestLogs_OffersToStopOrToResumeFollowing(t *testing.T) {
 	r.Contains(header, "Resume")
 	r.NotContains(header, "Stop following")
 }
+
+// finishedLog is the output of a task that has stopped: what it wrote, and
+// the end of it.
+func finishedLog(lines ...string) *nomad.LogStream {
+	out := make(chan string, len(lines))
+	for _, line := range lines {
+		out <- line
+	}
+
+	close(out)
+
+	return &nomad.LogStream{Lines: out, Finished: true}
+}
+
+func TestLogs_AFinishedTaskSaysSo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: finishedLog("last words\n")}
+	m := openTasks(t, client)
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	m = drain(m, m.logs.waitForLog())
+	m = drain(m, m.logs.waitForLog())
+
+	// What a stopped task wrote is all there is: nothing to follow, and
+	// the title says why nothing more arrives.
+	out := plain(m.render())
+	r.Contains(out, "last words")
+	r.Contains(out, "Logs (Task: server) [stdout, task finished]")
+	r.NotContains(out, "Stop following")
+	r.NotContains(out, "Resume")
+}
+
+func TestLogs_TheNextLogStartsAfresh(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: finishedLog()}
+	m := openTasks(t, client)
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	m, _ = m.update(escape())
+	client.logs = &nomad.LogStream{Lines: make(chan string)}
+
+	m, cmd = m.update(ctrlKey('e'))
+
+	// What was said of one log is not said of the next, not even while its
+	// stream is on its way.
+	r.NotContains(plain(m.render()), "task finished")
+
+	m = drain(m, cmd)
+
+	out := plain(m.render())
+	r.Contains(out, "Logs (Task: server) [stderr]")
+	r.NotContains(out, "task finished")
+}

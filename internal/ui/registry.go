@@ -555,7 +555,7 @@ func init() {
 
 		screenLogs: {
 			keys:  logBindings,
-			title: func(m Model, _ int) string { return logsTitle(m.screen) },
+			title: func(m Model, _ int) string { return logsTitle(m.screen, m.logs.finished) },
 		},
 	}
 

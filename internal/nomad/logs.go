@@ -18,11 +18,18 @@ const (
 // screens of it, without flooding the screen with a chatty task.
 const logTail = 64 << 10
 
+// taskStateDead is how the cluster says a task has stopped for good.
+const taskStateDead = "dead"
+
 // LogStream is a task writing. Lines arrive on Lines until the task stops or
 // Close is called; Err says why it ended, if it did not end on its own.
 type LogStream struct {
 	Lines <-chan string
 	Err   <-chan error
+
+	// Finished says the task is dead: what it wrote is all it will write,
+	// and the stream ends with it.
+	Finished bool
 
 	// OnClose runs when the stream is closed, which is how a test sees that
 	// the request behind it was let go of.
@@ -58,7 +65,11 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 
 	cancel := make(chan struct{})
 
-	frames, errs := c.api.AllocFS().Logs(alloc, true, task, source, "end", logTail, cancel, c.query(context.Background(), namespace))
+	// A dead task is read to the end of what it wrote. Followed, its stream
+	// would stay open with nothing more to say.
+	finished := taskDead(alloc, task)
+
+	frames, errs := c.api.AllocFS().Logs(alloc, !finished, task, source, "end", logTail, cancel, c.query(context.Background(), namespace))
 
 	lines := make(chan string)
 
@@ -101,7 +112,14 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 		}
 	}()
 
-	return &LogStream{Lines: lines, Err: errs, cancel: cancel}, nil
+	return &LogStream{Lines: lines, Err: errs, Finished: finished, cancel: cancel}, nil
+}
+
+// taskDead says the task of the allocation has stopped for good.
+func taskDead(alloc *api.Allocation, task string) bool {
+	state, ok := alloc.TaskStates[task]
+
+	return ok && state != nil && state.State == taskStateDead
 }
 
 // startsCut says the log read back does not start where the task started
