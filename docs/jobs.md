@@ -91,7 +91,7 @@ there are any.
 ## Deployments
 
 `:deployments` lists the deployments. `d` describes one, `p` promotes its
-canaries and `f` fails it.
+canaries, `f` fails it and `ctrl-s` pauses or resumes it.
 
 `enter` opens a deployment. At the top, urga shows its status, job, job
 version and status description, and a table with one row per task group:
@@ -113,6 +113,20 @@ be promoted is yellow.
 Below, urga lists the allocations of the deployment, with whether each one
 is a canary and how the deployment judged its health: `healthy`, `unhealthy`
 or `checking`. The keys of the allocation list work here too.
+
+On the deployment screen:
+
+- `p` promotes the canaries of the task group of the allocation under the
+  cursor. The other groups keep their canaries. This key is shown when that
+  group has canaries waiting to be promoted.
+- `ctrl-p` promotes the canaries of every group.
+- `f` fails the deployment. If Auto Revert is on, the job goes back to its
+  last stable version.
+- `ctrl-s` pauses a running deployment, or resumes a paused one.
+
+Each of these asks you to confirm first. They are shown only while the
+deployment is active: a deployment that succeeded, failed or was cancelled has
+nothing left to promote, pause or fail.
 
 System jobs have deployments since Nomad 1.11. They have no canaries, so
 their Canaries and Promoted columns show `-`.

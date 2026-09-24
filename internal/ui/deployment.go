@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -38,6 +39,106 @@ func openDeployment(m Model) (Model, tea.Cmd) {
 		jobID:        deployment.JobID,
 		deploymentID: deployment.ID,
 	})
+}
+
+// deploymentInView is the deployment a key acts on: the one under the
+// cursor on the list, or the one a deployment screen read.
+func (m Model) deploymentInView() (nomad.Deployment, bool) {
+	if m.screen.isDeployment() {
+		return m.deployment.Deployment, m.deployment.ID == m.screen.deploymentID
+	}
+
+	return selectedOf(m, screenDeployments, m.deployments)
+}
+
+// waitingGroup is the group of the allocation under the cursor, when its
+// canaries wait to be promoted.
+func (m Model) waitingGroup() (string, bool) {
+	alloc, ok := selectedOf(m, screenAllocations, m.visibleAllocs())
+	if !ok || !deploymentActive(m) {
+		return "", false
+	}
+
+	for _, g := range m.deployment.Groups {
+		if g.Name == alloc.TaskGroup {
+			return g.Name, g.WaitsForPromotion()
+		}
+	}
+
+	return "", false
+}
+
+// deploymentActive says the deployment in view is not over.
+func deploymentActive(m Model) bool {
+	d, ok := m.deploymentInView()
+
+	return ok && d.Active()
+}
+
+// deploymentIs offers a key when the deployment in view is in that state.
+func deploymentIs(status string) func(m Model) bool {
+	return func(m Model) bool {
+		d, ok := m.deploymentInView()
+
+		return ok && d.Status == status
+	}
+}
+
+func groupWaitsHere(m Model) bool {
+	_, ok := m.waitingGroup()
+
+	return ok
+}
+
+// someGroupWaits says a group of the deployment on the screen has canaries
+// to promote.
+func someGroupWaits(m Model) bool {
+	if !m.screen.isDeployment() || !deploymentActive(m) {
+		return false
+	}
+
+	return slices.ContainsFunc(m.deployment.Groups, nomad.DeploymentGroup.WaitsForPromotion)
+}
+
+// promoteGroup takes the canaries of the group of the allocation under the
+// cursor into service. The other groups keep theirs.
+func promoteGroup(m Model) (Model, tea.Cmd) {
+	group, ok := m.waitingGroup()
+	if !ok {
+		return m, nil
+	}
+
+	client, d := m.client, m.deployment
+
+	return m.ask(
+		fmt.Sprintf("Really promote the canaries of group %s of %s?", group, d.JobID),
+		act(fmt.Sprintf("Canaries of %s promoted.", group), func(ctx context.Context) error {
+			return client.PromoteGroups(ctx, d.Namespace, d.ID, []string{group})
+		}),
+	)
+}
+
+// pauseDeployment stops the deployment in view where it is, or lets a
+// paused one go on.
+func pauseDeployment(m Model) (Model, tea.Cmd) {
+	d, ok := m.deploymentInView()
+	if !ok {
+		return m, nil
+	}
+
+	pause, verb, done := true, "pause", "paused"
+	if d.Status == "paused" {
+		pause, verb, done = false, "resume", "resumed"
+	}
+
+	client := m.client
+
+	return m.ask(
+		fmt.Sprintf("Really %s the deployment of %s?", verb, d.JobID),
+		act(fmt.Sprintf("Deployment of %s %s.", d.JobID, done), func(ctx context.Context) error {
+			return client.PauseDeployment(ctx, d.Namespace, d.ID, pause)
+		}),
+	)
 }
 
 // fetchDeployment reads the deployment of the screen and the allocations it

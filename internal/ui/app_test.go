@@ -145,6 +145,11 @@ type fakeClient struct {
 	deploymentAllocs    []nomad.Alloc
 	deploymentNamespace string
 	deploymentID        string
+
+	// promotedGroups are the groups promoted on their own, paused whether
+	// each pause asked to pause or to go on.
+	promotedGroups []string
+	paused         []bool
 }
 
 // wrote keeps a call that changes the cluster.
@@ -443,6 +448,22 @@ func (f *fakeClient) PromoteDeployment(_ context.Context, namespace, deploymentI
 	f.wrote("PromoteDeployment")
 	f.askedNamespace, f.askedID = namespace, deploymentID
 	f.promoted++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) PromoteGroups(_ context.Context, namespace, deploymentID string, groups []string) error {
+	f.wrote("PromoteGroups")
+	f.askedNamespace, f.askedID = namespace, deploymentID
+	f.promotedGroups = append(f.promotedGroups, groups...)
+
+	return f.actionErr
+}
+
+func (f *fakeClient) PauseDeployment(_ context.Context, namespace, deploymentID string, pause bool) error {
+	f.wrote("PauseDeployment")
+	f.askedNamespace, f.askedID = namespace, deploymentID
+	f.paused = append(f.paused, pause)
 
 	return f.actionErr
 }

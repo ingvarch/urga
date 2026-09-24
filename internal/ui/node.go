@@ -106,10 +106,10 @@ func bothWays[T any](items []T, yes func(T) bool, whenYes, whenNo, whenBoth stri
 	return whenNo
 }
 
-// promoteDeployment takes the canaries of the deployment under the cursor
-// into service.
+// promoteDeployment takes the canaries of every group of the deployment in
+// view into service.
 func promoteDeployment(m Model) (Model, tea.Cmd) {
-	deployment, ok := selectedOf(m, screenDeployments, m.deployments)
+	deployment, ok := m.deploymentInView()
 	if !ok {
 		return m, nil
 	}
@@ -117,7 +117,7 @@ func promoteDeployment(m Model) (Model, tea.Cmd) {
 	client := m.client
 
 	return m.ask(
-		fmt.Sprintf("Really promote the canaries of %s?", deployment.JobID),
+		fmt.Sprintf("Really promote the canaries of every group of %s?", deployment.JobID),
 		act(fmt.Sprintf("Deployment of %s promoted.", deployment.JobID), func(ctx context.Context) error {
 			return client.PromoteDeployment(ctx, deployment.Namespace, deployment.ID)
 		}),
@@ -126,7 +126,7 @@ func promoteDeployment(m Model) (Model, tea.Cmd) {
 
 // failDeployment stops a deployment where it is.
 func failDeployment(m Model) (Model, tea.Cmd) {
-	deployment, ok := selectedOf(m, screenDeployments, m.deployments)
+	deployment, ok := m.deploymentInView()
 	if !ok {
 		return m, nil
 	}
@@ -155,5 +155,18 @@ var (
 		{press: "d", label: "Describe", do: describeDeployment},
 		{press: "p", label: "Promote", do: promoteDeployment, writes: true},
 		{press: "f", label: "Fail", do: failDeployment, writes: true},
+		{press: "ctrl+s", label: "Pause", do: pauseDeployment, writes: true, offered: deploymentIs("running")},
+		{press: "ctrl+s", label: "Resume", do: pauseDeployment, writes: true, offered: deploymentIs("paused")},
 	}
+
+	// deploymentScreenBindings are the keys of a deployment screen: what
+	// the deployment can do, then what its allocations can, the way a
+	// client screen puts the machine first.
+	deploymentScreenBindings = append([]binding{
+		{press: "p", label: "Promote Group", do: promoteGroup, writes: true, offered: groupWaitsHere},
+		{press: "ctrl+p", label: "Promote All", do: promoteDeployment, writes: true, offered: someGroupWaits},
+		{press: "f", label: "Fail", do: failDeployment, writes: true, offered: deploymentActive},
+		{press: "ctrl+s", label: "Pause", do: pauseDeployment, writes: true, offered: deploymentIs("running")},
+		{press: "ctrl+s", label: "Resume", do: pauseDeployment, writes: true, offered: deploymentIs("paused")},
+	}, allocBindings...)
 )
