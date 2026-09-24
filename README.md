@@ -104,6 +104,7 @@ token_command   = ["op", "read", "op://ops/nomad/token"]
 ca_cert         = "~/.nomad/prod-ca.pem"
 tls_server_name = "server.eu.nomad"
 read_only       = true
+color           = "red"
 ```
 
 `urga --cluster prod` starts on `prod`; without the flag urga starts on the
@@ -120,7 +121,9 @@ one cluster is not sent to another. Its token comes from one of:
 | `token` | In the file itself, which is best kept out of it |
 
 The certificates are `ca_cert`, `client_cert`, `client_key` and
-`tls_server_name`. `read_only = true` is `--readonly` for that cluster. A key
+`tls_server_name`. `read_only = true` is `--readonly` for that cluster.
+`color` paints the frame of the screen and the name in the header, so prod
+does not pass for dev: red, orange, yellow, green, cyan, blue or purple. A key
 urga does not know stops it with the name of the key, so a typo does not go
 unnoticed.
 

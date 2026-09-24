@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image/color"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -37,8 +38,12 @@ type namespaceKey struct {
 // a number key switches to, and what this screen can do. Keys that work
 // everywhere are not here, they are in help.
 type header struct {
-	cluster      string
-	address      string
+	cluster string
+	address string
+
+	// clusterColour paints the name of the cluster, nil for none.
+	clusterColour color.Color
+
 	region       string
 	datacenter   string
 	version      string
@@ -125,24 +130,32 @@ type infoRow struct {
 	// as ever: the column grows by the mark instead of the value
 	// giving way to it.
 	mark string
+
+	// paint is the colour of the value, nil for the colour of values.
+	paint color.Color
 }
 
 // infoColumn is the cluster the session talks to.
 func infoColumn(h header, width int) string {
 	rows := []infoRow{
 		where(h),
-		{"Region:", orUnknown(h.region), ""},
-		{"DC:", orEvery(h.datacenter), ""},
-		{"Urga Rev:", h.version, ""},
-		{"Nomad Rev:", orUnknown(h.nomadVersion), ""},
-		{"CPU:", orUnknown(h.usage), ""},
-		{"MEM:", orUnknown(h.memory), ""},
+		{label: "Region:", value: orUnknown(h.region)},
+		{label: "DC:", value: orEvery(h.datacenter)},
+		{label: "Urga Rev:", value: h.version},
+		{label: "Nomad Rev:", value: orUnknown(h.nomadVersion)},
+		{label: "CPU:", value: orUnknown(h.usage)},
+		{label: "MEM:", value: orUnknown(h.memory)},
 	}
 
 	out := make([]string, 0, len(rows))
 	for _, row := range rows {
 		label := styleLabel.Render(pad(row.label, labelWidth))
-		value := styleValue.Render(truncate(row.value, max(width-labelWidth, 1))) + styleWarn.Render(row.mark)
+		style := styleValue
+		if row.paint != nil {
+			style = lipgloss.NewStyle().Foreground(row.paint)
+		}
+
+		value := style.Render(truncate(row.value, max(width-labelWidth, 1))) + styleWarn.Render(row.mark)
 
 		out = append(out, label+value)
 	}
@@ -155,10 +168,10 @@ func infoColumn(h header, width int) string {
 // from dev at a glance.
 func where(h header) infoRow {
 	if h.cluster != "" {
-		return infoRow{"Cluster:", h.cluster + "  " + h.address, readOnlyMark(h.readOnly)}
+		return infoRow{label: "Cluster:", value: h.cluster + "  " + h.address, mark: readOnlyMark(h.readOnly), paint: h.clusterColour}
 	}
 
-	return infoRow{"Address:", h.address, readOnlyMark(h.readOnly)}
+	return infoRow{label: "Address:", value: h.address, mark: readOnlyMark(h.readOnly)}
 }
 
 // readOnlyMark says, next to the address, that the session changes nothing
