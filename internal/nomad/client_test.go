@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -147,4 +149,72 @@ func TestAgent_WithoutABuildTag(t *testing.T) {
 	r.NoError(err)
 	r.Empty(agent.Version)
 	r.Empty(agent.Region)
+}
+
+// headersOf is what a client sends with a request, and what it asks.
+func headersOf(t *testing.T, cfg nomad.Config) (http.Header, url.Values) {
+	t.Helper()
+
+	var header http.Header
+
+	var query url.Values
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		header, query = r.Header.Clone(), r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`[]`))
+	}))
+	t.Cleanup(server.Close)
+
+	cfg.Address = server.URL
+
+	client, err := nomad.New(cfg)
+	require.NoError(t, err)
+
+	_, err = client.Jobs(context.Background(), "default")
+	require.NoError(t, err)
+
+	return header, query
+}
+
+func TestNew_ANamedClusterTakesNothingFromTheEnvironment(t *testing.T) {
+	r := require.New(t)
+
+	// Set for another cluster, or for none.
+	t.Setenv("NOMAD_TOKEN", "the-token-of-dev")
+	t.Setenv("NOMAD_REGION", "dev-region")
+	t.Setenv("NOMAD_HTTP_AUTH", "dev:secret")
+
+	header, query := headersOf(t, nomad.Config{Named: true})
+
+	r.Empty(header.Get("X-Nomad-Token"))
+	r.Empty(header.Get("Authorization"))
+	r.Empty(query.Get("region"))
+
+	// Its own token, and its own region.
+	header, query = headersOf(t, nomad.Config{Named: true, Token: "the-token-of-prod", Region: "eu"})
+
+	r.Equal("the-token-of-prod", header.Get("X-Nomad-Token"))
+	r.Equal("eu", query.Get("region"))
+}
+
+func TestNew_WithoutANameTheEnvironmentIsTheCluster(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("NOMAD_TOKEN", "the-token-of-dev")
+
+	header, _ := headersOf(t, nomad.Config{})
+
+	r.Equal("the-token-of-dev", header.Get("X-Nomad-Token"))
+}
+
+func TestNew_TheCertificatesOfANamedCluster(t *testing.T) {
+	// A CA file that is not there is a cluster that cannot be trusted,
+	// not one to talk to without it.
+	_, err := nomad.New(nomad.Config{
+		Address: "https://nomad.prod:4646",
+		Named:   true,
+		TLS:     nomad.TLS{CACert: filepath.Join(t.TempDir(), "missing-ca.pem")},
+	})
+	require.ErrorContains(t, err, "missing-ca.pem")
 }

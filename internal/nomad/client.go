@@ -18,6 +18,21 @@ const AllNamespaces = "*"
 type Config struct {
 	Address string
 	Region  string
+
+	// Named says the cluster was named in the settings. It takes nothing
+	// from the environment: what is set there may be for another cluster,
+	// and its token would be sent to this one.
+	Named bool
+	Token string
+	TLS   TLS
+}
+
+// TLS are the files that prove a cluster is the one it says, and urga to it.
+type TLS struct {
+	CACert     string
+	ClientCert string
+	ClientKey  string
+	ServerName string
 }
 
 // Client is the cluster, asked in one region. An empty region is the one
@@ -30,6 +45,19 @@ type Client struct {
 // New builds a client for the cluster the config points at.
 func New(cfg Config) (*Client, error) {
 	c := api.DefaultConfig()
+
+	// What the environment set is replaced whole, the parts the settings
+	// leave empty included.
+	if cfg.Named {
+		c.Namespace, c.HttpAuth, c.SecretID = "", nil, cfg.Token
+		c.Region = ""
+		c.TLSConfig = &api.TLSConfig{
+			CACert:        cfg.TLS.CACert,
+			ClientCert:    cfg.TLS.ClientCert,
+			ClientKey:     cfg.TLS.ClientKey,
+			TLSServerName: cfg.TLS.ServerName,
+		}
+	}
 
 	if cfg.Address != "" {
 		c.Address = cfg.Address

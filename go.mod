@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	charm.land/bubbletea/v2 v2.0.8
 	charm.land/lipgloss/v2 v2.0.6
+	github.com/BurntSushi/toml v1.6.0
 	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/hashicorp/nomad/api v0.0.0-20260922135024-0afeddadd9b4
 	github.com/stretchr/testify v1.12.1
