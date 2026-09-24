@@ -276,6 +276,14 @@ type Model struct {
 	// token is the token the session sends, as the cluster sees it; nil
 	// until it has said.
 	token *nomad.Token
+
+	// answered says the screen that is open has had its answer: an empty
+	// list before it is not an empty list yet.
+	answered bool
+
+	// refused is a request the cluster refused before it said whose token
+	// the session sends.
+	refused error
 }
 
 // clusterData is what the cluster last said in the region the session asks
@@ -468,6 +476,16 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case errMsg:
 		// The rows that are on the screen stay there. An empty table reads as
 		// an empty cluster.
+		if why, ok := m.refusedBecause(msg.err); ok {
+			return m.flashed(why, flashErr).schedulePoll()
+		}
+
+		// Refused before the cluster said whose token it is: said again
+		// when it has.
+		if nomad.Forbidden(msg.err) {
+			m.refused = msg.err
+		}
+
 		return m.fail(msg.err).schedulePoll()
 
 	case describeMsg:
@@ -633,6 +651,7 @@ func (m Model) applyWhen(ours bool, store func(*Model)) (Model, tea.Cmd) {
 	}
 
 	store(&m)
+	m.answered = true
 	m = m.forget()
 	m.layout()
 
@@ -861,10 +880,10 @@ func (m Model) body(width int) (title, content string) {
 	}
 
 	if panel := m.panelHeight(); panel > 0 {
-		return m.title(), strings.Join(append(m.panel(width), m.table.view()), "\n")
+		return m.title(), strings.Join(append(m.panel(width), m.withHint(m.table.view(), width)), "\n")
 	}
 
-	return m.title(), m.table.view()
+	return m.title(), m.withHint(m.table.view(), width)
 }
 
 func (m Model) status() string {

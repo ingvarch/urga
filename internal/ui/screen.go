@@ -412,6 +412,7 @@ func (m Model) arrive() (Model, tea.Cmd) {
 func (m Model) enter() (Model, tea.Cmd) {
 	// Whatever is still out was asked for what was on the screen before.
 	m.asked++
+	m.answered = false
 
 	// So were the readings, and their chain ends with that ask.
 	m.usage = m.usage.forgetRows()

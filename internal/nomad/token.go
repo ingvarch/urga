@@ -38,9 +38,7 @@ const (
 // is an answer, not a failure to ask.
 func (c *Client) Token(ctx context.Context) (Token, error) {
 	self, _, err := c.api.ACLTokens().Self(c.query(ctx, ""))
-
-	var answer api.UnexpectedResponseError
-	if errors.As(err, &answer) && answer.StatusCode() == http.StatusForbidden {
+	if Forbidden(err) {
 		return Token{Refused: true}, nil
 	}
 
@@ -60,4 +58,12 @@ func (c *Client) Token(ctx context.Context) (Token, error) {
 	}
 
 	return token, nil
+}
+
+// Forbidden says the cluster answered a request with no: the token may not
+// do what was asked, or is not a token the cluster knows.
+func Forbidden(err error) bool {
+	var answer api.UnexpectedResponseError
+
+	return errors.As(err, &answer) && answer.StatusCode() == http.StatusForbidden
 }

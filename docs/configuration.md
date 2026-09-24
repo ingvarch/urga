@@ -70,6 +70,19 @@ has a color that shows how long the token has left:
 On a cluster without ACLs there is no token, and the status line shows
 nothing about it.
 
+A token that may read only some namespaces gets an empty list for the
+others, without an error. So when a list is empty and the token is not a
+management token, urga adds a grey line under the column titles:
+
+- `Nothing here that deploy-bot can read: its policies may not allow it.`
+- `Nothing here: no token is set, and anonymous access may not allow it.`
+
+When the cluster refuses a request with `403 Permission denied`, the status
+line says which token it refused: `Permission denied: deploy-bot may not do
+this`, `Permission denied: no token is set` or `Permission denied: the token
+is not valid`. For a management token, urga shows the error of the cluster
+as it is.
+
 ## Editor
 
 urga opens jobs, namespaces and client metadata in the editor set in
