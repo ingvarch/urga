@@ -81,6 +81,49 @@ A resource is edited in `$VISUAL`, or in `$EDITOR` when that is unset.
 away: start and stop, revert, edit, scale, restart, drain, eligibility,
 promote, fail and the shell. The header says `read-only` next to the address.
 
+### Named clusters
+
+Nothing above needs a file. A file is only for naming the clusters you work
+with, so that urga knows each one's address, token and how careful to be with
+it. Without the file urga runs from the environment, as it always did.
+
+The file is `~/.config/urga/clusters.toml` (`$XDG_CONFIG_HOME/urga` when that
+is set):
+
+```toml
+default = "dev"
+
+[clusters.dev]
+address   = "http://127.0.0.1:4646"
+namespace = "default"
+
+[clusters.prod]
+address         = "https://nomad.prod.example.com:4646"
+region          = "eu"
+token_command   = ["op", "read", "op://ops/nomad/token"]
+ca_cert         = "~/.nomad/prod-ca.pem"
+tls_server_name = "server.eu.nomad"
+read_only       = true
+```
+
+`urga --cluster prod` starts on `prod`; without the flag urga starts on the
+`default` of the file, and without that from the environment. The header then
+says `Cluster:` and the name. Flags still win over the file.
+
+A named cluster takes nothing from the environment: a `NOMAD_TOKEN` set for
+one cluster is not sent to another. Its token comes from one of:
+
+| Key | Where the token is |
+| --- | --- |
+| `token_env` | An environment variable of that name |
+| `token_command` | What the command prints, such as a password manager |
+| `token` | In the file itself, which is best kept out of it |
+
+The certificates are `ca_cert`, `client_cert`, `client_key` and
+`tls_server_name`. `read_only = true` is `--readonly` for that cluster. A key
+urga does not know stops it with the name of the key, so a typo does not go
+unnoticed.
+
 ## Keys
 
 Type `:` for the command line: `jobs`, `deployments`, `namespaces`, `services`,

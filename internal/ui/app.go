@@ -84,6 +84,10 @@ type Client interface {
 
 // Options are what the session starts with.
 type Options struct {
+	// Cluster is the name the settings give the cluster, empty for the one
+	// of the environment.
+	Cluster string
+
 	// Namespace the session looks at. Empty is every namespace.
 	Namespace string
 
@@ -735,6 +739,7 @@ func (m Model) render() string {
 // headerData is what the top of the screen says about the session.
 func (m Model) headerData() header {
 	return header{
+		cluster:      m.opts.Cluster,
 		address:      m.client.Address(),
 		region:       m.regionInUse(),
 		datacenter:   m.datacenter,

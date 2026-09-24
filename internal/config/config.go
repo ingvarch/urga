@@ -95,6 +95,17 @@ func Ordered(known, seen []string) []string {
 }
 
 func configPath() (string, error) {
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(dir, "config.json"), nil
+}
+
+// Dir is where urga keeps what it remembers, and where the user writes its
+// settings.
+func Dir() (string, error) {
 	home := os.Getenv("XDG_CONFIG_HOME")
 	if home == "" {
 		dir, err := os.UserConfigDir()
@@ -105,5 +116,5 @@ func configPath() (string, error) {
 		home = dir
 	}
 
-	return filepath.Join(home, "urga", "config.json"), nil
+	return filepath.Join(home, "urga"), nil
 }

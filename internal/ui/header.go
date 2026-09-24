@@ -37,6 +37,7 @@ type namespaceKey struct {
 // a number key switches to, and what this screen can do. Keys that work
 // everywhere are not here, they are in help.
 type header struct {
+	cluster      string
 	address      string
 	region       string
 	datacenter   string
@@ -115,18 +116,21 @@ func infoWidth(width int) int {
 	return min(width/2, 46)
 }
 
+// infoRow is a row of the info column.
+type infoRow struct {
+	label string
+	value string
+
+	// mark follows the value, which is cut at the width of the column
+	// as ever: the column grows by the mark instead of the value
+	// giving way to it.
+	mark string
+}
+
 // infoColumn is the cluster the session talks to.
 func infoColumn(h header, width int) string {
-	rows := []struct {
-		label string
-		value string
-
-		// mark follows the value, which is cut at the width of the column
-		// as ever: the column grows by the mark instead of the value
-		// giving way to it.
-		mark string
-	}{
-		{"Address:", h.address, readOnlyMark(h.readOnly)},
+	rows := []infoRow{
+		where(h),
 		{"Region:", orUnknown(h.region), ""},
 		{"DC:", orEvery(h.datacenter), ""},
 		{"Urga Rev:", h.version, ""},
@@ -144,6 +148,17 @@ func infoColumn(h header, width int) string {
 	}
 
 	return strings.Join(out, "\n")
+}
+
+// where is the first row of the header: the cluster the session talks to.
+// A cluster the settings name is called by its name first, which tells prod
+// from dev at a glance.
+func where(h header) infoRow {
+	if h.cluster != "" {
+		return infoRow{"Cluster:", h.cluster + "  " + h.address, readOnlyMark(h.readOnly)}
+	}
+
+	return infoRow{"Address:", h.address, readOnlyMark(h.readOnly)}
 }
 
 // readOnlyMark says, next to the address, that the session changes nothing

@@ -219,3 +219,25 @@ func TestHeader_TheArtStaysWhenTheKeysFit(t *testing.T) {
 	r.Contains(out, "@@@")
 	r.Contains(out, "Mark All")
 }
+
+func TestHeader_ANamedCluster(t *testing.T) {
+	r := require.New(t)
+
+	out := plain(renderHeader(header{cluster: "prod", address: "https://nomad.prod:4646", readOnly: true}, 120))
+	rows := lines(out)
+
+	// The name first: it is what tells prod from dev at a glance.
+	r.Contains(rows[0], "Cluster:")
+	r.Contains(rows[0], "prod  https://nomad.prod:4646 read-only")
+	r.NotContains(out, "Address:")
+}
+
+func TestHeader_ShowsTheClusterOfTheSession(t *testing.T) {
+	r := require.New(t)
+
+	m := New(&fakeClient{}, Options{Cluster: "prod", Version: "v-test"})
+	m, _ = m.update(sizeMsg())
+
+	// The address gives way to the name when the column is short of room.
+	r.Contains(plain(m.render()), "Cluster:   prod  https://nomad.example")
+}
