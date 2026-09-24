@@ -140,7 +140,7 @@ func TestClient_TheChartKeepsTheReadings(t *testing.T) {
 
 	m, _ := clientScreen(t)
 
-	before := len(m.hostTrail)
+	before := len(m.host.trail)
 
 	for _, at := range []int{10, 20, 30} {
 		m, _ = m.update(reading(at))
@@ -148,8 +148,8 @@ func TestClient_TheChartKeepsTheReadings(t *testing.T) {
 
 	// Every reading is kept, the newest last: that is what the chart draws
 	// from left to right.
-	r.Len(m.hostTrail, before+3)
-	r.Equal(30, m.hostTrail[len(m.hostTrail)-1].CPUPercent)
+	r.Len(m.host.trail, before+3)
+	r.Equal(30, m.host.trail[len(m.host.trail)-1].CPUPercent)
 }
 
 func TestClient_AReadingThatFailsKeepsTheChart(t *testing.T) {
@@ -158,13 +158,13 @@ func TestClient_AReadingThatFailsKeepsTheChart(t *testing.T) {
 	m, _ := clientScreen(t)
 
 	m, _ = m.update(reading(10))
-	kept := len(m.hostTrail)
+	kept := len(m.host.trail)
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-1", err: errTest})
 
 	// A machine that does not answer says so, and what it said before stays
 	// on the chart.
-	r.Len(m.hostTrail, kept)
+	r.Len(m.host.trail, kept)
 	r.Contains(plain(m.render()), "no answer")
 }
 
@@ -174,14 +174,14 @@ func TestClient_AnotherClientStartsItsOwnChart(t *testing.T) {
 	m, _ := clientScreen(t)
 
 	m, _ = m.update(reading(10))
-	r.Contains(m.hostTrail, nomad.ResourceUse{CPUPercent: 10})
+	r.Contains(m.host.trail, nomad.ResourceUse{CPUPercent: 10})
 
 	m, _ = m.update(escape())
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
 	// The readings belong to the machine they were taken on.
-	r.NotContains(m.hostTrail, nomad.ResourceUse{CPUPercent: 10})
+	r.NotContains(m.host.trail, nomad.ResourceUse{CPUPercent: 10})
 }
 
 func TestClient_ReadsAnAllocationInItsOwnNamespace(t *testing.T) {
@@ -239,13 +239,13 @@ func TestClient_AReadingOfTheMachineYouLeftIsDropped(t *testing.T) {
 
 	m, _ := clientScreen(t)
 
-	before := len(m.hostTrail)
+	before := len(m.host.trail)
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-9", use: nomad.ResourceUse{CPUPercent: 99}})
 
 	// A reading that was asked of another machine says nothing about this
 	// one, on the chart or in the error line.
-	r.Len(m.hostTrail, before)
+	r.Len(m.host.trail, before)
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-9", err: errTest})
 	r.NotEqual(flashErr, m.flash.level)

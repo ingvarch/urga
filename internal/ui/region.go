@@ -31,6 +31,27 @@ func InRegionOf(client *nomad.Client) func(region string) Client {
 	return func(region string) Client { return client.InRegion(region) }
 }
 
+// keepRegions keeps the regions of the cluster.
+func (m Model) keepRegions(names regionsMsg) (Model, tea.Cmd) {
+	// Kept whatever is on the screen: the command line checks a name
+	// against them.
+	m.regions = names
+
+	return m.applyList(screenRegions, func(*Model) {})
+}
+
+// keepDatacenters keeps the datacenters of the region in use.
+func (m Model) keepDatacenters(msg datacentersMsg) (Model, tea.Cmd) {
+	// The names belong to the region they were asked in.
+	if msg.region != m.client.Region() {
+		return m, nil
+	}
+
+	m.datacenters = msg.names
+
+	return m.applyList(screenDatacenters, func(*Model) {})
+}
+
 // regionCommand switches to a region by name, or opens the list of them to
 // pick one from.
 func (m Model) regionCommand(name string) (Model, tea.Cmd) {
@@ -140,7 +161,7 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 		return m.fail(errNoRegions), nil
 	}
 
-	m.closeLogs()
+	m.logs.stop()
 
 	m.client = m.opts.InRegion(region)
 	m = m.forgetRegion()
@@ -155,12 +176,9 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 // left. None of it holds in the next one, and a key on a row of it would act
 // there: an empty list until the next region answers is the truth.
 func (m Model) forgetRegion() Model {
-	m.jobs, m.allocs, m.groups, m.versions = nil, nil, nil, nil
-	m.deployments, m.services, m.evaluations = nil, nil, nil
-	m.nodes, m.variables, m.nodePools, m.servers = nil, nil, nil, nil
-	m.rowUsage = nil
+	m.clusterData = clusterData{}
 	m.marks = nil
-	m.usage = nomad.Usage{}
+	m.usage.cluster = nomad.Usage{}
 	m.datacenter, m.datacenters = "", nil
 
 	return m
@@ -180,7 +198,7 @@ func (m Model) switchDatacenter(datacenter string) (Model, tea.Cmd) {
 // screen that show gives.
 func (m Model) narrow(datacenter string, show func(Model) (Model, tea.Cmd)) (Model, tea.Cmd) {
 	m.datacenter = datacenter
-	m.usage = nomad.Usage{}
+	m.usage.cluster = nomad.Usage{}
 
 	// What is held is narrowed at once: until the cluster answers, and when
 	// it does not, nothing of another datacenter stands under the new name.

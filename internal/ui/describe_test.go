@@ -88,6 +88,20 @@ func TestDescribe_Scrolls(t *testing.T) {
 	r.Contains(plain(m.render()), long[0])
 }
 
+func TestDescribe_EndReachesTheLastWrappedRow(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), describe: strings.Join(longLines(40), "\n")}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m = drain(m, func() tea.Msg { return m.describeCmd()() })
+
+	m, _ = m.update(key('w'))
+
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyEnd})
+	r.Contains(plain(m.render()), "end-039")
+}
+
 func TestDescribe_EscapeGoesBack(t *testing.T) {
 	r := require.New(t)
 

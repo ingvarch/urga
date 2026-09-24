@@ -100,10 +100,6 @@ type Options struct {
 }
 
 const (
-	// usageEvery is how often the header reads the load of the cluster. It
-	// walks every node and allocation, so it is not asked for often.
-	usageEvery = 15 * time.Second
-
 	defaultPollEvery = 2 * time.Second
 	defaultTimeout   = 10 * time.Second
 
@@ -156,18 +152,9 @@ type (
 		err   error
 	}
 
-	// usageMsg carries where it was read: numbers of a region or a
-	// datacenter the session has left must not stand under the new name.
-	usageMsg struct {
-		region     string
-		datacenter string
-		usage      nomad.Usage
-	}
-
-	agentMsg     nomad.Agent
-	errMsg       struct{ err error }
-	pollMsg      struct{}
-	pollUsageMsg struct{}
+	agentMsg nomad.Agent
+	errMsg   struct{ err error }
+	pollMsg  struct{}
 )
 
 // Model is the whole interface. It owns the screen, the keyboard and what the
@@ -221,11 +208,49 @@ type Model struct {
 	// namespaceOrder is which namespace each number key stands for.
 	namespaceOrder []string
 
+	// namespaces are kept across a switch of region: the command line and
+	// the number keys need them, and the switch does not ask for them again.
+	namespaces []nomad.Namespace
+
+	clusterData
+
+	table tableModel
+	text  textModel
+	logs  logState
+
+	// asked counts the screens put up, so that an answer to one that is no
+	// longer up is dropped.
+	asked int
+
+	// polling says a timer is already on its way with the next ask. Every
+	// answer would otherwise schedule one, and a screen that is answered
+	// from several sides would end up with a timer per answer.
+	polling bool
+
+	// watch is the cluster saying when what the screen shows changed.
+	watch watchState
+
+	nomadVersion string
+
+	// usage is what the cluster and the rows on the screen are busy with.
+	usage usageState
+
+	// agentRegion is the region of the agent, which answers a session that
+	// names none. regions and datacenters are what the command line can
+	// switch to, datacenter the one the lists are narrowed to.
+	agentRegion string
+	regions     []string
+	datacenters []string
+	datacenter  string
+}
+
+// clusterData is what the cluster last said in the region the session asks
+// in, kept in one place so that leaving the region lets go of all of it.
+type clusterData struct {
 	jobs        []nomad.Job
 	allocs      []nomad.Alloc
 	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
-	namespaces  []nomad.Namespace
 	services    []nomad.Service
 	evaluations []nomad.Evaluation
 	nodes       []nomad.Node
@@ -234,10 +259,9 @@ type Model struct {
 	versions    []nomad.JobVersion
 	servers     []nomad.Server
 
-	// host is the machine a client screen is open on, hostTrail the
-	// readings taken of it since it was opened.
-	host      nomad.Node
-	hostTrail []nomad.ResourceUse
+	// host is the machine a client screen is open on, and the readings
+	// taken of it since it was opened.
+	host hostModel
 
 	// nodeDetail is what the machine of a client screen says about itself,
 	// nodeMeta the metadata it carries.
@@ -249,59 +273,6 @@ type Model struct {
 	server  nomad.Server
 	raft    []nomad.RaftPeer
 	raftErr error
-
-	table tableModel
-	text  textModel
-
-	// stream is the task output the log screen follows.
-	stream    *nomad.LogStream
-	following bool
-
-	// watchID counts the streams this session has opened, so that an answer
-	// from one that was let go of does not touch the one that is up.
-	watchID int
-
-	// refused says the cluster has already turned the stream down and been
-	// said so about: every screen asks again, and every screen is refused.
-	refused bool
-
-	// asked counts the screens put up, so that an answer to one that is no
-	// longer up is dropped.
-	asked int
-
-	// polling says a timer is already on its way with the next ask. Every
-	// answer would otherwise schedule one, and a screen that is answered
-	// from several sides would end up with a timer per answer.
-	polling bool
-
-	// changes is the cluster saying when what the screen shows changed,
-	// watching that it agreed to, and settling a burst of them waiting to
-	// be asked about.
-	changes  *nomad.Changes
-	watching bool
-	settling bool
-
-	nomadVersion string
-	usage        nomad.Usage
-
-	// usageDue says the timer for the next reading of the header is on its
-	// way. A switch reads at once, and its answer must not start a second
-	// timer next to the first.
-	usageDue bool
-
-	// agentRegion is the region of the agent, which answers a session that
-	// names none. regions and datacenters are what the command line can
-	// switch to, datacenter the one the lists are narrowed to.
-	agentRegion string
-	regions     []string
-	datacenters []string
-	datacenter  string
-
-	// rowUsage is what each row on the screen takes, by its id, and why the
-	// rest of them said nothing.
-	rowUsage     map[string]nomad.ResourceUse
-	missingUsage int
-	usageReason  error
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -329,7 +300,7 @@ func (m Model) Init() tea.Cmd {
 
 	return tea.Batch(
 		m.fetch(),
-		m.watch(),
+		m.watchScreen(),
 		fetchAgent(client),
 		m.fetchClusterUsage(),
 		fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
@@ -357,10 +328,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-		m.layout()
-
-		return m, nil
+		return m.resize(msg), nil
 
 	case tea.KeyPressMsg:
 		return m.handleKey(msg)
@@ -376,9 +344,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.applyList(screenJobs, func(m *Model) { m.jobs = m.jobsInView(msg) })
 
 	case allocsMsg:
-		next, cmd := m.applyList(screenAllocations, func(m *Model) { m.allocs = msg })
-
-		return next, tea.Batch(cmd, next.usageOnce())
+		return usageOnce(m.applyList(screenAllocations, func(m *Model) { m.allocs = msg }))
 
 	case taskGroupsMsg:
 		return m.applyList(screenTaskGroups, func(m *Model) { m.groups = msg })
@@ -403,9 +369,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.applyList(screenEvaluations, func(m *Model) { m.evaluations = msg })
 
 	case nodesMsg:
-		next, cmd := m.applyList(screenNodes, func(m *Model) { m.nodes = m.nodesInView(msg) })
-
-		return next, tea.Batch(cmd, next.usageOnce())
+		return usageOnce(m.applyList(screenNodes, func(m *Model) { m.nodes = m.nodesInView(msg) }))
 
 	case variablesMsg:
 		return m.applyList(screenVariables, func(m *Model) { m.variables = msg })
@@ -417,55 +381,25 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.applyList(screenServers, func(m *Model) { m.servers = m.serversInView(msg) })
 
 	case agentMsg:
-		m.nomadVersion = msg.Version
-		m.agentRegion = msg.Region
-
-		return m, nil
+		return m.keepAgent(msg), nil
 
 	case regionsMsg:
-		// Kept whatever is on the screen: the command line checks a name
-		// against them.
-		m.regions = msg
-
-		return m.applyList(screenRegions, func(*Model) {})
+		return m.keepRegions(msg)
 
 	case datacentersMsg:
-		// The names belong to the region they were asked in.
-		if msg.region != m.client.Region() {
-			return m, nil
-		}
-
-		m.datacenters = msg.names
-
-		return m.applyList(screenDatacenters, func(*Model) {})
+		return m.keepDatacenters(msg)
 
 	case usageMsg:
-		if msg.region == m.client.Region() && msg.datacenter == m.datacenter {
-			m.usage = msg.usage
-		}
-
-		if m.usageDue {
-			return m, nil
-		}
-
-		m.usageDue = true
-
-		return m, tea.Tick(usageEvery, func(time.Time) tea.Msg { return pollUsageMsg{} })
+		return m.keepClusterUsage(msg)
 
 	case pollUsageMsg:
-		m.usageDue = false
-
-		return m, m.fetchClusterUsage()
+		return m.readClusterUsage()
 
 	case rowUsageMsg:
-		m.rowUsage = msg.readings
-		m.missingUsage, m.usageReason = msg.missing, msg.reason
-		m.layout()
-
-		return m, tea.Tick(rowUsageEvery, func(time.Time) tea.Msg { return pollUsageRow{} })
+		return m.keepRowUsage(msg)
 
 	case pollUsageRow:
-		return m, m.fetchUsage()
+		return m.readRows()
 
 	case errMsg:
 		// The rows that are on the screen stay there. An empty table reads as
@@ -489,19 +423,16 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.say(fmt.Sprintf("Shell in %s closed.", msg.task)), nil
 
 	case logStreamMsg:
-		m.stream = msg.stream
+		var cmd tea.Cmd
+		m.logs, cmd = m.logs.opened(msg.stream)
 
-		return m, m.waitForLog()
+		return m, cmd
 
 	case logLineMsg:
-		if m.screen.kind != screenLogs {
-			return m, nil
-		}
-
 		return m.appendLog(string(msg))
 
 	case logEndMsg:
-		m.stream = nil
+		m.logs = m.logs.ended()
 
 		return m, nil
 
@@ -525,42 +456,20 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, m.fetch()
 
 	case versionsMsg:
-		if m.screen.jobID != msg.jobID {
-			return m, nil
-		}
-
-		return m.applyList(screenJobVersions, func(m *Model) { m.versions = msg.versions })
+		return m.applyWhen(m.screen.kind == screenJobVersions && m.screen.jobID == msg.jobID,
+			func(m *Model) { m.versions = msg.versions })
 
 	case nodeDetailMsg:
 		// The answer belongs to the machine it was asked of: leaving one
 		// client for another must not show the first one under the second.
-		if m.screen.nodeID != msg.ID {
-			return m, nil
-		}
-
-		m.nodeDetail = nomad.NodeDetail(msg)
-		m = m.forget()
-		m.layout()
-
-		return m.schedulePoll()
+		return m.applyWhen(m.screen.nodeID == msg.ID, func(m *Model) { m.nodeDetail = nomad.NodeDetail(msg) })
 
 	case nodeMetaMsg:
-		if m.screen.nodeID != msg.nodeID {
-			return m, nil
-		}
-
-		return m.applyList(screenNodeMeta, func(m *Model) { m.nodeMeta = msg.meta })
+		return m.applyWhen(m.screen.kind == screenNodeMeta && m.screen.nodeID == msg.nodeID,
+			func(m *Model) { m.nodeMeta = msg.meta })
 
 	case serverMsg:
-		if m.screen.kind != screenServer {
-			return m, nil
-		}
-
-		m.server = nomad.Server(msg)
-		m = m.forget()
-		m.layout()
-
-		return m.schedulePoll()
+		return m.applyList(screenServer, func(m *Model) { m.server = nomad.Server(msg) })
 
 	case raftMsg:
 		m.raft, m.raftErr = msg.peers, msg.err
@@ -569,51 +478,34 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 
 	case hostMsg:
-		if m.screen.nodeID != msg.ID {
-			return m, nil
-		}
-
-		m.host = nomad.Node(msg)
-
-		return m, nil
+		return m.keepHost(msg), nil
 
 	case hostUseMsg:
 		return m.keepHostUse(msg), nil
 
 	case watchingMsg:
-		return m.startWatching(msg)
+		var cmd tea.Cmd
+		m.watch, cmd = m.watch.start(msg)
+
+		return m, cmd
 
 	case changeMsg:
-		if !m.current(msg.id) {
-			return m, nil
-		}
+		var cmd tea.Cmd
+		m.watch, cmd = m.watch.keepChange(msg)
 
-		return m.keepChange()
+		return m, cmd
 
 	case settleMsg:
-		m.settling = false
-
-		return m, m.fetch()
+		return m.settled()
 
 	case flashOverMsg:
 		return m.clearFlash(msg), nil
 
 	case watchEndedMsg:
-		// A cluster that will not stream is one urga asks on its own, which
-		// is what it did before. Nothing about that belongs over the rows,
-		// and the timer it already has goes on without help.
-		if !m.current(msg.id) {
-			return m, nil
-		}
-
-		return m.endWatch().noteWatchEnded(msg.err), nil
+		return m.watchEnded(msg), nil
 
 	case pollMsg:
-		// The timer has fired and there is room for the next one, which the
-		// answer to this ask will set.
-		m.polling = false
-
-		return m, m.fetch()
+		return m.poll()
 	}
 
 	return m, nil
@@ -622,7 +514,13 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 // applyList stores what the cluster sent, unless the screen it belongs to
 // was left: it would show up under the wrong title.
 func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
-	if m.screen.kind != kind {
+	return m.applyWhen(m.screen.kind == kind, store)
+}
+
+// applyWhen stores an answer that belongs to what is open, and asks again
+// in a while.
+func (m Model) applyWhen(ours bool, store func(*Model)) (Model, tea.Cmd) {
+	if !ours {
 		return m, nil
 	}
 
@@ -905,8 +803,8 @@ func (m Model) headerData() header {
 		datacenter:   m.datacenter,
 		version:      m.opts.Version,
 		nomadVersion: m.nomadVersion,
-		usage:        percentOf(m.usage.CPUPercent),
-		memory:       percentOf(m.usage.MemoryPercent),
+		usage:        percentOf(m.usage.cluster.CPUPercent),
+		memory:       percentOf(m.usage.cluster.MemoryPercent),
 		namespaces:   m.namespaceColumnData(),
 		hints:        m.screen.hints(),
 	}
@@ -953,9 +851,8 @@ func (m Model) status() string {
 			fmt.Sprintf("only what needs attention, %d of %d   <!> all of them", m.shown, m.held), width))
 	}
 
-	if m.missingUsage > 0 && m.usageReason != nil {
-		return styleMuted.Render(truncate(
-			fmt.Sprintf("no readings for %d rows: %s", m.missingUsage, m.usageReason), width))
+	if missing := m.usage.missingNote(); missing != "" {
+		return styleMuted.Render(truncate(missing, width))
 	}
 
 	return styleMuted.Render(truncate("<:> command   </> filter   <?> help   <q> quit", width))
@@ -969,6 +866,14 @@ func (m Model) bodyHeight() int {
 	}
 
 	return max(height, 2)
+}
+
+// resize fits the screen to the window.
+func (m Model) resize(msg tea.WindowSizeMsg) Model {
+	m.width, m.height = msg.Width, msg.Height
+	m.layout()
+
+	return m
 }
 
 // layout sizes the table to the window and fills it with what the cluster
@@ -1015,6 +920,15 @@ func (m Model) schedulePoll() (Model, tea.Cmd) {
 	return m, tea.Tick(m.pollEvery(), func(time.Time) tea.Msg { return pollMsg{} })
 }
 
+// poll asks for the screen again.
+func (m Model) poll() (Model, tea.Cmd) {
+	// The timer has fired and there is room for the next one, which the
+	// answer to this ask will set.
+	m.polling = false
+
+	return m, m.fetch()
+}
+
 // percentOf is a reading of the cluster, empty until there is one.
 func percentOf(value int) string {
 	if value == 0 {
@@ -1024,19 +938,15 @@ func percentOf(value int) string {
 	return fmt.Sprintf("%d%%", value)
 }
 
-// fetchClusterUsage reads what the datacenter in use is busy with, or the
-// whole region, which the header shows. What one row takes is read by
-// Model.fetchUsage.
-func (m Model) fetchClusterUsage() tea.Cmd {
-	client, datacenter := m.client, m.datacenter
-
-	return request(func(ctx context.Context) (nomad.Usage, error) {
-		return client.Usage(ctx, datacenter)
-	}, func(usage nomad.Usage) tea.Msg {
-		return usageMsg{region: client.Region(), datacenter: datacenter, usage: usage}
-	})
-}
-
 func fetchAgent(client Client) tea.Cmd {
 	return request(client.Agent, func(agent nomad.Agent) tea.Msg { return agentMsg(agent) })
+}
+
+// keepAgent keeps what the agent says about itself: its version is in the
+// header, and its region answers a session that names none.
+func (m Model) keepAgent(agent agentMsg) Model {
+	m.nomadVersion = agent.Version
+	m.agentRegion = agent.Region
+
+	return m
 }

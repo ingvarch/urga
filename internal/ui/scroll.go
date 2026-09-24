@@ -35,7 +35,7 @@ func (m Model) scroll(by int) Model {
 
 		// Scrolling by hand means the end of the output is no longer being
 		// watched.
-		m.following = false
+		m.logs.following = false
 
 		return m
 	}
@@ -60,7 +60,7 @@ func (m Model) pageHeight() int {
 
 func (m Model) contentLength() int {
 	if m.readsAsText() {
-		return len(m.text.lines)
+		return m.text.length()
 	}
 
 	return len(m.table.rows)

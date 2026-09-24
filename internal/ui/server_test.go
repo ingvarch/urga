@@ -224,3 +224,34 @@ func TestServer_CopyingWithNothingUnderTheCursor(t *testing.T) {
 	r.Nil(cmd)
 	r.Empty(next.flash.text)
 }
+
+func TestServer_AnAnswerClearsTheErrorAndAsksAgain(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := serverScreen(t)
+
+	m, _ = m.update(errMsg{err: errTest})
+	m, _ = m.update(pollMsg{})
+
+	m, cmd := m.update(serverMsg(aServer()))
+
+	// The server answered, so what went wrong is over, and the next ask is
+	// on its way.
+	r.NotContains(plain(m.render()), "no answer")
+	r.NotNil(cmd)
+	r.IsType(pollMsg{}, cmd())
+}
+
+func TestServer_AnAnswerAfterTheServerWasLeftIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := serverScreen(t)
+
+	m, _ = m.update(escape())
+	m, _ = m.update(pollMsg{})
+
+	m, cmd := m.update(serverMsg(nomad.Server{Name: "server-09.global"}))
+
+	r.Nil(cmd)
+	r.Equal("server-02.global", m.server.Name)
+}

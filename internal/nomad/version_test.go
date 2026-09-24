@@ -70,6 +70,85 @@ func TestJobVersions_Read(t *testing.T) {
 	r.Zero(versions[2].Changes)
 }
 
+const objectVersions = `{
+	"Versions": [
+		{"ID": "web", "Name": "web", "Version": 2},
+		{"ID": "web", "Name": "web", "Version": 1}
+	],
+	"Diffs": [{
+		"Type": "Edited", "ID": "web",
+		"Objects": [{
+			"Type": "Edited", "Name": "Update",
+			"Fields": [{"Type": "Edited", "Name": "MaxParallel", "Old": "1", "New": "2"}]
+		}],
+		"TaskGroups": [{
+			"Type": "Edited", "Name": "bot",
+			"Tasks": [{
+				"Type": "Edited", "Name": "bot",
+				"Objects": [{
+					"Type": "Edited", "Name": "Resources",
+					"Fields": [
+						{"Type": "Edited", "Name": "CPU", "Old": "100", "New": "200"},
+						{"Type": "Edited", "Name": "MemoryMB", "Old": "128", "New": "256"}
+					],
+					"Objects": [{
+						"Type": "Added", "Name": "Network",
+						"Fields": [{"Type": "Added", "Name": "MBits", "New": "10"}]
+					}]
+				}]
+			}]
+		}]
+	}]
+}`
+
+func TestJobVersions_CountsFieldsInsideObjects(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, objectVersions)
+
+	versions, err := client.JobVersions(context.Background(), "production", "web")
+	r.NoError(err)
+
+	// A field counts wherever it sits, however deep the objects around it.
+	r.Equal(4, versions[0].Changes)
+}
+
+const templateVersions = `{
+	"Versions": [
+		{"ID": "web", "Name": "web", "Version": 2},
+		{"ID": "web", "Name": "web", "Version": 1}
+	],
+	"Diffs": [{
+		"Type": "Edited", "ID": "web",
+		"TaskGroups": [{
+			"Type": "Edited", "Name": "bot",
+			"Tasks": [{
+				"Type": "Edited", "Name": "bot",
+				"Objects": [{
+					"Type": "Edited", "Name": "Template",
+					"Fields": [{
+						"Type": "Edited", "Name": "EmbeddedTmpl",
+						"Old": "services:\n- web\n- api",
+						"New": "services:\n- web\n- worker"
+					}]
+				}]
+			}]
+		}]
+	}]
+}`
+
+func TestJobVersions_CountsAValueOnManyLinesOnce(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, templateVersions)
+
+	versions, err := client.JobVersions(context.Background(), "production", "web")
+	r.NoError(err)
+
+	// A template body is one field, even when its lines read like a diff.
+	r.Equal(1, versions[0].Changes)
+}
+
 func TestJobVersionDiff_ReadsAsText(t *testing.T) {
 	r := require.New(t)
 

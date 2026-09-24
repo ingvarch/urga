@@ -202,7 +202,7 @@ var resources = map[screenKind]resource{
 				return client.Allocations(ctx, screen.namespace, screen.jobID)
 			}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
 		},
-		rows: func(m Model) []tableRow { return allocRows(m.visibleAllocs(), m.rowUsage) },
+		rows: func(m Model) []tableRow { return allocRows(m.visibleAllocs(), m.usage.rows) },
 	},
 
 	screenTasks: {
@@ -323,7 +323,7 @@ var resources = map[screenKind]resource{
 		fetch: func(m Model) tea.Cmd {
 			return fetchList(m.client.Nodes, func(items []nomad.Node) tea.Msg { return nodesMsg(items) })
 		},
-		rows: func(m Model) []tableRow { return nodeRows(m.nodes, m.rowUsage) },
+		rows: func(m Model) []tableRow { return nodeRows(m.nodes, m.usage.rows) },
 	},
 
 	screenVariables: {

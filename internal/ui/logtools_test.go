@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -74,6 +75,78 @@ func TestLogs_WrapLongLines(t *testing.T) {
 
 	// Wrapped, the whole line is there, over as many rows as it takes.
 	r.Greater(rowsWith(m, "aaa"), 3)
+}
+
+// longLines are lines that each wrap over three rows of the screen, and say
+// which they are at both ends.
+func longLines(count int) []string {
+	lines := make([]string, 0, count)
+	for i := range count {
+		lines = append(lines, fmt.Sprintf("line-%03d %s end-%03d", i, strings.Repeat("x", 300), i))
+	}
+
+	return lines
+}
+
+func TestLogs_TheEndsAreAKeyAway(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onLogs(t, strings.Join(longLines(40), "\n")+"\n")
+
+	// Followed, the window keeps to the last line.
+	out := plain(m.render())
+	r.Contains(out, "line-039")
+	r.NotContains(out, "line-000")
+
+	m, _ = m.update(key('g'))
+	r.Contains(plain(m.render()), "line-000")
+
+	m, _ = m.update(key('G'))
+	r.Contains(plain(m.render()), "line-039")
+
+	m, _ = m.update(key('g'))
+	m, _ = m.update(key('r'))
+	r.Contains(plain(m.render()), "line-039")
+}
+
+func TestLogs_FollowingReachesTheLastWrappedRow(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onLogs(t)
+	m, _ = m.update(key('w'))
+
+	// Wrapped, a line takes several rows, and the end is the last of them.
+	m, _ = m.update(logLineMsg(strings.Join(longLines(40), "\n") + "\n"))
+	r.Contains(plain(m.render()), "end-039")
+}
+
+func TestLogs_ResumeReachesTheLastWrappedRow(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onLogs(t)
+	m, _ = m.update(key('s'))
+	m, _ = m.update(key('w'))
+	m, _ = m.update(logLineMsg(strings.Join(longLines(40), "\n") + "\n"))
+	r.Contains(plain(m.render()), "line-000")
+
+	m, _ = m.update(key('r'))
+	r.Contains(plain(m.render()), "end-039")
+}
+
+func TestLogs_HomeReachesTheFirstWrappedRow(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onLogs(t)
+	m, _ = m.update(key('w'))
+
+	for _, line := range longLines(40) {
+		m, _ = m.update(logLineMsg(line + "\n"))
+	}
+
+	r.Contains(plain(m.render()), "end-039")
+
+	m, _ = m.update(key('g'))
+	r.Contains(plain(m.render()), "line-000")
 }
 
 func TestLogs_SayWhenALineArrived(t *testing.T) {

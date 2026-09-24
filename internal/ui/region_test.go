@@ -495,6 +495,34 @@ func TestRegionCommand_LetsGoOfWhatTheRegionItLeftSaid(t *testing.T) {
 	r.Contains(out, "ACL token not found")
 }
 
+func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
+	r := require.New(t)
+
+	m := regionalModel(t, &fakeClient{})
+
+	// What the screens of eu held when they were left.
+	m.jobs, m.allocs, m.versions = twoJobs(), twoAllocs(), []nomad.JobVersion{{Version: 3}}
+	m.groups = []nomad.TaskGroup{{Name: "web", JobID: "web"}}
+	m.deployments = []nomad.Deployment{{ID: "d1"}}
+	m.services = []nomad.Service{{Name: "web"}}
+	m.evaluations = []nomad.Evaluation{{ID: "e1"}}
+	m.nodes = []nomad.Node{{ID: "n1"}}
+	m.variables = []nomad.Variable{{Path: "app/db"}}
+	m.nodePools = []nomad.NodePool{{Name: "default"}}
+	m.servers = []nomad.Server{{Name: "eu-1"}}
+	m.host = hostModel{node: nomad.Node{ID: "n1"}, trail: []nomad.ResourceUse{{CPUPercent: 40}}}
+	m.nodeDetail = nomad.NodeDetail{ID: "n1", Name: "node-01"}
+	m.nodeMeta = []nomad.MetaEntry{{Key: "rack", Value: "r1"}}
+	m.server = nomad.Server{Name: "eu-1"}
+	m.raft, m.raftErr = []nomad.RaftPeer{{Node: "eu-1", Leader: true}}, errors.New("Permission denied")
+
+	m, _ = runLine(m, "region us")
+
+	// A screen of us opened before us answers must not show eu under its
+	// name.
+	r.Zero(m.clusterData)
+}
+
 func TestRegionCommand_LetsGoOfTheMarks(t *testing.T) {
 	r := require.New(t)
 

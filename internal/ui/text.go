@@ -114,7 +114,17 @@ func (t *textModel) setSize(width, height int) {
 }
 
 func (t *textModel) move(delta int) {
-	t.top = clamp(t.top+delta, 0, max(len(t.rows())-t.height, 0))
+	t.top = clamp(t.top+delta, 0, max(t.length()-t.height, 0))
+}
+
+// length is how many rows the window moves over: wrapped lines take more
+// than one, filtered ones take none.
+func (t textModel) length() int {
+	return len(t.rows())
+}
+
+func (t *textModel) toEnd() {
+	t.move(t.length())
 }
 
 // follow pulls the window back over the lines, which is what a move of

@@ -51,6 +51,13 @@ type (
 	hostMsg nomad.Node
 )
 
+// hostModel is the machine a client screen is open on, and the readings
+// taken of it since it was opened.
+type hostModel struct {
+	node  nomad.Node
+	trail []nomad.ResourceUse
+}
+
 // fetchHost reads the machine itself, so that what the panel says about it
 // keeps up with the rest of the screen.
 func fetchHost(client Client, nodeID string) tea.Cmd {
@@ -72,6 +79,17 @@ func fetchHostUse(client Client, nodeID string) tea.Cmd {
 	}
 }
 
+// keepHost keeps what the panel says about the machine up with it.
+func (m Model) keepHost(node hostMsg) Model {
+	if node.ID != m.screen.nodeID {
+		return m
+	}
+
+	m.host.node = nomad.Node(node)
+
+	return m
+}
+
 // keepHostUse puts a reading on the chart. A machine that does not answer
 // says so and keeps what it said before: a chart that empties on one timeout
 // reads as a machine that stopped working.
@@ -85,13 +103,21 @@ func (m Model) keepHostUse(msg hostUseMsg) Model {
 	}
 
 	m = m.forget()
-	m.hostTrail = append(m.hostTrail, msg.use)
-
-	if len(m.hostTrail) > hostTrailMax {
-		m.hostTrail = m.hostTrail[len(m.hostTrail)-hostTrailMax:]
-	}
+	m.host = m.host.keep(msg.use)
 
 	return m
+}
+
+// keep puts a reading at the end of the chart, which holds the last few
+// minutes of them.
+func (h hostModel) keep(use nomad.ResourceUse) hostModel {
+	h.trail = append(h.trail, use)
+
+	if len(h.trail) > hostTrailMax {
+		h.trail = h.trail[len(h.trail)-hostTrailMax:]
+	}
+
+	return h
 }
 
 // chartWidth is what one of the two charts gets: half of the panel, which
@@ -101,8 +127,13 @@ func (m Model) chartWidth() int {
 }
 
 // chartHeight is how tall the plot of a chart is here. A short screen gets
-// the short one, and then none at all: the allocations come first.
+// the short one, and then none at all: the allocations come first. A narrow
+// one gets none either: half of it has no room for a chart with its scale.
 func (m Model) chartHeight() int {
+	if m.chartWidth() <= chartAxisWidth {
+		return 0
+	}
+
 	room := m.rowsForPanel() - hostChartRest - hostPanelRest
 
 	switch {
@@ -123,7 +154,7 @@ func (m Model) panelHeight() int {
 		return 0
 	}
 
-	if plot := m.chartHeight(); plot > 0 && m.chartWidth() > chartAxisWidth {
+	if plot := m.chartHeight(); plot > 0 {
 		return plot + hostChartRest + hostPanelRest
 	}
 
@@ -140,32 +171,37 @@ func (m Model) rowsForPanel() int {
 	return m.bodyHeight() - 3 - hostRowsKept
 }
 
-// hostPanel is what a client shows above its allocations: what kind of
-// machine it is and what it has been doing since the screen was opened.
+// hostPanel is the panel of the machine, sized to the screen.
 func (m Model) hostPanel(width int) []string {
+	return m.host.view(width, m.chartWidth(), m.chartHeight(), m.opts.PollEvery)
+}
+
+// view is what a client shows above its allocations: what kind of machine
+// it is and what it has been doing since the screen was opened. Each chart
+// is half wide and plot tall, and a plot of no height leaves them out.
+func (h hostModel) view(width, half, plot int, every time.Duration) []string {
 	// One column of the panel goes to the margin the table keeps.
 	width--
 
-	rows := []string{m.hostDetails(width), ""}
+	rows := []string{h.details(width), ""}
 
-	if plot := m.chartHeight(); plot > 0 && m.chartWidth() > chartAxisWidth {
-		half := m.chartWidth()
-		window := time.Duration(half-chartAxisWidth) * m.opts.PollEvery
+	if plot > 0 {
+		window := time.Duration(half-chartAxisWidth) * every
 
 		cpu := chart{
 			name:    "CPU",
-			reading: m.cpuReading(),
-			detail:  m.cpuDetail(),
-			values:  shares(m.hostTrail, cpuShare),
+			reading: h.cpuReading(),
+			detail:  h.cpuDetail(),
+			values:  shares(h.trail, cpuShare),
 			window:  window,
 			color:   colorAccent,
 		}.render(half, plot)
 
 		memory := chart{
 			name:    "MEM",
-			reading: m.memoryReading(),
-			detail:  m.memoryDetail(),
-			values:  shares(m.hostTrail, memoryShare),
+			reading: h.memoryReading(),
+			detail:  h.memoryDetail(),
+			values:  shares(h.trail, memoryShare),
 			window:  window,
 			color:   colorTitle,
 		}.render(half, plot)
@@ -185,9 +221,9 @@ func (m Model) hostPanel(width int) []string {
 	return rows
 }
 
-// hostDetails is the machine itself, in the fields the Nomad interface shows.
-func (m Model) hostDetails(width int) string {
-	node := m.host
+// details is the machine itself, in the fields the Nomad interface shows.
+func (h hostModel) details(width int) string {
+	node := h.node
 
 	fields := []struct{ label, value string }{
 		{"Status", node.Status},
@@ -221,8 +257,8 @@ func eligibilityOf(node nomad.Node) string {
 
 // The last reading in words: the share of the machine, and the numbers it
 // comes from when they are known.
-func (m Model) cpuReading() string {
-	use, ok := m.lastHostUse()
+func (h hostModel) cpuReading() string {
+	use, ok := h.last()
 	if !ok {
 		return unknown
 	}
@@ -230,17 +266,17 @@ func (m Model) cpuReading() string {
 	return fmt.Sprintf("%d%%", use.CPUPercent)
 }
 
-func (m Model) cpuDetail() string {
-	use, ok := m.lastHostUse()
-	if !ok || m.host.CPUShares == 0 {
+func (h hostModel) cpuDetail() string {
+	use, ok := h.last()
+	if !ok || h.node.CPUShares == 0 {
 		return ""
 	}
 
-	return fmt.Sprintf("%d / %d MHz", use.CPUTicks, m.host.CPUShares)
+	return fmt.Sprintf("%d / %d MHz", use.CPUTicks, h.node.CPUShares)
 }
 
-func (m Model) memoryReading() string {
-	use, ok := m.lastHostUse()
+func (h hostModel) memoryReading() string {
+	use, ok := h.last()
 	if !ok {
 		return unknown
 	}
@@ -248,15 +284,15 @@ func (m Model) memoryReading() string {
 	return fmt.Sprintf("%d%%", use.MemoryPercent)
 }
 
-func (m Model) memoryDetail() string {
-	use, ok := m.lastHostUse()
+func (h hostModel) memoryDetail() string {
+	use, ok := h.last()
 	if !ok {
 		return ""
 	}
 
 	total := use.MemoryMBAllowed
 	if total == 0 {
-		total = m.host.MemoryMB
+		total = h.node.MemoryMB
 	}
 
 	if total == 0 {
@@ -266,12 +302,12 @@ func (m Model) memoryDetail() string {
 	return fmt.Sprintf("%d / %d MiB", use.MemoryMB, total)
 }
 
-func (m Model) lastHostUse() (nomad.ResourceUse, bool) {
-	if len(m.hostTrail) == 0 {
+func (h hostModel) last() (nomad.ResourceUse, bool) {
+	if len(h.trail) == 0 {
 		return nomad.ResourceUse{}, false
 	}
 
-	return m.hostTrail[len(m.hostTrail)-1], true
+	return h.trail[len(h.trail)-1], true
 }
 
 // shares turns the readings into the 0 to 1 the chart draws.

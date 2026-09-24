@@ -68,7 +68,7 @@ func (c *Client) JobVersions(ctx context.Context, namespace, jobID string) ([]Jo
 		// The cluster answers with one diff per step between versions, so
 		// the oldest one has none.
 		if i < len(diffs) && diffs[i] != nil {
-			version.Changes = countChanges(writeJobDiff(diffs[i]))
+			version.Changes = countChanges(diffs[i])
 		}
 
 		out = append(out, version)
@@ -112,25 +112,47 @@ func (c *Client) versions(ctx context.Context, namespace, jobID string) ([]*api.
 	return jobs, diffs, err
 }
 
-// countChanges is how many fields a diff touches, read off what the diff
-// says: one walk of the tree rather than two that have to agree.
-func countChanges(diff string) int {
-	count := 0
+// countChanges is how many fields a diff touches, counted on the tree: the
+// text puts a value on as many lines as it has, and those lines can read
+// like a diff of their own.
+func countChanges(diff *api.JobDiff) int {
+	count := countFields(diff.Fields, diff.Objects)
 
-	for _, line := range strings.Split(diff, "\n") {
-		if changed(strings.TrimSpace(line)) {
-			count++
+	for _, group := range diff.TaskGroups {
+		if group == nil {
+			continue
+		}
+
+		count += countFields(group.Fields, group.Objects)
+
+		for _, task := range group.Tasks {
+			if task == nil {
+				continue
+			}
+
+			count += countFields(task.Fields, task.Objects)
 		}
 	}
 
 	return count
 }
 
-// changed says the line is a field that was added, taken away or edited.
-func changed(line string) bool {
-	return strings.HasPrefix(line, "+ ") ||
-		strings.HasPrefix(line, "- ") ||
-		strings.HasPrefix(line, "~ ")
+func countFields(fields []*api.FieldDiff, objects []*api.ObjectDiff) int {
+	count := 0
+
+	for _, field := range fields {
+		if field != nil {
+			count++
+		}
+	}
+
+	for _, object := range objects {
+		if object != nil {
+			count += countFields(object.Fields, object.Objects)
+		}
+	}
+
+	return count
 }
 
 // writeJobDiff puts a diff in the shape it reads in: the job, then its task
