@@ -176,3 +176,46 @@ func TestHeader_BeforeARegionIsKnown(t *testing.T) {
 	r.Contains(rows[1], "n/a")
 	r.Contains(rows[2], "all")
 }
+
+// jobKeys are the keys of the job list as the header shows them, more than
+// one column of them.
+func jobKeys() []hint {
+	keys := []hint{}
+	for _, b := range jobBindings {
+		keys = append(keys, b.hint())
+	}
+
+	return keys
+}
+
+func TestHeader_TheArtGivesWayToTheKeys(t *testing.T) {
+	r := require.New(t)
+
+	out := plain(renderHeader(header{
+		address:    "http://127.0.0.1:14646",
+		version:    "v0.2.0",
+		namespaces: []namespaceKey{{Key: "0", Name: "all", Active: true}, {Key: "1", Name: "default"}},
+		hints:      jobKeys(),
+	}, 116))
+
+	// A key that is not in the header is one nobody learns about. The art
+	// is only art: when the keys need its place, they get it.
+	for _, h := range jobKeys() {
+		r.Contains(out, h.Description)
+	}
+
+	r.NotContains(out, "@@@")
+}
+
+func TestHeader_TheArtStaysWhenTheKeysFit(t *testing.T) {
+	r := require.New(t)
+
+	out := plain(renderHeader(header{
+		address: "http://127.0.0.1:14646",
+		version: "v0.2.0",
+		hints:   jobKeys()[:3],
+	}, 116))
+
+	r.Contains(out, "@@@")
+	r.Contains(out, "Mark All")
+}
