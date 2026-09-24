@@ -8,7 +8,9 @@ import (
 
 // commandAliases are the words the prompt understands for a resource. They
 // come from the one table that knows what urga can show.
-var commandAliases = func() map[string]screenKind {
+var commandAliases map[string]screenKind
+
+func aliasIndex() map[string]screenKind {
 	aliases := map[string]screenKind{}
 
 	for kind, res := range resources {
@@ -18,13 +20,15 @@ var commandAliases = func() map[string]screenKind {
 	}
 
 	return aliases
-}()
+}
 
 // commandNames are the words the prompt offers: the first alias of every
 // resource, which is the one that reads as the thing it opens. Short forms
 // stay out of it, and so does leaving urga: that is a command, not a
 // resource to walk into.
-var commandNames = func() []string {
+var commandNames []string
+
+func nameIndex() []string {
 	names := []string{}
 
 	for _, res := range resources {
@@ -36,7 +40,7 @@ var commandNames = func() []string {
 	sort.Strings(names)
 
 	return names
-}()
+}
 
 // bailAliases leave urga.
 var bailAliases = map[string]bool{

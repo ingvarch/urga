@@ -48,9 +48,9 @@ func taskGroupColor(group nomad.TaskGroup) color.Color {
 	return nil
 }
 
-var taskGroupHints = []hint{
-	{Key: "<enter>", Description: "Allocations"},
-	{Key: "<s>", Description: "Scale"},
+var taskGroupBindings = []binding{
+	{press: "enter", label: "Allocations", do: Model.open},
+	{press: "s", label: "Scale", do: Model.scaleGroup},
 }
 
 // openTaskGroups lists the groups of the job under the cursor.

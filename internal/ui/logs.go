@@ -137,54 +137,63 @@ func logsTitle(s screen) string {
 	return fmt.Sprintf("Logs (Task: %s) [%s]", s.task, s.source)
 }
 
-// logsKey answers the keys of the log screen.
-func (m Model) logsKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
-	switch msg.String() {
-	case "s":
-		m.logs.following = false
-	case "r":
-		m.logs.following = true
-		m.text.toEnd()
-	case "t":
-		// Only a log has times to show: they are when urga read a line,
-		// and nothing else on a text screen has any.
-		m.text.times = !m.text.times
-	default:
-		return m, nil, false
-	}
-
-	return m, nil, true
+// logBindings are the keys of the log screen: the ones of any text, and
+// the ones of a stream that is still being followed.
+var logBindings = []binding{
+	{press: "s", label: "Stop following", do: stopFollowing},
+	{press: "r", label: "Resume", do: resumeFollowing},
+	{press: "w", label: "Wrap lines", do: wrapLines},
+	{press: "t", label: "When urga read it", do: showTimes},
+	{press: "ctrl+s", label: "Save", do: saveScreen},
 }
 
-// textKey answers the keys of anything that reads as text: the logs of a
-// task, a description, a job file.
-func (m Model) textKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
-	switch msg.String() {
-	case "w":
-		m.text.wrap = !m.text.wrap
-		m.text.follow()
-
-	case "ctrl+s":
-		return m, m.saveText(), true
-
-	default:
-		return m, nil, false
-	}
-
-	return m, nil, true
+var taskBindings = []binding{
+	{press: "enter", label: "Logs", do: Model.open},
+	// The same key opens the events of a task here and edits elsewhere,
+	// because a screen never offers both.
+	{press: "e", label: "Events", do: Model.openTaskEvents},
+	{press: "ctrl+e", label: "Logs (stderr)", do: openStderr},
+	// The same key opens a shell here and scales a task group elsewhere.
+	{press: "s", label: "Shell", do: Model.shell},
 }
 
-var logHints = []hint{
-	{Key: "<s>", Description: "Stop following"},
-	{Key: "<r>", Description: "Resume"},
-	{Key: "<w>", Description: "Wrap lines"},
-	{Key: "<t>", Description: "When urga read it"},
-	{Key: "<ctrl-s>", Description: "Save"},
+func stopFollowing(m Model) (Model, tea.Cmd) {
+	m.logs.following = false
+
+	return m, nil
 }
 
-var taskHints = []hint{
-	{Key: "<enter>", Description: "Logs"},
-	{Key: "<e>", Description: "Events"},
-	{Key: "<ctrl-e>", Description: "Logs (stderr)"},
-	{Key: "<s>", Description: "Shell"},
+func resumeFollowing(m Model) (Model, tea.Cmd) {
+	m.logs.following = true
+	m.text.toEnd()
+
+	return m, nil
+}
+
+// showTimes puts when each line was read in front of it. Only a log has
+// times to show: they are when urga read a line, and nothing else on a text
+// screen has any.
+func showTimes(m Model) (Model, tea.Cmd) {
+	m.text.times = !m.text.times
+
+	return m, nil
+}
+
+// wrapLines folds the long lines of anything that reads as text: the logs of
+// a task, a description, a job file. Again lets them run on.
+func wrapLines(m Model) (Model, tea.Cmd) {
+	m.text.wrap = !m.text.wrap
+	m.text.follow()
+
+	return m, nil
+}
+
+// saveScreen writes what is on a text screen to a file.
+func saveScreen(m Model) (Model, tea.Cmd) {
+	return m, m.saveText()
+}
+
+// openStderr follows what the task under the cursor writes to stderr.
+func openStderr(m Model) (Model, tea.Cmd) {
+	return m.openLogs(nomad.LogStderr)
 }

@@ -522,30 +522,20 @@ func (m Model) applyWhen(ours bool, store func(*Model)) (Model, tea.Cmd) {
 }
 
 // handleKey is the one place that decides who gets a key press: an overlay
-// first, then the way around the screen, then what the resource can do.
+// first, then what the open resource can do, then the way around the screen.
+// What the resource can do is the table of its screen: a key answers there
+// or nowhere, and each one looks at the row under the cursor.
 func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	if m.overlay != overlayNone {
 		return m.overlayKey(msg)
 	}
 
-	if m.readsAsText() {
-		if next, cmd, handled := m.textKey(msg); handled {
-			return next, cmd
-		}
-	}
-
-	if m.screen.kind == screenLogs {
-		if next, cmd, handled := m.logsKey(msg); handled {
-			return next, cmd
-		}
+	if b, ok := m.screen.binding(msg.String()); ok {
+		return b.do(m)
 	}
 
 	if next, handled := m.scrollKey(msg); handled {
 		return next, nil
-	}
-
-	if next, cmd, handled := m.resourceKey(msg); handled {
-		return next, cmd
 	}
 
 	return m.sessionKey(msg)
@@ -565,115 +555,6 @@ func (m Model) overlayKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	}
 
 	return m, nil
-}
-
-// resourceKey is what the open resource can do. Each of these looks at the
-// row under the cursor and does nothing when the screen is not its own.
-func (m Model) resourceKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
-	var (
-		next Model
-		cmd  tea.Cmd
-	)
-
-	switch msg.String() {
-	case "enter":
-		next, cmd = m.open()
-
-	case "ctrl+s":
-		next, cmd = m.startStopJob()
-
-	case "e":
-		// The same key opens the events of a client and edits what can be
-		// edited, because a screen never offers both.
-		switch {
-		case m.screen.isClient():
-			next, cmd = m.openNodeScreen(screenNodeEvents)
-		case m.screen.kind == screenTasks:
-			next, cmd = m.openTaskEvents()
-		default:
-			next, cmd = m.edit()
-		}
-
-	case "t":
-		next, cmd = m.openTaskGroups()
-
-	case "s":
-		// The same key scales a task group and opens a shell in a task,
-		// because a screen never offers both.
-		if m.screen.kind == screenTasks {
-			next, cmd = m.shell()
-		} else {
-			next, cmd = m.scaleGroup()
-		}
-
-	case "u":
-		// The list of jobs reverts to the version before the one that runs;
-		// the list of versions reverts to the one under the cursor.
-		if m.screen.kind == screenJobVersions {
-			next, cmd = m.revertToVersion()
-		} else {
-			next, cmd = m.revertJob()
-		}
-
-	case "v":
-		next, cmd = m.openVersions()
-
-	case "r":
-		next, cmd = m.restartAllocation()
-
-	case "ctrl+k":
-		next, cmd = m.stopAllocation()
-
-	case "ctrl+d":
-		// Draining is a key of the list of clients; on the screen of one
-		// client the same key opens what it can run.
-		if m.screen.isClient() {
-			next, cmd = m.openNodeScreen(screenNodeDrivers)
-		} else {
-			next, cmd = m.drainNode()
-		}
-
-	case "ctrl+h":
-		next, cmd = m.openNodeScreen(screenNodeVolumes)
-
-	case "a":
-		next, cmd = m.openNodeScreen(screenNodeAttributes)
-
-	case "m":
-		next, cmd = m.openNodeScreen(screenNodeMeta)
-
-	case "i":
-		next, cmd = m.toggleEligibility()
-
-	case "p":
-		next, cmd = m.promoteDeployment()
-
-	case "f":
-		next, cmd = m.failDeployment()
-
-	case "d":
-		next, cmd = m, m.describeCmd()
-
-	case "h":
-		next, cmd = m, m.jobSpecCmd()
-
-	case "c":
-		next, cmd = m.copyField()
-
-	case "space":
-		next, cmd = m.mark()
-
-	case "ctrl+a":
-		next, cmd = m.markAll()
-
-	case "ctrl+e":
-		next, cmd = m.openLogs(nomad.LogStderr)
-
-	default:
-		return m, nil, false
-	}
-
-	return next, cmd, true
 }
 
 // sessionKey is what works on every screen.
