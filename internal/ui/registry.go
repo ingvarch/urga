@@ -233,6 +233,8 @@ func init() {
 		screenTasks: {
 			titles: taskTitles,
 			keys:   taskBindings,
+			topics: []string{nomad.TopicAllocation},
+			fetch:  fetchAllocation,
 
 			title: func(m Model, count int) string {
 				return sprintf("Tasks (Allocation: %s) [%d]", shortID(m.screen.allocID), count)
@@ -491,6 +493,8 @@ func init() {
 
 		screenTaskEvents: {
 			titles: taskEventTitles,
+			topics: []string{nomad.TopicAllocation},
+			fetch:  fetchAllocation,
 
 			title: func(m Model, count int) string {
 				return sprintf("Events (Task: %s) [%d]", m.screen.task, count)

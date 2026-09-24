@@ -19,6 +19,7 @@ import (
 type fakeClient struct {
 	jobs        []nomad.Job
 	allocs      []nomad.Alloc
+	alloc       nomad.Alloc
 	nodeAllocs  []nomad.Alloc
 	nodeDetail  nomad.NodeDetail
 	nodeMeta    []nomad.MetaEntry
@@ -123,6 +124,12 @@ func (f *fakeClient) Allocations(_ context.Context, namespace, jobID string) ([]
 	f.allocCalls++
 
 	return f.allocs, f.err
+}
+
+func (f *fakeClient) Allocation(_ context.Context, namespace, allocID string) (nomad.Alloc, error) {
+	f.askedNamespace, f.askedID = namespace, allocID
+
+	return f.alloc, f.err
 }
 
 func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.Alloc, error) {

@@ -93,23 +93,40 @@ func (c *Client) NodeAllocations(ctx context.Context, nodeID string) ([]Alloc, e
 	// one place.
 	allocs := make([]Alloc, 0, len(stubs))
 	for _, stub := range stubs {
-		allocs = append(allocs, newAlloc(&api.AllocationListStub{
-			ID:            stub.ID,
-			Name:          stub.Name,
-			Namespace:     stub.Namespace,
-			JobID:         stub.JobID,
-			TaskGroup:     stub.TaskGroup,
-			NodeID:        stub.NodeID,
-			NodeName:      stub.NodeName,
-			ClientStatus:  stub.ClientStatus,
-			DesiredStatus: stub.DesiredStatus,
-			TaskStates:    stub.TaskStates,
-			CreateTime:    stub.CreateTime,
-			ModifyTime:    stub.ModifyTime,
-		}))
+		allocs = append(allocs, newAlloc(stubOf(stub)))
 	}
 
 	return allocs, nil
+}
+
+// Allocation is one allocation as the cluster holds it now.
+func (c *Client) Allocation(ctx context.Context, namespace, allocID string) (Alloc, error) {
+	alloc, _, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))
+	if err != nil {
+		return Alloc{}, err
+	}
+
+	return newAlloc(stubOf(alloc)), nil
+}
+
+// stubOf cuts a whole allocation down to what a list holds of it. The stub
+// the API builds itself reads the type of the job without asking whether the
+// job is there.
+func stubOf(alloc *api.Allocation) *api.AllocationListStub {
+	return &api.AllocationListStub{
+		ID:            alloc.ID,
+		Name:          alloc.Name,
+		Namespace:     alloc.Namespace,
+		JobID:         alloc.JobID,
+		TaskGroup:     alloc.TaskGroup,
+		NodeID:        alloc.NodeID,
+		NodeName:      alloc.NodeName,
+		ClientStatus:  alloc.ClientStatus,
+		DesiredStatus: alloc.DesiredStatus,
+		TaskStates:    alloc.TaskStates,
+		CreateTime:    alloc.CreateTime,
+		ModifyTime:    alloc.ModifyTime,
+	}
 }
 
 func newAlloc(stub *api.AllocationListStub) Alloc {
