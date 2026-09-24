@@ -32,9 +32,23 @@ One binary, no config to write, no browser.
 
 ## Install
 
-Download the archive for your machine from the
-[releases](https://github.com/ingvarch/urga/releases) — Linux, macOS, Windows
-and FreeBSD, on amd64 and arm — or install it with Go:
+On macOS, with Homebrew:
+
+```sh
+brew install ingvarch/tap/urga
+```
+
+On Debian, Ubuntu, Fedora or RHEL, take the `.deb` or the `.rpm` for your
+machine from the [releases](https://github.com/ingvarch/urga/releases) and
+install it with the package manager:
+
+```sh
+sudo apt install ./urga_*_amd64.deb
+sudo dnf install ./urga-*.x86_64.rpm
+```
+
+Anywhere else, download the archive for your machine from the same page —
+Linux, macOS, Windows and FreeBSD, on amd64 and arm — or install it with Go:
 
 ```sh
 go install github.com/ingvarch/urga/cmd/urga@latest
@@ -154,12 +168,15 @@ namespace each number key stands for.
 
 ```sh
 make check   # fmt, vet, lint, test, build
-make dist    # one platform, packed the way a release is downloaded
+make dist    # the whole release, published nowhere
 ```
 
+`make dist` needs goreleaser, the version named in `.tool-versions`.
+
 Every push runs the checks on Linux, the tests on Linux, macOS and Windows,
-and a build for each platform urga is released for. A tag starting with `v`
-builds the archives and opens a draft release.
+and the release without publishing it: every platform, the deb and rpm
+packages and the Homebrew cask. A tag starting with `v` publishes the release
+and updates the cask in [ingvarch/homebrew-tap](https://github.com/ingvarch/homebrew-tap).
 
 Tests come before the code they cover. The architecture rules live in
 `CLAUDE.md` and are not negotiated per change.

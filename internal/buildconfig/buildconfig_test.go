@@ -49,25 +49,68 @@ func TestWorkflows_PinTheRunner(t *testing.T) {
 	}
 }
 
-func TestWorkflows_BuildForEveryPlatform(t *testing.T) {
+func TestWorkflows_ReleaseWhatTheReleaseConfigSays(t *testing.T) {
 	r := require.New(t)
 
 	content := workflows(t)["release.yml"]
 	r.NotEmpty(content, "there is no release workflow")
 
-	// urga is downloaded for the machine it will run on, so every one of
-	// them is built.
-	for _, pair := range []string{
-		"{ goos: linux, goarch: amd64 }",
-		"{ goos: linux, goarch: arm64 }",
-		"{ goos: linux, goarch: arm }",
-		"{ goos: darwin, goarch: amd64 }",
-		"{ goos: darwin, goarch: arm64 }",
-		"{ goos: windows, goarch: amd64 }",
-		"{ goos: windows, goarch: arm64 }",
-		"{ goos: freebsd, goarch: amd64 }",
+	// The platforms and packages live in .goreleaser.yaml alone, so the
+	// workflow keeps no list of its own.
+	r.Contains(content, "args: release --clean")
+	r.NotContains(content, "goos:")
+
+	// The notes are written from the tags, and a shallow clone has none.
+	r.Contains(content, "fetch-depth: 0")
+
+	// The job's own token cannot push the cask to the tap.
+	r.Contains(content, "HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}")
+}
+
+func TestWorkflows_GiveTheReleaseTheAppleKeys(t *testing.T) {
+	r := require.New(t)
+
+	content := workflows(t)["release.yml"]
+
+	// The release signs and notarizes the macOS binaries with these.
+	for _, secret := range []string{
+		"MACOS_SIGN_P12",
+		"MACOS_SIGN_PASSWORD",
+		"MACOS_NOTARY_ISSUER_ID",
+		"MACOS_NOTARY_KEY_ID",
+		"MACOS_NOTARY_KEY",
 	} {
-		r.Contains(content, pair)
+		r.Contains(content, secret+": ${{ secrets."+secret+" }}")
+	}
+}
+
+func TestWorkflows_TryTheReleaseOnEveryPush(t *testing.T) {
+	r := require.New(t)
+
+	content := workflows(t)["ci.yml"]
+
+	// A broken release config shows up in the pull request, not on the tag,
+	// and it builds the same platforms the release does.
+	r.Contains(content, "args: release --snapshot --clean")
+	r.NotContains(content, "goos:")
+}
+
+func TestWorkflows_PinGoreleaser(t *testing.T) {
+	r := require.New(t)
+
+	data, err := os.ReadFile(filepath.Join("..", "..", ".tool-versions"))
+	r.NoError(err)
+
+	// The tool that builds the release changes when this repository says
+	// so, the same as the runner.
+	r.Regexp(`(?m)^goreleaser \d+\.\d+\.\d+$`, string(data))
+
+	for name, content := range workflows(t) {
+		if !strings.Contains(content, "goreleaser-action") {
+			continue
+		}
+
+		r.Contains(content, "version-file: .tool-versions", name)
 	}
 }
 
@@ -115,4 +158,13 @@ func TestWorkflows_UseActionsThatAreStillThere(t *testing.T) {
 			r.NotContains(content, action, name)
 		}
 	}
+}
+
+func TestMakefile_DistBuildsWhatTheReleaseBuilds(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "Makefile"))
+	require.NoError(t, err)
+
+	// make dist is how a release is tried before it is tagged, so it runs the
+	// same config the release does.
+	require.Regexp(t, `(?m)^dist:\n\tgoreleaser release --snapshot --clean$`, string(data))
 }
