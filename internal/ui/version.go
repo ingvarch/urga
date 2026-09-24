@@ -94,35 +94,31 @@ func openVersionDiff(m Model) (Model, tea.Cmd) {
 
 	client, screen := m.client, m.screen
 
-	return m, describe(fmt.Sprintf("%s version %d", screen.jobID, version.Version),
-		func(ctx context.Context) (string, error) {
-			text, err := client.JobVersionDiff(ctx, screen.namespace, screen.jobID, version.Version)
+	return m, describeLines(fmt.Sprintf("%s version %d", screen.jobID, version.Version),
+		func(ctx context.Context) ([]paintedLine, error) {
+			diff, err := client.JobVersionDiff(ctx, screen.namespace, screen.jobID, version.Version)
 
 			// The first version of a job changed nothing: there is nothing
 			// before it to compare it with.
 			if errors.Is(err, nomad.ErrNoDiff) {
-				return fmt.Sprintf(
+				return plainLines(fmt.Sprintf(
 					"Version %d of %s is the first one the cluster kept.\n\n"+
-						"There is nothing before it to compare it with.", version.Version, screen.jobID), nil
+						"There is nothing before it to compare it with.", version.Version, screen.jobID)), nil
 			}
 
-			return text, err
+			return diffLines(diff), err
 		})
 }
 
-// revertToVersion puts the version under the cursor back in place.
+// revertToVersion puts the version under the cursor back in place, after its
+// plan.
 func revertToVersion(m Model) (Model, tea.Cmd) {
 	version, ok := selectedOf(m, screenJobVersions, m.versions)
 	if !ok {
 		return m, nil
 	}
 
-	client, screen := m.client, m.screen
+	to := version.Version
 
-	return m.ask(
-		fmt.Sprintf("Really revert %s to version %d?", screen.jobID, version.Version),
-		act(fmt.Sprintf("Job %s reverted to version %d.", screen.jobID, version.Version), func(ctx context.Context) error {
-			return client.RevertJobTo(ctx, screen.namespace, screen.jobID, version.Version)
-		}),
-	)
+	return m, planFor(m.client, planState{revert: true, to: &to, namespace: m.screen.namespace, jobID: m.screen.jobID})
 }

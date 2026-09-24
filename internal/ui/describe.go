@@ -14,6 +14,10 @@ import (
 type describeMsg struct {
 	label   string
 	content string
+
+	// lines are a description urga drew, some of it in a colour of its
+	// own; it takes the place of content.
+	lines []paintedLine
 }
 
 // The screens that can be described each ask for what the cursor is on, in
@@ -107,5 +111,17 @@ func describe(label string, load func(ctx context.Context) (string, error)) tea.
 func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
 	next := screen{kind: screenDescribe, namespace: m.screen.namespace, label: msg.label}
 
-	return m.stackText(next, msg.content), nil
+	text := newTextModel(msg.content)
+	if msg.lines != nil {
+		text = paintedText(msg.lines)
+	}
+
+	return m.stackText(next, text), nil
+}
+
+// describeLines is describe for a description urga draws in colour.
+func describeLines(label string, load func(ctx context.Context) ([]paintedLine, error)) tea.Cmd {
+	return request(load, func(lines []paintedLine) tea.Msg {
+		return describeMsg{label: label, lines: lines}
+	})
 }

@@ -105,22 +105,6 @@ func (c *Client) StopAllocation(ctx context.Context, namespace, allocID string) 
 	return err
 }
 
-// RevertJob puts the version before the one that runs back in place.
-func (c *Client) RevertJob(ctx context.Context, namespace, jobID string) error {
-	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
-	if err != nil {
-		return err
-	}
-
-	if job.Version == nil || *job.Version == 0 {
-		return fmt.Errorf("%s has no earlier version to go back to", jobID)
-	}
-
-	_, _, err = c.api.Jobs().Revert(jobID, *job.Version-1, nil, c.write(ctx, namespace), "", "")
-
-	return err
-}
-
 // ScaleJob sets how many allocations a task group runs.
 func (c *Client) ScaleJob(ctx context.Context, namespace, jobID, group string, count int) error {
 	_, _, err := c.api.Jobs().Scale(jobID, group, &count, "scaled from urga", false, nil, c.write(ctx, namespace))

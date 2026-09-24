@@ -60,7 +60,7 @@ func openLogs(m Model, source string) (Model, tea.Cmd) {
 	next.task = task.Name
 	next.source = source
 
-	m = m.stackText(next, "")
+	m = m.stackText(next, textModel{})
 	m.logs = logState{following: true}
 
 	return m, m.startLogs()
@@ -245,7 +245,7 @@ func openPrevious(m Model) (Model, tea.Cmd) {
 	next.allocID = m.logs.previous
 
 	m.logs.stop()
-	m = m.stackText(next, "")
+	m = m.stackText(next, textModel{})
 	m.logs = logState{following: true}
 
 	return m, m.startLogs()

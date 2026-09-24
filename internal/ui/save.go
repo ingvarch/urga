@@ -25,7 +25,14 @@ func (m Model) saveText() tea.Cmd {
 
 	// What is kept is what is read: the filter, the wrapping and the times
 	// are how the screen was narrowed down to what matters.
-	content := strings.Join(m.text.rows(), "\n")
+	rows := m.text.rows()
+
+	lines := make([]string, 0, len(rows))
+	for _, row := range rows {
+		lines = append(lines, row.text)
+	}
+
+	content := strings.Join(lines, "\n")
 
 	return request(func(context.Context) (savedMsg, error) {
 		if err := os.WriteFile(name, []byte(content), 0o600); err != nil {

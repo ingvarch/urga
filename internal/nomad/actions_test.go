@@ -172,27 +172,6 @@ func TestStopAllocation(t *testing.T) {
 	r.Equal("/v1/allocation/af1f37df/stop", asked.URL.Path)
 }
 
-func TestRevertJob(t *testing.T) {
-	r := require.New(t)
-
-	client, asked := recorder(t, `{"ID": "web", "Version": 3}`)
-
-	r.NoError(client.RevertJob(context.Background(), "production", "web"))
-
-	// The version before the one that runs is what it goes back to.
-	r.Equal("/v1/job/web/revert", asked.URL.Path)
-}
-
-func TestRevertJob_AtTheFirstVersion(t *testing.T) {
-	r := require.New(t)
-
-	client, _ := recorder(t, `{"ID": "web", "Version": 0}`)
-
-	// There is nothing behind the first version, and saying so is better than
-	// a cluster error.
-	r.ErrorContains(client.RevertJob(context.Background(), "production", "web"), "no earlier version")
-}
-
 func TestScaleJob(t *testing.T) {
 	r := require.New(t)
 

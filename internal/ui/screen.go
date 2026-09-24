@@ -37,6 +37,7 @@ const (
 	screenTaskGroups
 	screenRegions
 	screenDatacenters
+	screenPlan
 )
 
 // screen is what is open: the resource and what it was opened for. The
@@ -392,9 +393,9 @@ func (m Model) enter() (Model, tea.Cmd) {
 }
 
 // stackText opens a screen that reads as text rather than as a list.
-func (m Model) stackText(next screen, content string) Model {
+func (m Model) stackText(next screen, text textModel) Model {
 	m = m.stack(next)
-	m.text = newTextModel(content)
+	m.text = text
 	m.layout()
 
 	return m

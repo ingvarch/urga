@@ -24,7 +24,7 @@ type fakeClient struct {
 	nodeDetail  nomad.NodeDetail
 	nodeMeta    []nomad.MetaEntry
 	versions    []nomad.JobVersion
-	diff        string
+	diff        []nomad.DiffLine
 	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
 	namespaces  []nomad.Namespace
@@ -51,16 +51,23 @@ type fakeClient struct {
 	usageErr      error
 	namespaceSpec string
 
-	submitted           int
-	submittedSource     string
-	submittedVars       nomad.JobVariables
+	submitted       int
+	submittedSource string
+	submittedVars   nomad.JobVariables
+	submittedIndex  uint64
+
+	plan                nomad.Plan
+	planCalls           int
+	plannedSource       string
+	plannedVars         nomad.JobVariables
+	plannedTo           *uint64
+	revertedFrom        uint64
 	submittedNamespaces int
 
 	stopped       int
 	started       int
 	restarted     int
 	stoppedAllocs int
-	reverted      int
 	drained       bool
 	drainCalls    int
 	eligible      bool
@@ -165,17 +172,24 @@ func (f *fakeClient) JobVersions(_ context.Context, _, jobID string) ([]nomad.Jo
 	return f.versions, f.err
 }
 
-func (f *fakeClient) JobVersionDiff(_ context.Context, _, jobID string, version uint64) (string, error) {
+func (f *fakeClient) JobVersionDiff(_ context.Context, _, jobID string, version uint64) ([]nomad.DiffLine, error) {
 	f.askedJobID, f.askedVersion = jobID, version
 
 	return f.diff, f.diffErr
 }
 
-func (f *fakeClient) RevertJobTo(_ context.Context, _, jobID string, version uint64) error {
-	f.wrote("RevertJobTo")
-	f.askedJobID, f.revertedTo = jobID, version
+func (f *fakeClient) PlanRevert(_ context.Context, namespace, jobID string, to *uint64) (nomad.Plan, error) {
+	f.askedNamespace, f.askedJobID, f.plannedTo = namespace, jobID, to
+	f.planCalls++
 
-	return f.err
+	return f.plan, f.err
+}
+
+func (f *fakeClient) RevertJobTo(_ context.Context, _, jobID string, version, from uint64) error {
+	f.wrote("RevertJobTo")
+	f.askedJobID, f.revertedTo, f.revertedFrom = jobID, version, from
+
+	return f.actionErr
 }
 
 func (f *fakeClient) Node(_ context.Context, nodeID string) (nomad.Node, error) {
@@ -278,14 +292,6 @@ func (f *fakeClient) StopJob(_ context.Context, namespace, jobID string) error {
 	return f.actionErr
 }
 
-func (f *fakeClient) RevertJob(_ context.Context, namespace, jobID string) error {
-	f.wrote("RevertJob")
-	f.askedNamespace, f.askedID = namespace, jobID
-	f.reverted++
-
-	return f.actionErr
-}
-
 func (f *fakeClient) ScaleJob(_ context.Context, namespace, jobID, group string, count int) error {
 	f.wrote("ScaleJob")
 	f.askedNamespace, f.askedID, f.askedGroup = namespace, jobID, group
@@ -317,9 +323,17 @@ func (f *fakeClient) TaskGroups(_ context.Context, namespace, jobID string) ([]n
 	return f.groups, f.err
 }
 
-func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string, vars nomad.JobVariables) error {
+func (f *fakeClient) PlanJob(_ context.Context, namespace, source string, vars nomad.JobVariables) (nomad.Plan, error) {
+	f.askedNamespace, f.plannedSource, f.plannedVars = namespace, source, vars
+	f.planCalls++
+
+	return f.plan, f.err
+}
+
+func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error {
 	f.wrote("SubmitJob")
 	f.askedNamespace, f.submittedSource, f.submittedVars = namespace, source, vars
+	f.submittedIndex = index
 	f.submitted++
 
 	return f.actionErr

@@ -21,7 +21,10 @@ func threeVersions() []nomad.JobVersion {
 func onVersions(t *testing.T) (Model, *fakeClient) {
 	t.Helper()
 
-	client := &fakeClient{jobs: twoJobs(), versions: threeVersions(), diff: "~ Priority: 50 -> 70"}
+	client := &fakeClient{jobs: twoJobs(), versions: threeVersions(), diff: []nomad.DiffLine{
+		{Kind: nomad.DiffDeleted, Text: "priority = 50"},
+		{Kind: nomad.DiffAdded, Text: "priority = 70"},
+	}}
 
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
@@ -60,7 +63,11 @@ func TestVersions_OpenWhatAVersionChanged(t *testing.T) {
 
 	r.Equal(screenDescribe, m.screen.kind)
 	r.Equal(uint64(3), client.askedVersion)
-	r.Contains(plain(m.render()), "~ Priority: 50 -> 70")
+	// As a unified diff reads, in colour.
+	out := m.render()
+	r.Contains(plain(out), "- priority = 50")
+	r.Contains(plain(out), "+ priority = 70")
+	r.Contains(out, opening(styleAdded)+"+ priority = 70")
 }
 
 func TestVersions_RevertToTheOneUnderTheCursor(t *testing.T) {
@@ -68,13 +75,18 @@ func TestVersions_RevertToTheOneUnderTheCursor(t *testing.T) {
 
 	m, client := onVersions(t)
 
+	client.plan = nomad.Plan{To: 2, Version: 3}
+
 	// Down to version 2, which is not the one that runs.
 	m, _ = m.update(key('j'))
-	m, _ = m.update(key('u'))
+	m, cmd := m.update(key('u'))
+	m = drain(m, cmd)
 
-	r.Contains(plain(m.render()), "revert web to version 2")
+	r.NotNil(client.plannedTo)
+	r.Equal(uint64(2), *client.plannedTo)
+	r.Contains(plain(m.render()), "Revert (Job: web, Version: 2)")
 
-	_, cmd := answerYes(m)
+	m, cmd = m.update(key('y'))
 	drain(m, cmd)
 
 	r.Equal(uint64(2), client.revertedTo)
@@ -89,11 +101,13 @@ func TestVersions_TheJobScreenStillRevertsToThePrevious(t *testing.T) {
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
 
-	m, _ = m.update(key('u'))
+	m, cmd := m.update(key('u'))
+	drain(m, cmd)
 
-	// The key that was there keeps its meaning on the list of jobs.
-	r.Contains(plain(m.render()), "revert")
-	r.Equal(screenJobs, m.screen.kind)
+	// The key that was there keeps its meaning on the list of jobs: the
+	// version before the one that runs.
+	r.Nil(client.plannedTo)
+	r.Equal("web", client.askedJobID)
 }
 
 func TestVersions_OfAnotherJobAreNotShownHere(t *testing.T) {

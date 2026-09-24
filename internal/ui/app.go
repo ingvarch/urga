@@ -36,16 +36,17 @@ type Client interface {
 
 	TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
 
-	SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables) error
+	PlanJob(ctx context.Context, namespace, source string, vars nomad.JobVariables) (nomad.Plan, error)
+	PlanRevert(ctx context.Context, namespace, jobID string, to *uint64) (nomad.Plan, error)
+	SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error
 	NamespaceSpec(ctx context.Context, name string) (string, error)
 	SubmitNamespace(ctx context.Context, source string) error
 
 	StartJob(ctx context.Context, namespace, jobID string) error
 	StopJob(ctx context.Context, namespace, jobID string) error
-	RevertJob(ctx context.Context, namespace, jobID string) error
 	JobVersions(ctx context.Context, namespace, jobID string) ([]nomad.JobVersion, error)
-	JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) (string, error)
-	RevertJobTo(ctx context.Context, namespace, jobID string, version uint64) error
+	JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) ([]nomad.DiffLine, error)
+	RevertJobTo(ctx context.Context, namespace, jobID string, version, from uint64) error
 	ScaleJob(ctx context.Context, namespace, jobID, group string, count int) error
 	RestartAllocation(ctx context.Context, namespace, allocID string) error
 	StopAllocation(ctx context.Context, namespace, allocID string) error
@@ -223,6 +224,7 @@ type Model struct {
 	table tableModel
 	text  textModel
 	logs  logState
+	plan  planState
 
 	// asked counts the screens put up, so that an answer to one that is no
 	// longer up is dropped.
@@ -416,6 +418,12 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case describeMsg:
 		return m.showDescribe(msg)
 
+	case planMsg:
+		return m.showPlan(msg), nil
+
+	case planDoneMsg:
+		return m.finishPlan(msg), nil
+
 	case editFileMsg:
 		return m.startEdit(msg)
 
@@ -560,6 +568,10 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	// A key read-only took away says why, rather than do nothing.
 	if b, ok := m.withheldKey(msg.String()); ok {
 		return m.warn(fmt.Sprintf("read-only: %s is off", b.label)), nil
+	}
+
+	if next, cmd, handled := m.planButtonKey(msg); handled {
+		return next, cmd
 	}
 
 	if next, handled := m.scrollKey(msg); handled {
@@ -733,6 +745,14 @@ func (m Model) body(width int) (title, content string) {
 			return m.title(), m.logToggles(width) + "\n" + m.text.view()
 		}
 
+		// The question stays at the foot of the box, however short the plan.
+		if m.barRows() > 0 {
+			view := m.text.view()
+			gap := strings.Repeat("\n", max(m.text.height-strings.Count(view, "\n")-1, 0))
+
+			return m.title(), view + gap + "\n" + m.planBar(width)
+		}
+
 		return m.title(), m.text.view()
 	}
 
@@ -790,7 +810,7 @@ func (m *Model) layout() {
 	// The table sits inside the box: the margin, its two border lines and the
 	// header row of the table itself are not rows.
 	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3-m.panelHeight(), 1))
-	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2-m.toggleRows(), 1))
+	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2-m.toggleRows()-m.barRows(), 1))
 
 	m.text.filter = m.filter
 	m.text.follow()

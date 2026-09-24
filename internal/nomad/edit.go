@@ -14,20 +14,37 @@ import (
 // SubmitJob sends a job file to the cluster. HCL and JSON are both taken,
 // which is what the editor hands back. The file is kept with the version it
 // makes, and so are the values of its variables: the next edit opens the same
-// file, and the job runs with the values it ran with before.
-func (c *Client) SubmitJob(ctx context.Context, namespace, source string, vars JobVariables) error {
-	job, kept, err := c.parseJob(ctx, namespace, source, vars)
+// file, and the job runs with the values it ran with before. It is submitted
+// at the index of its plan: a job that changed since is refused rather than
+// overwritten.
+func (c *Client) SubmitJob(ctx context.Context, namespace, source string, vars JobVariables, index uint64) error {
+	job, kept, err := c.jobOf(ctx, namespace, source, vars)
 	if err != nil {
 		return err
+	}
+
+	opts := &api.RegisterOptions{Submission: kept, EnforceIndex: true, ModifyIndex: index}
+
+	_, _, err = c.api.Jobs().RegisterOpts(job, opts, c.write(ctx, namespace))
+	if jobChanged(err) {
+		return ErrJobChanged
+	}
+
+	return err
+}
+
+// jobOf reads a job file and puts the job in the namespace it is sent to.
+func (c *Client) jobOf(ctx context.Context, namespace, source string, vars JobVariables) (*api.Job, *api.JobSubmission, error) {
+	job, kept, err := c.parseJob(ctx, namespace, source, vars)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	if namespace != "" && namespace != AllNamespaces {
 		job.Namespace = &namespace
 	}
 
-	_, _, err = c.api.Jobs().RegisterOpts(job, &api.RegisterOptions{Submission: kept}, c.write(ctx, namespace))
-
-	return err
+	return job, kept, nil
 }
 
 // parseJob reads a job file the way the cluster does, and says what of it to

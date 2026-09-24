@@ -118,10 +118,14 @@ func jobFile(client Client, job nomad.Job) load {
 		}
 
 		// The editor holds the file only, the values of the variables are
-		// sent back beside it.
+		// sent back beside it. What comes back is planned first: a changed
+		// file can restart every allocation of the job.
 		return file{extension: jobExtension(spec.Format), content: spec.Source, submit: func(source string) tea.Cmd {
-			return act(fmt.Sprintf("Job %s submitted.", job.ID), func(ctx context.Context) error {
-				return client.SubmitJob(ctx, job.Namespace, source, spec.Variables)
+			return planFor(client, planState{
+				namespace: job.Namespace,
+				jobID:     job.ID,
+				source:    source,
+				vars:      spec.Variables,
 			})
 		}}, nil
 	}

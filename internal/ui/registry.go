@@ -555,6 +555,11 @@ func init() {
 			title: func(m Model, _ int) string { return m.screen.label },
 		},
 
+		screenPlan: {
+			keys:  planBindings,
+			title: func(m Model, _ int) string { return planTitle(m) },
+		},
+
 		screenLogs: {
 			keys:  logBindings,
 			title: func(m Model, _ int) string { return logsTitle(m.screen, m.logs.finished) },
