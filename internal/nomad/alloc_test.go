@@ -175,3 +175,74 @@ func TestAllocation(t *testing.T) {
 	r.Len(alloc.Tasks, 1)
 	r.Equal(3, alloc.Tasks[0].Restarts)
 }
+
+// replacedCanary is an allocation of web that replaced one that failed, is a
+// canary of a deployment that has not judged it yet, and listens on two ports.
+const replacedCanary = `{
+	"ID": "af1f37df-7b19-6b1c-da67-5e8f482b5a15",
+	"Namespace": "production",
+	"JobID": "web",
+	"Job": {"ID": "web", "Version": 7},
+	"TaskGroup": "frontend",
+	"ClientStatus": "running",
+	"DesiredStatus": "run",
+	"DeploymentID": "d74c1812-0000-0000-0000-000000000000",
+	"DeploymentStatus": {"Healthy": null, "Canary": true},
+	"AllocatedResources": {"Shared": {"Ports": [
+		{"Label": "http", "Value": 21659, "To": 8080, "HostIP": "10.0.0.5"},
+		{"Label": "admin", "Value": 22689, "To": 0, "HostIP": "10.0.0.5"}
+	]}},
+	"RescheduleTracker": {"Events": [{"PrevAllocID": "4f2a1c9e"}, {"PrevAllocID": "3e1b0a8d"}]},
+	"PreviousAllocation": "4f2a1c9e-0000-0000-0000-000000000000",
+	"NextAllocation": "9a1b2c3d-0000-0000-0000-000000000000",
+	"FollowupEvalID": "8b1c2d3e-0000-0000-0000-000000000000"
+}`
+
+func TestAllocation_WhereItRunsAndListens(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, replacedCanary)
+
+	alloc, err := client.Allocation(context.Background(), "production", "af1f37df-7b19-6b1c-da67-5e8f482b5a15")
+	r.NoError(err)
+
+	r.Equal(uint64(7), alloc.JobVersion)
+
+	// A deployment that has not judged it yet is still checking it.
+	r.Equal("checking", alloc.Health)
+	r.True(alloc.Canary)
+
+	// Where it listens, and where a port is mapped to inside the task.
+	r.Equal([]nomad.Port{
+		{Label: "http", Address: "10.0.0.5:21659", To: 8080},
+		{Label: "admin", Address: "10.0.0.5:22689"},
+	}, alloc.Ports)
+
+	r.Equal(2, alloc.Reschedules)
+	r.Equal("4f2a1c9e-0000-0000-0000-000000000000", alloc.Previous)
+	r.Equal("9a1b2c3d-0000-0000-0000-000000000000", alloc.Next)
+	r.Equal("8b1c2d3e-0000-0000-0000-000000000000", alloc.FollowUp)
+}
+
+func TestAllocation_HealthInItsDeployment(t *testing.T) {
+	r := require.New(t)
+
+	health := func(status string) string {
+		client, _ := recorder(t, `{"ID": "a", "DeploymentID": "d", "DeploymentStatus": `+status+`}`)
+
+		alloc, err := client.Allocation(context.Background(), "production", "a")
+		r.NoError(err)
+
+		return alloc.Health
+	}
+
+	r.Equal("healthy", health(`{"Healthy": true}`))
+	r.Equal("unhealthy", health(`{"Healthy": false}`))
+	r.Equal("checking", health(`null`))
+
+	// Outside a deployment there is no health to speak of.
+	client, _ := recorder(t, `{"ID": "a"}`)
+	alloc, err := client.Allocation(context.Background(), "production", "a")
+	r.NoError(err)
+	r.Empty(alloc.Health)
+}

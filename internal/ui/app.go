@@ -276,6 +276,10 @@ type clusterData struct {
 	server  nomad.Server
 	raft    []nomad.RaftPeer
 	raftErr error
+
+	// alloc is the allocation the tasks screen read. It need not be in the
+	// list it was opened from: the one it replaced may be on another client.
+	alloc nomad.Alloc
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -757,7 +761,7 @@ func (m Model) body(width int) (title, content string) {
 	}
 
 	if panel := m.panelHeight(); panel > 0 {
-		return m.title(), strings.Join(append(m.hostPanel(width), m.table.view()), "\n")
+		return m.title(), strings.Join(append(m.panel(width), m.table.view()), "\n")
 	}
 
 	return m.title(), m.table.view()

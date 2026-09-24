@@ -214,6 +214,10 @@ var taskBindings = []binding{
 	{press: "ctrl+e", label: "Stderr", do: openStderr},
 	// The same key opens a shell here and scales a task group elsewhere.
 	{press: "s", label: "Shell", do: shell, writes: true},
+	{press: "c", label: "Client", do: openAllocNode, offered: allocHas(func(a nomad.Alloc) string { return a.NodeID })},
+	{press: "p", label: "Previous", do: openReplaced, offered: allocHas(func(a nomad.Alloc) string { return a.Previous })},
+	{press: "n", label: "Next", do: openReplacement, offered: allocHas(func(a nomad.Alloc) string { return a.Next })},
+	{press: "f", label: "Follow-up", do: openFollowUp, offered: allocHas(func(a nomad.Alloc) string { return a.FollowUp })},
 }
 
 // onSource says the log screen reads the source.

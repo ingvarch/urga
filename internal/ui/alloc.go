@@ -162,6 +162,8 @@ func (m Model) keepAllocation(alloc nomad.Alloc) (Model, tea.Cmd) {
 	ours := (kind == screenTasks || kind == screenTaskEvents) && m.screen.allocID == alloc.ID
 
 	return m.applyWhen(ours, func(m *Model) {
+		m.alloc = alloc
+
 		at := slices.IndexFunc(m.allocs, func(held nomad.Alloc) bool { return held.ID == alloc.ID })
 		if at < 0 {
 			return

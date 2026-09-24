@@ -29,9 +29,10 @@ const (
 	// with no room for one still shows.
 	hostPanelRows = 2
 
-	// hostRowsKept are the allocations a client shows whatever else is on
-	// the screen. The charts give way to them, not the other way around.
-	hostRowsKept = 3
+	// rowsKept are the rows a table under a panel shows whatever else is on
+	// the screen: the allocations of a client, the tasks of an allocation.
+	// The panel gives way to them, not the other way around.
+	rowsKept = 3
 
 	// hostTrailMax is how many readings a chart keeps. At one reading every
 	// hostUseEvery that is the last twenty minutes of the machine.
@@ -190,10 +191,15 @@ func (m Model) chartHeight() int {
 	return 0
 }
 
-// panelHeight is what the screen holds above its rows. Only the screen of a
-// client has one: what the machine is doing belongs over its allocations,
-// not over a list of its attributes.
+// panelHeight is what the screen holds above its rows. A client has one:
+// what the machine is doing belongs over its allocations, not over a list of
+// its attributes. So do the tasks of an allocation: where it runs and
+// listens.
 func (m Model) panelHeight() int {
+	if m.screen.kind == screenTasks {
+		return len(m.tasksPanel(m.width))
+	}
+
 	if !m.screen.isClient() {
 		return 0
 	}
@@ -212,11 +218,15 @@ func (m Model) panelHeight() int {
 // rowsForPanel is what is left of the box once the table has the rows it
 // keeps: its header and a few allocations.
 func (m Model) rowsForPanel() int {
-	return m.bodyHeight() - 3 - hostRowsKept
+	return m.bodyHeight() - 3 - rowsKept
 }
 
-// hostPanel is the panel of the machine, sized to the screen.
-func (m Model) hostPanel(width int) []string {
+// panel is what the screen holds above its rows, sized to it.
+func (m Model) panel(width int) []string {
+	if m.screen.kind == screenTasks {
+		return m.tasksPanel(width)
+	}
+
 	return m.host.view(width, m.chartWidth(), m.chartHeight(), hostUseEvery)
 }
 
@@ -269,25 +279,14 @@ func (h hostModel) view(width, half, plot int, every time.Duration) []string {
 func (h hostModel) details(width int) string {
 	node := h.node
 
-	fields := []struct{ label, value string }{
+	return fieldLine([]field{
 		{"Status", node.Status},
 		{"Address", node.Address},
 		{"Datacenter", node.Datacenter},
 		{"Pool", node.NodePool},
 		{"Version", node.Version},
 		{"Scheduling", eligibilityOf(node)},
-	}
-
-	cells := make([]string, 0, len(fields))
-	for _, field := range fields {
-		if field.value == "" {
-			continue
-		}
-
-		cells = append(cells, styleLabel.Render(field.label)+" "+styleValue.Render(field.value))
-	}
-
-	return truncate(strings.Join(cells, strings.Repeat(" ", columnGap+1)), width)
+	}, width)
 }
 
 // eligibilityOf says whether the machine is taking work.
@@ -376,6 +375,11 @@ func openClient(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	return m.openNode(node)
+}
+
+// openNode opens the screen of one client.
+func (m Model) openNode(node nomad.Node) (Model, tea.Cmd) {
 	// The readings belong to the machine they were taken on, the chart
 	// starts over on every client.
 	m.host = hostModel{node: node}

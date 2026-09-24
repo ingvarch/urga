@@ -2,7 +2,9 @@ package nomad
 
 import (
 	"context"
+	"net"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -27,6 +29,34 @@ type Alloc struct {
 
 	Created  time.Time
 	Modified time.Time
+
+	JobVersion uint64
+
+	// Health is what its deployment made of it: healthy, unhealthy, or
+	// checking while it has not judged yet. Outside a deployment there is
+	// none.
+	Health string
+	Canary bool
+
+	Ports []Port
+
+	// Reschedules is how many times the allocations before it were placed
+	// again.
+	Reschedules int
+
+	// Previous is the allocation it replaced, Next the one that replaced it,
+	// and FollowUp the evaluation that will place it again.
+	Previous string
+	Next     string
+	FollowUp string
+}
+
+// Port is where an allocation listens, and the port inside the task it is
+// mapped to, when it is mapped.
+type Port struct {
+	Label   string
+	Address string
+	To      int
 }
 
 // Task is one task of an allocation, as the cluster last reported it.
@@ -106,7 +136,54 @@ func (c *Client) Allocation(ctx context.Context, namespace, allocID string) (All
 		return Alloc{}, err
 	}
 
-	return newAlloc(stubOf(alloc)), nil
+	return withDetail(newAlloc(stubOf(alloc)), alloc), nil
+}
+
+// withDetail adds what only the full reading of an allocation holds: what
+// it is to its job and its deployment, where it listens, and what came
+// before and after it.
+func withDetail(out Alloc, alloc *api.Allocation) Alloc {
+	if alloc.Job != nil && alloc.Job.Version != nil {
+		out.JobVersion = *alloc.Job.Version
+	}
+
+	out.Health = healthOf(alloc.DeploymentID, alloc.DeploymentStatus)
+	out.Canary = alloc.DeploymentStatus != nil && alloc.DeploymentStatus.Canary
+
+	if alloc.AllocatedResources != nil {
+		for _, port := range alloc.AllocatedResources.Shared.Ports {
+			out.Ports = append(out.Ports, Port{
+				Label:   port.Label,
+				Address: net.JoinHostPort(port.HostIP, strconv.Itoa(port.Value)),
+				To:      port.To,
+			})
+		}
+	}
+
+	if alloc.RescheduleTracker != nil {
+		out.Reschedules = len(alloc.RescheduleTracker.Events)
+	}
+
+	out.Previous = alloc.PreviousAllocation
+	out.Next = alloc.NextAllocation
+	out.FollowUp = alloc.FollowupEvalID
+
+	return out
+}
+
+// healthOf is what the deployment of an allocation made of it. One it has
+// not judged yet carries no verdict.
+func healthOf(deploymentID string, status *api.AllocDeploymentStatus) string {
+	switch {
+	case deploymentID == "":
+		return ""
+	case status == nil || status.Healthy == nil:
+		return "checking"
+	case *status.Healthy:
+		return "healthy"
+	}
+
+	return "unhealthy"
 }
 
 // stubOf cuts a whole allocation down to what a list holds of it. The stub
