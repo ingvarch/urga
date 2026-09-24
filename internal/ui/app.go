@@ -340,7 +340,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.applyList(screenJobs, func(m *Model) { m.jobs = m.jobsInView(msg) })
 
 	case allocsMsg:
-		return usageOnce(m.applyList(screenAllocations, func(m *Model) { m.allocs = msg }))
+		return hostOnce(usageOnce(m.applyList(screenAllocations, func(m *Model) { m.allocs = msg })))
 
 	case allocMsg:
 		return m.keepAllocation(nomad.Alloc(msg))
@@ -480,7 +480,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.keepHost(msg), nil
 
 	case hostUseMsg:
-		return m.keepHostUse(msg), nil
+		return m.keepHostUse(msg)
+
+	case pollHostMsg:
+		return m.pollHost()
 
 	case watchingMsg:
 		var cmd tea.Cmd

@@ -326,6 +326,7 @@ func (m Model) enter() (Model, tea.Cmd) {
 
 	// So were the readings, and their chain ends with that ask.
 	m.usage = m.usage.forgetRows()
+	m.host.due = false
 
 	m.table = newTableModel(m.screen.titles())
 	m.filter = ""

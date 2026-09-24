@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -289,4 +290,120 @@ func TestClient_ANarrowScreenKeepsTheMachineAndDropsTheCharts(t *testing.T) {
 	for _, line := range strings.Split(out, "\n") {
 		r.LessOrEqual(ansi.StringWidth(line), 20, line)
 	}
+}
+
+// clientOpened is the client screen before its list has been answered.
+func clientOpened(t *testing.T, cpu int) (Model, *fakeClient) {
+	t.Helper()
+
+	client := &fakeClient{
+		nodes:      busyClient(),
+		nodeAllocs: clientAllocs(),
+		use:        map[string]nomad.ResourceUse{"node-1": {CPUPercent: cpu}},
+	}
+
+	m, _ := nodeModelOf(client)
+	m, _ = m.update(enter())
+
+	return m, client
+}
+
+func TestClient_TheFirstReadingComesWithTheList(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := clientOpened(t, 42)
+
+	m, cmd := m.update(allocsMsg(clientAllocs()))
+	m = drain(m, cmd)
+
+	// The chart has something to draw as soon as the screen does.
+	r.NotEmpty(m.host.trail)
+	r.Equal(42, m.host.trail[len(m.host.trail)-1].CPUPercent)
+
+	// The list is answered on every poll and on every change the cluster
+	// reports. None of those answers is a reading: the chart has a timer of
+	// its own, and a second chain next to it would read twice as often.
+	before := len(m.host.trail)
+
+	for range 3 {
+		m, cmd = m.update(allocsMsg(clientAllocs()))
+		m = drain(m, cmd)
+	}
+
+	r.Len(m.host.trail, before)
+}
+
+func TestClient_APollOfTheListReadsNoHost(t *testing.T) {
+	r := require.New(t)
+
+	m, client := clientScreen(t)
+	calls := client.usageCalls
+
+	// A poll comes every thirty seconds while the cluster streams and every
+	// two when it does not. Readings taken with it land on the chart at
+	// either pace, under an axis that assumes one.
+	drain(m, m.fetch())
+
+	r.Equal(calls, client.usageCalls)
+}
+
+func TestClient_EveryReadingSetsTheTimerForTheNext(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := clientScreen(t)
+
+	_, cmd := m.update(reading(10))
+	r.NotNil(cmd)
+
+	// A machine that did not answer is asked again all the same, or one
+	// timeout stops the chart for as long as the screen is open.
+	_, cmd = m.update(hostUseMsg{nodeID: "node-1", err: errTest})
+	r.NotNil(cmd)
+}
+
+func TestClient_TheTimerTakesAReading(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := clientScreen(t)
+	before := len(m.host.trail)
+
+	m, cmd := m.update(pollHostMsg{})
+	m = drain(m, cmd)
+
+	r.Len(m.host.trail, before+1)
+}
+
+func TestClient_ComingBackReadsAgain(t *testing.T) {
+	r := require.New(t)
+
+	m, client := clientOpened(t, 42)
+	m, cmd := m.update(allocsMsg(clientAllocs()))
+	m = drain(m, cmd)
+
+	m, _ = m.update(enter())
+	r.Equal(screenTasks, m.screen.kind)
+
+	// The timer of the chart was let go of with the screen. Coming back
+	// starts another one, or the chart stands still under a live list.
+	before := len(m.host.trail)
+
+	m, _ = m.update(escape())
+	r.True(m.screen.isClient())
+
+	m, cmd = m.update(allocsMsg(client.nodeAllocs))
+	m = drain(m, cmd)
+
+	r.Len(m.host.trail, before+1)
+}
+
+func TestClient_TheChartSaysHowFarBackItReaches(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := clientScreen(t)
+	m, _ = m.update(reading(29))
+
+	// The left edge is as many readings back as the chart is wide, and the
+	// readings come at the pace of their own timer.
+	window := time.Duration(m.chartWidth()-chartAxisWidth) * hostUseEvery
+	r.Contains(plain(m.render()), age(window)+" ago")
 }
