@@ -16,7 +16,7 @@ var versionTitles = []string{"Version", "State", "Tag", "Changes", "Age"}
 
 var versionBindings = []binding{
 	{press: "enter", label: "What changed", do: openVersionDiff},
-	{press: "u", label: "Revert to it", do: revertToVersion},
+	{press: "u", label: "Revert to it", do: revertToVersion, writes: true},
 }
 
 // openVersions opens what the job under the cursor was before.

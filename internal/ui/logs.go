@@ -154,7 +154,7 @@ var taskBindings = []binding{
 	{press: "e", label: "Events", do: openTaskEvents},
 	{press: "ctrl+e", label: "Logs (stderr)", do: openStderr},
 	// The same key opens a shell here and scales a task group elsewhere.
-	{press: "s", label: "Shell", do: shell},
+	{press: "s", label: "Shell", do: shell, writes: true},
 }
 
 func stopFollowing(m Model) (Model, tea.Cmd) {
