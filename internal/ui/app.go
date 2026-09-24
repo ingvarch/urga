@@ -428,16 +428,19 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.say(fmt.Sprintf("Shell in %s closed.", msg.task)), nil
 
 	case logStreamMsg:
-		var cmd tea.Cmd
-		m.logs, cmd = m.logs.opened(msg.stream)
-
-		return m, cmd
+		return m.openedLog(msg)
 
 	case logLineMsg:
-		return m.appendLog(string(msg))
+		if !m.fromOpenStream(msg.stream) {
+			return m, nil
+		}
+
+		return m.appendLog(msg.text)
 
 	case logEndMsg:
-		m.logs = m.logs.ended()
+		if m.fromOpenStream(msg.stream) {
+			m.logs = m.logs.ended()
+		}
 
 		return m, nil
 

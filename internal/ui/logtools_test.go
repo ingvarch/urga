@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -26,6 +27,11 @@ func rowsWith(m Model, text string) int {
 	return count
 }
 
+// lineOf is what the stream of the open log hands over.
+func lineOf(m Model, text string) tea.Msg {
+	return logLineMsg{stream: m.logs.stream, text: text}
+}
+
 // onLogs opens a log screen with a few lines already in it.
 func onLogs(t *testing.T, lines ...string) (Model, *fakeClient) {
 	t.Helper()
@@ -36,7 +42,7 @@ func onLogs(t *testing.T, lines ...string) (Model, *fakeClient) {
 	m, _ = m.update(enter())
 
 	for _, line := range lines {
-		m, _ = m.update(logLineMsg(line))
+		m, _ = m.update(lineOf(m, line))
 	}
 
 	return m, client
@@ -116,7 +122,7 @@ func TestLogs_FollowingReachesTheLastWrappedRow(t *testing.T) {
 	m, _ = m.update(key('w'))
 
 	// Wrapped, a line takes several rows, and the end is the last of them.
-	m, _ = m.update(logLineMsg(strings.Join(longLines(40), "\n") + "\n"))
+	m, _ = m.update(lineOf(m, strings.Join(longLines(40), "\n")+"\n"))
 	r.Contains(plain(m.render()), "end-039")
 }
 
@@ -126,7 +132,7 @@ func TestLogs_ResumeReachesTheLastWrappedRow(t *testing.T) {
 	m, _ := onLogs(t)
 	m, _ = m.update(key('s'))
 	m, _ = m.update(key('w'))
-	m, _ = m.update(logLineMsg(strings.Join(longLines(40), "\n") + "\n"))
+	m, _ = m.update(lineOf(m, strings.Join(longLines(40), "\n")+"\n"))
 	r.Contains(plain(m.render()), "line-000")
 
 	m, _ = m.update(key('r'))
@@ -140,7 +146,7 @@ func TestLogs_HomeReachesTheFirstWrappedRow(t *testing.T) {
 	m, _ = m.update(key('w'))
 
 	for _, line := range longLines(40) {
-		m, _ = m.update(logLineMsg(line + "\n"))
+		m, _ = m.update(lineOf(m, line+"\n"))
 	}
 
 	r.Contains(plain(m.render()), "end-039")
