@@ -1,12 +1,11 @@
 <div align="center">
 
-<pre>
-@@@  @@@ @@@@@@@   @@@@@@@   @@@@@@  
-@@!  @@@ @@!  @@@ !@@       @@!  @@@ 
-@!@  !@! @!@!!@!  !@! @!@!@ @!@!@!@! 
-!!:  !!! !!: :!!  :!!   !!: !!:  !!! 
- :.:: :   :   : :  :: :: :   :   : : 
-</pre>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.png">
+  <img src="docs/images/logo-light.png" alt="urga" width="112">
+</picture>
+
+# urga
 
 **A terminal UI for HashiCorp Nomad.**
 One binary, no config to write, no browser.
@@ -18,22 +17,9 @@ One binary, no config to write, no browser.
 
 </div>
 
-```
-  Address:   https://nomad.example.com  <0> all         <enter>  Allocations     @@@  @@@ @@@@@@@   @@@@@@@   @@@@@@
-  Region:    global                     <1> production  <t>      Task groups     @@!  @@@ @@!  @@@ !@@       @@!  @@@
-  DC:        all                        <2> staging     <d>      Describe        @!@  !@! @!@!!@!  !@! @!@!@ @!@!@!@!
-  Urga Rev:  v0.1.0                     <3> default     <h>      Job spec        !!:  !!! !!: :!!  :!!   !!: !!:  !!!
-  Nomad Rev: 2.0.5                                      <ctrl-s> Start or stop    :.:: :   :   : :  :: :: :   :   : :
-  CPU:       15%
-  MEM:       31%
- ╭───────────────────────────────────────── Jobs (all) [3] ──────────────────────────────────────────╮
- │ ID                       Name                     Type      Namespace    Status    Allocs   Age   │
- │ api                      api                      service   production   running   3/3      11d   │
- │ nightly-import           nightly-import           batch     production   dead      0/0      7h    │
- │ traefik                  traefik                  system    default      running   2/3      1h    │
- ╰───────────────────────────────────────────────────────────────────────────────────────────────────╯
-  <:> command   </> filter   <?> help   <q> quit
-```
+![The job list: each job colored by its state, the keys of the screen at the top](docs/images/jobs.png)
+
+![A client: what the host is doing over the last minutes, and the allocations it runs](docs/images/client.png)
 
 ## Install
 
