@@ -180,3 +180,25 @@ func TestLogs_AStreamThatEndedIsLetGoOf(t *testing.T) {
 	r.Equal(screenTasks, m.screen.kind)
 	r.False(client.logsClosed)
 }
+
+func TestLogs_OffersToStopOrToResumeFollowing(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: &nomad.LogStream{Lines: make(chan string)}}
+	m := openTasks(t, client)
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	// A log that is followed can stop being followed, and only that: resume
+	// would do nothing, and a key in the header is a promise.
+	header := plain(m.render())
+	r.Contains(header, "Stop following")
+	r.NotContains(header, "Resume")
+
+	m, _ = m.update(key('s'))
+
+	header = plain(m.render())
+	r.Contains(header, "Resume")
+	r.NotContains(header, "Stop following")
+}

@@ -227,7 +227,7 @@ func TestClient_KeepsOfferingWhatTheAllocationsAnswer(t *testing.T) {
 	m, _ := onAClient(t)
 
 	keys := []string{}
-	for _, h := range m.screen.hints() {
+	for _, h := range m.hints() {
 		keys = append(keys, h.Key)
 	}
 

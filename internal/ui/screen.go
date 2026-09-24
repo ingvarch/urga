@@ -88,20 +88,8 @@ func (s screen) titles() []string {
 	return s.of().titles
 }
 
-// hints are the keys the open resource answers. Keys that work everywhere
-// are not here, they live in help.
-func (s screen) hints() []hint {
-	keys := s.bindings()
-
-	hints := make([]hint, 0, len(keys))
-	for _, b := range keys {
-		hints = append(hints, b.hint())
-	}
-
-	return hints
-}
-
-// bindings are the keys of the screen, in the order the header shows them.
+// bindings are the keys of the screen, in the order the header shows them,
+// whether or not each one does something right now.
 func (s screen) bindings() []binding {
 	res := s.of()
 	if res.keysFor != nil {
@@ -111,9 +99,37 @@ func (s screen) bindings() []binding {
 	return res.keys
 }
 
-// binding is what a key does on the screen, when the screen answers it.
-func (s screen) binding(press string) (binding, bool) {
-	for _, b := range s.bindings() {
+// keys are what the open screen offers now: a key that would do nothing in
+// the state the screen is in is not offered.
+func (m Model) keys() []binding {
+	all := m.screen.bindings()
+
+	keys := make([]binding, 0, len(all))
+	for _, b := range all {
+		if b.offered == nil || b.offered(m) {
+			keys = append(keys, b)
+		}
+	}
+
+	return keys
+}
+
+// hints are the keys the open resource answers. Keys that work everywhere
+// are not here, they live in help.
+func (m Model) hints() []hint {
+	keys := m.keys()
+
+	hints := make([]hint, 0, len(keys))
+	for _, b := range keys {
+		hints = append(hints, b.hint())
+	}
+
+	return hints
+}
+
+// binding is what a key does on the screen, when the screen offers it.
+func (m Model) binding(press string) (binding, bool) {
+	for _, b := range m.keys() {
 		if b.press == press {
 			return b, true
 		}
