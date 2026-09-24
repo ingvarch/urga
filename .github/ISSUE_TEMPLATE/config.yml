@@ -1,0 +1,6 @@
+# A bug report without the versions cannot be reproduced.
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ingvarch/urga/security/advisories/new
+    about: Report it privately, not in a public issue.
