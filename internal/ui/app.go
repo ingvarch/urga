@@ -163,7 +163,9 @@ type Model struct {
 	client Client
 	opts   Options
 
-	namespace string
+	// namespaceState is the namespace the session looks at and the keys
+	// that switch it.
+	namespaceState
 
 	width  int
 	height int
@@ -205,13 +207,6 @@ type Model struct {
 	shown int
 	held  int
 
-	// namespaceOrder is which namespace each number key stands for.
-	namespaceOrder []string
-
-	// namespaces are kept across a switch of region: the command line and
-	// the number keys need them, and the switch does not ask for them again.
-	namespaces []nomad.Namespace
-
 	clusterData
 
 	table tableModel
@@ -235,13 +230,8 @@ type Model struct {
 	// usage is what the cluster and the rows on the screen are busy with.
 	usage usageState
 
-	// agentRegion is the region of the agent, which answers a session that
-	// names none. regions and datacenters are what the command line can
-	// switch to, datacenter the one the lists are narrowed to.
-	agentRegion string
-	regions     []string
-	datacenters []string
-	datacenter  string
+	// regionState is where in the cluster the session looks.
+	regionState
 }
 
 // clusterData is what the cluster last said in the region the session asks

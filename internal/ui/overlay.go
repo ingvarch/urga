@@ -300,17 +300,6 @@ func (m Model) commit() (Model, tea.Cmd) {
 	return m.show(cmd.kind)
 }
 
-// knowsNamespace says whether the cluster has a namespace by that name.
-func (m Model) knowsNamespace(namespace string) bool {
-	for _, known := range m.namespaces {
-		if known.Name == namespace {
-			return true
-		}
-	}
-
-	return false
-}
-
 func firstWord(input string) string {
 	fields := strings.Fields(strings.TrimSpace(input))
 	if len(fields) == 0 {

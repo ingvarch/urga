@@ -589,3 +589,27 @@ func TestDatacenterCommand_TheNumbersOfTheDatacenterLeftAreGone(t *testing.T) {
 	r.Contains(headerOf(m), "CPU:       n/a")
 	r.Contains(headerOf(m), "MEM:       n/a")
 }
+
+func TestRegionState_NarrowsToItsDatacenter(t *testing.T) {
+	r := require.New(t)
+
+	s := regionState{datacenters: []string{"dc1", "dc2"}, datacenter: "dc2"}
+
+	r.Equal([]string{"all", "dc1", "dc2"}, s.datacenterChoices())
+
+	jobs := s.jobsInView([]nomad.Job{
+		{ID: "web", Datacenters: []string{"dc1"}},
+		{ID: "api", Datacenters: []string{"dc2"}},
+	})
+	r.Equal([]string{"api"}, names(jobs, func(j nomad.Job) string { return j.ID }))
+
+	nodes := s.nodesInView([]nomad.Node{{ID: "n1", Datacenter: "dc1"}, {ID: "n2", Datacenter: "dc2"}})
+	r.Equal([]string{"n2"}, names(nodes, nodeMark))
+
+	servers := s.serversInView([]nomad.Server{{Name: "s1", Datacenter: "dc1"}, {Name: "s2", Datacenter: "dc2"}})
+	r.Len(servers, 1)
+	r.Equal("s2", servers[0].Name)
+
+	// No datacenter chosen is every one of them.
+	r.True(regionState{}.inDatacenter("dc1"))
+}

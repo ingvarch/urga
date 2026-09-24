@@ -122,3 +122,21 @@ func TestNamespaceKeys_DropTheAnswerAskedBefore(t *testing.T) {
 	r.Empty(m.jobs)
 	r.NotContains(plain(m.render()), "cron")
 }
+
+func TestNamespaceState_KeysAndNames(t *testing.T) {
+	r := require.New(t)
+
+	s := namespaceState{namespace: "staging", namespaces: threeNamespaces()}
+	s.rememberNamespaces(threeNamespaces())
+
+	r.Equal([]string{"default", "production", "staging"}, s.namespaceOrder)
+
+	keys := s.namespaceColumnData()
+	r.Equal("<0>", keys[0].Key)
+	r.Equal("<3>", keys[3].Key)
+	r.True(keys[3].Active)
+	r.False(keys[0].Active)
+
+	r.True(s.knowsNamespace("production"))
+	r.False(s.knowsNamespace("nowhere"))
+}
