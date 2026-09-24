@@ -79,6 +79,10 @@ type Options struct {
 	// Namespace the session looks at. Empty is every namespace.
 	Namespace string
 
+	// NamespaceGiven says the namespace was typed on the command line, so
+	// it wins over the one the last session left.
+	NamespaceGiven bool
+
 	// Version of urga, for the header.
 	Version string
 

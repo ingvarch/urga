@@ -74,7 +74,7 @@ urga reads the same environment as the `nomad` command:
 | `NOMAD_ADDR` | Address of the cluster, defaults to `http://127.0.0.1:4646` |
 | `NOMAD_TOKEN` | ACL token, when the cluster asks for one |
 | `NOMAD_REGION` | Region to ask in, the one of the agent when unset |
-| `NOMAD_NAMESPACE` | Namespace to start in, every namespace when unset |
+| `NOMAD_NAMESPACE` | Namespace of the first run, every namespace when unset |
 
 Flags override it:
 
@@ -167,7 +167,9 @@ Allocations and clients say what they are using, the list sorts by any column,
 and one key leaves only what needs attention.
 
 The session comes back where it was left: the namespace, the resource and which
-namespace each number key stands for.
+namespace each number key stands for. `--namespace` on the command line opens
+another namespace; `NOMAD_NAMESPACE` does not, since the shell sets it for every
+run.
 
 ## Contributing
 
