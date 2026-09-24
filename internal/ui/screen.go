@@ -61,6 +61,20 @@ type screen struct {
 	// task and source are whose output the log screen follows.
 	task   string
 	source string
+
+	// left is where the screen was when another one was opened on top of
+	// it, which is where escape comes back to.
+	left place
+}
+
+// place is where a list was left: the row under the cursor, how far down the
+// window was, and the filter and the order it was read in. A row number means
+// nothing in a list that is read another way.
+type place struct {
+	cursor int
+	top    int
+	filter string
+	sort   sortState
 }
 
 // isClient says the screen was opened for one machine of the cluster, which
@@ -309,10 +323,11 @@ func (m Model) push(next screen) (Model, tea.Cmd) {
 	return m.stack(next).arrive()
 }
 
-// stack puts a screen on top of the one that is there and leaves behind what
-// belonged to it: its filter and the order of its rows say nothing about the
-// screen that is opening.
+// stack puts a screen on top of the one that is there, which keeps where it
+// was left for escape to come back to. What belonged to it, its filter and
+// the order of its rows, says nothing about the screen that is opening.
 func (m Model) stack(next screen) Model {
+	m.screen.left = place{cursor: m.table.cursor, top: m.table.top, filter: m.filter, sort: m.sort}
 	m.history = append(m.history, m.screen)
 	m.screen = next
 	m = m.forget()
@@ -337,7 +352,22 @@ func (m Model) back() (Model, tea.Cmd) {
 	m = m.forget()
 	m.marks = nil
 
-	return m.arrive()
+	arrived, cmd := m.arrive()
+
+	return arrived.returnTo(arrived.screen.left), cmd
+}
+
+// returnTo puts a list back the way it was left. The rows it held are still
+// there, so the cursor lands on the same one; the answer that follows keeps
+// it there the way any refresh does.
+func (m Model) returnTo(left place) Model {
+	m.filter, m.sort = left.filter, left.sort
+	m.layout()
+
+	m.table.cursor, m.table.top = left.cursor, left.top
+	m.table.follow()
+
+	return m
 }
 
 // arrive puts the screen up and writes the session down. Every way of

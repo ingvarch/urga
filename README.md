@@ -90,10 +90,10 @@ header shows both under the address.
 | `A`–`Z` | Sort by the column that starts with that letter, again to reverse |
 | `!` | Only what needs attention, again for all of it |
 | `enter` | Open what the cursor is on: a client opens what it runs, a server what the agent says about itself |
-| `esc` | Back |
+| `esc` | Back, to the row the list was left on, with its filter and order |
 | `d` | Describe |
 | `h` | The job file the job was submitted with |
-| `e` | Edit a job, a namespace or the metadata of a client in `$EDITOR`; the events of a client or of a task |
+| `e` | Edit a job, a namespace or the metadata of a client in `$EDITOR`; the events of a client or of a task. A job the cluster kept no file of opens as JSON |
 | `t` | Task groups of a job |
 | `s` | Scale a task group, or a shell in a task |
 | `v` | Versions of a job, with what each one changed |
