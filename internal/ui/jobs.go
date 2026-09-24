@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"image/color"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
@@ -72,3 +74,14 @@ const (
 	typeService = "service"
 	typeBatch   = "batch"
 )
+
+// openJobAllocations drills into the job under the cursor: the allocations
+// it runs.
+func openJobAllocations(m Model) (Model, tea.Cmd) {
+	job, ok := selectedOf(m, screenJobs, m.jobs)
+	if !ok {
+		return m, nil
+	}
+
+	return m.push(screen{kind: screenAllocations, namespace: job.Namespace, jobID: job.ID})
+}

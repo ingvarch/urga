@@ -193,3 +193,16 @@ func yesNo(yes bool) string {
 
 	return "no"
 }
+
+// openServer opens what the agent of the server under the cursor says about
+// itself.
+func openServer(m Model) (Model, tea.Cmd) {
+	server, ok := selectedOf(m, screenServers, m.servers)
+	if !ok {
+		return m, nil
+	}
+
+	m.server, m.raft, m.raftErr = server, nil, nil
+
+	return m.push(screen{kind: screenServer, label: server.Name})
+}

@@ -323,3 +323,23 @@ func shares(trail []nomad.ResourceUse, of func(nomad.ResourceUse) int) []float64
 func cpuShare(use nomad.ResourceUse) int { return use.CPUPercent }
 
 func memoryShare(use nomad.ResourceUse) int { return use.MemoryPercent }
+
+// openClient drills into the client under the cursor: what it runs, under
+// what the machine itself is doing.
+func openClient(m Model) (Model, tea.Cmd) {
+	node, ok := selectedOf(m, screenNodes, m.nodes)
+	if !ok {
+		return m, nil
+	}
+
+	// The readings belong to the machine they were taken on, the chart
+	// starts over on every client.
+	m.host = hostModel{node: node}
+
+	return m.push(screen{
+		kind:      screenAllocations,
+		namespace: nomad.AllNamespaces,
+		nodeID:    node.ID,
+		label:     node.Name,
+	})
+}

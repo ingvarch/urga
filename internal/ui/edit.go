@@ -66,46 +66,47 @@ func editorCommand() string {
 	return ""
 }
 
-// edit opens what the cursor is on in the editor of the user.
-func (m Model) edit() (Model, tea.Cmd) {
-	client := m.client
+// The screens that can be edited each open what the cursor is on in the
+// editor of the user.
 
-	switch m.screen.kind {
-	case screenJobs:
-		job, ok := selectedOf(m, screenJobs, m.jobs)
-		if !ok {
-			return m, nil
-		}
-
-		return m, openEditor(jobFile(client, job), func(source string) tea.Cmd {
-			return act(fmt.Sprintf("Job %s submitted.", job.ID), func(ctx context.Context) error {
-				return client.SubmitJob(ctx, job.Namespace, source)
-			})
-		})
-
-	case screenNodeMeta:
-		nodeID, name := m.screen.nodeID, m.screen.label
-
-		return m, openEditor(metaFile(client, nodeID), func(source string) tea.Cmd {
-			return act(fmt.Sprintf("Metadata of %s submitted.", name), func(ctx context.Context) error {
-				return client.SubmitNodeMeta(ctx, nodeID, source)
-			})
-		})
-
-	case screenNamespaces:
-		namespace, ok := selectedOf(m, screenNamespaces, m.namespaces)
-		if !ok {
-			return m, nil
-		}
-
-		return m, openEditor(namespaceFile(client, namespace.Name), func(source string) tea.Cmd {
-			return act(fmt.Sprintf("Namespace %s submitted.", namespace.Name), func(ctx context.Context) error {
-				return client.SubmitNamespace(ctx, source)
-			})
-		})
+func editJob(m Model) (Model, tea.Cmd) {
+	job, ok := selectedOf(m, screenJobs, m.jobs)
+	if !ok {
+		return m, nil
 	}
 
-	return m, nil
+	client := m.client
+
+	return m, openEditor(jobFile(client, job), func(source string) tea.Cmd {
+		return act(fmt.Sprintf("Job %s submitted.", job.ID), func(ctx context.Context) error {
+			return client.SubmitJob(ctx, job.Namespace, source)
+		})
+	})
+}
+
+func editMeta(m Model) (Model, tea.Cmd) {
+	client, nodeID, name := m.client, m.screen.nodeID, m.screen.label
+
+	return m, openEditor(metaFile(client, nodeID), func(source string) tea.Cmd {
+		return act(fmt.Sprintf("Metadata of %s submitted.", name), func(ctx context.Context) error {
+			return client.SubmitNodeMeta(ctx, nodeID, source)
+		})
+	})
+}
+
+func editNamespace(m Model) (Model, tea.Cmd) {
+	namespace, ok := selectedOf(m, screenNamespaces, m.namespaces)
+	if !ok {
+		return m, nil
+	}
+
+	client := m.client
+
+	return m, openEditor(namespaceFile(client, namespace.Name), func(source string) tea.Cmd {
+		return act(fmt.Sprintf("Namespace %s submitted.", namespace.Name), func(ctx context.Context) error {
+			return client.SubmitNamespace(ctx, source)
+		})
+	})
 }
 
 // file is what the editor is given: the name to save it under and what is in

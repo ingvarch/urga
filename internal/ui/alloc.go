@@ -141,3 +141,19 @@ const (
 
 	desiredStop = "stop"
 )
+
+// openAllocation drills into the allocation under the cursor: the tasks it
+// runs.
+func openAllocation(m Model) (Model, tea.Cmd) {
+	alloc, ok := selectedOf(m, screenAllocations, m.visibleAllocs())
+	if !ok {
+		return m, nil
+	}
+
+	return m.push(screen{
+		kind:      screenTasks,
+		namespace: alloc.Namespace,
+		jobID:     alloc.JobID,
+		allocID:   alloc.ID,
+	})
+}

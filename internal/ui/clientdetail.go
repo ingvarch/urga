@@ -33,11 +33,11 @@ var (
 		{press: "m", label: "Meta", do: nodeScreen(screenNodeMeta)},
 	}, allocBindings...)
 
-	driverBindings = []binding{{press: "enter", label: "What the driver says", do: Model.open}}
+	driverBindings = []binding{{press: "enter", label: "What the driver says", do: Model.openDriver}}
 
 	metaBindings = []binding{
 		{press: "c", label: "Copy the value", do: Model.copyField},
-		{press: "e", label: "Edit", do: Model.edit},
+		{press: "e", label: "Edit", do: editMeta},
 	}
 )
 

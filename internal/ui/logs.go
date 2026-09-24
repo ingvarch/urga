@@ -148,7 +148,7 @@ var logBindings = []binding{
 }
 
 var taskBindings = []binding{
-	{press: "enter", label: "Logs", do: Model.open},
+	{press: "enter", label: "Logs", do: openStdout},
 	// The same key opens the events of a task here and edits elsewhere,
 	// because a screen never offers both.
 	{press: "e", label: "Events", do: Model.openTaskEvents},
@@ -191,6 +191,11 @@ func wrapLines(m Model) (Model, tea.Cmd) {
 // saveScreen writes what is on a text screen to a file.
 func saveScreen(m Model) (Model, tea.Cmd) {
 	return m, m.saveText()
+}
+
+// openStdout follows what the task under the cursor writes to stdout.
+func openStdout(m Model) (Model, tea.Cmd) {
+	return m.openLogs(nomad.LogStdout)
 }
 
 // openStderr follows what the task under the cursor writes to stderr.
