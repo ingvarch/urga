@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,11 +17,13 @@ import (
 type sent struct {
 	path      string
 	namespace string
+	query     url.Values
 	body      map[string]any
 }
 
 // jobServer answers each path with a body of its own and keeps every request
-// in the order it came.
+// in the order it came. A path it has no answer for is not found, the way
+// the cluster says a job has no submission.
 func jobServer(t *testing.T, answers map[string]string) (*nomad.Client, *[]sent) {
 	t.Helper()
 
@@ -30,10 +33,18 @@ func jobServer(t *testing.T, answers map[string]string) (*nomad.Client, *[]sent)
 		var body map[string]any
 		_ = json.NewDecoder(req.Body).Decode(&body)
 
-		asked = append(asked, sent{path: req.URL.Path, namespace: req.URL.Query().Get("namespace"), body: body})
+		query := req.URL.Query()
+		asked = append(asked, sent{path: req.URL.Path, namespace: query.Get("namespace"), query: query, body: body})
+
+		answer, ok := answers[req.URL.Path]
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(answers[req.URL.Path]))
+		_, _ = w.Write([]byte(answer))
 	}))
 	t.Cleanup(server.Close)
 
@@ -70,6 +81,24 @@ func TestSubmitJob_JSON(t *testing.T) {
 	kept := submission(t, (*asked)[0])
 	r.Equal(source, kept["Source"])
 	r.Equal("json", kept["Format"])
+}
+
+func TestSubmitJob_JSONUnderAJobKey(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := jobServer(t, map[string]string{"/v1/jobs": `{"EvalID": "eval-1"}`})
+
+	source := `{"Job": {"ID": "web", "Name": "web"}}`
+	r.NoError(client.SubmitJob(context.Background(), "production", source, nomad.JobVariables{}))
+
+	// A JSON job file holds the job or wraps it in a Job key, and the nomad
+	// command keeps either one as it was written. Read as the job itself,
+	// the wrapped one is a job with no ID.
+	job, ok := (*asked)[0].body["Job"].(map[string]any)
+	r.True(ok)
+	r.Equal("web", job["ID"])
+
+	r.Equal(source, submission(t, (*asked)[0])["Source"])
 }
 
 func TestSubmitJob_HCLGoesThroughTheCluster(t *testing.T) {
