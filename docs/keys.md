@@ -96,6 +96,7 @@ start, stop, restart or drain then applies to every marked row.
 | `d` | Describe | |
 | `h` | Job file the job was submitted with | |
 | `v` | Versions | |
+| `l` | Logs of a task in every allocation of the job | |
 | `e` | Edit the job in your editor | yes |
 | `ctrl-s` | Start a stopped job, or stop a running one | yes |
 | `u` | Revert to the previous version | yes |
@@ -108,6 +109,7 @@ start, stop, restart or drain then applies to every marked row.
 | --- | --- | --- |
 | `enter` | Allocations of the task group | |
 | `s` | Scale: set the number of allocations | yes |
+| `l` | Logs of a task in every allocation of the group | |
 | `p` | Why the group is not placed. Shown when allocations are waiting. | |
 
 ### Versions
@@ -137,6 +139,7 @@ start, stop, restart or drain then applies to every marked row.
 | `d` | Describe | |
 | `r` | Restart | yes |
 | `ctrl-k` | Stop | yes |
+| `l` | Logs of a task in every allocation of the list | |
 | `space`, `ctrl-a` | Mark | |
 
 ### Tasks
@@ -168,6 +171,20 @@ evaluation.
 | `ctrl-e` | Switch between stdout and stderr |
 | `p` | Same log in the allocation this one replaced |
 | `ctrl-s` | Save the log to a file |
+
+### Logs of every allocation
+
+| Key | What it does |
+| --- | --- |
+| `r` | Read the allocations again and open the logs of the ones that run now |
+| `ctrl-e` | Switch every log between stdout and stderr |
+| `s` | Autoscroll on or off |
+| `t` | Timestamps on or off |
+| `w` | Wrap on or off |
+| `ctrl-s` | Save the logs to a file |
+
+In the list of tasks that opens first when there are several, `enter` opens
+the logs of the task under the cursor.
 
 ### Files
 

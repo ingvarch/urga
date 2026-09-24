@@ -27,7 +27,7 @@ One binary, no config to write, no browser.
   services, namespaces, variables, clients, node pools and servers.
 - Updates the screen when the cluster changes, using the Nomad event stream.
 - Shows task logs and the files of an allocation, and follows them as they
-  grow.
+  grow. Shows the log of a task from every allocation of a job at once.
 - Edits a job in your editor and shows the plan before it submits anything.
 - Shows the versions of a job and reverts to any of them.
 - Explains why a job is not placed.

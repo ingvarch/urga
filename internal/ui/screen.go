@@ -41,6 +41,8 @@ const (
 	screenFiles
 	screenFile
 	screenClusters
+	screenLogTasks
+	screenJobLogs
 )
 
 // screen is what is open: the resource and what it was opened for. The
@@ -359,6 +361,7 @@ func (m Model) back() (Model, tea.Cmd) {
 
 	// What the screen held on to is let go of before leaving it.
 	m.logs.stop()
+	m.jobLogs.stop()
 
 	m.screen = m.history[len(m.history)-1]
 	m.history = m.history[:len(m.history)-1]
@@ -374,6 +377,8 @@ func (m Model) back() (Model, tea.Cmd) {
 		arrived, read = arrived.readAgain()
 	case screenFile:
 		arrived, read = arrived.readFileAgain()
+	case screenJobLogs:
+		arrived, read = reloadJobLogs(arrived)
 	}
 
 	cmd = tea.Batch(cmd, read)

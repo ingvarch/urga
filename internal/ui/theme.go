@@ -42,6 +42,10 @@ var (
 
 	// colorCanary is an allocation put out to try a change before the rest.
 	colorCanary = lipgloss.Color("#c678dd")
+
+	// colorBlue is one more colour to tell things apart: a cluster, an
+	// allocation in a log of many.
+	colorBlue = lipgloss.Color("#61afef")
 )
 
 var (
@@ -107,6 +111,6 @@ var clusterColours = map[string]color.Color{
 	"yellow": colorPending,
 	"green":  colorAccent,
 	"cyan":   colorTitle,
-	"blue":   lipgloss.Color("#61afef"),
+	"blue":   colorBlue,
 	"purple": colorCanary,
 }

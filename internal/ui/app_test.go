@@ -150,6 +150,11 @@ type fakeClient struct {
 	// each pause asked to pause or to go on.
 	promotedGroups []string
 	paused         []bool
+
+	// logsByAlloc are the logs of each allocation, and logsOpened the
+	// allocations whose log was opened, in order.
+	logsByAlloc map[string]*nomad.LogStream
+	logsOpened  []string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -327,6 +332,18 @@ func (f *fakeClient) Logs(_ context.Context, namespace, allocID, task, source st
 
 	if f.err != nil {
 		return nil, f.err
+	}
+
+	// Each allocation writes a log of its own, when the test gives it one.
+	if f.logsByAlloc != nil {
+		f.logsOpened = append(f.logsOpened, allocID)
+
+		stream, ok := f.logsByAlloc[allocID]
+		if !ok {
+			return nil, fmt.Errorf("no log for %s", allocID)
+		}
+
+		return stream, nil
 	}
 
 	stream := f.logs
