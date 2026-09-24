@@ -111,15 +111,15 @@ header shows both under the address.
 | `esc` | Back, to the row the list was left on, with its filter and order |
 | `d` | Describe |
 | `h` | The job file the job was submitted with |
-| `e` | Edit a job, a namespace or the metadata of a client in your editor; the events of a client or of a task. A job the cluster kept no file of opens as JSON |
+| `e` | Edit a job, a namespace or the metadata of a client in your editor; the events of a client or of a task. A job the cluster kept no file of opens as JSON, and an edited job is planned before it is sent |
 | `t` | Task groups of a job |
 | `s` | Scale a task group, or a shell in a task; on a log, autoscroll on or off |
 | `v` | Versions of a job, with what each one changed |
-| `u` | Revert a job to its previous version, or on the versions screen to the one under the cursor |
+| `u` | Revert a job to its previous version, or on the versions screen to the one under the cursor, after its plan |
 | `space` | Mark a row, on jobs, allocations and clients; an action then takes every marked row |
 | `ctrl-a` | Mark every row on the screen, or none |
 | `ctrl-s` | Start or stop a job, or every marked one |
-| `r` | Restart an allocation, or every marked one |
+| `r` | Restart an allocation, or every marked one; on a plan, plan it again |
 | `ctrl-k` | Stop an allocation, or every marked one |
 | `ctrl-d` | Drain a client, or every marked one; on a client, what it can run |
 | `ctrl-h` | Host volumes of a client |
@@ -129,6 +129,7 @@ header shows both under the address.
 | `p` | Promote the canaries of a deployment; on a job or task group that waits, why it is not placed; on a log, the allocation it replaced |
 | `f` | Fail a deployment |
 | `c` | Copy the value under the cursor, on a screen of fields |
+| `y` | On a plan, submit the edit or the revert it shows |
 | `ctrl-e` | Logs of a task, stderr; on a log, the other of stdout and stderr |
 | `w` | Wrap long lines, on logs and descriptions |
 | `t` | Show when urga read each log line; a task writes no time of its own |
@@ -153,7 +154,11 @@ An evaluation opens on how it ended and, for every task group it could not
 place, which nodes were filtered out and which ran out of room. A job or a task
 group whose allocations wait for a place opens the same page for the newest
 evaluation that could not place them. A job or a namespace opens in your
-editor and goes back to the cluster when you save. Jobs start, stop, revert and
+editor and goes back to the cluster when you save; a job is planned first. The
+plan says what would change, what the scheduler would do to each group and what
+it could not place; `y` submits it, `r` plans it again, and a job that changed
+since the plan is refused rather than overwritten. Reverting a job goes through
+the same plan. Jobs start, stop, revert and
 scale; a job keeps its versions, each saying what it changed, and goes back to
 any of them; allocations restart and stop; jobs start and stop; clients drain and take work
 again — one of them, or as many as are marked; a task opens a shell. Clients drain and
