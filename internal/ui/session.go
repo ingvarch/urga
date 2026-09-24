@@ -7,7 +7,9 @@ import (
 )
 
 // screenOfName is how a screen is written down between runs, and back.
-var screenOfName = func() map[string]screenKind {
+var screenOfName map[string]screenKind
+
+func storedIndex() map[string]screenKind {
 	names := map[string]screenKind{}
 
 	for kind, res := range resources {
@@ -17,7 +19,7 @@ var screenOfName = func() map[string]screenKind {
 	}
 
 	return names
-}()
+}
 
 // restore picks the session up where it was left.
 func (m Model) restore() Model {

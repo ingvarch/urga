@@ -91,12 +91,35 @@ func (s screen) titles() []string {
 // hints are the keys the open resource answers. Keys that work everywhere
 // are not here, they live in help.
 func (s screen) hints() []hint {
-	res := s.of()
-	if res.hintsFor != nil {
-		return res.hintsFor(s)
+	keys := s.bindings()
+
+	hints := make([]hint, 0, len(keys))
+	for _, b := range keys {
+		hints = append(hints, b.hint())
 	}
 
-	return res.hints
+	return hints
+}
+
+// bindings are the keys of the screen, in the order the header shows them.
+func (s screen) bindings() []binding {
+	res := s.of()
+	if res.keysFor != nil {
+		return res.keysFor(s)
+	}
+
+	return res.keys
+}
+
+// binding is what a key does on the screen, when the screen answers it.
+func (s screen) binding(press string) (binding, bool) {
+	for _, b := range s.bindings() {
+		if b.press == press {
+			return b, true
+		}
+	}
+
+	return binding{}, false
 }
 
 // title labels the box with what it holds and how much of it. The count is

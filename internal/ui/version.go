@@ -14,9 +14,9 @@ import (
 // versionTitles are the columns of the versions of a job.
 var versionTitles = []string{"Version", "State", "Tag", "Changes", "Age"}
 
-var versionHints = []hint{
-	{Key: "<enter>", Description: "What changed"},
-	{Key: "<u>", Description: "Revert to it"},
+var versionBindings = []binding{
+	{press: "enter", label: "What changed", do: Model.open},
+	{press: "u", label: "Revert to it", do: Model.revertToVersion},
 }
 
 // openVersions opens what the job under the cursor was before.

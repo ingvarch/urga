@@ -142,17 +142,17 @@ func (m Model) failDeployment() (Model, tea.Cmd) {
 }
 
 var (
-	nodeHints = []hint{
-		{Key: "<enter>", Description: "What it runs"},
-		{Key: "<ctrl-d>", Description: "Drain"},
-		{Key: "<i>", Description: "Eligibility"},
-		{Key: "<space>", Description: "Mark"},
-		{Key: "<ctrl-a>", Description: "Mark all"},
+	nodeBindings = []binding{
+		{press: "enter", label: "What it runs", do: Model.open},
+		{press: "ctrl+d", label: "Drain", do: Model.drainNode},
+		{press: "i", label: "Eligibility", do: Model.toggleEligibility},
+		{press: "space", label: "Mark", do: Model.mark},
+		{press: "ctrl+a", label: "Mark all", do: Model.markAll},
 	}
 
-	deploymentHints = []hint{
-		{Key: "<d>", Description: "Describe"},
-		{Key: "<p>", Description: "Promote canaries"},
-		{Key: "<f>", Description: "Fail"},
+	deploymentBindings = []binding{
+		{press: "d", label: "Describe", do: describeRow},
+		{press: "p", label: "Promote canaries", do: Model.promoteDeployment},
+		{press: "f", label: "Fail", do: Model.failDeployment},
 	}
 )

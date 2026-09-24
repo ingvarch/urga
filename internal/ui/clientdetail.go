@@ -20,24 +20,31 @@ var (
 
 // The keys each of those screens answers.
 var (
-	// clientHints are the keys of the machine, and after them the keys of
-	// the allocations on it, which answer here as on any other list of
+	// clientBindings are the keys of the machine, and after them the keys
+	// of the allocations on it, which answer here as on any other list of
 	// allocations.
-	clientHints = append([]hint{
-		{Key: "<e>", Description: "Events"},
-		{Key: "<ctrl-d>", Description: "Drivers"},
-		{Key: "<ctrl-h>", Description: "Host volumes"},
-		{Key: "<a>", Description: "Attributes"},
-		{Key: "<m>", Description: "Meta"},
-	}, allocHints...)
+	clientBindings = append([]binding{
+		{press: "e", label: "Events", do: nodeScreen(screenNodeEvents)},
+		// Draining is a key of the list of clients; on the screen of one
+		// client the same key opens what it can run.
+		{press: "ctrl+d", label: "Drivers", do: nodeScreen(screenNodeDrivers)},
+		{press: "ctrl+h", label: "Host volumes", do: nodeScreen(screenNodeVolumes)},
+		{press: "a", label: "Attributes", do: nodeScreen(screenNodeAttributes)},
+		{press: "m", label: "Meta", do: nodeScreen(screenNodeMeta)},
+	}, allocBindings...)
 
-	driverHints = []hint{{Key: "<enter>", Description: "What the driver says"}}
+	driverBindings = []binding{{press: "enter", label: "What the driver says", do: Model.open}}
 
-	metaHints = []hint{
-		{Key: "<c>", Description: "Copy the value"},
-		{Key: "<e>", Description: "Edit"},
+	metaBindings = []binding{
+		{press: "c", label: "Copy the value", do: Model.copyField},
+		{press: "e", label: "Edit", do: Model.edit},
 	}
 )
+
+// nodeScreen is a key that opens one of the screens of the client.
+func nodeScreen(kind screenKind) func(Model) (Model, tea.Cmd) {
+	return func(m Model) (Model, tea.Cmd) { return m.openNodeScreen(kind) }
+}
 
 // openNodeScreen opens one of the screens of the client the cursor came
 // from. They all read the same answer from the machine.

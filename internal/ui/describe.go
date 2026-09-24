@@ -91,6 +91,16 @@ func (m Model) jobSpecCmd() tea.Cmd {
 	})
 }
 
+// describeRow shows what the cursor is on in the words of the cluster.
+func describeRow(m Model) (Model, tea.Cmd) {
+	return m, m.describeCmd()
+}
+
+// showJobSpec shows the file the job under the cursor was submitted with.
+func showJobSpec(m Model) (Model, tea.Cmd) {
+	return m, m.jobSpecCmd()
+}
+
 func describe(label string, load func(ctx context.Context) (string, error)) tea.Cmd {
 	return request(load, func(content string) tea.Msg {
 		return describeMsg{label: label, content: content}
