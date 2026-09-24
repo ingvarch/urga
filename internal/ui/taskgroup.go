@@ -74,15 +74,16 @@ func scaleGroup(m Model) (Model, tea.Cmd) {
 	m.prompt = promptModel{
 		prefix: fmt.Sprintf("scale %s to: ", group.Name),
 		text:   strconv.Itoa(group.Count),
-		group:  group.Name,
+		group:  group,
 	}
 	m.layout()
 
 	return m, nil
 }
 
-// scaleTo sets the count of a group, when the answer is a count.
-func (m Model) scaleTo(group, input string) (Model, tea.Cmd) {
+// scaleTo sets the count of a group, when the answer is a count and the
+// question that follows is answered yes.
+func (m Model) scaleTo(group nomad.TaskGroup, input string) (Model, tea.Cmd) {
 	count, err := strconv.Atoi(input)
 	if err != nil || count < 0 {
 		return m.fail(fmt.Errorf("%q is not a count", input)), nil
@@ -90,9 +91,12 @@ func (m Model) scaleTo(group, input string) (Model, tea.Cmd) {
 
 	client, screen := m.client, m.screen
 
-	return m, act(fmt.Sprintf("Task group %s scaled to %d.", group, count), func(ctx context.Context) error {
-		return client.ScaleJob(ctx, screen.namespace, screen.jobID, group, count)
-	})
+	return m.ask(
+		fmt.Sprintf("Really scale %s of %s from %d to %d?", group.Name, group.JobID, group.Count, count),
+		act(fmt.Sprintf("Task group %s scaled to %d.", group.Name, count), func(ctx context.Context) error {
+			return client.ScaleJob(ctx, screen.namespace, screen.jobID, group.Name, count)
+		}),
+	)
 }
 
 // openGroupAllocations drills into the task group under the cursor: the

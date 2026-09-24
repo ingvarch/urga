@@ -85,12 +85,40 @@ func TestScale_AsksForACount(t *testing.T) {
 	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	m = typeIn(m, "5")
 
-	_, cmd := m.update(enter())
+	m, _ = m.update(enter())
+
+	// A count starts or stops allocations like any other action, and is
+	// asked about like one: the question says what runs and what will.
+	r.Equal(overlayConfirm, m.overlay)
+	r.Contains(plain(m.render()), "Really scale frontend of web from 3 to 5?")
+	r.Zero(client.scaled)
+
+	_, cmd := m.update(key('y'))
 	drain(m, cmd)
 
 	r.Equal(1, client.scaled)
 	r.Equal(5, client.scaledTo)
 	r.Equal("frontend", client.askedGroup)
+}
+
+func TestScale_CancelLeavesTheCount(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), groups: twoGroups()}
+	m := openTaskGroups(t, client)
+
+	m, _ = m.update(key('s'))
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+	m = typeIn(m, "0")
+	m, _ = m.update(enter())
+	r.Equal(overlayConfirm, m.overlay)
+
+	// Enter out of habit lands on cancel: a typo of 0 stops nothing.
+	m, cmd := m.update(enter())
+	drain(m, cmd)
+
+	r.Equal(overlayNone, m.overlay)
+	r.Zero(client.scaled)
 }
 
 func TestScale_RefusesWhatIsNotACount(t *testing.T) {
