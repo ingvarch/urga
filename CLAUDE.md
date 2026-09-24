@@ -16,7 +16,6 @@ one; write literals where they belong.
 - Go, module path `github.com/ingvarch/urga` (module path equals repo path, always)
 - Bubble Tea v2 (`charm.land/bubbletea/v2`) for the program loop
 - Lipgloss v2 (`charm.land/lipgloss/v2`) for styles
-- Bubbles v2 (`charm.land/bubbles/v2`) for text input and viewport
 - `github.com/hashicorp/nomad/api` for the cluster
 
 Charm moved the v2 modules to `charm.land/...`. The GitHub path resolves to v1
