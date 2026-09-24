@@ -1,0 +1,89 @@
+package nomad_test
+
+import (
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+// blockedEvaluation is what the cluster says of an evaluation that could not
+// place everything: two groups, each short of something else.
+const blockedEvaluation = `{
+	"ID": "1ad88fd0-6b1c-da67-5e8f-482b5a15af1f",
+	"Namespace": "production",
+	"JobID": "web",
+	"Type": "service",
+	"TriggeredBy": "queued-allocs",
+	"Status": "blocked",
+	"StatusDescription": "created to place remaining allocations",
+	"PreviousEval": "15d164c9-0000-0000-0000-000000000000",
+	"CreateTime": 1758499200000000000,
+	"FailedTGAllocs": {
+		"web": {
+			"NodesEvaluated": 3,
+			"NodesAvailable": {"dc1": 3, "dc2": 0},
+			"ConstraintFiltered": {"${attr.kernel.name} = linux": 1},
+			"NodesExhausted": 2,
+			"DimensionExhausted": {"memory": 2},
+			"CoalescedFailures": 2
+		},
+		"api": {
+			"NodesEvaluated": 0,
+			"QuotaExhausted": ["cpu exhausted (500 needed > 400 limit)"]
+		}
+	},
+	"RelatedEvals": [
+		{"ID": "15d164c9-0000-0000-0000-000000000000", "JobID": "web", "Namespace": "production",
+		 "TriggeredBy": "job-register", "Status": "complete"}
+	]
+}`
+
+func TestEvaluation(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, blockedEvaluation)
+
+	eval, err := client.Evaluation(context.Background(), "production", "1ad88fd0-6b1c-da67-5e8f-482b5a15af1f")
+	r.NoError(err)
+
+	r.Equal("/v1/evaluation/1ad88fd0-6b1c-da67-5e8f-482b5a15af1f", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+
+	r.Equal("web", eval.JobID)
+	r.Equal("blocked", eval.Status)
+	r.Equal("created to place remaining allocations", eval.StatusDescription)
+	r.Equal("queued-allocs", eval.TriggeredBy)
+	r.Equal("15d164c9-0000-0000-0000-000000000000", eval.PreviousEval)
+	r.False(eval.Created.IsZero())
+
+	r.Len(eval.Related, 1)
+	r.Equal("job-register", eval.Related[0].TriggeredBy)
+}
+
+func TestEvaluation_SaysWhyEachGroupWasNotPlaced(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, blockedEvaluation)
+
+	eval, err := client.Evaluation(context.Background(), "production", "1ad88fd0")
+	r.NoError(err)
+
+	// The groups come in the order of their names: a map hands them over in
+	// a different order every time.
+	r.Len(eval.Failures, 2)
+	r.Equal("api", eval.Failures[0].Group)
+	r.Equal("web", eval.Failures[1].Group)
+
+	web := eval.Failures[1]
+
+	// The failures that were folded into this one are allocations too.
+	r.Equal(3, web.Unplaced)
+	r.Equal(3, web.NodesEvaluated)
+	r.Equal(map[string]int{"dc1": 3, "dc2": 0}, web.NodesAvailable)
+	r.Equal(map[string]int{"${attr.kernel.name} = linux": 1}, web.ConstraintFiltered)
+	r.Equal(2, web.NodesExhausted)
+	r.Equal(map[string]int{"memory": 2}, web.DimensionExhausted)
+
+	r.Equal([]string{"cpu exhausted (500 needed > 400 limit)"}, eval.Failures[0].QuotaExhausted)
+}

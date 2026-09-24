@@ -30,6 +30,7 @@ type fakeClient struct {
 	namespaces  []nomad.Namespace
 	services    []nomad.Service
 	evaluations []nomad.Evaluation
+	evaluation  nomad.EvaluationDetail
 	nodes       []nomad.Node
 	variables   []nomad.Variable
 	nodePools   []nomad.NodePool
@@ -136,6 +137,12 @@ func (f *fakeClient) Allocation(_ context.Context, namespace, allocID string) (n
 	f.askedNamespace, f.askedID = namespace, allocID
 
 	return f.alloc, f.err
+}
+
+func (f *fakeClient) Evaluation(_ context.Context, namespace, evalID string) (nomad.EvaluationDetail, error) {
+	f.askedNamespace, f.askedID = namespace, evalID
+
+	return f.evaluation, f.err
 }
 
 func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.Alloc, error) {
