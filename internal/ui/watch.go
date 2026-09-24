@@ -69,7 +69,7 @@ type watchState struct {
 // screen that watches nothing, or a cluster that will not stream, is polled
 // the way it always was.
 func (m Model) watchScreen() tea.Cmd {
-	topics := m.screen.of().topics
+	topics := m.screen.topics()
 	if len(topics) == 0 {
 		return nil
 	}

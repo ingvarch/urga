@@ -63,6 +63,8 @@ type Client interface {
 	Allocation(ctx context.Context, namespace, allocID string) (nomad.Alloc, error)
 	AllocationChecks(ctx context.Context, namespace, allocID string) ([]nomad.Check, error)
 	Files(ctx context.Context, namespace, allocID, path string) ([]nomad.File, error)
+	Deployment(ctx context.Context, namespace, deploymentID string) (nomad.DeploymentDetail, error)
+	DeploymentAllocations(ctx context.Context, namespace, deploymentID string) ([]nomad.Alloc, error)
 	File(ctx context.Context, namespace, allocID, path string) (*nomad.LogStream, error)
 	Node(ctx context.Context, nodeID string) (nomad.Node, error)
 	NodeDetail(ctx context.Context, nodeID string) (nomad.NodeDetail, error)
@@ -306,6 +308,9 @@ type clusterData struct {
 
 	// dir is the directory of an allocation the files screen last listed.
 	dir dirState
+
+	// deployment is the deployment a deployment screen last read.
+	deployment nomad.DeploymentDetail
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -543,6 +548,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case checksMsg:
 		return m.keepChecks(msg)
+
+	case deploymentMsg:
+		return m.keepDeployment(msg)
 
 	case filesMsg:
 		return m.applyList(screenFiles, func(m *Model) { m.dir = dirState(msg) })

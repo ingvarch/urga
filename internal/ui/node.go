@@ -151,6 +151,7 @@ var (
 	}
 
 	deploymentBindings = []binding{
+		{press: "enter", label: "Details", do: openDeployment},
 		{press: "d", label: "Describe", do: describeDeployment},
 		{press: "p", label: "Promote", do: promoteDeployment, writes: true},
 		{press: "f", label: "Fail", do: failDeployment, writes: true},

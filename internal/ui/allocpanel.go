@@ -127,26 +127,83 @@ func allocPanel(alloc nomad.Alloc, checks []nomad.Check, width, room int) []stri
 		}
 	}
 
-	if len(rows) >= room {
+	return fitPanel(rows, checkBlock(checks, width), room)
+}
+
+// panelBlock is a part of a panel that lists things under a title: the
+// checks of an allocation, the groups of a deployment. An entry is one
+// thing, on one row or more.
+type panelBlock struct {
+	title   []string
+	entries [][]string
+
+	// more is the row that counts the entries that do not fit.
+	more func(count int) string
+}
+
+// fitPanel lays the head of a panel out with a block under it, in no more
+// than room rows, the line of air before the table included. What does not
+// fit of the head is cut. The block keeps whole entries and counts the rest,
+// and with room for none of them it is left out.
+func fitPanel(head []string, block panelBlock, room int) []string {
+	if len(head) >= room {
 		if room < 2 {
 			return nil
 		}
 
-		return append(rows[:room-1:room-1], "")
+		return append(head[:room-1:room-1], "")
 	}
 
-	rows = append(rows, checkRows(checks, width, room-len(rows)-1)...)
+	rows := append(head, blockRows(block, room-len(head)-1)...)
 
 	return append(rows, "")
 }
 
-// checkRows are the checks of an allocation in no more than room rows. One
-// that fails says why under it. What does not fit is counted, and with room
-// for none of them there are no rows at all.
-func checkRows(checks []nomad.Check, width, room int) []string {
-	if len(checks) == 0 {
+// blockRows are the rows of a block in no more than room rows: a line apart
+// from what is above it, its title, and the entries that fit.
+func blockRows(block panelBlock, room int) []string {
+	if len(block.entries) == 0 {
 		return nil
 	}
+
+	rows := append([]string{""}, block.title...)
+
+	used := 0
+	for _, entry := range block.entries {
+		used += len(entry)
+	}
+
+	if len(rows)+used <= room {
+		for _, entry := range block.entries {
+			rows = append(rows, entry...)
+		}
+
+		return rows
+	}
+
+	// One row goes to the count of the rest.
+	left, shown := room-len(rows)-1, 0
+
+	for _, entry := range block.entries {
+		if len(entry) > left {
+			break
+		}
+
+		rows = append(rows, entry...)
+		left -= len(entry)
+		shown++
+	}
+
+	if shown == 0 {
+		return nil
+	}
+
+	return append(rows, styleMuted.Render(block.more(len(block.entries)-shown)))
+}
+
+// checkBlock is the checks of an allocation. One that fails says why under
+// it.
+func checkBlock(checks []nomad.Check, width int) panelBlock {
 
 	named := 0
 	for _, check := range checks {
@@ -154,7 +211,6 @@ func checkRows(checks []nomad.Check, width, room int) []string {
 	}
 
 	entries := make([][]string, 0, len(checks))
-	used := 0
 
 	for _, check := range checks {
 		style := checkStyle(check.Status)
@@ -173,37 +229,13 @@ func checkRows(checks []nomad.Check, width, room int) []string {
 		}
 
 		entries = append(entries, entry)
-		used += len(entry)
 	}
 
-	rows := []string{"", " " + styleLabel.Render("Checks")}
-
-	if len(rows)+used <= room {
-		for _, entry := range entries {
-			rows = append(rows, entry...)
-		}
-
-		return rows
+	return panelBlock{
+		title:   []string{" " + styleLabel.Render("Checks")},
+		entries: entries,
+		more:    func(count int) string { return fmt.Sprintf("  + %d more checks", count) },
 	}
-
-	// Two rows for the title, one for the count of the rest.
-	left, shown := room-len(rows)-1, 0
-
-	for _, entry := range entries {
-		if len(entry) > left {
-			break
-		}
-
-		rows = append(rows, entry...)
-		left -= len(entry)
-		shown++
-	}
-
-	if shown == 0 {
-		return nil
-	}
-
-	return append(rows, styleMuted.Render(fmt.Sprintf("  + %d more checks", len(checks)-shown)))
 }
 
 // checkFailure is the status of a check that did not pass.

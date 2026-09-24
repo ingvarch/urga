@@ -200,6 +200,10 @@ func (m Model) panelHeight() int {
 		return len(m.tasksPanel(m.width))
 	}
 
+	if m.screen.isDeployment() {
+		return len(m.deploymentScreenPanel(m.width))
+	}
+
 	if !m.screen.isClient() {
 		return 0
 	}
@@ -225,6 +229,10 @@ func (m Model) rowsForPanel() int {
 func (m Model) panel(width int) []string {
 	if m.screen.kind == screenTasks {
 		return m.tasksPanel(width)
+	}
+
+	if m.screen.isDeployment() {
+		return m.deploymentScreenPanel(width)
 	}
 
 	return m.host.view(width, m.chartWidth(), m.chartHeight(), hostUseEvery)
