@@ -82,8 +82,16 @@ func TestFake_RecordsEveryWrite(t *testing.T) {
 func playOut(m Model, cmd tea.Cmd) Model {
 	queue := []tea.Cmd{cmd}
 
+	// A plan is answered when the key opened it. One that was on the screen
+	// before the key is not the key's to send.
+	planned := m.screen.kind == screenPlan
+
 	for range 300 {
 		if len(queue) == 0 {
+			if planned && m.screen.kind == screenPlan && m.overlay == overlayNone {
+				return m
+			}
+
 			next, answered, acted := answer(m)
 			if !acted {
 				return next
