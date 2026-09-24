@@ -5,6 +5,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -278,4 +279,74 @@ func newTasks(states map[string]*api.TaskState) []Task {
 	sort.Slice(tasks, func(i, j int) bool { return tasks[i].Name < tasks[j].Name })
 
 	return tasks
+}
+
+// Check is one check of a service of an allocation, as its client last ran
+// it: success, failure, or pending until it has run.
+type Check struct {
+	Service string
+	Name    string
+	Task    string
+	Status  string
+	Output  string
+	Time    time.Time
+}
+
+// AllocationChecks are the checks of the services an allocation registers
+// with the cluster itself.
+func (c *Client) AllocationChecks(ctx context.Context, namespace, allocID string) ([]Check, error) {
+	statuses, err := c.api.Allocations().Checks(allocID, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	checks := make([]Check, 0, len(statuses))
+
+	for _, status := range statuses {
+		check := Check{
+			Service: status.Service,
+			Name:    status.Check,
+			Task:    status.Task,
+			Status:  status.Status,
+			Output:  strings.TrimSpace(status.Output),
+		}
+
+		// One that has not run yet has no time.
+		if status.Timestamp > 0 {
+			check.Time = time.Unix(status.Timestamp, 0)
+		}
+
+		checks = append(checks, check)
+	}
+
+	// What fails is what the list is read for; a map would shuffle the rest
+	// between two readings.
+	sort.Slice(checks, func(i, j int) bool {
+		a, b := checks[i], checks[j]
+
+		if checkRank(a.Status) != checkRank(b.Status) {
+			return checkRank(a.Status) < checkRank(b.Status)
+		}
+
+		if a.Service != b.Service {
+			return a.Service < b.Service
+		}
+
+		return a.Name < b.Name
+	})
+
+	return checks, nil
+}
+
+// checkRank puts a failing check before one that has not run, and that
+// before one that passes.
+func checkRank(status string) int {
+	switch status {
+	case "failure":
+		return 0
+	case "success":
+		return 2
+	}
+
+	return 1
 }

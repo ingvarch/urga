@@ -146,7 +146,9 @@ something changes; the rest are asked on a timer. A cluster that will not
 stream — an ACL that does not allow it, most often — is polled instead, and
 the status line says so. The tasks of an allocation open under what it is:
 its status, the client it runs on, the version of its job, how its deployment
-judged it, the ports it listens on, and the allocations before and after it.
+judged it, the ports it listens on, the allocations before and after it, and
+while it runs, its checks: the failing ones first, each with why it failed.
+Checks are read every few seconds, for services the cluster registers itself.
 A task says what happened to it, from the moment the client received it.
 Logs open on the last of what a task wrote and follow it as it writes; a task
 that finished is read to its end. stdout and stderr are a key apart, and so is

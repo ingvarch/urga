@@ -161,7 +161,7 @@ func (m Model) keepAllocation(alloc nomad.Alloc) (Model, tea.Cmd) {
 	kind := m.screen.kind
 	ours := (kind == screenTasks || kind == screenTaskEvents) && m.screen.allocID == alloc.ID
 
-	return m.applyWhen(ours, func(m *Model) {
+	m, read := m.applyWhen(ours, func(m *Model) {
 		m.alloc = alloc
 
 		at := slices.IndexFunc(m.allocs, func(held nomad.Alloc) bool { return held.ID == alloc.ID })
@@ -174,6 +174,8 @@ func (m Model) keepAllocation(alloc nomad.Alloc) (Model, tea.Cmd) {
 		allocs[at] = alloc
 		m.allocs = allocs
 	})
+
+	return checksOnce(m, read)
 }
 
 // openAllocation drills into the allocation under the cursor: the tasks it

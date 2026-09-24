@@ -57,6 +57,7 @@ type Client interface {
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 	NodeAllocations(ctx context.Context, nodeID string) ([]nomad.Alloc, error)
 	Allocation(ctx context.Context, namespace, allocID string) (nomad.Alloc, error)
+	AllocationChecks(ctx context.Context, namespace, allocID string) ([]nomad.Check, error)
 	Node(ctx context.Context, nodeID string) (nomad.Node, error)
 	NodeDetail(ctx context.Context, nodeID string) (nomad.NodeDetail, error)
 	NodeMeta(ctx context.Context, nodeID string) ([]nomad.MetaEntry, error)
@@ -279,7 +280,9 @@ type clusterData struct {
 
 	// alloc is the allocation the tasks screen read. It need not be in the
 	// list it was opened from: the one it replaced may be on another client.
-	alloc nomad.Alloc
+	// checks are what its checks last said.
+	alloc  nomad.Alloc
+	checks checkState
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -507,6 +510,12 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case pollHostMsg:
 		return m.pollHost()
+
+	case checksMsg:
+		return m.keepChecks(msg)
+
+	case pollChecksMsg:
+		return m.pollChecks()
 
 	case watchingMsg:
 		var cmd tea.Cmd

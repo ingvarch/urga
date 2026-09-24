@@ -3,6 +3,7 @@ package nomad_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -245,4 +246,66 @@ func TestAllocation_HealthInItsDeployment(t *testing.T) {
 	alloc, err := client.Allocation(context.Background(), "production", "a")
 	r.NoError(err)
 	r.Empty(alloc.Health)
+}
+
+// servedChecks are the checks of an allocation of served: its page answers,
+// its admin port does not, and a check of the task has not run yet.
+const servedChecks = `{
+	"a1": {"ID": "a1", "Service": "served", "Check": "alive", "Status": "success",
+		"Output": "nomad: http ok", "Timestamp": 1790270007, "Task": ""},
+	"b2": {"ID": "b2", "Service": "served-admin", "Check": "admin-up", "Status": "failure",
+		"Output": "dial tcp 127.0.0.1:22689: connect: connection refused\n", "Timestamp": 1790270008},
+	"c3": {"ID": "c3", "Service": "served", "Check": "ready", "Status": "pending", "Task": "server"}
+}`
+
+func TestAllocationChecks(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, servedChecks)
+
+	checks, err := client.AllocationChecks(context.Background(), "production", "af1f37df")
+	r.NoError(err)
+
+	// The client that runs the allocation runs its checks, and is asked
+	// through the servers, in the namespace of the allocation.
+	r.Equal("/v1/client/allocation/af1f37df/checks", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+
+	// What fails first, then what has not run yet, then what passes.
+	r.Equal([]nomad.Check{
+		{Service: "served-admin", Name: "admin-up", Status: "failure",
+			Output: "dial tcp 127.0.0.1:22689: connect: connection refused", Time: time.Unix(1790270008, 0)},
+		{Service: "served", Name: "ready", Task: "server", Status: "pending"},
+		{Service: "served", Name: "alive", Status: "success", Output: "nomad: http ok", Time: time.Unix(1790270007, 0)},
+	}, checks)
+}
+
+func TestAllocationChecks_OfAnAllocationThatStopped(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `null`)
+
+	checks, err := client.AllocationChecks(context.Background(), "production", "af1f37df")
+	r.NoError(err)
+	r.Empty(checks)
+}
+
+func TestAllocationChecks_InTheOrderOfTheirNames(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `{
+		"x": {"Service": "web", "Check": "b", "Status": "success"},
+		"y": {"Service": "api", "Check": "z", "Status": "success"},
+		"z": {"Service": "web", "Check": "a", "Status": "success"}
+	}`)
+
+	checks, err := client.AllocationChecks(context.Background(), "production", "af1f37df")
+	r.NoError(err)
+
+	names := []string{}
+	for _, check := range checks {
+		names = append(names, check.Service+"/"+check.Name)
+	}
+
+	r.Equal([]string{"api/z", "web/a", "web/b"}, names)
 }

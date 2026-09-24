@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ingvarch/urga/internal/nomad"
 )
@@ -22,18 +24,13 @@ func (m Model) tasksPanel(width int) []string {
 		return nil
 	}
 
-	lines := allocPanel(alloc, width)
-
-	// The line of air before the tasks stays with what is kept.
-	if room := m.rowsForPanel(); len(lines) > room {
-		if room < 2 {
-			return nil
-		}
-
-		lines = append(lines[:room-1:room-1], "")
+	// Only what runs has checks worth reading.
+	var checks []nomad.Check
+	if m.checks.allocID == alloc.ID && alloc.Status == statusRunning {
+		checks = m.checks.list
 	}
 
-	return lines
+	return allocPanel(alloc, checks, width, m.rowsForPanel())
 }
 
 // allocHas offers a key when the allocation on the screen has somewhere for
@@ -74,9 +71,11 @@ func openFollowUp(m Model) (Model, tea.Cmd) {
 type field struct{ label, value string }
 
 // allocPanel is what the tasks of an allocation show above them: what it is
-// to its job and its deployment, where it listens, and what came before and
-// after it. A line with nothing to say is left out.
-func allocPanel(alloc nomad.Alloc, width int) []string {
+// to its job and its deployment, where it listens, what came before and
+// after it, and its checks. A line with nothing to say is left out, and the
+// panel takes no more than room rows, the line of air before the tasks
+// included.
+func allocPanel(alloc nomad.Alloc, checks []nomad.Check, width, room int) []string {
 	deployment := alloc.Health
 	if deployment != "" && alloc.Canary {
 		deployment += ", canary"
@@ -128,7 +127,98 @@ func allocPanel(alloc nomad.Alloc, width int) []string {
 		}
 	}
 
+	if len(rows) >= room {
+		if room < 2 {
+			return nil
+		}
+
+		return append(rows[:room-1:room-1], "")
+	}
+
+	rows = append(rows, checkRows(checks, width, room-len(rows)-1)...)
+
 	return append(rows, "")
+}
+
+// checkRows are the checks of an allocation in no more than room rows. One
+// that fails says why under it. What does not fit is counted, and with room
+// for none of them there are no rows at all.
+func checkRows(checks []nomad.Check, width, room int) []string {
+	if len(checks) == 0 {
+		return nil
+	}
+
+	named := 0
+	for _, check := range checks {
+		named = max(named, ansi.StringWidth(check.Service+"/"+check.Name))
+	}
+
+	entries := make([][]string, 0, len(checks))
+	used := 0
+
+	for _, check := range checks {
+		style := checkStyle(check.Status)
+
+		line := "  " + style.Render("●") + " " + styleText.Render(pad(check.Service+"/"+check.Name, named)) +
+			"  " + style.Render(check.Status)
+		if !check.Time.IsZero() {
+			line += "  " + styleMuted.Render(ageOf(check.Time)+" ago")
+		}
+
+		entry := []string{truncate(line, width)}
+
+		if check.Status == checkFailure && check.Output != "" {
+			why := strings.Join(strings.Fields(check.Output), " ")
+			entry = append(entry, truncate("    "+styleText.Render(why), width))
+		}
+
+		entries = append(entries, entry)
+		used += len(entry)
+	}
+
+	rows := []string{"", " " + styleLabel.Render("Checks")}
+
+	if len(rows)+used <= room {
+		for _, entry := range entries {
+			rows = append(rows, entry...)
+		}
+
+		return rows
+	}
+
+	// Two rows for the title, one for the count of the rest.
+	left, shown := room-len(rows)-1, 0
+
+	for _, entry := range entries {
+		if len(entry) > left {
+			break
+		}
+
+		rows = append(rows, entry...)
+		left -= len(entry)
+		shown++
+	}
+
+	if shown == 0 {
+		return nil
+	}
+
+	return append(rows, styleMuted.Render(fmt.Sprintf("  + %d more checks", len(checks)-shown)))
+}
+
+// checkFailure is the status of a check that did not pass.
+const checkFailure = "failure"
+
+// checkStyle is the colour of a check in the state it is in.
+func checkStyle(status string) lipgloss.Style {
+	switch status {
+	case "success":
+		return styleValue
+	case checkFailure:
+		return styleError
+	}
+
+	return stylePending
 }
 
 // fieldLine lays out the fields that have a value, or nothing when none has.

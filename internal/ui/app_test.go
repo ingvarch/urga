@@ -111,6 +111,12 @@ type fakeClient struct {
 	regions         []string
 	datacenters     []string
 	usageDatacenter string
+
+	// checks are the checks of any allocation, and who asked for them last.
+	checks          []nomad.Check
+	checksNamespace string
+	checksAllocID   string
+	checksCalls     int
 }
 
 // wrote keeps a call that changes the cluster.
@@ -140,6 +146,13 @@ func (f *fakeClient) Allocations(_ context.Context, namespace, jobID string) ([]
 	f.allocCalls++
 
 	return f.allocs, f.err
+}
+
+func (f *fakeClient) AllocationChecks(_ context.Context, namespace, allocID string) ([]nomad.Check, error) {
+	f.checksNamespace, f.checksAllocID = namespace, allocID
+	f.checksCalls++
+
+	return f.checks, f.err
 }
 
 func (f *fakeClient) Allocation(_ context.Context, namespace, allocID string) (nomad.Alloc, error) {
