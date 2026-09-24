@@ -91,6 +91,11 @@ type Options struct {
 	Cluster string
 	Color   string
 
+	// Clusters are the names of the settings, and Connect connects to one
+	// of them. Without it there is nothing to switch to.
+	Clusters []string
+	Connect  func(name string) (Connection, error)
+
 	// Namespace the session looks at. Empty is every namespace.
 	Namespace string
 
@@ -257,6 +262,10 @@ type Model struct {
 
 	// regionState is where in the cluster the session looks.
 	regionState
+
+	// connection counts the clusters the session connected to. What was
+	// asked of one it left is answered for no one.
+	connection int
 }
 
 // clusterData is what the cluster last said in the region the session asks
@@ -320,16 +329,10 @@ func New(client Client, opts Options) Model {
 // Init asks the cluster for what the first screen shows, and for what the
 // session needs whatever is open.
 func (m Model) Init() tea.Cmd {
-	client := m.client
-
 	return tea.Batch(
 		m.fetch(),
 		m.watchScreen(),
-		fetchAgent(client),
-		m.fetchClusterUsage(),
-		fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
-		fetchRegions(client),
-		fetchDatacenters(client),
+		m.askAboutTheCluster(),
 	)
 }
 
@@ -366,6 +369,16 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 		return m.update(msg.msg)
+
+	case connectionMsg:
+		if msg.connection != m.connection {
+			return m, nil
+		}
+
+		return m.update(msg.msg)
+
+	case connectedMsg:
+		return m.connected(Connection(msg))
 
 	case jobsMsg:
 		return m.applyList(screenJobs, func(m *Model) { m.jobs = m.jobsInView(msg) })

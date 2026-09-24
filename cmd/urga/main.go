@@ -68,9 +68,17 @@ func run() error {
 		return err
 	}
 
+	// Without clusters in the settings there is nothing to switch to.
+	var connect func(string) (ui.Connection, error)
+	if len(s.Clusters) > 0 {
+		connect = connectWith(cl, s)
+	}
+
 	model := ui.New(client, ui.Options{
 		Cluster:        st.cluster,
 		Color:          st.color,
+		Clusters:       s.Names(),
+		Connect:        connect,
 		Namespace:      ui.NamespaceOrAll(st.namespace),
 		NamespaceGiven: st.namespaceGiven,
 		ReadOnly:       st.readOnly,
@@ -142,35 +150,17 @@ func startOn(cl cmdline, s settings.Settings) (start, error) {
 		return st, nil
 	}
 
-	cluster, ok := s.Clusters[name]
-	if !ok {
-		names := strings.Join(s.Names(), ", ")
-		if names == "" {
-			names = "the settings file names none"
-		}
-
-		return start{}, fmt.Errorf("no cluster %q: %s", name, names)
-	}
-
-	token, err := cluster.ReadToken()
+	cluster, cfg, err := clusterOf(s, name)
 	if err != nil {
-		return start{}, fmt.Errorf("cluster %q: %w", name, err)
+		return start{}, err
 	}
 
 	st.cluster, st.color = name, cluster.Color
 	st.readOnly = st.readOnly || cluster.ReadOnly
-	st.nomad = nomad.Config{
-		Named:   true,
-		Address: cmp.Or(cl.address, cluster.Address),
-		Region:  cmp.Or(cl.region, cluster.Region),
-		Token:   token,
-		TLS: nomad.TLS{
-			CACert:     cluster.CACert,
-			ClientCert: cluster.ClientCert,
-			ClientKey:  cluster.ClientKey,
-			ServerName: cluster.TLSServerName,
-		},
-	}
+
+	st.nomad = cfg
+	st.nomad.Address = cmp.Or(cl.address, cfg.Address)
+	st.nomad.Region = cmp.Or(cl.region, cfg.Region)
 
 	// The environment is for the cluster urga runs without settings.
 	if !st.namespaceGiven {
@@ -178,6 +168,65 @@ func startOn(cl cmdline, s settings.Settings) (start, error) {
 	}
 
 	return st, nil
+}
+
+// clusterOf is a cluster of the settings, and how to reach it. Its token is
+// read here, which may run a command.
+func clusterOf(s settings.Settings, name string) (settings.Cluster, nomad.Config, error) {
+	cluster, ok := s.Clusters[name]
+	if !ok {
+		names := strings.Join(s.Names(), ", ")
+		if names == "" {
+			names = "the settings file names none"
+		}
+
+		return settings.Cluster{}, nomad.Config{}, fmt.Errorf("no cluster %q: %s", name, names)
+	}
+
+	token, err := cluster.ReadToken()
+	if err != nil {
+		return settings.Cluster{}, nomad.Config{}, fmt.Errorf("cluster %q: %w", name, err)
+	}
+
+	return cluster, nomad.Config{
+		Named:   true,
+		Address: cluster.Address,
+		Region:  cluster.Region,
+		Token:   token,
+		TLS: nomad.TLS{
+			CACert:     cluster.CACert,
+			ClientCert: cluster.ClientCert,
+			ClientKey:  cluster.ClientKey,
+			ServerName: cluster.TLSServerName,
+		},
+	}, nil
+}
+
+// connectWith is how the session switches to a cluster of the settings.
+// Read-only on the command line holds for every one of them; the address and
+// the region were for the cluster urga started on.
+func connectWith(cl cmdline, s settings.Settings) func(name string) (ui.Connection, error) {
+	return func(name string) (ui.Connection, error) {
+		cluster, cfg, err := clusterOf(s, name)
+		if err != nil {
+			return ui.Connection{}, err
+		}
+
+		client, err := nomad.New(cfg)
+		if err != nil {
+			return ui.Connection{}, fmt.Errorf("cluster %q: %w", name, err)
+		}
+
+		return ui.Connection{
+			Name:      name,
+			Color:     cluster.Color,
+			ReadOnly:  cl.readOnly || cluster.ReadOnly,
+			Namespace: ui.NamespaceOrAll(cluster.Namespace),
+			Client:    client,
+			InRegion:  ui.InRegionOf(client),
+			Shell:     ui.NewShell(client),
+		}, nil
+	}
 }
 
 // given says the flag was named on the command line rather than left at its

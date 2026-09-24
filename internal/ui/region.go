@@ -180,7 +180,7 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 
 	next, cmd := m.arrive()
 
-	return next, tea.Batch(cmd, fetchDatacenters(next.client), next.fetchClusterUsage())
+	return next, tea.Batch(cmd, next.onConnection(fetchDatacenters(next.client)), next.fetchClusterUsage())
 }
 
 // forgetRegion lets go of what the cluster said in the region that was

@@ -137,3 +137,49 @@ func TestStartOn_ATokenThatCannotBeRead(t *testing.T) {
 	_, err := startFrom(t, s, "-cluster", "prod")
 	require.ErrorContains(t, err, "NOMAD_TOKEN_NOWHERE")
 }
+
+func TestConnect(t *testing.T) {
+	r := require.New(t)
+
+	cl, err := parseFlags([]string{"-cluster", "dev", "-address", "http://10.0.0.9:4646"})
+	r.NoError(err)
+
+	// A CA file that is not there would stop the connection.
+	s := twoClusters()
+	prod := s.Clusters["prod"]
+	prod.CACert = ""
+	s.Clusters["prod"] = prod
+
+	conn, err := connectWith(cl, s)("prod")
+	r.NoError(err)
+
+	// prod as the settings say it is: the address of the command line was
+	// for the cluster urga started on.
+	r.Equal("prod", conn.Name)
+	r.Equal("red", conn.Color)
+	r.True(conn.ReadOnly)
+	r.Equal("https://nomad.prod:4646", conn.Client.Address())
+	r.NotNil(conn.InRegion)
+	r.NotNil(conn.Shell)
+}
+
+func TestConnect_ReadOnlyForEveryCluster(t *testing.T) {
+	r := require.New(t)
+
+	cl, err := parseFlags([]string{"-readonly"})
+	r.NoError(err)
+
+	// Asked for on the command line, it holds wherever the session goes.
+	conn, err := connectWith(cl, twoClusters())("dev")
+	r.NoError(err)
+	r.True(conn.ReadOnly)
+	r.Equal("default", conn.Namespace)
+}
+
+func TestConnect_AClusterThatIsNotThere(t *testing.T) {
+	cl, err := parseFlags(nil)
+	require.NoError(t, err)
+
+	_, err = connectWith(cl, twoClusters())("stage")
+	require.ErrorContains(t, err, `no cluster "stage"`)
+}

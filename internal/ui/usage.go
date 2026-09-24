@@ -217,11 +217,11 @@ func (m Model) readClusterUsage() (Model, tea.Cmd) {
 func (m Model) fetchClusterUsage() tea.Cmd {
 	client, datacenter := m.client, m.datacenter
 
-	return request(func(ctx context.Context) (nomad.Usage, error) {
+	return m.onConnection(request(func(ctx context.Context) (nomad.Usage, error) {
 		return client.Usage(ctx, datacenter)
 	}, func(usage nomad.Usage) tea.Msg {
 		return usageMsg{region: client.Region(), datacenter: datacenter, usage: usage}
-	})
+	}))
 }
 
 // percentCell is what a machine of the cluster is busy with: there is no
