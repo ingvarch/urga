@@ -575,6 +575,11 @@ func init() {
 			keys:  logBindings,
 			title: func(m Model, _ int) string { return logsTitle(m.screen, m.logs.finished) },
 		},
+
+		screenFile: {
+			keys:  fileTextBindings,
+			title: func(m Model, _ int) string { return fileTitle(m.screen, m.logs) },
+		},
 	}
 
 	// What is read out of the table is read once it is there.

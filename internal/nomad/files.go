@@ -2,6 +2,10 @@ package nomad
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -54,4 +58,60 @@ func (c *Client) Files(ctx context.Context, namespace, allocID, path string) ([]
 	})
 
 	return files, nil
+}
+
+// fileTail is how much of a big file is read: its last MiB.
+const fileTail = 1 << 20
+
+// ErrNotText says a file is not text. Shown as text it would be noise.
+var ErrNotText = errors.New("not text")
+
+// File follows a file of an allocation as it grows: from its start, or when
+// it is big, from its last MiB. The caller closes the stream when it stops
+// reading, otherwise the request stays open. A pipe must not be asked about:
+// the client reads the first of it to say what it holds, and waits.
+func (c *Client) File(ctx context.Context, namespace, allocID, name string) (*LogStream, error) {
+	// The stream is asked of the node that runs the allocation when it can
+	// be reached, and of the servers when it cannot.
+	alloc, _, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	info, _, err := c.api.AllocFS().Stat(alloc, name, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	if !strings.HasPrefix(info.ContentType, "text/") {
+		return nil, fmt.Errorf("%s is %w (%s)", path.Base(name), ErrNotText, info.ContentType)
+	}
+
+	from := max(info.Size-fileTail, 0)
+	cancel := make(chan struct{})
+
+	frames, errs := c.api.AllocFS().Stream(alloc, name, "start", from, cancel, c.query(context.Background(), namespace))
+
+	lines := streamLines(frames, func(*api.StreamFrame) bool { return from > 0 }, cancel)
+
+	return &LogStream{Lines: lines, Err: failures(errs, cancel), Size: info.Size, From: from, cancel: cancel}, nil
+}
+
+// failures passes on what went wrong with a stream. The end of it is not a
+// failure: the stream of a file says so where the stream of a log does not.
+func failures(errs <-chan error, cancel <-chan struct{}) <-chan error {
+	out := make(chan error, 1)
+
+	go func() {
+		select {
+		case err := <-errs:
+			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) {
+				out <- err
+			}
+
+		case <-cancel:
+		}
+	}()
+
+	return out
 }
