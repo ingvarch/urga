@@ -111,10 +111,21 @@ func (m Model) chooseDatacenter() (Model, tea.Cmd) {
 	return m.narrow(datacenter, Model.back)
 }
 
+// regionState is where in the cluster the session looks. agentRegion is the
+// region of the agent, which answers a session that names none. regions and
+// datacenters are what the command line can switch to, datacenter the one
+// the lists are narrowed to.
+type regionState struct {
+	agentRegion string
+	regions     []string
+	datacenters []string
+	datacenter  string
+}
+
 // datacenterChoices are what the list of datacenters offers: every one of
 // them at once, then each of them.
-func (m Model) datacenterChoices() []string {
-	return append([]string{everyDatacenter}, m.datacenters...)
+func (s regionState) datacenterChoices() []string {
+	return append([]string{everyDatacenter}, s.datacenters...)
 }
 
 // choiceTitles are the columns of a list a region or a datacenter is
@@ -247,20 +258,20 @@ func (m Model) regionInUse() string {
 // The lists that have a datacenter are narrowed to it as they are stored:
 // every key that finds a row by its place then finds the one on the screen.
 
-func (m Model) jobsInView(jobs []nomad.Job) []nomad.Job {
-	return keep(jobs, func(job nomad.Job) bool { return job.RunsIn(m.datacenter) })
+func (s regionState) jobsInView(jobs []nomad.Job) []nomad.Job {
+	return keep(jobs, func(job nomad.Job) bool { return job.RunsIn(s.datacenter) })
 }
 
-func (m Model) nodesInView(nodes []nomad.Node) []nomad.Node {
-	return keep(nodes, func(node nomad.Node) bool { return m.inDatacenter(node.Datacenter) })
+func (s regionState) nodesInView(nodes []nomad.Node) []nomad.Node {
+	return keep(nodes, func(node nomad.Node) bool { return s.inDatacenter(node.Datacenter) })
 }
 
-func (m Model) serversInView(servers []nomad.Server) []nomad.Server {
-	return keep(servers, func(server nomad.Server) bool { return m.inDatacenter(server.Datacenter) })
+func (s regionState) serversInView(servers []nomad.Server) []nomad.Server {
+	return keep(servers, func(server nomad.Server) bool { return s.inDatacenter(server.Datacenter) })
 }
 
-func (m Model) inDatacenter(datacenter string) bool {
-	return m.datacenter == "" || m.datacenter == datacenter
+func (s regionState) inDatacenter(datacenter string) bool {
+	return s.datacenter == "" || s.datacenter == datacenter
 }
 
 // keep is what of a list passes, in a list of its own: the answer is not
