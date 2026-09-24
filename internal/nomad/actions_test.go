@@ -256,3 +256,30 @@ func TestFailDeployment(t *testing.T) {
 
 	r.Equal("/v1/deployment/fail/dep-1", asked.URL.Path)
 }
+
+func TestRestartTask(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := jobServer(t, map[string]string{"/v1/client/allocation/af1f37df/restart": `{}`})
+
+	r.NoError(client.RestartTask(context.Background(), "production", "af1f37df", "server"))
+
+	// One task of the allocation, the rest keep running.
+	r.Len(*asked, 1)
+	r.Equal("production", (*asked)[0].namespace)
+	r.Equal("server", (*asked)[0].body["TaskName"])
+	r.NotEqual(true, (*asked)[0].body["AllTasks"])
+}
+
+func TestSignalTask(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := jobServer(t, map[string]string{"/v1/client/allocation/af1f37df/signal": `{}`})
+
+	r.NoError(client.SignalTask(context.Background(), "production", "af1f37df", "server", "SIGHUP"))
+
+	r.Len(*asked, 1)
+	r.Equal("production", (*asked)[0].namespace)
+	r.Equal("server", (*asked)[0].body["Task"])
+	r.Equal("SIGHUP", (*asked)[0].body["Signal"])
+}

@@ -21,6 +21,7 @@ const (
 	overlayPrompt
 	overlayFilter
 	overlayScale
+	overlaySignal
 	overlayHelp
 	overlayConfirm
 )
@@ -28,7 +29,7 @@ const (
 // asksForALine says the overlay is the line at the top, whatever it is
 // asking for.
 func (o overlay) asksForALine() bool {
-	return o == overlayPrompt || o == overlayFilter || o == overlayScale
+	return o == overlayPrompt || o == overlayFilter || o == overlayScale || o == overlaySignal
 }
 
 // promptHeight is the line plus the border around it.
@@ -47,8 +48,9 @@ type promptModel struct {
 	text   string
 
 	// group is the task group a count belongs to, as it was when the count
-	// was asked for.
+	// was asked for; task is the task a signal is for.
 	group nomad.TaskGroup
+	task  string
 
 	// suggest says whether the rest of a word is offered, which only the
 	// command line does.
@@ -299,7 +301,7 @@ func (m Model) commit() (Model, tea.Cmd) {
 		input = m.prompt.line()
 	}
 
-	asked, group := m.overlay, m.prompt.group
+	asked, group, task := m.overlay, m.prompt.group, m.prompt.task
 
 	if asked == overlayFilter {
 		m.filter = input
@@ -311,6 +313,10 @@ func (m Model) commit() (Model, tea.Cmd) {
 
 	if asked == overlayScale {
 		return m.scaleTo(group, input)
+	}
+
+	if asked == overlaySignal {
+		return m.signalTask(task, input)
 	}
 
 	cmd, ok := parseCommand(input)

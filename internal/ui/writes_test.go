@@ -19,7 +19,7 @@ var (
 	clientWrites = []string{
 		"SubmitJob", "SubmitNamespace", "SubmitNodeMeta",
 		"StartJob", "StopJob", "RevertJobTo", "ScaleJob",
-		"RestartAllocation", "StopAllocation",
+		"RestartAllocation", "StopAllocation", "RestartTask", "SignalTask",
 		"DrainNode", "SetNodeEligible",
 		"PromoteDeployment", "FailDeployment",
 	}
@@ -116,8 +116,8 @@ func playOut(m Model, cmd tea.Cmd) Model {
 	return m
 }
 
-// answer says yes to a question and to a plan, and gives the scale line a
-// count.
+// answer says yes to a question and to a plan, gives the scale line a
+// count, and sends the signal the signal line offers.
 func answer(m Model) (Model, tea.Cmd, bool) {
 	if m.overlay == overlayNone && m.screen.kind == screenPlan {
 		next, cmd := m.update(key('y'))
@@ -134,6 +134,11 @@ func answer(m Model) (Model, tea.Cmd, bool) {
 	case overlayScale:
 		m, _ = m.update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 		m = typeIn(m, "5")
+		next, cmd := m.update(enter())
+
+		return next, cmd, true
+
+	case overlaySignal:
 		next, cmd := m.update(enter())
 
 		return next, cmd, true
