@@ -48,6 +48,7 @@ var (
 		{press: "u", label: "Revert", do: revertJob, writes: true},
 		{press: "v", label: "Versions", do: openVersions},
 		{press: "e", label: "Edit", do: editJob, writes: true},
+		{press: "p", label: "Placement", do: jobPlacement, offered: jobWaits},
 	}
 
 	allocBindings = []binding{

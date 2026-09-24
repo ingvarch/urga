@@ -2,6 +2,7 @@ package nomad
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 
@@ -121,4 +122,36 @@ func newPlacementFailures(metrics map[string]*api.AllocationMetric) []PlacementF
 	}
 
 	return failures
+}
+
+// ErrNoFailures says no evaluation of the job failed to place anything.
+var ErrNoFailures = errors.New("no evaluation of the job failed to place anything")
+
+// FailedPlacement is the newest evaluation of the job that failed to place
+// something, which says why what waits is not placed, as the nomad command
+// reads it. A newer one that placed everything else says nothing about what
+// still waits.
+func (c *Client) FailedPlacement(ctx context.Context, namespace, jobID string) (EvaluationDetail, error) {
+	evals, _, err := c.api.Jobs().Evaluations(jobID, c.query(ctx, namespace))
+	if err != nil {
+		return EvaluationDetail{}, err
+	}
+
+	var newest *api.Evaluation
+
+	for _, eval := range evals {
+		if eval == nil || len(eval.FailedTGAllocs) == 0 {
+			continue
+		}
+
+		if newest == nil || eval.CreateIndex > newest.CreateIndex {
+			newest = eval
+		}
+	}
+
+	if newest == nil {
+		return EvaluationDetail{}, ErrNoFailures
+	}
+
+	return newEvaluationDetail(newest), nil
 }

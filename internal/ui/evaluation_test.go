@@ -121,3 +121,91 @@ func TestEvaluationText_WhenEverythingWasPlaced(t *testing.T) {
 	r.NotContains(text, "Placement failures")
 	r.True(strings.HasPrefix(text, "Evaluation    e1"))
 }
+
+// waiting are the jobs of the tests with one allocation of web that waits
+// for a place.
+func waiting() []nomad.Job {
+	jobs := twoJobs()
+	jobs[0].Queued = 1
+
+	return jobs
+}
+
+// offers says the screen has the key in its header now.
+func offers(m Model, press string) bool {
+	for _, h := range m.hints() {
+		if h.Key == "<"+press+">" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func TestPlacement_FromAJobThatWaits(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: waiting(), evaluation: shortOfRoom()}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(waiting()))
+
+	// A job with an allocation that waits for a place offers to say why.
+	r.True(offers(m, "p"))
+
+	m, cmd := m.update(key('p'))
+	m = drain(m, cmd)
+
+	r.Equal("production", client.askedNamespace)
+	r.Equal("web", client.askedJobID)
+
+	r.Equal(screenDescribe, m.screen.kind)
+	r.Contains(plain(m.render()), "Placement (Job: web)")
+	r.Contains(strings.Join(m.text.lines, "\n"), `Dimension "memory" exhausted on 2 nodes`)
+}
+
+func TestPlacement_NotOfferedWhenNothingWaits(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{jobs: twoJobs()})
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	// Everything of web is placed: there is no why to ask.
+	r.False(offers(m, "p"))
+}
+
+func TestPlacement_FromATaskGroupThatWaits(t *testing.T) {
+	r := require.New(t)
+
+	groups := twoGroups()
+	groups[0].Queued = 2
+
+	client := &fakeClient{jobs: twoJobs(), groups: groups, evaluation: shortOfRoom()}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(key('t'))
+	m, _ = m.update(taskGroupsMsg(groups))
+
+	r.True(offers(m, "p"))
+
+	m, cmd := m.update(key('p'))
+	m = drain(m, cmd)
+
+	r.Equal("web", client.askedJobID)
+	r.Contains(plain(m.render()), "Placement (Job: web)")
+}
+
+func TestPlacement_WhenNoEvaluationSaysWhy(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: waiting(), placementErr: nomad.ErrNoFailures}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(waiting()))
+
+	m, cmd := m.update(key('p'))
+	m = drain(m, cmd)
+
+	// Saying so is the page, not an error: the scheduler may not have got
+	// to the job yet.
+	r.Equal(screenDescribe, m.screen.kind)
+	r.Contains(plain(m.render()), "No evaluation of web says why")
+}

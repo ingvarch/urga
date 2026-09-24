@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -31,6 +32,62 @@ func openEvaluation(m Model) (Model, tea.Cmd) {
 		}
 
 		return evaluationText(detail), nil
+	})
+}
+
+// jobWaits and groupWaits say the row under the cursor has allocations that
+// wait for a place: there is a why to ask only then.
+func jobWaits(m Model) bool {
+	job, ok := selectedOf(m, screenJobs, m.jobs)
+
+	return ok && job.Queued > 0
+}
+
+func groupWaits(m Model) bool {
+	group, ok := selectedOf(m, screenTaskGroups, m.groups)
+
+	return ok && group.Queued > 0
+}
+
+// jobPlacement and groupPlacement say why what waits of the job is not
+// placed. A group has no evaluation of its own: the one of its job holds
+// every group.
+func jobPlacement(m Model) (Model, tea.Cmd) {
+	job, ok := selectedOf(m, screenJobs, m.jobs)
+	if !ok {
+		return m, nil
+	}
+
+	return m, placementOf(m.client, job.Namespace, job.ID)
+}
+
+func groupPlacement(m Model) (Model, tea.Cmd) {
+	if _, ok := selectedOf(m, screenTaskGroups, m.groups); !ok {
+		return m, nil
+	}
+
+	return m, placementOf(m.client, m.screen.namespace, m.screen.jobID)
+}
+
+// placementOf opens the newest evaluation of the job that failed to place
+// something.
+func placementOf(client Client, namespace, jobID string) tea.Cmd {
+	return describe(fmt.Sprintf("Placement (Job: %s)", jobID), func(ctx context.Context) (string, error) {
+		eval, err := client.FailedPlacement(ctx, namespace, jobID)
+
+		// Saying so is the page: the scheduler may not have got to the job
+		// yet, or its evaluations were collected.
+		if errors.Is(err, nomad.ErrNoFailures) {
+			return fmt.Sprintf(
+				"No evaluation of %s says why it waits.\n\n"+
+					"The scheduler may not have got to it yet, or its evaluations were collected.", jobID), nil
+		}
+
+		if err != nil {
+			return "", err
+		}
+
+		return evaluationText(eval), nil
 	})
 }
 

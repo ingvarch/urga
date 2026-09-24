@@ -77,6 +77,9 @@ type Job struct {
 	Running int
 	Desired int
 
+	// Queued are the allocations that wait for a place.
+	Queued int
+
 	SubmitTime time.Time
 
 	// Datacenters are where the job may be placed, stars included.
@@ -135,7 +138,7 @@ func newJob(stub *api.JobListStub) Job {
 
 	job.SubmitTime = unixTime(stub.SubmitTime)
 
-	job.Running, job.Desired = allocationCounts(stub.JobSummary)
+	job.Running, job.Desired, job.Queued = allocationCounts(stub.JobSummary)
 
 	return job
 }
@@ -151,16 +154,17 @@ func unixTime(nanos int64) time.Time {
 }
 
 // allocationCounts adds up the task groups of a job. Allocations in a state
-// the job does not wait for are left out of both numbers.
-func allocationCounts(summary *api.JobSummary) (running, desired int) {
+// the job does not wait for are left out of the numbers.
+func allocationCounts(summary *api.JobSummary) (running, desired, queued int) {
 	if summary == nil {
-		return 0, 0
+		return 0, 0, 0
 	}
 
 	for _, group := range summary.Summary {
 		running += group.Running
 		desired += group.Running + group.Starting + group.Queued
+		queued += group.Queued
 	}
 
-	return running, desired
+	return running, desired, queued
 }

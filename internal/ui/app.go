@@ -66,6 +66,7 @@ type Client interface {
 	Services(ctx context.Context, namespace string) ([]nomad.Service, error)
 	Evaluations(ctx context.Context, namespace string) ([]nomad.Evaluation, error)
 	Evaluation(ctx context.Context, namespace, evalID string) (nomad.EvaluationDetail, error)
+	FailedPlacement(ctx context.Context, namespace, jobID string) (nomad.EvaluationDetail, error)
 	Nodes(ctx context.Context) ([]nomad.Node, error)
 	Variables(ctx context.Context, namespace string) ([]nomad.Variable, error)
 	NodePools(ctx context.Context) ([]nomad.NodePool, error)
