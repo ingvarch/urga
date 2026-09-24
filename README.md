@@ -126,9 +126,10 @@ header shows both under the address.
 | `a` | Attributes of a client |
 | `m` | Metadata of a client |
 | `i` | Let a client take new work, or stop it; every marked one at once |
-| `p` | Promote the canaries of a deployment; on a job or task group that waits, why it is not placed; on a log, the allocation it replaced |
-| `f` | Fail a deployment |
-| `c` | Copy the value under the cursor, on a screen of fields |
+| `p` | Promote the canaries of a deployment; on a job or task group that waits, why it is not placed; on the tasks of an allocation or on a log, the allocation it replaced |
+| `f` | Fail a deployment; on the tasks of an allocation, the evaluation that will place it again |
+| `c` | Copy the value under the cursor, on a screen of fields; on the tasks of an allocation, the client it runs on |
+| `n` | On the tasks of an allocation, the allocation that replaced it |
 | `y` | On a plan, submit the edit or the revert it shows |
 | `ctrl-e` | Logs of a task, stderr; on a log, the other of stdout and stderr |
 | `w` | Wrap long lines, on logs and descriptions |
@@ -143,7 +144,10 @@ evaluations, clients, servers, variables and node pools. A screen that the
 cluster will talk about follows its event stream and is asked again the moment
 something changes; the rest are asked on a timer. A cluster that will not
 stream — an ACL that does not allow it, most often — is polled instead, and
-the status line says so. A task says what happened to it, from the moment the client received it.
+the status line says so. The tasks of an allocation open under what it is:
+its status, the client it runs on, the version of its job, how its deployment
+judged it, the ports it listens on, and the allocations before and after it.
+A task says what happened to it, from the moment the client received it.
 Logs open on the last of what a task wrote and follow it as it writes; a task
 that finished is read to its end. stdout and stderr are a key apart, and so is
 the log of the allocation a task was placed again from. A line under the title

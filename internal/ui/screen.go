@@ -420,6 +420,10 @@ func (m Model) visibleAllocs() []nomad.Alloc {
 
 // tasks are the tasks of the allocation the tasks screen was opened for.
 func (m Model) tasks() []nomad.Task {
+	if alloc, ok := m.shownAlloc(); ok {
+		return alloc.Tasks
+	}
+
 	for _, alloc := range m.allocs {
 		if alloc.ID == m.screen.allocID {
 			return alloc.Tasks

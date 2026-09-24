@@ -23,10 +23,13 @@ func openEvaluation(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	client := m.client
+	return m, describeEvaluation(m.client, eval.Namespace, eval.ID)
+}
 
-	return m, describe(fmt.Sprintf("Evaluation %s", shortID(eval.ID)), func(ctx context.Context) (string, error) {
-		detail, err := client.Evaluation(ctx, eval.Namespace, eval.ID)
+// describeEvaluation reads one evaluation in full.
+func describeEvaluation(client Client, namespace, id string) tea.Cmd {
+	return describe(fmt.Sprintf("Evaluation %s", shortID(id)), func(ctx context.Context) (string, error) {
+		detail, err := client.Evaluation(ctx, namespace, id)
 		if err != nil {
 			return "", err
 		}
