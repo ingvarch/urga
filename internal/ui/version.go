@@ -15,12 +15,12 @@ import (
 var versionTitles = []string{"Version", "State", "Tag", "Changes", "Age"}
 
 var versionBindings = []binding{
-	{press: "enter", label: "What changed", do: Model.openVersionDiff},
-	{press: "u", label: "Revert to it", do: Model.revertToVersion},
+	{press: "enter", label: "What changed", do: openVersionDiff},
+	{press: "u", label: "Revert to it", do: revertToVersion},
 }
 
 // openVersions opens what the job under the cursor was before.
-func (m Model) openVersions() (Model, tea.Cmd) {
+func openVersions(m Model) (Model, tea.Cmd) {
 	job, ok := selectedOf(m, screenJobs, m.jobs)
 	if !ok {
 		return m, nil
@@ -86,7 +86,7 @@ func changes(count int) string {
 }
 
 // openVersionDiff shows what the version under the cursor changed.
-func (m Model) openVersionDiff() (Model, tea.Cmd) {
+func openVersionDiff(m Model) (Model, tea.Cmd) {
 	version, ok := selectedOf(m, screenJobVersions, m.versions)
 	if !ok {
 		return m, nil
@@ -111,7 +111,7 @@ func (m Model) openVersionDiff() (Model, tea.Cmd) {
 }
 
 // revertToVersion puts the version under the cursor back in place.
-func (m Model) revertToVersion() (Model, tea.Cmd) {
+func revertToVersion(m Model) (Model, tea.Cmd) {
 	version, ok := selectedOf(m, screenJobVersions, m.versions)
 	if !ok {
 		return m, nil

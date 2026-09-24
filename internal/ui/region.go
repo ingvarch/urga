@@ -78,7 +78,7 @@ func (m Model) datacenterCommand(name string) (Model, tea.Cmd) {
 
 // chooseRegion switches to the region under the cursor. The one in use has
 // nothing to switch, and the list goes back to where it was opened from.
-func (m Model) chooseRegion() (Model, tea.Cmd) {
+func chooseRegion(m Model) (Model, tea.Cmd) {
 	region, ok := selectedOf(m, screenRegions, m.regions)
 	if !ok {
 		return m, nil
@@ -93,7 +93,7 @@ func (m Model) chooseRegion() (Model, tea.Cmd) {
 
 // chooseDatacenter narrows the screen the list was opened from to the
 // datacenter under the cursor.
-func (m Model) chooseDatacenter() (Model, tea.Cmd) {
+func chooseDatacenter(m Model) (Model, tea.Cmd) {
 	choice, ok := selectedOf(m, screenDatacenters, m.datacenterChoices())
 	if !ok {
 		return m, nil

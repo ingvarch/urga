@@ -10,7 +10,7 @@ import (
 )
 
 // drainNode starts or stops moving the work off the client under the cursor.
-func (m Model) drainNode() (Model, tea.Cmd) {
+func drainNode(m Model) (Model, tea.Cmd) {
 	nodes := marked(m, screenNodes, m.nodes)
 	if len(nodes) == 0 {
 		return m, nil
@@ -47,7 +47,7 @@ func nodeLabel(nodes []nomad.Node) string {
 }
 
 // toggleEligibility says whether the client may be given new work.
-func (m Model) toggleEligibility() (Model, tea.Cmd) {
+func toggleEligibility(m Model) (Model, tea.Cmd) {
 	nodes := marked(m, screenNodes, m.nodes)
 	if len(nodes) == 0 {
 		return m, nil
@@ -108,7 +108,7 @@ func bothWays[T any](items []T, yes func(T) bool, whenYes, whenNo, whenBoth stri
 
 // promoteDeployment takes the canaries of the deployment under the cursor
 // into service.
-func (m Model) promoteDeployment() (Model, tea.Cmd) {
+func promoteDeployment(m Model) (Model, tea.Cmd) {
 	deployment, ok := selectedOf(m, screenDeployments, m.deployments)
 	if !ok {
 		return m, nil
@@ -125,7 +125,7 @@ func (m Model) promoteDeployment() (Model, tea.Cmd) {
 }
 
 // failDeployment stops a deployment where it is.
-func (m Model) failDeployment() (Model, tea.Cmd) {
+func failDeployment(m Model) (Model, tea.Cmd) {
 	deployment, ok := selectedOf(m, screenDeployments, m.deployments)
 	if !ok {
 		return m, nil
@@ -144,15 +144,15 @@ func (m Model) failDeployment() (Model, tea.Cmd) {
 var (
 	nodeBindings = []binding{
 		{press: "enter", label: "What it runs", do: openClient},
-		{press: "ctrl+d", label: "Drain", do: Model.drainNode},
-		{press: "i", label: "Eligibility", do: Model.toggleEligibility},
-		{press: "space", label: "Mark", do: Model.mark},
-		{press: "ctrl+a", label: "Mark all", do: Model.markAll},
+		{press: "ctrl+d", label: "Drain", do: drainNode},
+		{press: "i", label: "Eligibility", do: toggleEligibility},
+		{press: "space", label: "Mark", do: mark},
+		{press: "ctrl+a", label: "Mark all", do: markAll},
 	}
 
 	deploymentBindings = []binding{
 		{press: "d", label: "Describe", do: describeDeployment},
-		{press: "p", label: "Promote canaries", do: Model.promoteDeployment},
-		{press: "f", label: "Fail", do: Model.failDeployment},
+		{press: "p", label: "Promote canaries", do: promoteDeployment},
+		{press: "f", label: "Fail", do: failDeployment},
 	}
 )

@@ -26,7 +26,7 @@ type logState struct {
 }
 
 // openLogs follows what the task under the cursor writes.
-func (m Model) openLogs(source string) (Model, tea.Cmd) {
+func openLogs(m Model, source string) (Model, tea.Cmd) {
 	task, ok := selectedOf(m, screenTasks, m.tasks())
 	if !ok {
 		return m, nil
@@ -151,10 +151,10 @@ var taskBindings = []binding{
 	{press: "enter", label: "Logs", do: openStdout},
 	// The same key opens the events of a task here and edits elsewhere,
 	// because a screen never offers both.
-	{press: "e", label: "Events", do: Model.openTaskEvents},
+	{press: "e", label: "Events", do: openTaskEvents},
 	{press: "ctrl+e", label: "Logs (stderr)", do: openStderr},
 	// The same key opens a shell here and scales a task group elsewhere.
-	{press: "s", label: "Shell", do: Model.shell},
+	{press: "s", label: "Shell", do: shell},
 }
 
 func stopFollowing(m Model) (Model, tea.Cmd) {
@@ -195,10 +195,10 @@ func saveScreen(m Model) (Model, tea.Cmd) {
 
 // openStdout follows what the task under the cursor writes to stdout.
 func openStdout(m Model) (Model, tea.Cmd) {
-	return m.openLogs(nomad.LogStdout)
+	return openLogs(m, nomad.LogStdout)
 }
 
 // openStderr follows what the task under the cursor writes to stderr.
 func openStderr(m Model) (Model, tea.Cmd) {
-	return m.openLogs(nomad.LogStderr)
+	return openLogs(m, nomad.LogStderr)
 }

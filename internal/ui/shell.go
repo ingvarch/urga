@@ -33,7 +33,7 @@ type shellDoneMsg struct {
 }
 
 // shell opens a shell in the task under the cursor.
-func (m Model) shell() (Model, tea.Cmd) {
+func shell(m Model) (Model, tea.Cmd) {
 	task, ok := selectedOf(m, screenTasks, m.tasks())
 	if !ok {
 		return m, nil

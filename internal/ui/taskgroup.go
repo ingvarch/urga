@@ -50,11 +50,11 @@ func taskGroupColor(group nomad.TaskGroup) color.Color {
 
 var taskGroupBindings = []binding{
 	{press: "enter", label: "Allocations", do: openGroupAllocations},
-	{press: "s", label: "Scale", do: Model.scaleGroup},
+	{press: "s", label: "Scale", do: scaleGroup},
 }
 
-// openTaskGroups lists the groups of the job under the cursor.
-func (m Model) openTaskGroups() (Model, tea.Cmd) {
+// openJobGroups lists the groups of the job under the cursor.
+func openJobGroups(m Model) (Model, tea.Cmd) {
 	job, ok := selectedOf(m, screenJobs, m.jobs)
 	if !ok {
 		return m, nil
@@ -64,7 +64,7 @@ func (m Model) openTaskGroups() (Model, tea.Cmd) {
 }
 
 // scaleGroup asks how many allocations the group under the cursor should run.
-func (m Model) scaleGroup() (Model, tea.Cmd) {
+func scaleGroup(m Model) (Model, tea.Cmd) {
 	group, ok := selectedOf(m, screenTaskGroups, m.groups)
 	if !ok {
 		return m, nil

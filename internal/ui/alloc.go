@@ -122,7 +122,7 @@ func (m Model) taskEvents() []nomad.TaskEvent {
 }
 
 // openTaskEvents opens what happened to the task under the cursor.
-func (m Model) openTaskEvents() (Model, tea.Cmd) {
+func openTaskEvents(m Model) (Model, tea.Cmd) {
 	task, ok := selectedOf(m, screenTasks, m.tasks())
 	if !ok {
 		return m, nil
