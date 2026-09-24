@@ -23,6 +23,10 @@ type logState struct {
 	// stream is the task output the log screen follows.
 	stream    *nomad.LogStream
 	following bool
+
+	// finished says the task has stopped: the stream holds all it wrote,
+	// and there is nothing to follow.
+	finished bool
 }
 
 // openLogs follows what the task under the cursor writes.
@@ -38,7 +42,7 @@ func openLogs(m Model, source string) (Model, tea.Cmd) {
 	next.source = source
 
 	m = m.stackText(next, "")
-	m.logs.following = true
+	m.logs = logState{following: true}
 
 	return m, m.startLogs()
 }
@@ -87,6 +91,7 @@ func (l logState) waitForLog() tea.Cmd {
 // opened keeps the stream that was opened and waits for its first line.
 func (l logState) opened(stream *nomad.LogStream) (logState, tea.Cmd) {
 	l.stream = stream
+	l.finished = stream.Finished
 
 	return l, l.waitForLog()
 }
@@ -132,9 +137,15 @@ func (l *logState) stop() {
 	}
 }
 
-// logsTitle says whose output this is and which of the two it is.
-func logsTitle(s screen) string {
-	return fmt.Sprintf("Logs (Task: %s) [%s]", s.task, s.source)
+// logsTitle says whose output this is, which of the two it is, and whether
+// the task has stopped writing it.
+func logsTitle(s screen, finished bool) string {
+	source := s.source
+	if finished {
+		source += ", task finished"
+	}
+
+	return fmt.Sprintf("Logs (Task: %s) [%s]", s.task, source)
 }
 
 // logBindings are the keys of the log screen: the ones of any text, and
@@ -158,10 +169,11 @@ var taskBindings = []binding{
 }
 
 // following and notFollowing say which of stop and resume would do
-// something: only one of them ever does.
-func following(m Model) bool { return m.logs.following }
+// something: only one of them ever does, and neither for a task that has
+// stopped.
+func following(m Model) bool { return m.logs.following && !m.logs.finished }
 
-func notFollowing(m Model) bool { return !m.logs.following }
+func notFollowing(m Model) bool { return !m.logs.following && !m.logs.finished }
 
 func stopFollowing(m Model) (Model, tea.Cmd) {
 	m.logs.following = false

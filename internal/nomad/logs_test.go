@@ -153,3 +153,32 @@ func TestLogs_ARotatedFileStartsWhereTheOneBeforeStopped(t *testing.T) {
 	// line: the start of any file but the first is the rest of a line.
 	r.Equal("whole\n", readAll(t, stream))
 }
+
+func TestLogs_FollowATaskThatRuns(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := logServer(t, "running")
+
+	stream, err := client.Logs(context.Background(), "production", "a1", "server", nomad.LogStdout)
+	r.NoError(err)
+	readAll(t, stream)
+
+	r.Equal("true", asked.Get("follow"))
+	r.False(stream.Finished)
+}
+
+func TestLogs_ReadAFinishedTaskToItsEnd(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := logServer(t, "dead")
+
+	stream, err := client.Logs(context.Background(), "production", "a1", "server", nomad.LogStdout)
+	r.NoError(err)
+	readAll(t, stream)
+
+	// A dead task writes nothing more, and following it never ends: the
+	// cluster answers with an empty frame every second for as long as the
+	// request stays open.
+	r.Equal("false", asked.Get("follow"))
+	r.True(stream.Finished)
+}
