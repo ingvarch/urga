@@ -107,13 +107,13 @@ header shows both under the address.
 | `0`–`9` | Switch namespace, `0` is all of them |
 | `A`–`Z` | Sort by the column that starts with that letter, again to reverse |
 | `!` | Only what needs attention, again for all of it |
-| `enter` | Open what the cursor is on: a client opens what it runs, a server what the agent says about itself |
+| `enter` | Open what the cursor is on: a client opens what it runs, a server what the agent says about itself, an evaluation how it ended |
 | `esc` | Back, to the row the list was left on, with its filter and order |
 | `d` | Describe |
 | `h` | The job file the job was submitted with |
 | `e` | Edit a job, a namespace or the metadata of a client in your editor; the events of a client or of a task. A job the cluster kept no file of opens as JSON |
 | `t` | Task groups of a job |
-| `s` | Scale a task group, or a shell in a task |
+| `s` | Scale a task group, or a shell in a task; on a log, autoscroll on or off |
 | `v` | Versions of a job, with what each one changed |
 | `u` | Revert a job to its previous version, or on the versions screen to the one under the cursor |
 | `space` | Mark a row, on jobs, allocations and clients; an action then takes every marked row |
@@ -126,10 +126,10 @@ header shows both under the address.
 | `a` | Attributes of a client |
 | `m` | Metadata of a client |
 | `i` | Let a client take new work, or stop it; every marked one at once |
-| `p` | Promote the canaries of a deployment |
+| `p` | Promote the canaries of a deployment; on a job or task group that waits, why it is not placed; on a log, the allocation it replaced |
 | `f` | Fail a deployment |
 | `c` | Copy the value under the cursor, on a screen of fields |
-| `ctrl-e` | Logs of a task, stderr |
+| `ctrl-e` | Logs of a task, stderr; on a log, the other of stdout and stderr |
 | `w` | Wrap long lines, on logs and descriptions |
 | `t` | Show when urga read each log line; a task writes no time of its own |
 | `ctrl-s` | Save what is on the screen to a file, as the filter left it |
@@ -143,8 +143,16 @@ cluster will talk about follows its event stream and is asked again the moment
 something changes; the rest are asked on a timer. A cluster that will not
 stream — an ACL that does not allow it, most often — is polled instead, and
 the status line says so. A task says what happened to it, from the moment the client received it.
-Logs follow a task as it writes; the filter lights up what it matched, long
-lines wrap, and what is on the screen saves to a file. A job or a namespace opens in your
+Logs open on the last of what a task wrote and follow it as it writes; a task
+that finished is read to its end. stdout and stderr are a key apart, and so is
+the log of the allocation a task was placed again from. A line under the title
+says whether autoscroll, timestamps and wrap are on. The filter lights up what
+it matched, long lines wrap, and what is on the screen saves to a file.
+
+An evaluation opens on how it ended and, for every task group it could not
+place, which nodes were filtered out and which ran out of room. A job or a task
+group whose allocations wait for a place opens the same page for the newest
+evaluation that could not place them. A job or a namespace opens in your
 editor and goes back to the cluster when you save. Jobs start, stop, revert and
 scale; a job keeps its versions, each saying what it changed, and goes back to
 any of them; allocations restart and stop; jobs start and stop; clients drain and take work
