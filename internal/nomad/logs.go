@@ -31,6 +31,9 @@ type LogStream struct {
 	// and the stream ends with it.
 	Finished bool
 
+	// Previous is the allocation this one replaced, empty for the first.
+	Previous string
+
 	// OnClose runs when the stream is closed, which is how a test sees that
 	// the request behind it was let go of.
 	OnClose func()
@@ -112,7 +115,7 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 		}
 	}()
 
-	return &LogStream{Lines: lines, Err: errs, Finished: finished, cancel: cancel}, nil
+	return &LogStream{Lines: lines, Err: errs, Finished: finished, Previous: alloc.PreviousAllocation, cancel: cancel}, nil
 }
 
 // taskDead says the task of the allocation has stopped for good.

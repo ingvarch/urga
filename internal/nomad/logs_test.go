@@ -24,10 +24,10 @@ type frame struct {
 	Offset int64  `json:",omitempty"`
 }
 
-// logServer answers for the allocation a1, whose task server is in state,
-// and streams its log in frames. The node of the allocation is not found, so
-// the log is read through the server, as it is when the node cannot be
-// reached.
+// logServer answers for the allocation a1, which replaced a0 and whose task
+// server is in state, and streams its log in frames. The node of the
+// allocation is not found, so the log is read through the server, as it is
+// when the node cannot be reached.
 func logServer(t *testing.T, state string, frames ...frame) (*nomad.Client, *url.Values) {
 	t.Helper()
 
@@ -38,7 +38,7 @@ func logServer(t *testing.T, state string, frames ...frame) (*nomad.Client, *url
 		case "/v1/allocation/a1":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = fmt.Fprintf(w, `{"ID": "a1", "Namespace": "production", "NodeID": "n1",
-				"TaskStates": {"server": {"State": %q}}}`, state)
+				"PreviousAllocation": "a0", "TaskStates": {"server": {"State": %q}}}`, state)
 
 		case "/v1/client/fs/logs/a1":
 			*asked = req.URL.Query()
@@ -181,4 +181,18 @@ func TestLogs_ReadAFinishedTaskToItsEnd(t *testing.T) {
 	// request stays open.
 	r.Equal("false", asked.Get("follow"))
 	r.True(stream.Finished)
+}
+
+func TestLogs_SayWhichAllocationCameBefore(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := logServer(t, "running")
+
+	stream, err := client.Logs(context.Background(), "production", "a1", "server", nomad.LogStdout)
+	r.NoError(err)
+	readAll(t, stream)
+
+	// A task that crashed was placed again: the new allocation starts with
+	// an empty log, and why it crashed is in the one it replaced.
+	r.Equal("a0", stream.Previous)
 }
