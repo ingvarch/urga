@@ -73,7 +73,8 @@ func TestDescribe_Scrolls(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), describe: strings.Join(long, "\n")}
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
-	m = drain(m, func() tea.Msg { return m.describeCmd()() })
+	described, cmd := m.update(key('d'))
+	m = drain(described, cmd)
 
 	first := plain(m.render())
 	r.Contains(first, long[0])
@@ -94,7 +95,8 @@ func TestDescribe_EndReachesTheLastWrappedRow(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), describe: strings.Join(longLines(40), "\n")}
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
-	m = drain(m, func() tea.Msg { return m.describeCmd()() })
+	described, cmd := m.update(key('d'))
+	m = drain(described, cmd)
 
 	m, _ = m.update(key('w'))
 

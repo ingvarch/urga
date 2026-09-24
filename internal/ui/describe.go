@@ -16,66 +16,71 @@ type describeMsg struct {
 	content string
 }
 
-// describeCmd asks for what the cursor is on, in the words of the cluster.
-// Nothing to describe answers with nothing.
-func (m Model) describeCmd() tea.Cmd {
-	client := m.client
+// The screens that can be described each ask for what the cursor is on, in
+// the words of the cluster. Nothing to describe answers with nothing.
 
-	switch m.screen.kind {
-	case screenJobs:
-		job, ok := selectedOf(m, screenJobs, m.jobs)
-		if !ok {
-			return nil
-		}
-
-		return describe(fmt.Sprintf("Job: %s", job.ID), func(ctx context.Context) (string, error) {
-			return client.DescribeJob(ctx, job.Namespace, job.ID)
-		})
-
-	case screenAllocations:
-		alloc, ok := selectedOf(m, screenAllocations, m.visibleAllocs())
-		if !ok {
-			return nil
-		}
-
-		return describe(fmt.Sprintf("Allocation: %s", shortID(alloc.ID)), func(ctx context.Context) (string, error) {
-			return client.DescribeAllocation(ctx, alloc.Namespace, alloc.ID)
-		})
-
-	case screenDeployments:
-		deployment, ok := selectedOf(m, screenDeployments, m.deployments)
-		if !ok {
-			return nil
-		}
-
-		return describe(fmt.Sprintf("Deployment: %s", shortID(deployment.ID)), func(ctx context.Context) (string, error) {
-			return client.DescribeDeployment(ctx, deployment.Namespace, deployment.ID)
-		})
-
-	case screenServices:
-		service, ok := selectedOf(m, screenServices, m.services)
-		if !ok {
-			return nil
-		}
-
-		return describe(fmt.Sprintf("Service: %s", service.Name), func(ctx context.Context) (string, error) {
-			return client.DescribeService(ctx, service.Namespace, service.Name)
-		})
-	}
-
-	return nil
-}
-
-// jobSpecCmd asks for the file the job was submitted with.
-func (m Model) jobSpecCmd() tea.Cmd {
+func describeJob(m Model) (Model, tea.Cmd) {
 	job, ok := selectedOf(m, screenJobs, m.jobs)
 	if !ok {
-		return nil
+		return m, nil
 	}
 
 	client := m.client
 
-	return describe(fmt.Sprintf("Job spec: %s", job.ID), func(ctx context.Context) (string, error) {
+	return m, describe(fmt.Sprintf("Job: %s", job.ID), func(ctx context.Context) (string, error) {
+		return client.DescribeJob(ctx, job.Namespace, job.ID)
+	})
+}
+
+func describeAllocation(m Model) (Model, tea.Cmd) {
+	alloc, ok := selectedOf(m, screenAllocations, m.visibleAllocs())
+	if !ok {
+		return m, nil
+	}
+
+	client := m.client
+
+	return m, describe(fmt.Sprintf("Allocation: %s", shortID(alloc.ID)), func(ctx context.Context) (string, error) {
+		return client.DescribeAllocation(ctx, alloc.Namespace, alloc.ID)
+	})
+}
+
+func describeDeployment(m Model) (Model, tea.Cmd) {
+	deployment, ok := selectedOf(m, screenDeployments, m.deployments)
+	if !ok {
+		return m, nil
+	}
+
+	client := m.client
+
+	return m, describe(fmt.Sprintf("Deployment: %s", shortID(deployment.ID)), func(ctx context.Context) (string, error) {
+		return client.DescribeDeployment(ctx, deployment.Namespace, deployment.ID)
+	})
+}
+
+func describeService(m Model) (Model, tea.Cmd) {
+	service, ok := selectedOf(m, screenServices, m.services)
+	if !ok {
+		return m, nil
+	}
+
+	client := m.client
+
+	return m, describe(fmt.Sprintf("Service: %s", service.Name), func(ctx context.Context) (string, error) {
+		return client.DescribeService(ctx, service.Namespace, service.Name)
+	})
+}
+
+// showJobSpec asks for the file the job under the cursor was submitted with.
+func showJobSpec(m Model) (Model, tea.Cmd) {
+	job, ok := selectedOf(m, screenJobs, m.jobs)
+	if !ok {
+		return m, nil
+	}
+
+	client := m.client
+
+	return m, describe(fmt.Sprintf("Job spec: %s", job.ID), func(ctx context.Context) (string, error) {
 		source, err := client.JobSpec(ctx, job.Namespace, job.ID)
 
 		// The cluster has no file to show. Saying so is the job of the
@@ -89,16 +94,6 @@ func (m Model) jobSpecCmd() tea.Cmd {
 
 		return source, err
 	})
-}
-
-// describeRow shows what the cursor is on in the words of the cluster.
-func describeRow(m Model) (Model, tea.Cmd) {
-	return m, m.describeCmd()
-}
-
-// showJobSpec shows the file the job under the cursor was submitted with.
-func showJobSpec(m Model) (Model, tea.Cmd) {
-	return m, m.jobSpecCmd()
 }
 
 func describe(label string, load func(ctx context.Context) (string, error)) tea.Cmd {

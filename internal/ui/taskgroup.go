@@ -49,7 +49,7 @@ func taskGroupColor(group nomad.TaskGroup) color.Color {
 }
 
 var taskGroupBindings = []binding{
-	{press: "enter", label: "Allocations", do: Model.open},
+	{press: "enter", label: "Allocations", do: openGroupAllocations},
 	{press: "s", label: "Scale", do: Model.scaleGroup},
 }
 
@@ -92,5 +92,21 @@ func (m Model) scaleTo(group, input string) (Model, tea.Cmd) {
 
 	return m, act(fmt.Sprintf("Task group %s scaled to %d.", group, count), func(ctx context.Context) error {
 		return client.ScaleJob(ctx, screen.namespace, screen.jobID, group, count)
+	})
+}
+
+// openGroupAllocations drills into the task group under the cursor: the
+// allocations of the job that belong to it.
+func openGroupAllocations(m Model) (Model, tea.Cmd) {
+	group, ok := selectedOf(m, screenTaskGroups, m.groups)
+	if !ok {
+		return m, nil
+	}
+
+	return m.push(screen{
+		kind:      screenAllocations,
+		namespace: m.screen.namespace,
+		jobID:     group.JobID,
+		taskGroup: group.Name,
 	})
 }

@@ -29,34 +29,34 @@ func (b binding) hint() hint {
 // in help.
 var (
 	jobBindings = []binding{
-		{press: "enter", label: "Allocations", do: Model.open},
+		{press: "enter", label: "Allocations", do: openJobAllocations},
 		{press: "space", label: "Mark", do: Model.mark},
 		{press: "ctrl+a", label: "Mark all", do: Model.markAll},
 		{press: "t", label: "Task groups", do: Model.openTaskGroups},
-		{press: "d", label: "Describe", do: describeRow},
+		{press: "d", label: "Describe", do: describeJob},
 		{press: "h", label: "Job spec", do: showJobSpec},
 		{press: "ctrl+s", label: "Start or stop", do: Model.startStopJob},
 		// The list of jobs reverts to the version before the one that runs;
 		// the list of versions reverts to the one under the cursor.
 		{press: "u", label: "Revert", do: Model.revertJob},
 		{press: "v", label: "Versions", do: Model.openVersions},
-		{press: "e", label: "Edit", do: Model.edit},
+		{press: "e", label: "Edit", do: editJob},
 	}
 
 	allocBindings = []binding{
-		{press: "enter", label: "Tasks", do: Model.open},
-		{press: "d", label: "Describe", do: describeRow},
+		{press: "enter", label: "Tasks", do: openAllocation},
+		{press: "d", label: "Describe", do: describeAllocation},
 		{press: "r", label: "Restart", do: Model.restartAllocation},
 		{press: "ctrl+k", label: "Stop", do: Model.stopAllocation},
 		{press: "space", label: "Mark", do: Model.mark},
 		{press: "ctrl+a", label: "Mark all", do: Model.markAll},
 	}
 
-	serverBindings = []binding{{press: "enter", label: "Details", do: Model.open}}
+	serverBindings = []binding{{press: "enter", label: "Details", do: openServer}}
 
 	fieldBindings = []binding{{press: "c", label: "Copy the value", do: Model.copyField}}
 
-	describeBindings = []binding{{press: "d", label: "Describe", do: describeRow}}
+	serviceBindings = []binding{{press: "d", label: "Describe", do: describeService}}
 
 	// textBindings are the keys of a screen that reads as text rather than
 	// as a list.
@@ -65,11 +65,12 @@ var (
 		{press: "ctrl+s", label: "Save", do: saveScreen},
 	}
 
-	namespaceBindings = []binding{{press: "e", label: "Edit", do: Model.edit}}
+	namespaceBindings = []binding{{press: "e", label: "Edit", do: editNamespace}}
 
-	// choiceBindings are the keys of a list a region or a datacenter is
-	// picked from.
-	choiceBindings = []binding{{press: "enter", label: "Switch", do: Model.open}}
+	// regionBindings and datacenterBindings are the keys of a list a region
+	// or a datacenter is picked from.
+	regionBindings     = []binding{{press: "enter", label: "Switch", do: Model.chooseRegion}}
+	datacenterBindings = []binding{{press: "enter", label: "Switch", do: Model.chooseDatacenter}}
 )
 
 // resource is everything a screen knows about itself: what it is called, what
@@ -291,7 +292,7 @@ func init() {
 			stored:  "services",
 			aliases: []string{"services", "service", "svc"},
 			titles:  serviceTitles,
-			keys:    describeBindings,
+			keys:    serviceBindings,
 			topics:  []string{nomad.TopicService},
 			fetch: func(m Model) tea.Cmd {
 				client, namespace := m.client, m.namespace
@@ -521,7 +522,7 @@ func init() {
 		screenRegions: {
 			name:    "Regions",
 			titles:  choiceTitles,
-			keys:    choiceBindings,
+			keys:    regionBindings,
 			cluster: true,
 			fetch:   func(m Model) tea.Cmd { return fetchRegions(m.client) },
 			rows:    func(m Model) []tableRow { return choiceRows(m.regions, m.regionInUse()) },
@@ -530,7 +531,7 @@ func init() {
 		screenDatacenters: {
 			name:    "Datacenters",
 			titles:  choiceTitles,
-			keys:    choiceBindings,
+			keys:    datacenterBindings,
 			cluster: true,
 			fetch:   func(m Model) tea.Cmd { return fetchDatacenters(m.client) },
 			rows:    func(m Model) []tableRow { return choiceRows(m.datacenterChoices(), orEvery(m.datacenter)) },

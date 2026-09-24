@@ -15,7 +15,7 @@ import (
 var versionTitles = []string{"Version", "State", "Tag", "Changes", "Age"}
 
 var versionBindings = []binding{
-	{press: "enter", label: "What changed", do: Model.open},
+	{press: "enter", label: "What changed", do: Model.openVersionDiff},
 	{press: "u", label: "Revert to it", do: Model.revertToVersion},
 }
 
