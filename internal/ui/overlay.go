@@ -225,7 +225,8 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		m.prompt.text = m.prompt.line()
 		m.prompt = m.prompt.narrow()
 
-	case "backspace":
+	// A terminal set to send ^H for backspace hands it over as ctrl+h.
+	case "backspace", "ctrl+h":
 		if n := len(m.prompt.text); n > 0 {
 			m.prompt.text = m.prompt.text[:n-1]
 		}
