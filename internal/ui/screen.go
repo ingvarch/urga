@@ -100,18 +100,40 @@ func (s screen) bindings() []binding {
 }
 
 // keys are what the open screen offers now: a key that would do nothing in
-// the state the screen is in is not offered.
+// the state the screen is in is not offered, nor, read-only, a key that
+// changes the cluster.
 func (m Model) keys() []binding {
 	all := m.screen.bindings()
 
 	keys := make([]binding, 0, len(all))
 	for _, b := range all {
+		if m.withheld(b) {
+			continue
+		}
+
 		if b.offered == nil || b.offered(m) {
 			keys = append(keys, b)
 		}
 	}
 
 	return keys
+}
+
+// withheld says read-only takes the key away.
+func (m Model) withheld(b binding) bool {
+	return m.opts.ReadOnly && b.writes
+}
+
+// withheldKey is the key read-only took away from the open screen, when the
+// press is one.
+func (m Model) withheldKey(press string) (binding, bool) {
+	for _, b := range m.screen.bindings() {
+		if b.press == press && m.withheld(b) {
+			return b, true
+		}
+	}
+
+	return binding{}, false
 }
 
 // hints are the keys the open resource answers. Keys that work everywhere
