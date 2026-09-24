@@ -109,7 +109,10 @@ color           = "red"
 
 `urga --cluster prod` starts on `prod`; without the flag urga starts on the
 `default` of the file, and without that from the environment. The header then
-says `Cluster:` and the name. Flags still win over the file.
+says `Cluster:` and the name. Flags still win over the file. Each cluster
+comes back to what it was left on: its namespace, its screen and what its
+number keys stand for; `namespace` in the file is where it starts the first
+time.
 
 A named cluster takes nothing from the environment: a `NOMAD_TOKEN` set for
 one cluster is not sent to another. Its token comes from one of:
