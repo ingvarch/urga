@@ -138,6 +138,13 @@ type fakeClient struct {
 	fileAllocID   string
 	filePath      string
 	fileCalls     int
+
+	// deployment is any deployment read, with its allocations, and which
+	// one was asked for last.
+	deployment          nomad.DeploymentDetail
+	deploymentAllocs    []nomad.Alloc
+	deploymentNamespace string
+	deploymentID        string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -479,6 +486,18 @@ func (f *fakeClient) NodeUsage(_ context.Context, nodeID string) (nomad.Resource
 	}
 
 	return use, nil
+}
+
+func (f *fakeClient) Deployment(_ context.Context, namespace, id string) (nomad.DeploymentDetail, error) {
+	f.deploymentNamespace, f.deploymentID = namespace, id
+
+	return f.deployment, f.err
+}
+
+func (f *fakeClient) DeploymentAllocations(_ context.Context, namespace, id string) ([]nomad.Alloc, error) {
+	f.deploymentNamespace, f.deploymentID = namespace, id
+
+	return f.deploymentAllocs, f.err
 }
 
 func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {

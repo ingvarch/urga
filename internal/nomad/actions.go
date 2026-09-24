@@ -162,6 +162,21 @@ func (c *Client) PromoteDeployment(ctx context.Context, namespace, deploymentID 
 	return err
 }
 
+// PromoteGroups takes the canaries of some task groups of a deployment into
+// service; the other groups keep theirs.
+func (c *Client) PromoteGroups(ctx context.Context, namespace, deploymentID string, groups []string) error {
+	_, _, err := c.api.Deployments().PromoteGroups(deploymentID, groups, c.write(ctx, namespace))
+
+	return err
+}
+
+// PauseDeployment stops a deployment where it is, or lets it go on.
+func (c *Client) PauseDeployment(ctx context.Context, namespace, deploymentID string, pause bool) error {
+	_, _, err := c.api.Deployments().Pause(deploymentID, pause, c.write(ctx, namespace))
+
+	return err
+}
+
 // FailDeployment stops a deployment and rolls it back where the job says to.
 func (c *Client) FailDeployment(ctx context.Context, namespace, deploymentID string) error {
 	_, _, err := c.api.Deployments().Fail(deploymentID, c.write(ctx, namespace))

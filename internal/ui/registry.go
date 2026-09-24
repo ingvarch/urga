@@ -101,9 +101,11 @@ type resource struct {
 	titles []string
 	keys   []binding
 
-	// keysFor answers for a screen that is opened for different things and
-	// can do different things with them.
-	keysFor func(s screen) []binding
+	// keysFor, titlesFor and topicsFor answer for a screen that is opened
+	// for different things, and shows and does different things with them.
+	keysFor   func(s screen) []binding
+	titlesFor func(s screen) []string
+	topicsFor func(s screen) []string
 
 	// topics are what the cluster is asked to say about: a change in one of
 	// them is this screen no longer being what it shows. A screen with none
@@ -182,6 +184,23 @@ func init() {
 				return allocBindings
 			},
 
+			// The allocations of a deployment sit under its groups, and say
+			// what the deployment made of each of them.
+			titlesFor: func(s screen) []string {
+				if s.isDeployment() {
+					return deploymentAllocTitles
+				}
+
+				return allocTitles
+			},
+			topicsFor: func(s screen) []string {
+				if s.isDeployment() {
+					return []string{nomad.TopicAllocation, nomad.TopicDeployment}
+				}
+
+				return []string{nomad.TopicAllocation}
+			},
+
 			readings: func(m Model) []rowRef {
 				allocs := m.visibleAllocs()
 
@@ -200,6 +219,10 @@ func init() {
 			},
 
 			title: func(m Model, count int) string {
+				if m.screen.isDeployment() {
+					return sprintf("Deployment %s (Job: %s) [%d]", shortID(m.screen.deploymentID), m.screen.jobID, count)
+				}
+
 				if m.screen.taskGroup != "" {
 					return sprintf("Allocations (Group: %s) [%d]", m.screen.taskGroup, count)
 				}
@@ -219,6 +242,10 @@ func init() {
 			fetch: func(m Model) tea.Cmd {
 				client, screen := m.client, m.screen
 
+				if screen.isDeployment() {
+					return fetchDeployment(m)
+				}
+
 				if screen.nodeID != "" {
 					// The machine answers for its allocations and for itself:
 					// the chart above them is what the host is doing. That is
@@ -235,7 +262,13 @@ func init() {
 					return client.Allocations(ctx, screen.namespace, screen.jobID)
 				}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
 			},
-			rows: func(m Model) []tableRow { return allocRows(m.visibleAllocs(), m.usage.rows) },
+			rows: func(m Model) []tableRow {
+				if m.screen.isDeployment() {
+					return deploymentAllocRows(m.visibleAllocs(), m.usage.rows)
+				}
+
+				return allocRows(m.visibleAllocs(), m.usage.rows)
+			},
 		},
 
 		screenTasks: {

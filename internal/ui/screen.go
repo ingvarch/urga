@@ -56,6 +56,10 @@ type screen struct {
 	// shows its own work rather than the work of a job.
 	nodeID string
 
+	// deploymentID is the deployment an allocation list was opened for: it
+	// shows the allocations that deployment placed, under its groups.
+	deploymentID string
+
 	// label titles a screen that is about one thing, like a description.
 	label string
 
@@ -90,9 +94,27 @@ func (s screen) isClient() bool {
 	return s.kind == screenAllocations && s.nodeID != ""
 }
 
+// isDeployment says the screen was opened for one deployment.
+func (s screen) isDeployment() bool {
+	return s.kind == screenAllocations && s.deploymentID != ""
+}
+
 // titles are the columns of a screen.
 func (s screen) titles() []string {
+	if res := s.of(); res.titlesFor != nil {
+		return res.titlesFor(s)
+	}
+
 	return s.of().titles
+}
+
+// topics are what the cluster is asked to say about while the screen is up.
+func (s screen) topics() []string {
+	if res := s.of(); res.topicsFor != nil {
+		return res.topicsFor(s)
+	}
+
+	return s.of().topics
 }
 
 // bindings are the keys of the screen, in the order the header shows them,

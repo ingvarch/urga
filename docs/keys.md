@@ -193,9 +193,15 @@ On an open file:
 
 | Key | What it does | Changes |
 | --- | --- | --- |
+| `enter` | Open the deployment | |
 | `d` | Describe | |
 | `p` | Promote the canaries | yes |
 | `f` | Fail the deployment | yes |
+
+### A deployment
+
+The deployment screen lists the allocations of the deployment. It has the
+keys of [Allocations](#allocations).
 
 ### Namespaces and services
 
