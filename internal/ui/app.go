@@ -313,6 +313,11 @@ type clusterData struct {
 
 	// deployment is the deployment a deployment screen last read.
 	deployment nomad.DeploymentDetail
+
+	// logPick is the question which task to read the logs of, and jobLogs
+	// the logs of that task in every allocation that runs it.
+	logPick logPick
+	jobLogs jobLogsState
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -485,6 +490,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.openedFile(msg)
 
 	case logLineMsg:
+		if allocID, ok := m.jobLogs.streams[msg.stream]; ok && m.screen.kind == screenJobLogs {
+			return m.appendJobLog(msg.stream, allocID, msg.text)
+		}
+
 		if !m.fromOpenStream(msg.stream) {
 			return m, nil
 		}
@@ -492,11 +501,24 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.appendLog(msg.text)
 
 	case logEndMsg:
+		if allocID, ok := m.jobLogs.streams[msg.stream]; ok {
+			return m.endJobLog(msg.stream, allocID), nil
+		}
+
 		if m.fromOpenStream(msg.stream) {
 			m.logs = m.logs.ended()
 		}
 
 		return m, nil
+
+	case logScopeMsg:
+		return m.showLogScope(msg)
+
+	case jobLogOpenedMsg:
+		return m.openedJobLog(msg)
+
+	case jobLogAllocsMsg:
+		return m.reloadedJobLogs(msg)
 
 	case savedMsg:
 		return m.say(fmt.Sprintf("Saved to %s.", msg.path)), nil

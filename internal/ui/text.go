@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 
@@ -34,6 +35,10 @@ type textModel struct {
 	// them, and the colour goes on only when they are drawn.
 	paint map[int]lipgloss.Style
 
+	// tags go in front of lines to say where each came from, in a colour
+	// of their own.
+	tags map[int]tag
+
 	top int
 
 	width  int
@@ -44,8 +49,16 @@ type textModel struct {
 // this one was.
 func (t textModel) emptied() textModel {
 	t.lines, t.stamps, t.top = nil, nil, 0
+	t.paint, t.tags = nil, nil
 
 	return t
+}
+
+// tag is a label in front of a line: the allocation it came from. It is
+// read with the line, and drawn in a style of its own.
+type tag struct {
+	text  string
+	style lipgloss.Style
 }
 
 // textRow is a line, or the part of one that fits a row, and the style it is
@@ -53,6 +66,11 @@ func (t textModel) emptied() textModel {
 type textRow struct {
 	text  string
 	style lipgloss.Style
+
+	// tagFrom and tagTo are where the tag of the line is in text, and
+	// tagStyle what it is drawn in. A row without one has them empty.
+	tagFrom, tagTo int
+	tagStyle       lipgloss.Style
 }
 
 // paintedLine is a line to put on a text screen, in a style of its own when
@@ -88,7 +106,8 @@ func (t textModel) visible() []textRow {
 	kept := make([]textRow, 0, len(t.lines))
 
 	for i, line := range t.lines {
-		if !match(line) {
+		label := t.tags[i]
+		if !match(label.text + line) {
 			continue
 		}
 
@@ -97,7 +116,17 @@ func (t textModel) visible() []textRow {
 			style = styleText
 		}
 
-		kept = append(kept, textRow{text: t.stamped(i, line), style: style})
+		// The time a line arrived comes first, then where it came from.
+		text := t.stamped(i, label.text+line)
+		from := len(text) - len(label.text+line)
+
+		kept = append(kept, textRow{
+			text:     text,
+			style:    style,
+			tagFrom:  from,
+			tagTo:    from + len(label.text),
+			tagStyle: label.style,
+		})
 	}
 
 	return kept
@@ -130,9 +159,15 @@ func (t textModel) rows() []textRow {
 
 	out := make([]textRow, 0, len(lines))
 	for _, line := range lines {
-		// Every row of a wrapped line is in the colour of the line.
-		for _, part := range wrapLine(line.text, t.width) {
-			out = append(out, textRow{text: part, style: line.style})
+		// Every row of a wrapped line is in the colour of the line; the
+		// tag is on the first of them.
+		for i, part := range wrapLine(line.text, t.width) {
+			row := textRow{text: part, style: line.style}
+			if i == 0 {
+				row.tagFrom, row.tagTo, row.tagStyle = line.tagFrom, min(line.tagTo, len(part)), line.tagStyle
+			}
+
+			out = append(out, row)
 		}
 	}
 
@@ -203,25 +238,43 @@ func (t textModel) line(row textRow) string {
 	line := truncate(row.text, t.width)
 	gap := strings.Repeat(" ", max(t.width-ansi.StringWidth(line), 0))
 
+	// The tag may be cut at the edge, in the middle of the mark that says
+	// so: it ends where a character does.
+	from, to := min(row.tagFrom, len(line)), min(row.tagTo, len(line))
+	for to < len(line) && !utf8.RuneStart(line[to]) {
+		to++
+	}
+
+	return t.lit(line[:from], row.style) + t.lit(line[from:to], row.tagStyle) +
+		t.lit(line[to:], row.style) + row.style.Render(gap)
+}
+
+// lit is a piece of a row in its style, with what the filter matched lit up
+// in it.
+func (t textModel) lit(piece string, style lipgloss.Style) string {
+	if piece == "" {
+		return ""
+	}
+
 	if t.filter == "" {
-		return row.style.Render(line + gap)
+		return style.Render(piece)
 	}
 
 	out := strings.Builder{}
 
-	for rest := line; rest != ""; {
+	for rest := piece; rest != ""; {
 		at := matchIn(rest, t.filter)
 		if at == nil {
-			out.WriteString(row.style.Render(rest))
+			out.WriteString(style.Render(rest))
 
 			break
 		}
 
-		out.WriteString(row.style.Render(rest[:at[0]]))
+		out.WriteString(style.Render(rest[:at[0]]))
 		out.WriteString(styleMatch.Render(rest[at[0]:at[1]]))
 
 		rest = rest[at[1]:]
 	}
 
-	return out.String() + row.style.Render(gap)
+	return out.String()
 }

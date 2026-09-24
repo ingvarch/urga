@@ -94,6 +94,29 @@ A line under the title shows the state of three toggles:
 `ctrl-e` switches between stdout and stderr. `ctrl-s` saves the log to a file
 in the current directory, as the filter shows it.
 
+## Logs of every allocation
+
+`l` on a job, a task group or a list of allocations opens the log of one task
+in every allocation that runs it, on one screen. If the allocations run more
+than one task, urga first asks which one, with a list of the tasks and how
+many allocations run each.
+
+Each line starts with the short ID of its allocation, in a color of its own,
+so you can tell the allocations apart. The filter matches the ID too: `/9a1b`
+shows the lines of one allocation.
+
+- urga reads only allocations that are running, the newest first. It reads at
+  most 20 of them. If more are running, the title says how many it read, for
+  example `20 of 27 allocations`.
+- When the log of an allocation ends, for example because the allocation
+  stopped, urga adds a line that says `stopped`. The other logs go on.
+- The set of allocations is fixed when the screen opens. `r` reads the
+  allocations again and opens the logs of the ones that run now, for example
+  after a deployment.
+- `ctrl-e` switches every log between stdout and stderr.
+- Autoscroll, timestamps, wrap and saving work as on the log of one task.
+- `esc` closes every log and goes back.
+
 ## Files
 
 `b` opens the directory of the task under the cursor. It contains:

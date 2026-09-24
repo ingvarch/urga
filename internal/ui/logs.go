@@ -112,7 +112,11 @@ func (m Model) fromOpenStream(stream *nomad.LogStream) bool {
 
 // waitForLog waits for the next thing the task writes.
 func (l logState) waitForLog() tea.Cmd {
-	stream := l.stream
+	return waitForStream(l.stream)
+}
+
+// waitForStream waits for the next thing a stream says.
+func waitForStream(stream *nomad.LogStream) tea.Cmd {
 	if stream == nil {
 		return nil
 	}
@@ -308,7 +312,7 @@ func (m Model) logToggles(width int) string {
 	toggles := []toggle{{"Autoscroll", m.logs.following}}
 
 	// When urga read a line is nothing to a file.
-	if m.screen.kind == screenLogs {
+	if m.screen.kind != screenFile {
 		toggles = append(toggles, toggle{"Timestamps", m.text.times})
 	}
 
@@ -343,7 +347,7 @@ func (m Model) toggleRows() int {
 // readsAStream says the screen reads what something writes: the log of a
 // task, or a file of its allocation.
 func (m Model) readsAStream() bool {
-	return m.screen.kind == screenLogs || m.screen.kind == screenFile
+	return m.screen.kind == screenLogs || m.screen.kind == screenFile || m.screen.kind == screenJobLogs
 }
 
 // showTimes puts when each line was read in front of it. Only a log has

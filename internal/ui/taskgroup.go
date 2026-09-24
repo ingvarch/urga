@@ -52,6 +52,7 @@ var taskGroupBindings = []binding{
 	{press: "enter", label: "Allocations", do: openGroupAllocations},
 	{press: "s", label: "Scale", do: scaleGroup, writes: true},
 	{press: "p", label: "Placement", do: groupPlacement, offered: groupWaits},
+	{press: "l", label: "Logs", do: groupLogs},
 }
 
 // openJobGroups lists the groups of the job under the cursor.

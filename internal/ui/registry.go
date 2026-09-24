@@ -47,6 +47,7 @@ var (
 		// the list of versions reverts to the one under the cursor.
 		{press: "u", label: "Revert", do: revertJob, writes: true},
 		{press: "v", label: "Versions", do: openVersions},
+		{press: "l", label: "Logs", do: jobLogs},
 		{press: "e", label: "Edit", do: editJob, writes: true},
 		{press: "p", label: "Placement", do: jobPlacement, offered: jobWaits},
 	}
@@ -56,6 +57,7 @@ var (
 		{press: "d", label: "Describe", do: describeAllocation},
 		{press: "r", label: "Restart", do: restartAllocation, writes: true},
 		{press: "ctrl+k", label: "Stop", do: stopAllocation, writes: true},
+		{press: "l", label: "Logs", do: listLogs},
 		{press: "space", label: "Mark", do: mark},
 		{press: "ctrl+a", label: "Mark All", do: markAll},
 	}
@@ -293,6 +295,18 @@ func init() {
 			keys:    clusterBindings,
 			cluster: true,
 			rows:    func(m Model) []tableRow { return choiceRows(m.opts.Clusters, m.opts.Cluster) },
+		},
+
+		screenLogTasks: {
+			titles: logTaskTitles,
+			keys:   logTaskBindings,
+			title:  func(m Model, _ int) string { return m.logPick.title },
+			rows:   func(m Model) []tableRow { return logTaskRows(m.logPick.choices) },
+		},
+
+		screenJobLogs: {
+			keys:  jobLogBindings,
+			title: func(m Model, _ int) string { return jobLogsTitle(m.screen, m.jobLogs) },
 		},
 
 		screenFiles: {
