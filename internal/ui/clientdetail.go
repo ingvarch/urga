@@ -38,7 +38,7 @@ var (
 
 	metaBindings = []binding{
 		{press: "c", label: "Copy the value", do: copyField},
-		{press: "e", label: "Edit", do: editMeta},
+		{press: "e", label: "Edit", do: editMeta, writes: true},
 	}
 )
 

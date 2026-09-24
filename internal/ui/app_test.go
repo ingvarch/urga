@@ -94,11 +94,17 @@ type fakeClient struct {
 	calls      int
 	allocCalls int
 
+	// writes are the calls that change the cluster, in the order made.
+	writes []string
+
 	region          string
 	regions         []string
 	datacenters     []string
 	usageDatacenter string
 }
+
+// wrote keeps a call that changes the cluster.
+func (f *fakeClient) wrote(method string) { f.writes = append(f.writes, method) }
 
 func (f *fakeClient) Address() string { return "https://nomad.example.com" }
 
@@ -151,6 +157,7 @@ func (f *fakeClient) JobVersionDiff(_ context.Context, _, jobID string, version 
 }
 
 func (f *fakeClient) RevertJobTo(_ context.Context, _, jobID string, version uint64) error {
+	f.wrote("RevertJobTo")
 	f.askedJobID, f.revertedTo = jobID, version
 
 	return f.err
@@ -187,6 +194,7 @@ func (f *fakeClient) NodeMetaSpec(_ context.Context, nodeID string) (string, err
 }
 
 func (f *fakeClient) SubmitNodeMeta(_ context.Context, nodeID, source string) error {
+	f.wrote("SubmitNodeMeta")
 	f.askedNodeID, f.metaSubmitted = nodeID, source
 
 	return f.err
@@ -240,6 +248,7 @@ func (f *fakeClient) Logs(_ context.Context, namespace, allocID, task, source st
 }
 
 func (f *fakeClient) StartJob(_ context.Context, namespace, jobID string) error {
+	f.wrote("StartJob")
 	f.askedNamespace, f.askedID = namespace, jobID
 	f.started++
 
@@ -247,6 +256,7 @@ func (f *fakeClient) StartJob(_ context.Context, namespace, jobID string) error 
 }
 
 func (f *fakeClient) StopJob(_ context.Context, namespace, jobID string) error {
+	f.wrote("StopJob")
 	f.askedNamespace, f.askedID = namespace, jobID
 	f.stopped++
 
@@ -254,6 +264,7 @@ func (f *fakeClient) StopJob(_ context.Context, namespace, jobID string) error {
 }
 
 func (f *fakeClient) RevertJob(_ context.Context, namespace, jobID string) error {
+	f.wrote("RevertJob")
 	f.askedNamespace, f.askedID = namespace, jobID
 	f.reverted++
 
@@ -261,6 +272,7 @@ func (f *fakeClient) RevertJob(_ context.Context, namespace, jobID string) error
 }
 
 func (f *fakeClient) ScaleJob(_ context.Context, namespace, jobID, group string, count int) error {
+	f.wrote("ScaleJob")
 	f.askedNamespace, f.askedID, f.askedGroup = namespace, jobID, group
 	f.scaled++
 	f.scaledTo = count
@@ -269,6 +281,7 @@ func (f *fakeClient) ScaleJob(_ context.Context, namespace, jobID, group string,
 }
 
 func (f *fakeClient) RestartAllocation(_ context.Context, namespace, allocID string) error {
+	f.wrote("RestartAllocation")
 	f.askedNamespace, f.askedID = namespace, allocID
 	f.restarted++
 
@@ -276,6 +289,7 @@ func (f *fakeClient) RestartAllocation(_ context.Context, namespace, allocID str
 }
 
 func (f *fakeClient) StopAllocation(_ context.Context, namespace, allocID string) error {
+	f.wrote("StopAllocation")
 	f.askedNamespace, f.askedID = namespace, allocID
 	f.stoppedAllocs++
 
@@ -289,6 +303,7 @@ func (f *fakeClient) TaskGroups(_ context.Context, namespace, jobID string) ([]n
 }
 
 func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string, vars nomad.JobVariables) error {
+	f.wrote("SubmitJob")
 	f.askedNamespace, f.submittedSource, f.submittedVars = namespace, source, vars
 	f.submitted++
 
@@ -302,6 +317,7 @@ func (f *fakeClient) NamespaceSpec(_ context.Context, name string) (string, erro
 }
 
 func (f *fakeClient) SubmitNamespace(_ context.Context, source string) error {
+	f.wrote("SubmitNamespace")
 	f.submittedSource = source
 	f.submittedNamespaces++
 
@@ -309,6 +325,7 @@ func (f *fakeClient) SubmitNamespace(_ context.Context, source string) error {
 }
 
 func (f *fakeClient) DrainNode(_ context.Context, nodeID string, drain bool) error {
+	f.wrote("DrainNode")
 	f.askedID, f.drained = nodeID, drain
 	f.drainCalls++
 
@@ -316,6 +333,7 @@ func (f *fakeClient) DrainNode(_ context.Context, nodeID string, drain bool) err
 }
 
 func (f *fakeClient) SetNodeEligible(_ context.Context, nodeID string, eligible bool) error {
+	f.wrote("SetNodeEligible")
 	f.askedID, f.eligible = nodeID, eligible
 	f.eligibleCalls++
 
@@ -323,6 +341,7 @@ func (f *fakeClient) SetNodeEligible(_ context.Context, nodeID string, eligible 
 }
 
 func (f *fakeClient) PromoteDeployment(_ context.Context, namespace, deploymentID string) error {
+	f.wrote("PromoteDeployment")
 	f.askedNamespace, f.askedID = namespace, deploymentID
 	f.promoted++
 
@@ -330,6 +349,7 @@ func (f *fakeClient) PromoteDeployment(_ context.Context, namespace, deploymentI
 }
 
 func (f *fakeClient) FailDeployment(_ context.Context, namespace, deploymentID string) error {
+	f.wrote("FailDeployment")
 	f.askedNamespace, f.askedID = namespace, deploymentID
 	f.failed++
 

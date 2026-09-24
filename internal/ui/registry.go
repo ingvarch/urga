@@ -18,6 +18,9 @@ type binding struct {
 	press string
 	label string
 	do    func(m Model) (Model, tea.Cmd)
+
+	// writes says the key changes the cluster, which read-only takes away.
+	writes bool
 }
 
 // hint is the binding as the header and help write it: ctrl+s is <ctrl-s>.
@@ -35,19 +38,19 @@ var (
 		{press: "t", label: "Task groups", do: openJobGroups},
 		{press: "d", label: "Describe", do: describeJob},
 		{press: "h", label: "Job spec", do: showJobSpec},
-		{press: "ctrl+s", label: "Start or stop", do: startStopJob},
+		{press: "ctrl+s", label: "Start or stop", do: startStopJob, writes: true},
 		// The list of jobs reverts to the version before the one that runs;
 		// the list of versions reverts to the one under the cursor.
-		{press: "u", label: "Revert", do: revertJob},
+		{press: "u", label: "Revert", do: revertJob, writes: true},
 		{press: "v", label: "Versions", do: openVersions},
-		{press: "e", label: "Edit", do: editJob},
+		{press: "e", label: "Edit", do: editJob, writes: true},
 	}
 
 	allocBindings = []binding{
 		{press: "enter", label: "Tasks", do: openAllocation},
 		{press: "d", label: "Describe", do: describeAllocation},
-		{press: "r", label: "Restart", do: restartAllocation},
-		{press: "ctrl+k", label: "Stop", do: stopAllocation},
+		{press: "r", label: "Restart", do: restartAllocation, writes: true},
+		{press: "ctrl+k", label: "Stop", do: stopAllocation, writes: true},
 		{press: "space", label: "Mark", do: mark},
 		{press: "ctrl+a", label: "Mark all", do: markAll},
 	}
@@ -65,7 +68,7 @@ var (
 		{press: "ctrl+s", label: "Save", do: saveScreen},
 	}
 
-	namespaceBindings = []binding{{press: "e", label: "Edit", do: editNamespace}}
+	namespaceBindings = []binding{{press: "e", label: "Edit", do: editNamespace, writes: true}}
 
 	// regionBindings and datacenterBindings are the keys of a list a region
 	// or a datacenter is picked from.

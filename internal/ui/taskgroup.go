@@ -50,7 +50,7 @@ func taskGroupColor(group nomad.TaskGroup) color.Color {
 
 var taskGroupBindings = []binding{
 	{press: "enter", label: "Allocations", do: openGroupAllocations},
-	{press: "s", label: "Scale", do: scaleGroup},
+	{press: "s", label: "Scale", do: scaleGroup, writes: true},
 }
 
 // openJobGroups lists the groups of the job under the cursor.
