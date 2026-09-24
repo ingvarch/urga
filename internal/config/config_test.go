@@ -98,3 +98,47 @@ func TestConfig_BrokenFileIsNoError(t *testing.T) {
 	r.NoError(err)
 	r.Nil(cfg.Namespace)
 }
+
+func TestConfig_ASessionForEachCluster(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	cfg.Of("prod").UseNamespace("batch")
+	cfg.Of("prod").Screen = "nodes"
+	cfg.Of("").UseNamespace("default")
+	r.NoError(cfg.Save())
+
+	again, err := config.Load()
+	r.NoError(err)
+
+	// Each cluster comes back to what it was looking at, and the one of the
+	// environment to its own.
+	r.Equal("batch", *again.Of("prod").Namespace)
+	r.Equal("nodes", again.Of("prod").Screen)
+	r.Equal("default", *again.Of("").Namespace)
+	r.Nil(again.Of("dev").Namespace)
+}
+
+func TestConfig_TheFileOfAnEarlierUrga(t *testing.T) {
+	r := require.New(t)
+
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", home)
+
+	r.NoError(os.MkdirAll(filepath.Join(home, "urga"), 0o755))
+	r.NoError(os.WriteFile(filepath.Join(home, "urga", "config.json"),
+		[]byte(`{"namespace": "staging", "screen": "jobs", "namespaces": ["default", "staging"]}`), 0o600))
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	// What it wrote is the session of the environment, as it was.
+	session := cfg.Of("")
+	r.Equal("staging", *session.Namespace)
+	r.Equal("jobs", session.Screen)
+	r.Equal([]string{"default", "staging"}, session.Namespaces)
+}

@@ -3,6 +3,7 @@ package ui
 import (
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
@@ -27,7 +28,7 @@ func (m Model) restore() Model {
 		return m
 	}
 
-	cfg := m.opts.Config
+	cfg := m.session()
 
 	if cfg.Namespace != nil && !m.opts.NamespaceGiven {
 		m.namespace = *cfg.Namespace
@@ -44,6 +45,11 @@ func (m Model) restore() Model {
 	return m
 }
 
+// session is what the cluster in use was left looking at.
+func (m Model) session() *config.Session {
+	return m.opts.Config.Of(m.opts.Cluster)
+}
+
 // remember writes down what this session is looking at. It is a command, so
 // the file is written off the path that answers keys.
 func (m Model) remember() tea.Cmd {
@@ -52,11 +58,12 @@ func (m Model) remember() tea.Cmd {
 		return nil
 	}
 
-	cfg.UseNamespace(NamespaceOrAll(m.namespace))
-	cfg.Remember(m.namespaceOrder)
+	session := m.session()
+	session.UseNamespace(NamespaceOrAll(m.namespace))
+	session.Remember(m.namespaceOrder)
 
 	if stored := m.screen.of().stored; stored != "" {
-		cfg.Screen = stored
+		session.Screen = stored
 	}
 
 	return func() tea.Msg {

@@ -164,3 +164,32 @@ func TestSession_RemembersTheScreenAfterGoingBack(t *testing.T) {
 	r.Equal(screenJobs, m.screen.kind)
 	r.Equal("jobs", cfg.Screen)
 }
+
+func TestSession_EachClusterComesBackToItsOwn(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	cfg.Of("").UseNamespace("default")
+	cfg.Of("prod").UseNamespace("batch")
+	cfg.Of("prod").Screen = "nodes"
+	cfg.Of("prod").Namespaces = []string{"batch", "web"}
+
+	// prod comes back to prod's namespace, screen and keys.
+	m := New(&fakeClient{}, Options{Cluster: "prod", Version: "v-test", Config: cfg})
+	r.Equal("batch", m.namespace)
+	r.Equal(screenNodes, m.screen.kind)
+	r.Equal([]string{"batch", "web"}, m.namespaceOrder)
+
+	// What prod looks at is written down for prod, and nowhere else.
+	m, _ = m.update(sizeMsg())
+	m, _ = m.update(namespacesMsg(threeNamespaces()))
+	m, cmd := m.update(key('2'))
+	drain(m, cmd)
+
+	r.Equal("web", *cfg.Of("prod").Namespace)
+	r.Equal("default", *cfg.Of("").Namespace)
+}
