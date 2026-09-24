@@ -26,6 +26,7 @@ func run() error {
 	address := flag.String("address", "", "address of the Nomad cluster, defaults to NOMAD_ADDR")
 	region := flag.String("region", "", "region to ask in, defaults to NOMAD_REGION, then to the one of the agent")
 	namespace := flag.String("namespace", os.Getenv("NOMAD_NAMESPACE"), "namespace to look at, empty is all of them")
+	readOnly := flag.Bool("readonly", false, "change nothing in the cluster: the keys that would are taken away")
 	flag.Parse()
 
 	if *showVersion {
@@ -49,6 +50,7 @@ func run() error {
 		Namespace: ui.NamespaceOrAll(*namespace),
 		// The environment is there for every run, the flag only when asked.
 		NamespaceGiven: given(flag.CommandLine, "namespace"),
+		ReadOnly:       *readOnly,
 		Version:        version.Current(),
 		Config:         cfg,
 		Editor:         ui.NewEditor(),

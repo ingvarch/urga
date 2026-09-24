@@ -77,6 +77,10 @@ urga --address https://nomad.example.com --region eu --namespace production
 
 A resource is edited in `$VISUAL`, or in `$EDITOR` when that is unset.
 
+`--readonly` changes nothing in the cluster. The keys that would are taken
+away: start and stop, revert, edit, scale, restart, drain, eligibility,
+promote, fail and the shell. The header says `read-only` next to the address.
+
 ## Keys
 
 Type `:` for the command line: `jobs`, `deployments`, `namespaces`, `services`,

@@ -83,6 +83,9 @@ type Options struct {
 	// it wins over the one the last session left.
 	NamespaceGiven bool
 
+	// ReadOnly takes away every key that changes the cluster.
+	ReadOnly bool
+
 	// Version of urga, for the header.
 	Version string
 
@@ -549,6 +552,11 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return b.do(m)
 	}
 
+	// A key read-only took away says why, rather than do nothing.
+	if b, ok := m.withheldKey(msg.String()); ok {
+		return m.warn(fmt.Sprintf("read-only: %s is off", b.label)), nil
+	}
+
 	if next, handled := m.scrollKey(msg); handled {
 		return next, nil
 	}
@@ -693,6 +701,7 @@ func (m Model) headerData() header {
 		memory:       percentOf(m.usage.cluster.MemoryPercent),
 		namespaces:   m.namespaceColumnData(),
 		hints:        m.hints(),
+		readOnly:     m.opts.ReadOnly,
 	}
 }
 

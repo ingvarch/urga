@@ -46,6 +46,9 @@ type header struct {
 	memory       string
 	namespaces   []namespaceKey
 	hints        []hint
+
+	// readOnly says the session changes nothing in the cluster.
+	readOnly bool
 }
 
 func renderHeader(h header, width int) string {
@@ -109,25 +112,40 @@ func infoColumn(h header, width int) string {
 	rows := []struct {
 		label string
 		value string
+
+		// mark follows the value, which is cut at the width of the column
+		// as ever: the column grows by the mark instead of the value
+		// giving way to it.
+		mark string
 	}{
-		{"Address:", h.address},
-		{"Region:", orUnknown(h.region)},
-		{"DC:", orEvery(h.datacenter)},
-		{"Urga Rev:", h.version},
-		{"Nomad Rev:", orUnknown(h.nomadVersion)},
-		{"CPU:", orUnknown(h.usage)},
-		{"MEM:", orUnknown(h.memory)},
+		{"Address:", h.address, readOnlyMark(h.readOnly)},
+		{"Region:", orUnknown(h.region), ""},
+		{"DC:", orEvery(h.datacenter), ""},
+		{"Urga Rev:", h.version, ""},
+		{"Nomad Rev:", orUnknown(h.nomadVersion), ""},
+		{"CPU:", orUnknown(h.usage), ""},
+		{"MEM:", orUnknown(h.memory), ""},
 	}
 
 	out := make([]string, 0, len(rows))
 	for _, row := range rows {
 		label := styleLabel.Render(pad(row.label, labelWidth))
-		value := styleValue.Render(truncate(row.value, max(width-labelWidth, 1)))
+		value := styleValue.Render(truncate(row.value, max(width-labelWidth, 1))) + styleWarn.Render(row.mark)
 
 		out = append(out, label+value)
 	}
 
 	return strings.Join(out, "\n")
+}
+
+// readOnlyMark says, next to the address, that the session changes nothing
+// in that cluster.
+func readOnlyMark(readOnly bool) string {
+	if !readOnly {
+		return ""
+	}
+
+	return " read-only"
 }
 
 // namespaceColumn is the list of namespaces a number key switches to. The one
