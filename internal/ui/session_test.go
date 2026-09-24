@@ -86,6 +86,33 @@ func TestSession_StartsWhereItStopped(t *testing.T) {
 	r.Equal([]string{"staging", "default"}, m.namespaceOrder)
 }
 
+func TestSession_ANamespaceGivenOnTheCommandLineWins(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	cfg.UseNamespace("staging")
+	cfg.Screen = "nodes"
+
+	m := New(&fakeClient{}, Options{
+		Namespace:      "production",
+		NamespaceGiven: true,
+		Version:        "v-test",
+		Config:         cfg,
+		PollEvery:      time.Millisecond,
+	})
+	m, _ = m.update(sizeMsg())
+
+	// Typing a namespace on the command line is asking for it now. The
+	// rest of the session still comes back.
+	r.Equal("production", m.namespace)
+	r.Equal("production", m.screen.namespace)
+	r.Equal(screenNodes, m.screen.kind)
+}
+
 func TestSession_WithoutAConfig(t *testing.T) {
 	r := require.New(t)
 

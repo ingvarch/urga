@@ -47,14 +47,25 @@ func run() error {
 
 	model := ui.New(client, ui.Options{
 		Namespace: ui.NamespaceOrAll(*namespace),
-		Version:   version.Current(),
-		Config:    cfg,
-		Editor:    ui.NewEditor(),
-		Shell:     ui.NewShell(client),
-		InRegion:  ui.InRegionOf(client),
+		// The environment is there for every run, the flag only when asked.
+		NamespaceGiven: given(flag.CommandLine, "namespace"),
+		Version:        version.Current(),
+		Config:         cfg,
+		Editor:         ui.NewEditor(),
+		Shell:          ui.NewShell(client),
+		InRegion:       ui.InRegionOf(client),
 	})
 
 	_, err = tea.NewProgram(model).Run()
 
 	return err
+}
+
+// given says the flag was named on the command line rather than left at its
+// default.
+func given(flags *flag.FlagSet, name string) bool {
+	found := false
+	flags.Visit(func(f *flag.Flag) { found = found || f.Name == name })
+
+	return found
 }
