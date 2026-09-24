@@ -37,6 +37,7 @@ const (
 	screenTaskGroups
 	screenRegions
 	screenDatacenters
+	screenPlan
 )
 
 // screen is what is open: the resource and what it was opened for. The

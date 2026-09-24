@@ -63,8 +63,12 @@ func TestEdit_OpensTheJobFile(t *testing.T) {
 	r.NotEmpty(editor.opened)
 	r.Equal(".hcl", filepath.Ext(editor.opened))
 
-	// What came back is submitted without asking again: saving was the
-	// decision.
+	// What came back is planned first, and submitted from the plan.
+	r.Equal(screenPlan, m.screen.kind)
+
+	m, cmd = m.update(key('y'))
+	m = drain(m, cmd)
+
 	r.Equal(1, client.submitted)
 	r.Equal("job \"web\" {\n  type = \"batch\"\n}", client.submittedSource)
 	r.Equal("production", client.askedNamespace)
@@ -100,11 +104,17 @@ func TestEdit_KeepsTheVariables(t *testing.T) {
 	m, editor := editModel(t, client)
 	editor.replace = "job \"web\" {\n  type = \"batch\"\n}"
 
-	_, cmd := m.update(key('e'))
-	follow(m, cmd, 5)
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 6)
 
-	// The editor holds the file only. The values the job ran with go back
-	// with it, or the edit quietly changes them to the defaults.
+	// The editor holds the file only. The values the job ran with go with
+	// it, to the plan and to the submit, or the edit quietly changes them to
+	// the defaults.
+	r.Equal(vars, client.plannedVars)
+
+	m, cmd = m.update(key('y'))
+	drain(m, cmd)
+
 	r.Equal(1, client.submitted)
 	r.Equal(vars, client.submittedVars)
 }
@@ -170,13 +180,17 @@ func TestEdit_WhenTheClusterKeptNoSource(t *testing.T) {
 	m, editor := editModel(t, client)
 	editor.replace = "{\n  \"ID\": \"web\",\n  \"Type\": \"batch\"\n}"
 
-	_, cmd := m.update(key('e'))
-	follow(m, cmd, 5)
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 6)
 
 	// Without the file it was submitted with, the job is edited as what the
 	// cluster does have: its JSON. The sentence "no source kept" must never
 	// reach the editor, because whatever comes back is submitted.
 	r.Equal(".json", filepath.Ext(editor.opened))
+
+	m, cmd = m.update(key('y'))
+	drain(m, cmd)
+
 	r.Equal(1, client.submitted)
 	r.Contains(client.submittedSource, "\"Type\": \"batch\"")
 }

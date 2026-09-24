@@ -51,9 +51,15 @@ type fakeClient struct {
 	usageErr      error
 	namespaceSpec string
 
-	submitted           int
-	submittedSource     string
-	submittedVars       nomad.JobVariables
+	submitted       int
+	submittedSource string
+	submittedVars   nomad.JobVariables
+	submittedIndex  uint64
+
+	plan                nomad.Plan
+	planCalls           int
+	plannedSource       string
+	plannedVars         nomad.JobVariables
 	submittedNamespaces int
 
 	stopped       int
@@ -317,9 +323,17 @@ func (f *fakeClient) TaskGroups(_ context.Context, namespace, jobID string) ([]n
 	return f.groups, f.err
 }
 
-func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string, vars nomad.JobVariables) error {
+func (f *fakeClient) PlanJob(_ context.Context, namespace, source string, vars nomad.JobVariables) (nomad.Plan, error) {
+	f.askedNamespace, f.plannedSource, f.plannedVars = namespace, source, vars
+	f.planCalls++
+
+	return f.plan, f.err
+}
+
+func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error {
 	f.wrote("SubmitJob")
 	f.askedNamespace, f.submittedSource, f.submittedVars = namespace, source, vars
+	f.submittedIndex = index
 	f.submitted++
 
 	return f.actionErr

@@ -26,7 +26,7 @@ var (
 
 	clientReads = []string{
 		"Address", "Region", "Agent", "Regions", "Datacenters",
-		"Jobs", "JobSpec", "JobVersions", "JobVersionDiff", "TaskGroups",
+		"Jobs", "JobSpec", "JobVersions", "JobVersionDiff", "TaskGroups", "PlanJob",
 		"DescribeJob", "DescribeAllocation", "DescribeDeployment", "DescribeService",
 		"Allocations", "NodeAllocations", "Allocation", "Logs",
 		"Usage", "AllocationUsage", "NodeUsage",
@@ -116,8 +116,15 @@ func playOut(m Model, cmd tea.Cmd) Model {
 	return m
 }
 
-// answer says yes to a question and gives the scale line a count.
+// answer says yes to a question and to a plan, and gives the scale line a
+// count.
 func answer(m Model) (Model, tea.Cmd, bool) {
+	if m.overlay == overlayNone && m.screen.kind == screenPlan {
+		next, cmd := m.update(key('y'))
+
+		return next, cmd, true
+	}
+
 	switch m.overlay {
 	case overlayConfirm:
 		next, cmd := m.update(key('y'))

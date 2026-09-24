@@ -36,7 +36,8 @@ type Client interface {
 
 	TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
 
-	SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables) error
+	PlanJob(ctx context.Context, namespace, source string, vars nomad.JobVariables) (nomad.Plan, error)
+	SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error
 	NamespaceSpec(ctx context.Context, name string) (string, error)
 	SubmitNamespace(ctx context.Context, source string) error
 
@@ -223,6 +224,7 @@ type Model struct {
 	table tableModel
 	text  textModel
 	logs  logState
+	plan  planState
 
 	// asked counts the screens put up, so that an answer to one that is no
 	// longer up is dropped.
@@ -415,6 +417,12 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case describeMsg:
 		return m.showDescribe(msg)
+
+	case planMsg:
+		return m.showPlan(msg), nil
+
+	case planDoneMsg:
+		return m.finishPlan(msg), nil
 
 	case editFileMsg:
 		return m.startEdit(msg)
