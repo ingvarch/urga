@@ -38,11 +38,11 @@ var (
 	jobBindings = []binding{
 		{press: "enter", label: "Allocations", do: openJobAllocations},
 		{press: "space", label: "Mark", do: mark},
-		{press: "ctrl+a", label: "Mark all", do: markAll},
-		{press: "t", label: "Task groups", do: openJobGroups},
+		{press: "ctrl+a", label: "Mark All", do: markAll},
+		{press: "t", label: "Task Groups", do: openJobGroups},
 		{press: "d", label: "Describe", do: describeJob},
-		{press: "h", label: "Job spec", do: showJobSpec},
-		{press: "ctrl+s", label: "Start or stop", do: startStopJob, writes: true},
+		{press: "h", label: "Job Spec", do: showJobSpec},
+		{press: "ctrl+s", label: "Start/Stop", do: startStopJob, writes: true},
 		// The list of jobs reverts to the version before the one that runs;
 		// the list of versions reverts to the one under the cursor.
 		{press: "u", label: "Revert", do: revertJob, writes: true},
@@ -56,19 +56,19 @@ var (
 		{press: "r", label: "Restart", do: restartAllocation, writes: true},
 		{press: "ctrl+k", label: "Stop", do: stopAllocation, writes: true},
 		{press: "space", label: "Mark", do: mark},
-		{press: "ctrl+a", label: "Mark all", do: markAll},
+		{press: "ctrl+a", label: "Mark All", do: markAll},
 	}
 
 	serverBindings = []binding{{press: "enter", label: "Details", do: openServer}}
 
-	fieldBindings = []binding{{press: "c", label: "Copy the value", do: copyField}}
+	fieldBindings = []binding{{press: "c", label: "Copy", do: copyField}}
 
 	serviceBindings = []binding{{press: "d", label: "Describe", do: describeService}}
 
 	// textBindings are the keys of a screen that reads as text rather than
 	// as a list.
 	textBindings = []binding{
-		{press: "w", label: "Wrap lines", do: wrapLines},
+		{press: "w", label: "Toggle Wrap", do: wrapLines},
 		{press: "ctrl+s", label: "Save", do: saveScreen},
 	}
 

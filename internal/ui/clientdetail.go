@@ -29,15 +29,15 @@ var (
 		// Draining is a key of the list of clients; on the screen of one
 		// client the same key opens what it can run.
 		{press: "ctrl+d", label: "Drivers", do: nodeScreen(screenNodeDrivers)},
-		{press: "ctrl+h", label: "Host volumes", do: nodeScreen(screenNodeVolumes)},
+		{press: "ctrl+h", label: "Host Volumes", do: nodeScreen(screenNodeVolumes)},
 		{press: "a", label: "Attributes", do: nodeScreen(screenNodeAttributes)},
 		{press: "m", label: "Meta", do: nodeScreen(screenNodeMeta)},
 	}, allocBindings...)
 
-	driverBindings = []binding{{press: "enter", label: "What the driver says", do: openDriver}}
+	driverBindings = []binding{{press: "enter", label: "Details", do: openDriver}}
 
 	metaBindings = []binding{
-		{press: "c", label: "Copy the value", do: copyField},
+		{press: "c", label: "Copy", do: copyField},
 		{press: "e", label: "Edit", do: editMeta, writes: true},
 	}
 )

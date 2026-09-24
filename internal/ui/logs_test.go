@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,12 +88,39 @@ func TestLogs_FollowCanBeStopped(t *testing.T) {
 
 	r.True(m.logs.following)
 
-	// Stopping leaves the window where it is, resuming jumps back to the end.
+	// Turned off, autoscroll leaves the window where it is; turned on, it
+	// jumps back to the end.
 	m, _ = m.update(key('s'))
 	r.False(m.logs.following)
 
-	m, _ = m.update(key('r'))
+	m, _ = m.update(key('s'))
 	r.True(m.logs.following)
+}
+
+func TestLogs_TheLogStartsRightUnderTheToggles(t *testing.T) {
+	r := require.New(t)
+
+	written := make(chan string, 1)
+	written <- "first line\n"
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: &nomad.LogStream{Lines: written}}
+	m := openTasks(t, client)
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	m = drain(m, m.logs.waitForLog())
+
+	// A log starts with what the task wrote, not with an empty line.
+	rows := lines(m.render())
+	for i, row := range rows {
+		if strings.Contains(row, "Autoscroll:") {
+			r.Contains(rows[i+1], "first line")
+
+			return
+		}
+	}
+
+	t.Fatal("no line of toggles")
 }
 
 func TestLogs_Stderr(t *testing.T) {
@@ -182,26 +211,69 @@ func TestLogs_AStreamThatEndedIsLetGoOf(t *testing.T) {
 	r.False(client.logsClosed)
 }
 
-func TestLogs_OffersToStopOrToResumeFollowing(t *testing.T) {
+func TestLogs_OneKeyTogglesAutoscroll(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: &nomad.LogStream{Lines: make(chan string)}}
-	m := openTasks(t, client)
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
 
-	m, cmd := m.update(enter())
-	m = drain(m, cmd)
-
-	// A log that is followed can stop being followed, and only that: resume
-	// would do nothing, and a key in the header is a promise.
-	header := plain(m.render())
-	r.Contains(header, "Stop following")
-	r.NotContains(header, "Resume")
+	// One key turns following the end on and off, and the line under the
+	// title says which it is: two keys for one switch say it twice.
+	out := plain(m.render())
+	r.Contains(out, "Toggle Autoscroll")
+	r.Contains(out, "Autoscroll:On")
+	r.NotContains(out, "Stop following")
+	r.NotContains(out, "Resume")
 
 	m, _ = m.update(key('s'))
+	r.False(m.logs.following)
+	r.Contains(plain(m.render()), "Autoscroll:Off")
 
-	header = plain(m.render())
-	r.Contains(header, "Resume")
-	r.NotContains(header, "Stop following")
+	m, _ = m.update(key('s'))
+	r.True(m.logs.following)
+	r.Contains(plain(m.render()), "Autoscroll:On")
+}
+
+func TestLogs_SayWhatIsOnAndWhatIsOff(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
+
+	out := plain(m.render())
+	r.Contains(out, "Timestamps:Off")
+	r.Contains(out, "Wrap:Off")
+
+	m, _ = m.update(key('w'))
+	m, _ = m.update(key('t'))
+
+	out = plain(m.render())
+	r.Contains(out, "Timestamps:On")
+	r.Contains(out, "Wrap:On")
+
+	// On is what the eye looks for, off steps back.
+	raw := m.render()
+	r.Contains(raw, styleTitle.Render("On"))
+
+	m, _ = m.update(key('s'))
+	r.Contains(m.render(), styleMuted.Render("Off"))
+}
+
+func TestLogs_TheLineOfTogglesTakesNoLineOfTheLog(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
+
+	for i := range 100 {
+		m, _ = m.update(lineOf(m, fmt.Sprintf("line-%03d\n", i)))
+	}
+
+	// Followed, the last line of the log is the last line in the box,
+	// under the line of toggles, not pushed out by it.
+	out := plain(m.render())
+	r.Contains(out, "line-099")
+	r.Contains(out, "Autoscroll:On")
 }
 
 // finishedLog is the output of a task that has stopped: what it wrote, and
@@ -233,8 +305,6 @@ func TestLogs_AFinishedTaskSaysSo(t *testing.T) {
 	out := plain(m.render())
 	r.Contains(out, "last words")
 	r.Contains(out, "Logs (Task: server, Allocation: af1f37df) [stdout, task finished]")
-	r.NotContains(out, "Stop following")
-	r.NotContains(out, "Resume")
 }
 
 func TestLogs_TheNextLogStartsAfresh(t *testing.T) {
@@ -395,7 +465,7 @@ func TestLogs_OpenTheAllocationBefore(t *testing.T) {
 
 	// A task that crashed was placed again, and its new log starts empty:
 	// why it crashed is in the allocation it replaced.
-	r.Contains(plain(m.render()), "Allocation before")
+	r.Contains(plain(m.render()), "Previous Alloc")
 
 	client.logs = &nomad.LogStream{Lines: make(chan string)}
 
@@ -428,7 +498,7 @@ func TestLogs_TheFirstAllocationHasNoneBefore(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
 	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
 
-	r.NotContains(plain(m.render()), "Allocation before")
+	r.NotContains(plain(m.render()), "Previous Alloc")
 }
 
 func TestLogs_BackOnALogReadsItAgain(t *testing.T) {
@@ -459,4 +529,31 @@ func TestLogs_BackOnALogReadsItAgain(t *testing.T) {
 	m = drain(m, cmd)
 
 	r.NotContains(plain(m.render()), "why it crashed")
+}
+
+func TestLogs_TheTogglesStandInTheMiddle(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
+
+	for _, row := range lines(m.render()) {
+		if !strings.Contains(row, "Autoscroll:") {
+			continue
+		}
+
+		// Inside the box, as much room on the left of the toggles as on the
+		// right: they are read as one line under the title, which is
+		// centered too.
+		inside := strings.TrimSuffix(strings.TrimSpace(row), "│")
+		inside = strings.TrimPrefix(inside, "│")
+
+		left := len(inside) - len(strings.TrimLeft(inside, " "))
+		right := len(inside) - len(strings.TrimRight(inside, " "))
+		r.InDelta(left, right, 1, "%q", inside)
+
+		return
+	}
+
+	t.Fatal("no line of toggles")
 }

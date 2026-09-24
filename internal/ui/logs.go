@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ingvarch/urga/internal/nomad"
 )
@@ -194,15 +195,14 @@ func logsTitle(s screen, finished bool) string {
 // logBindings are the keys of the log screen: the ones of any text, and
 // the ones of a stream that is still being followed.
 var logBindings = []binding{
-	{press: "s", label: "Stop following", do: stopFollowing, offered: following},
-	{press: "r", label: "Resume", do: resumeFollowing, offered: notFollowing},
+	{press: "s", label: "Toggle Autoscroll", do: toggleAutoscroll},
 	// The key that opens stderr from the tasks switches to the other of
 	// the two here, and says which one it goes to.
 	{press: "ctrl+e", label: "Stderr", do: switchSource, offered: onSource(nomad.LogStdout)},
 	{press: "ctrl+e", label: "Stdout", do: switchSource, offered: onSource(nomad.LogStderr)},
-	{press: "p", label: "Allocation before", do: openPrevious, offered: hasPrevious},
-	{press: "w", label: "Wrap lines", do: wrapLines},
-	{press: "t", label: "When urga read it", do: showTimes},
+	{press: "p", label: "Previous Alloc", do: openPrevious, offered: hasPrevious},
+	{press: "w", label: "Toggle Wrap", do: wrapLines},
+	{press: "t", label: "Toggle Timestamps", do: showTimes},
 	{press: "ctrl+s", label: "Save", do: saveScreen},
 }
 
@@ -211,7 +211,7 @@ var taskBindings = []binding{
 	// The same key opens the events of a task here and edits elsewhere,
 	// because a screen never offers both.
 	{press: "e", label: "Events", do: openTaskEvents},
-	{press: "ctrl+e", label: "Logs (stderr)", do: openStderr},
+	{press: "ctrl+e", label: "Stderr", do: openStderr},
 	// The same key opens a shell here and scales a task group elsewhere.
 	{press: "s", label: "Shell", do: shell, writes: true},
 }
@@ -269,24 +269,57 @@ func otherSource(source string) string {
 	return nomad.LogStdout
 }
 
-// following and notFollowing say which of stop and resume would do
-// something: only one of them ever does, and neither for a task that has
-// stopped.
-func following(m Model) bool { return m.logs.following && !m.logs.finished }
+// toggleAutoscroll follows the end of the log, or stops following it where
+// it stands. Turned on, it goes to the end at once.
+func toggleAutoscroll(m Model) (Model, tea.Cmd) {
+	m.logs.following = !m.logs.following
 
-func notFollowing(m Model) bool { return !m.logs.following && !m.logs.finished }
-
-func stopFollowing(m Model) (Model, tea.Cmd) {
-	m.logs.following = false
+	if m.logs.following {
+		m.text.toEnd()
+	}
 
 	return m, nil
 }
 
-func resumeFollowing(m Model) (Model, tea.Cmd) {
-	m.logs.following = true
-	m.text.toEnd()
+// logToggleGap is the room between two toggles on the line under the title.
+const logToggleGap = 6
 
-	return m, nil
+// logToggles is the line under the title of a log: what each toggle is set
+// to, named the way the keys that set it name it.
+func (m Model) logToggles(width int) string {
+	toggles := []struct {
+		name string
+		on   bool
+	}{
+		{"Autoscroll", m.logs.following},
+		{"Timestamps", m.text.times},
+		{"Wrap", m.text.wrap},
+	}
+
+	cells := make([]string, 0, len(toggles))
+	for _, toggle := range toggles {
+		state := styleMuted.Render("Off")
+		if toggle.on {
+			state = styleTitle.Render("On")
+		}
+
+		cells = append(cells, styleLabel.Render(toggle.name+":")+state)
+	}
+
+	// Centered under the title, which is centered too.
+	line := strings.Join(cells, strings.Repeat(" ", logToggleGap))
+	left := max((width-ansi.StringWidth(line))/2, 0)
+
+	return truncate(strings.Repeat(" ", left)+line, width)
+}
+
+// toggleRows is how many rows of the box the line of toggles takes.
+func (m Model) toggleRows() int {
+	if m.screen.kind == screenLogs {
+		return 1
+	}
+
+	return 0
 }
 
 // showTimes puts when each line was read in front of it. Only a log has

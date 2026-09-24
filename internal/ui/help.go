@@ -15,23 +15,25 @@ type helpSection struct {
 // generalHints are the keys that work on every screen.
 var generalHints = []hint{
 	{Key: "<:>", Description: "Command"},
-	{Key: "</>", Description: "Filter, <!> not, <-f > loosely"},
+	{Key: "</>", Description: "Filter"},
+	{Key: "</!x>", Description: "Inverse Filter"},
+	{Key: "</-f x>", Description: "Fuzzy Filter"},
 	{Key: "<?>", Description: "Help"},
-	{Key: "<0-9>", Description: "Switch namespace"},
-	{Key: "<A-Z>", Description: "Sort by that column"},
-	{Key: "<!>", Description: "Only what needs attention"},
+	{Key: "<0-9>", Description: "Switch Namespace"},
+	{Key: "<A-Z>", Description: "Sort Column"},
+	{Key: "<!>", Description: "Toggle Faults"},
 	{Key: "<q>", Description: "Quit"},
 }
 
 // navigationHints are how to move around.
 var navigationHints = []hint{
-	{Key: "<enter>", Description: "Open, or press a button"},
-	{Key: "<esc>", Description: "Back, or cancel"},
-	{Key: "<left/right>", Description: "Choose a button"},
+	{Key: "<enter>", Description: "Open"},
+	{Key: "<esc>", Description: "Back"},
+	{Key: "<left/right>", Description: "Choose Button"},
 	{Key: "<k/up>", Description: "Up"},
 	{Key: "<j/down>", Description: "Down"},
 	{Key: "<pgup/pgdn>", Description: "Page"},
-	{Key: "<g/G>", Description: "First, last"},
+	{Key: "<g/G>", Description: "Top/Bottom"},
 }
 
 // helpSections are what the help window holds: what this screen can do, then
