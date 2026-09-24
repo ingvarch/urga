@@ -39,6 +39,7 @@ const (
 	screenDatacenters
 	screenPlan
 	screenFiles
+	screenFile
 )
 
 // screen is what is open: the resource and what it was opened for. The
@@ -337,11 +338,16 @@ func (m Model) back() (Model, tea.Cmd) {
 
 	arrived, cmd := m.arrive()
 
-	if arrived.screen.kind == screenLogs {
-		var read tea.Cmd
+	var read tea.Cmd
+
+	switch arrived.screen.kind {
+	case screenLogs:
 		arrived, read = arrived.readAgain()
-		cmd = tea.Batch(cmd, read)
+	case screenFile:
+		arrived, read = arrived.readFileAgain()
 	}
+
+	cmd = tea.Batch(cmd, read)
 
 	return arrived.returnTo(arrived.screen.left), cmd
 }

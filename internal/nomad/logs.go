@@ -34,6 +34,11 @@ type LogStream struct {
 	// Previous is the allocation this one replaced, empty for the first.
 	Previous string
 
+	// Size is how big a file was when it was opened, and From where in it
+	// reading began: over zero, only its end was read.
+	Size int64
+	From int64
+
 	// OnClose runs when the stream is closed, which is how a test sees that
 	// the request behind it was let go of.
 	OnClose func()
@@ -74,6 +79,14 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 
 	frames, errs := c.api.AllocFS().Logs(alloc, !finished, task, source, "end", logTail, cancel, c.query(context.Background(), namespace))
 
+	lines := streamLines(frames, startsCut, cancel)
+
+	return &LogStream{Lines: lines, Err: errs, Finished: finished, Previous: alloc.PreviousAllocation, cancel: cancel}, nil
+}
+
+// streamLines passes on what the frames hold, from the first whole line when
+// the first frame says the read began in the middle of one.
+func streamLines(frames <-chan *api.StreamFrame, startsCut func(first *api.StreamFrame) bool, cancel <-chan struct{}) <-chan string {
 	lines := make(chan string)
 
 	go func() {
@@ -115,7 +128,7 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 		}
 	}()
 
-	return &LogStream{Lines: lines, Err: errs, Finished: finished, Previous: alloc.PreviousAllocation, cancel: cancel}, nil
+	return lines
 }
 
 // taskDead says the task of the allocation has stopped for good.

@@ -88,7 +88,101 @@ func openEntry(m Model) (Model, tea.Cmd) {
 		return m.openDir(path.Join(m.screen.path, entry.Name))
 	}
 
-	return m, nil
+	return m.openFile(entry)
+}
+
+// fileMsg is a file opened to be read, and the screen it is read on.
+type fileMsg struct {
+	stream *nomad.LogStream
+	file   screen
+}
+
+// fileTextBindings are the keys of a file that is read: the ones of a log
+// that a file has.
+var fileTextBindings = []binding{
+	{press: "s", label: "Toggle Autoscroll", do: toggleAutoscroll},
+	{press: "w", label: "Toggle Wrap", do: wrapLines},
+	{press: "ctrl+s", label: "Save", do: saveScreen},
+}
+
+// openFile reads the file under the cursor like a log. A pipe is not asked
+// about: its client would wait on it for as long as the task writes nothing.
+func (m Model) openFile(entry nomad.File) (Model, tea.Cmd) {
+	if entry.Pipe() {
+		return m.warn(fmt.Sprintf("%s is a pipe: only the task on its other end can read it", entry.Name)), nil
+	}
+
+	s := m.screen
+
+	return m, readFile(m.client, screen{
+		kind:      screenFile,
+		namespace: s.namespace,
+		jobID:     s.jobID,
+		allocID:   s.allocID,
+		path:      path.Join(s.path, entry.Name),
+	})
+}
+
+// readFile opens the stream of a file. What is not text comes back as the
+// reason it is not read, and the screen stays where it is.
+func readFile(client Client, file screen) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+
+		stream, err := client.File(ctx, file.namespace, file.allocID, file.path)
+		if err != nil {
+			return errMsg{err: err}
+		}
+
+		return fileMsg{stream: stream, file: file}
+	}
+}
+
+// openedFile puts a file on the screen it was opened from: on top of its
+// directory, or on its own screen come back to. One that arrives after the
+// screen moved on is let go of: nothing else would ever close it.
+func (m Model) openedFile(msg fileMsg) (Model, tea.Cmd) {
+	s, file := m.screen, msg.file
+
+	onFile := s.kind == screenFile && s.allocID == file.allocID && s.path == file.path
+	inDir := s.kind == screenFiles && s.allocID == file.allocID && s.path == path.Dir(file.path)
+
+	if !onFile && !inDir || m.logs.stream != nil {
+		msg.stream.Close()
+
+		return m, nil
+	}
+
+	// A file is read from its top: what it grows by stays below.
+	if inDir {
+		m = m.stackText(file, textModel{})
+		m.logs = logState{}
+	}
+
+	var cmd tea.Cmd
+	m.logs, cmd = m.logs.opened(msg.stream)
+
+	return m, cmd
+}
+
+// readFileAgain opens the stream of a file screen that is come back to.
+func (m Model) readFileAgain() (Model, tea.Cmd) {
+	m.text = m.text.emptied()
+	m.logs = logState{}
+
+	return m, readFile(m.client, m.screen)
+}
+
+// fileTitle says which file of which allocation it is, and when only its end
+// was read, how much of it.
+func fileTitle(s screen, logs logState) string {
+	what := s.path
+	if logs.from > 0 {
+		what += fmt.Sprintf(", last %s of %s", sizeOf(logs.size-logs.from), sizeOf(logs.size))
+	}
+
+	return fmt.Sprintf("File (Allocation: %s) [%s]", shortID(s.allocID), what)
 }
 
 func fileRows(files []nomad.File) []tableRow {

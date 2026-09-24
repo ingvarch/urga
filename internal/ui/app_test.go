@@ -130,6 +130,14 @@ type fakeClient struct {
 	filesNamespace string
 	filesAllocID   string
 	filesPath      string
+
+	// file is what a file opened says, and which one was opened last.
+	file          *nomad.LogStream
+	fileErr       error
+	fileNamespace string
+	fileAllocID   string
+	filePath      string
+	fileCalls     int
 }
 
 // wrote keeps a call that changes the cluster.
@@ -172,6 +180,13 @@ func (f *fakeClient) Files(_ context.Context, namespace, allocID, path string) (
 	f.filesNamespace, f.filesAllocID, f.filesPath = namespace, allocID, path
 
 	return f.files[path], f.err
+}
+
+func (f *fakeClient) File(_ context.Context, namespace, allocID, path string) (*nomad.LogStream, error) {
+	f.fileNamespace, f.fileAllocID, f.filePath = namespace, allocID, path
+	f.fileCalls++
+
+	return f.file, f.fileErr
 }
 
 func (f *fakeClient) Allocation(_ context.Context, namespace, allocID string) (nomad.Alloc, error) {

@@ -113,7 +113,7 @@ header shows both under the address.
 | `h` | The job file the job was submitted with |
 | `e` | Edit a job, a namespace or the metadata of a client in your editor; the events of a client or of a task. A job the cluster kept no file of opens as JSON, and an edited job is planned before it is sent |
 | `t` | Task groups of a job |
-| `s` | Scale a task group, or a shell in a task; on a log, autoscroll on or off |
+| `s` | Scale a task group, or a shell in a task; on a log or a file, autoscroll on or off |
 | `v` | Versions of a job, with what each one changed |
 | `u` | Revert a job to its previous version, or on the versions screen to the one under the cursor, after its plan |
 | `space` | Mark a row, on jobs, allocations and clients; an action then takes every marked row |
@@ -134,7 +134,7 @@ header shows both under the address.
 | `n` | On the tasks of an allocation, the allocation that replaced it |
 | `y` | On a plan, submit the edit or the revert it shows |
 | `ctrl-e` | Logs of a task, stderr; on a log, the other of stdout and stderr |
-| `w` | Wrap long lines, on logs and descriptions |
+| `w` | Wrap long lines, on logs, files and descriptions |
 | `t` | Show when urga read each log line; a task writes no time of its own |
 | `ctrl-s` | Save what is on the screen to a file, as the filter left it |
 | `q` | Quit |
@@ -152,7 +152,10 @@ judged it, the ports it listens on, the allocations before and after it, and
 while it runs, its checks: the failing ones first, each with why it failed.
 Checks are read every few seconds, for services the cluster registers itself.
 The files of a task open on its directory, where `local/` holds what its
-templates rendered; `..` goes up to the directory its allocation shares.
+templates rendered; `..` goes up to the directory its allocation shares. A
+file reads like a log: from its top, growing as it grows, with autoscroll a key
+away. One over a MiB opens at its last MiB, and the title says so. A pipe and a
+file that is not text are not opened, and the status line says why.
 A task says what happened to it, from the moment the client received it.
 Logs open on the last of what a task wrote and follow it as it writes; a task
 that finished is read to its end. stdout and stderr are a key apart, and so is

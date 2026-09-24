@@ -61,6 +61,7 @@ type Client interface {
 	Allocation(ctx context.Context, namespace, allocID string) (nomad.Alloc, error)
 	AllocationChecks(ctx context.Context, namespace, allocID string) ([]nomad.Check, error)
 	Files(ctx context.Context, namespace, allocID, path string) ([]nomad.File, error)
+	File(ctx context.Context, namespace, allocID, path string) (*nomad.LogStream, error)
 	Node(ctx context.Context, nodeID string) (nomad.Node, error)
 	NodeDetail(ctx context.Context, nodeID string) (nomad.NodeDetail, error)
 	NodeMeta(ctx context.Context, nodeID string) ([]nomad.MetaEntry, error)
@@ -452,6 +453,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case logStreamMsg:
 		return m.openedLog(msg)
+
+	case fileMsg:
+		return m.openedFile(msg)
 
 	case logLineMsg:
 		if !m.fromOpenStream(msg.stream) {

@@ -46,6 +46,11 @@ type logState struct {
 
 	// previous is the allocation this one replaced, empty for the first.
 	previous string
+
+	// size is how big a file was when it was opened, and from where in it
+	// reading began.
+	size int64
+	from int64
 }
 
 // openLogs follows what the task under the cursor writes.
@@ -136,6 +141,7 @@ func (l logState) opened(stream *nomad.LogStream) (logState, tea.Cmd) {
 	l.stream = stream
 	l.finished = stream.Finished
 	l.previous = stream.Previous
+	l.size, l.from = stream.Size, stream.From
 
 	return l, l.waitForLog()
 }
@@ -144,7 +150,7 @@ func (l logState) opened(stream *nomad.LogStream) (logState, tea.Cmd) {
 // stopped. When each line arrived is written down: a task writes no time of
 // its own, and the time urga read it is the only one there is.
 func (m Model) appendLog(chunk string) (Model, tea.Cmd) {
-	if m.screen.kind != screenLogs {
+	if !m.readsAStream() {
 		return m, nil
 	}
 
@@ -294,14 +300,19 @@ const logToggleGap = 6
 // logToggles is the line under the title of a log: what each toggle is set
 // to, named the way the keys that set it name it.
 func (m Model) logToggles(width int) string {
-	toggles := []struct {
+	type toggle struct {
 		name string
 		on   bool
-	}{
-		{"Autoscroll", m.logs.following},
-		{"Timestamps", m.text.times},
-		{"Wrap", m.text.wrap},
 	}
+
+	toggles := []toggle{{"Autoscroll", m.logs.following}}
+
+	// When urga read a line is nothing to a file.
+	if m.screen.kind == screenLogs {
+		toggles = append(toggles, toggle{"Timestamps", m.text.times})
+	}
+
+	toggles = append(toggles, toggle{"Wrap", m.text.wrap})
 
 	cells := make([]string, 0, len(toggles))
 	for _, toggle := range toggles {
@@ -322,11 +333,17 @@ func (m Model) logToggles(width int) string {
 
 // toggleRows is how many rows of the box the line of toggles takes.
 func (m Model) toggleRows() int {
-	if m.screen.kind == screenLogs {
+	if m.readsAStream() {
 		return 1
 	}
 
 	return 0
+}
+
+// readsAStream says the screen reads what something writes: the log of a
+// task, or a file of its allocation.
+func (m Model) readsAStream() bool {
+	return m.screen.kind == screenLogs || m.screen.kind == screenFile
 }
 
 // showTimes puts when each line was read in front of it. Only a log has

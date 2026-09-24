@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -48,8 +49,11 @@ func (m Model) saveText() tea.Cmd {
 func saveName(s screen) string {
 	what, extension := s.label, "txt"
 
-	if s.kind == screenLogs {
+	switch s.kind {
+	case screenLogs:
 		what, extension = fmt.Sprintf("%s-%s", s.task, s.source), "log"
+	case screenFile:
+		what = path.Base(s.path)
 	}
 
 	return fmt.Sprintf("%s-%s.%s", plainName(what), time.Now().Format("20060102-150405"), extension)
