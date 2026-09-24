@@ -75,12 +75,21 @@ urga reads the same environment as the `nomad` command:
 | `NOMAD_TOKEN` | ACL token, when the cluster asks for one |
 | `NOMAD_REGION` | Region to ask in, the one of the agent when unset |
 | `NOMAD_NAMESPACE` | Namespace of the first run, every namespace when unset |
+| `NOMAD_HTTP_AUTH` | `user:password` for a cluster behind HTTP basic auth |
+| `NOMAD_CACERT` | CA certificate to check the cluster against |
+| `NOMAD_CAPATH` | Directory of CA certificates, instead of one file |
+| `NOMAD_CLIENT_CERT` | Client certificate, when the cluster asks for one |
+| `NOMAD_CLIENT_KEY` | Key of the client certificate |
+| `NOMAD_TLS_SERVER_NAME` | Server name to check the certificate against |
+| `NOMAD_SKIP_VERIFY` | `true` skips checking the certificate of the cluster |
 
 Flags override it:
 
 ```sh
 urga --address https://nomad.example.com --region eu --namespace production
 ```
+
+A resource is edited in `$VISUAL`, or in `$EDITOR` when that is unset.
 
 ## Keys
 
@@ -112,7 +121,7 @@ header shows both under the address.
 | `esc` | Back, to the row the list was left on, with its filter and order |
 | `d` | Describe |
 | `h` | The job file the job was submitted with |
-| `e` | Edit a job, a namespace or the metadata of a client in `$EDITOR`; the events of a client or of a task. A job the cluster kept no file of opens as JSON |
+| `e` | Edit a job, a namespace or the metadata of a client in your editor; the events of a client or of a task. A job the cluster kept no file of opens as JSON |
 | `t` | Task groups of a job |
 | `s` | Scale a task group, or a shell in a task |
 | `v` | Versions of a job, with what each one changed |
@@ -169,7 +178,9 @@ and one key leaves only what needs attention.
 The session comes back where it was left: the namespace, the resource and which
 namespace each number key stands for. `--namespace` on the command line opens
 another namespace; `NOMAD_NAMESPACE` does not, since the shell sets it for every
-run.
+run. The session is kept in `urga/config.json` under `$XDG_CONFIG_HOME`, or under
+the config directory of the system when that is unset (`~/.config` on Linux,
+`~/Library/Application Support` on macOS).
 
 ## Contributing
 
