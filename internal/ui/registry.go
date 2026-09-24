@@ -181,6 +181,10 @@ func init() {
 					return clientBindings
 				}
 
+				if s.isDeployment() {
+					return deploymentScreenBindings
+				}
+
 				return allocBindings
 			},
 

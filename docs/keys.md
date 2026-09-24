@@ -195,13 +195,24 @@ On an open file:
 | --- | --- | --- |
 | `enter` | Open the deployment | |
 | `d` | Describe | |
-| `p` | Promote the canaries | yes |
+| `p` | Promote the canaries of every group | yes |
 | `f` | Fail the deployment | yes |
+| `ctrl-s` | Pause a running deployment, or resume a paused one | yes |
 
 ### A deployment
 
 The deployment screen lists the allocations of the deployment. It has the
-keys of [Allocations](#allocations).
+keys of [Allocations](#allocations), and these:
+
+| Key | What it does | Changes |
+| --- | --- | --- |
+| `p` | Promote the canaries of the group of the allocation under the cursor | yes |
+| `ctrl-p` | Promote the canaries of every group | yes |
+| `f` | Fail the deployment | yes |
+| `ctrl-s` | Pause or resume the deployment | yes |
+
+These keys are shown only while the deployment is active. `p` is shown only
+when the group under the cursor has canaries waiting to be promoted.
 
 ### Namespaces and services
 

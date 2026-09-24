@@ -57,6 +57,8 @@ type Client interface {
 	DrainNode(ctx context.Context, nodeID string, drain bool) error
 	SetNodeEligible(ctx context.Context, nodeID string, eligible bool) error
 	PromoteDeployment(ctx context.Context, namespace, deploymentID string) error
+	PromoteGroups(ctx context.Context, namespace, deploymentID string, groups []string) error
+	PauseDeployment(ctx context.Context, namespace, deploymentID string, pause bool) error
 	FailDeployment(ctx context.Context, namespace, deploymentID string) error
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 	NodeAllocations(ctx context.Context, nodeID string) ([]nomad.Alloc, error)
