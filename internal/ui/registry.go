@@ -250,6 +250,14 @@ func init() {
 			rows: func(m Model) []tableRow { return taskRows(m.tasks()) },
 		},
 
+		screenClusters: {
+			name:    "Clusters",
+			titles:  choiceTitles,
+			keys:    clusterBindings,
+			cluster: true,
+			rows:    func(m Model) []tableRow { return choiceRows(m.opts.Clusters, m.opts.Cluster) },
+		},
+
 		screenFiles: {
 			titles: fileTitles,
 			keys:   fileBindings,

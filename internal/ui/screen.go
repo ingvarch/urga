@@ -40,6 +40,7 @@ const (
 	screenPlan
 	screenFiles
 	screenFile
+	screenClusters
 )
 
 // screen is what is open: the resource and what it was opened for. The
@@ -216,6 +217,12 @@ type answerMsg struct {
 // askedFor labels whatever a command answers with, the commands of a batch
 // included.
 func askedFor(asked int, cmd tea.Cmd) tea.Cmd {
+	return labelled(cmd, func(msg tea.Msg) tea.Msg { return answerMsg{asked: asked, msg: msg} })
+}
+
+// labelled wraps whatever a command answers, the commands of a batch
+// included.
+func labelled(cmd tea.Cmd, label func(tea.Msg) tea.Msg) tea.Cmd {
 	if cmd == nil {
 		return nil
 	}
@@ -224,19 +231,19 @@ func askedFor(asked int, cmd tea.Cmd) tea.Cmd {
 		msg := cmd()
 
 		if batch, ok := msg.(tea.BatchMsg); ok {
-			labelled := make(tea.BatchMsg, 0, len(batch))
+			out := make(tea.BatchMsg, 0, len(batch))
 			for _, c := range batch {
-				labelled = append(labelled, askedFor(asked, c))
+				out = append(out, labelled(c, label))
 			}
 
-			return labelled
+			return out
 		}
 
 		if msg == nil {
 			return nil
 		}
 
-		return answerMsg{asked: asked, msg: msg}
+		return label(msg)
 	}
 }
 

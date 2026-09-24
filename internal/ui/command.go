@@ -59,15 +59,18 @@ const (
 	scopeNone scope = iota
 	scopeRegion
 	scopeDatacenter
+	scopeCluster
 )
 
 // scopeNames are the words that switch a scope, in the order the prompt
 // offers them: after the resources, so that `d` stays the deployments.
-var scopeNames = []string{"dc", "region"}
+var scopeNames = []string{"ctx", "dc", "region"}
 
 var scopeAliases = map[string]scope{
-	"dc":     scopeDatacenter,
-	"region": scopeRegion,
+	"ctx":     scopeCluster,
+	"cluster": scopeCluster,
+	"dc":      scopeDatacenter,
+	"region":  scopeRegion,
 }
 
 // command is what the prompt was asked to do.

@@ -334,6 +334,9 @@ func (m Model) commit() (Model, tea.Cmd) {
 
 	case scopeDatacenter:
 		return m.datacenterCommand(cmd.name)
+
+	case scopeCluster:
+		return m.clusterCommand(cmd.name)
 	}
 
 	if cmd.namespace != "" {

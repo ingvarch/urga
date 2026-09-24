@@ -148,6 +148,11 @@ word on its own opens a list of them with the one in use marked: `enter`
 switches to the one under the cursor, `esc` leaves things as they were. The
 header shows both under the address.
 
+`ctx prod` switches to another cluster of the settings file, and `ctx` on
+its own lists them. The session starts over on that cluster where it was
+left: its namespace, its screen, its colour and whether it is read-only.
+Without a settings file there is nothing to switch to, and the line says so.
+
 | Key | What it does |
 | --- | --- |
 | `:` | Command line |
