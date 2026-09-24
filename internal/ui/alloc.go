@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"image/color"
+	"slices"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -141,6 +143,36 @@ const (
 
 	desiredStop = "stop"
 )
+
+// fetchAllocation reads again the allocation a screen of its tasks was opened
+// for. The list it was opened from is not asked again while it is not on the
+// screen.
+func fetchAllocation(m Model) tea.Cmd {
+	client, screen := m.client, m.screen
+
+	return request(func(ctx context.Context) (nomad.Alloc, error) {
+		return client.Allocation(ctx, screen.namespace, screen.allocID)
+	}, func(alloc nomad.Alloc) tea.Msg { return allocMsg(alloc) })
+}
+
+// keepAllocation puts the allocation that was read again in place of the one
+// the list held, which is where its tasks are read from.
+func (m Model) keepAllocation(alloc nomad.Alloc) (Model, tea.Cmd) {
+	kind := m.screen.kind
+	ours := (kind == screenTasks || kind == screenTaskEvents) && m.screen.allocID == alloc.ID
+
+	return m.applyWhen(ours, func(m *Model) {
+		at := slices.IndexFunc(m.allocs, func(held nomad.Alloc) bool { return held.ID == alloc.ID })
+		if at < 0 {
+			return
+		}
+
+		// A copy: the list is shared with the model this one was made from.
+		allocs := slices.Clone(m.allocs)
+		allocs[at] = alloc
+		m.allocs = allocs
+	})
+}
 
 // openAllocation drills into the allocation under the cursor: the tasks it
 // runs.

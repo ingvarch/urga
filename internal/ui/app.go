@@ -55,6 +55,7 @@ type Client interface {
 	FailDeployment(ctx context.Context, namespace, deploymentID string) error
 	Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 	NodeAllocations(ctx context.Context, nodeID string) ([]nomad.Alloc, error)
+	Allocation(ctx context.Context, namespace, allocID string) (nomad.Alloc, error)
 	Node(ctx context.Context, nodeID string) (nomad.Node, error)
 	NodeDetail(ctx context.Context, nodeID string) (nomad.NodeDetail, error)
 	NodeMeta(ctx context.Context, nodeID string) ([]nomad.MetaEntry, error)
@@ -118,6 +119,7 @@ const (
 type (
 	jobsMsg        []nomad.Job
 	allocsMsg      []nomad.Alloc
+	allocMsg       nomad.Alloc
 	taskGroupsMsg  []nomad.TaskGroup
 	deploymentsMsg []nomad.Deployment
 	namespacesMsg  []nomad.Namespace
@@ -335,6 +337,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case allocsMsg:
 		return usageOnce(m.applyList(screenAllocations, func(m *Model) { m.allocs = msg }))
+
+	case allocMsg:
+		return m.keepAllocation(nomad.Alloc(msg))
 
 	case taskGroupsMsg:
 		return m.applyList(screenTaskGroups, func(m *Model) { m.groups = msg })

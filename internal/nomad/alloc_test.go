@@ -149,3 +149,29 @@ func TestAllocations_ReadWhatHappenedToATask(t *testing.T) {
 	r.Equal("Received", events[2].Type)
 	r.False(events[2].Failed)
 }
+
+func TestAllocation(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{
+		"ID": "af1f37df-7b19-6b1c-da67-5e8f482b5a15",
+		"Namespace": "production",
+		"JobID": "web",
+		"TaskGroup": "frontend",
+		"ClientStatus": "running",
+		"DesiredStatus": "run",
+		"TaskStates": {"server": {"State": "running", "Restarts": 3}}
+	}`)
+
+	alloc, err := client.Allocation(context.Background(), "production", "af1f37df-7b19-6b1c-da67-5e8f482b5a15")
+	r.NoError(err)
+
+	// One allocation, asked for in its own namespace: a screen about one
+	// allocation reads that one, not the whole list of its job.
+	r.Equal("/v1/allocation/af1f37df-7b19-6b1c-da67-5e8f482b5a15", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+
+	r.Equal("running", alloc.Status)
+	r.Len(alloc.Tasks, 1)
+	r.Equal(3, alloc.Tasks[0].Restarts)
+}
