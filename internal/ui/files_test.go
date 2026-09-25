@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -89,13 +91,14 @@ func TestFiles_EnterGoesIntoADirectory(t *testing.T) {
 	m = drain(m, cmd)
 
 	r.Equal(screenFiles, m.screen.kind)
-	r.Equal("/server/local", m.screen.path)
+	r.Contains(plain(m.render()), "Files (Allocation: af1f37df, /server/local)")
 	r.Equal("/server/local", client.filesPath)
+	r.Equal("production", client.filesNamespace)
 	r.Contains(plain(m.render()), "app.env")
 
 	// Escape comes back to where it was.
 	m, _ = m.update(escape())
-	r.Equal("/server", m.screen.path)
+	r.Contains(plain(m.render()), "Files (Allocation: af1f37df, /server)")
 }
 
 func TestFiles_UpToTheAllocation(t *testing.T) {
@@ -108,9 +111,83 @@ func TestFiles_UpToTheAllocation(t *testing.T) {
 	m = drain(m, cmd)
 
 	// The allocation holds what its tasks share, and nothing is above it.
-	r.Equal("/", m.screen.path)
+	r.Contains(plain(m.render()), "Files (Allocation: af1f37df, /)")
 	r.Contains(fileRow(t, m, 0), "alloc/")
 	r.NotContains(plain(m.render()), "..")
+}
+
+func TestFiles_NoRowsUntilTheDirectoryIsListed(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), files: allocFiles()}
+	m := openTasks(t, client)
+
+	// Not even the row that goes up: nothing of a directory shows before
+	// it is listed.
+	m, _ = m.update(key('b'))
+	r.Contains(plain(m.render()), "Files (Allocation: af1f37df, /server) [0]")
+}
+
+func TestFiles_TheHeaderOffersToOpen(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := browsed(t, client)
+
+	// Enter opens what the cursor is on, a directory or a file; a
+	// directory has no other key.
+	r.Equal([]hint{{Key: "<enter>", Description: "Open"}}, m.hints())
+}
+
+func TestFiles_ADirectoryIsAskedAgain(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := browsed(t, client)
+
+	client.files["/server"] = append(client.files["/server"], nomad.File{Name: "late.log", Size: 7})
+	client.filesPath = ""
+
+	m, cmd := m.update(pollMsg{})
+	m = drain(m, cmd)
+
+	r.Equal("/server", client.filesPath)
+	r.Contains(plain(m.render()), "late.log")
+}
+
+func TestFiles_StayInTheNamespaceOfTheAllocation(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := browsed(t, client)
+	m.namespaceOrder = []string{"production", "staging"}
+
+	m, cmd := m.update(key('2'))
+	m = drain(m, cmd)
+
+	// The allocation lives in production, whatever the session looks at.
+	r.Equal("staging", m.namespace)
+	r.Equal("production", client.filesNamespace)
+	r.Contains(plain(m.render()), "Files (Allocation: af1f37df, /server)")
+}
+
+func TestFiles_TheListingOfADirectoryLeftIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := browsed(t, client)
+
+	m, _ = m.update(key('j'))
+	m, listing := m.update(enter())
+	m, _ = m.update(escape())
+
+	// What local holds arrives after it was left: it is not what the
+	// directory above holds.
+	m = drain(m, listing)
+
+	out := plain(m.render())
+	r.Contains(out, "Files (Allocation: af1f37df, /server)")
+	r.NotContains(out, "app.env")
 }
 
 func TestSizeOf(t *testing.T) {
@@ -136,7 +213,7 @@ func TestFiles_ADirectoryShowsOnlyItsOwnRows(t *testing.T) {
 	// Back up, before the cluster has listed it again: what was listed of
 	// the directory below is not what this one holds.
 	m, _ = m.update(escape())
-	r.Equal("/server", m.screen.path)
+	r.Contains(plain(m.render()), "Files (Allocation: af1f37df, /server)")
 	r.NotContains(plain(m.render()), "app.env")
 }
 
@@ -149,8 +226,9 @@ func written(text string) *nomad.LogStream {
 	return &nomad.LogStream{Lines: lines, Err: make(chan error)}
 }
 
-// openedEnv is app.env of the task server, open on its screen.
-func openedEnv(t *testing.T, client *fakeClient) Model {
+// onEnv is the directory local of the task server, with the cursor on
+// app.env.
+func onEnv(t *testing.T, client *fakeClient) Model {
 	t.Helper()
 
 	m := browsed(t, client)
@@ -161,9 +239,30 @@ func openedEnv(t *testing.T, client *fakeClient) Model {
 
 	// Past the row that goes up.
 	m, _ = m.update(key('j'))
-	m, cmd = m.update(enter())
+
+	return m
+}
+
+// openedEnv is app.env of the task server, open on its screen and read to
+// the end of what it says.
+func openedEnv(t *testing.T, client *fakeClient) Model {
+	t.Helper()
+
+	m, cmd := onEnv(t, client).update(enter())
 
 	return follow(m, cmd, 4)
+}
+
+// readingEnv is app.env open on its screen on a stream that stays open:
+// what it says is up to the test.
+func readingEnv(t *testing.T, client *fakeClient, stream *nomad.LogStream) Model {
+	t.Helper()
+
+	client.file = stream
+
+	m, cmd := onEnv(t, client).update(enter())
+
+	return drain(m, cmd)
 }
 
 func TestFiles_OpenAFile(t *testing.T) {
@@ -192,24 +291,152 @@ func TestFiles_OpenAFile(t *testing.T) {
 	r.True(offers(m, "w"))
 	r.True(offers(m, "ctrl-s"))
 	r.False(offers(m, "t"))
+}
 
-	// Escape lets go of a file that is still being read.
+func TestFile_EscapeLetsGoOfIt(t *testing.T) {
+	r := require.New(t)
+
 	closed := false
-	m.logs.stream = &nomad.LogStream{Lines: make(chan string), OnClose: func() { closed = true }}
+	stream := &nomad.LogStream{Lines: make(chan string), Err: make(chan error), OnClose: func() { closed = true }}
 
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := readingEnv(t, client, stream)
+	r.Equal(screenFile, m.screen.kind)
+
+	// A file that is still being read is let go of.
 	m, _ = m.update(escape())
 	r.Equal(screenFiles, m.screen.kind)
 	r.True(closed)
 }
 
+// closing is a stream that stays open, and says whether it was closed.
+func closing() (*nomad.LogStream, *bool) {
+	closed := false
+
+	return &nomad.LogStream{Lines: make(chan string), Err: make(chan error), OnClose: func() { closed = true }}, &closed
+}
+
+func TestFile_CoveredLetsGoOfIt(t *testing.T) {
+	r := require.New(t)
+
+	stream, closed := closing()
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := readingEnv(t, client, stream)
+
+	// Nothing reads it under another screen, and escape reads it again.
+	m, _ = m.show(screenJobs)
+	r.Equal(screenJobs, m.screen.kind)
+	r.True(*closed)
+}
+
+func TestFile_OneStreamPerFile(t *testing.T) {
+	r := require.New(t)
+
+	first, _ := closing()
+	second, closed := closing()
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := onEnv(t, client)
+
+	// The file is asked for twice before either answer arrives.
+	m, once := m.update(enter())
+	m, twice := m.update(enter())
+
+	client.file = first
+	m = drain(m, once)
+	client.file = second
+	m = drain(m, twice)
+
+	r.Equal(screenFile, m.screen.kind)
+	r.True(*closed, "a second stream of the same file is left open")
+
+	m, _ = m.update(logLineMsg{stream: first, text: "DB_HOST=10.0.0.5\n"})
+	r.Contains(plain(m.render()), "DB_HOST=10.0.0.5")
+}
+
+func TestFile_AnotherFileAskedMeanwhileIsLetGo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := onEnv(t, client)
+
+	client.files["/server/local"] = append(client.files["/server/local"], nomad.File{Name: "other.env", Size: 8})
+	m, listed := m.update(pollMsg{})
+	m = drain(m, listed)
+
+	// Both files are asked for, one after the other, before either answers.
+	m, first := m.update(enter())
+	m, _ = m.update(key('j'))
+	m, second := m.update(enter())
+
+	client.file = written("DB_HOST=10.0.0.5\n")
+	m = follow(m, first, 4)
+
+	other, closed := closing()
+	client.file = other
+	m = drain(m, second)
+
+	// The screen is app.env's, read to its end: the other file is not
+	// read into it.
+	r.True(*closed)
+	r.Contains(plain(m.render()), "File (Allocation: af1f37df) [/server/local/app.env]")
+}
+
+func TestFile_ANamespaceSwitchReadsItAgain(t *testing.T) {
+	r := require.New(t)
+
+	stream, closed := closing()
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := readingEnv(t, client, stream)
+	m.namespaceOrder = []string{"production", "staging"}
+	m, _ = m.update(logLineMsg{stream: stream, text: "DB_HOST=10.0.0.5\n"})
+
+	// The switch ends every reading of the screen: the file is let go of
+	// and asked for again, where its allocation lives.
+	client.file = written("DB_HOST=10.0.0.6\n")
+
+	m, cmd := m.update(key('2'))
+	r.True(*closed)
+
+	m = follow(m, cmd, 6)
+
+	r.Equal(2, client.fileCalls)
+	r.Equal("production", client.fileNamespace)
+	r.Contains(plain(m.render()), "DB_HOST=10.0.0.6")
+	r.NotContains(plain(m.render()), "DB_HOST=10.0.0.5")
+}
+
+func TestFile_ReadAgainAfterLeavingIsLetGo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), file: written("DB_HOST=10.0.0.5\n")}
+	m := openedEnv(t, client)
+
+	m, _ = m.show(screenJobs)
+
+	// Back on the file, and gone again before it is read.
+	stream, closed := closing()
+	client.file = stream
+
+	m, read := m.update(escape())
+	m, _ = m.update(escape())
+	m = drain(m, read)
+
+	r.True(*closed)
+	r.Equal(screenFiles, m.screen.kind)
+}
+
 func TestFile_WhatItGrowsByStaysBelowTheTop(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), file: written("first\n")}
-	m := openedEnv(t, client)
-
 	stream := &nomad.LogStream{Lines: make(chan string), Err: make(chan error)}
-	m.logs.stream = stream
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := readingEnv(t, client, stream)
+
+	m, _ = m.update(logLineMsg{stream: stream, text: "first\n"})
 
 	for range 60 {
 		m, _ = m.update(logLineMsg{stream: stream, text: "more\n"})
@@ -221,6 +448,13 @@ func TestFile_WhatItGrowsByStaysBelowTheTop(t *testing.T) {
 	m, _ = m.update(key('s'))
 	r.Contains(plain(m.render()), "Autoscroll:On")
 	r.NotContains(plain(m.render()), "first")
+
+	// Followed, what it grows by next is followed too.
+	for i := range 30 {
+		m, _ = m.update(logLineMsg{stream: stream, text: fmt.Sprintf("later-%02d\n", i)})
+	}
+
+	r.Contains(plain(m.render()), "later-29")
 }
 
 func TestFile_OnlyTheEndOfABigOne(t *testing.T) {
@@ -293,7 +527,7 @@ func TestFiles_AFileOpenedAfterLeavingIsLetGo(t *testing.T) {
 	m = drain(m, open)
 
 	r.Equal(screenFiles, m.screen.kind)
-	r.Equal("/server", m.screen.path)
+	r.Contains(plain(m.render()), "Files (Allocation: af1f37df, /server)")
 	r.True(closed)
 }
 
@@ -315,10 +549,46 @@ func TestFile_ComingBackReadsItAgain(t *testing.T) {
 	r.NotContains(plain(m.render()), "DB_HOST=10.0.0.5")
 }
 
+func TestFile_SaveWhatIsOnTheScreen(t *testing.T) {
+	r := require.New(t)
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), file: written("DB_HOST=10.0.0.5\n")}
+	m := openedEnv(t, client)
+
+	m, cmd := m.update(ctrlKey('s'))
+	m = drain(m, cmd)
+
+	// Named after the file, not after the screen it was read on.
+	files, err := filepath.Glob(filepath.Join(dir, "app.env-*.txt"))
+	r.NoError(err)
+	r.Len(files, 1)
+
+	saved, err := os.ReadFile(files[0])
+	r.NoError(err)
+	r.Equal("DB_HOST=10.0.0.5", string(saved))
+	r.Contains(plain(m.render()), filepath.Base(files[0]))
+}
+
+func TestFile_Wraps(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), file: written(strings.Repeat("x", 400) + "\n")}
+	m := openedEnv(t, client)
+	r.Equal(1, rowsWith(m, "xxx"))
+
+	m, _ = m.update(key('w'))
+
+	r.Contains(plain(m.render()), "Wrap:On")
+	r.Greater(rowsWith(m, "xxx"), 3)
+}
+
 func TestSaveName_OfAFile(t *testing.T) {
 	r := require.New(t)
 
-	name := saveName(screen{kind: screenFile, path: "/server/local/app.env"})
+	name := saveName(fileScreen(filePage{path: "/server/local/app.env"}))
 
 	r.True(strings.HasPrefix(name, "app.env-"), name)
 	r.True(strings.HasSuffix(name, ".txt"), name)

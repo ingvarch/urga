@@ -30,7 +30,7 @@ func rowsWith(m Model, text string) int {
 
 // lineOf is what the stream of the open log hands over.
 func lineOf(m Model, text string) tea.Msg {
-	return logLineMsg{stream: m.logs.stream, text: text}
+	return logLineMsg{stream: logOf(m).stream, text: text}
 }
 
 // onLogs opens a log screen with a few lines already in it.
@@ -40,7 +40,8 @@ func onLogs(t *testing.T, lines ...string) (Model, *fakeClient) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), logs: &nomad.LogStream{Lines: make(chan string)}}
 
 	m := openTasks(t, client)
-	m, _ = m.update(enter())
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
 
 	for _, line := range lines {
 		m, _ = m.update(lineOf(m, line))

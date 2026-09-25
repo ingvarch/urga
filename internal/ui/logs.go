@@ -17,14 +17,11 @@ import (
 // that switched or was left lets its stream go, and what that stream still
 // says must not reach the one that is open.
 type (
-	// logStreamMsg also carries the log it was opened for: one that arrives
-	// after the screen moved on belongs to no screen.
+	// logStreamMsg also carries the source it was opened for: the log may
+	// have switched to the other one while it was on its way.
 	logStreamMsg struct {
 		stream *nomad.LogStream
-
-		allocID string
-		task    string
-		source  string
+		source string
 	}
 
 	logLineMsg struct {
@@ -35,11 +32,11 @@ type (
 	logEndMsg struct{ stream *nomad.LogStream }
 )
 
-// logState is the output of a task that the log screen reads.
+// logState is what a stream is read through: the stream, what it said so
+// far, and what it said of itself when it was opened.
 type logState struct {
-	// stream is the task output the log screen follows.
-	stream    *nomad.LogStream
-	following bool
+	stream  *nomad.LogStream
+	content textContent
 
 	// finished says the task has stopped: the stream holds all it wrote,
 	// and there is nothing to follow.
@@ -54,6 +51,19 @@ type logState struct {
 	from int64
 }
 
+// logsPage is what one task of an allocation writes to stdout or stderr,
+// followed as it is written.
+type logsPage struct {
+	namespace, allocID, task, source string
+
+	read logState
+}
+
+// logsScreen opens a log where its allocation lives.
+func logsScreen(p logsPage) screen {
+	return screen{kind: screenLogs, namespace: p.namespace, page: p}
+}
+
 // followLogs follows what the task under the cursor writes to a source.
 func followLogs(p tasksPage, e env, source string) (tasksPage, outcome) {
 	task, ok := p.picked(e)
@@ -61,61 +71,118 @@ func followLogs(p tasksPage, e env, source string) (tasksPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(logsMsg(screen{
-		kind:      screenLogs,
-		namespace: p.namespace,
-		jobID:     p.jobID,
-		allocID:   p.allocID,
-		task:      task.Name,
-		source:    source,
-	}))
+	return p, then(openMsg(logsScreen(logsPage{namespace: p.namespace, allocID: p.allocID, task: task.Name, source: source})))
 }
 
-// followLog opens a log on top of what is open and follows it.
-func (m Model) followLog(next screen) (Model, tea.Cmd) {
-	m = m.stackText(next, textModel{})
-	m.logs = logState{following: true}
+// title says whose output this is, in which allocation, which of the two
+// it is, and whether the task has stopped writing it.
+func (p logsPage) title(env, int) string {
+	source := p.source
+	if p.read.finished {
+		source += ", task finished"
+	}
 
-	return m, m.startLogs()
+	return fmt.Sprintf("Logs (Task: %s, Allocation: %s) [%s]", p.task, shortID(p.allocID), source)
 }
 
-// startLogs opens the stream. The lines arrive as messages, one command at a
+func (logsPage) titles() []string           { return nil }
+func (logsPage) topics() []string           { return nil }
+func (logsPage) fetch(env) tea.Cmd          { return nil }
+func (logsPage) rows(env) []tableRow        { return nil }
+func (logsPage) follows() bool              { return true }
+func (p logsPage) text(env) textContent     { return p.read.content }
+func (p logsPage) saveAs() (string, string) { return fmt.Sprintf("%s-%s", p.task, p.source), "log" }
+
+// open reads the log from the start of what the cluster still holds of it:
+// what the page read before is in there again.
+func (p logsPage) open(e env) (page, tea.Cmd) {
+	p.read.stop()
+	p.read = logState{}
+
+	return p, p.start(e.client)
+}
+
+func (p logsPage) close() page {
+	p.read.stop()
+
+	return p
+}
+
+// start opens the stream. The lines arrive as messages, one command at a
 // time, so nothing writes to the model from a goroutine.
-func (m Model) startLogs() tea.Cmd {
-	client, screen := m.client, m.screen
+func (p logsPage) start(client filesClient) tea.Cmd {
+	namespace, allocID, task, source := p.namespace, p.allocID, p.task, p.source
 
 	return func() tea.Msg {
-		stream, err := client.Logs(context.Background(), screen.namespace, screen.allocID, screen.task, screen.source)
+		stream, err := client.Logs(context.Background(), namespace, allocID, task, source)
 		if err != nil {
 			return errMsg{err: err}
 		}
 
-		return logStreamMsg{stream: stream, allocID: screen.allocID, task: screen.task, source: screen.source}
+		return logStreamMsg{stream: stream, source: source}
 	}
 }
 
-// openedLog keeps a stream that was opened for the log on the screen. One
-// that arrives after the screen moved on, or next to a stream the screen
-// already reads, is let go of: nothing else would ever close it.
-func (m Model) openedLog(msg logStreamMsg) (Model, tea.Cmd) {
-	s := m.screen
+func (p logsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	var (
+		out  outcome
+		took bool
+	)
 
-	ours := s.kind == screenLogs && s.allocID == msg.allocID && s.task == msg.task && s.source == msg.source
-	if !ours || m.logs.stream != nil {
-		msg.stream.Close()
-
-		return m, nil
+	// A stream opened for a log that is no longer up never gets here: it
+	// belongs to an ask that is over.
+	if opened, ok := msg.(logStreamMsg); ok {
+		p.read, out, took = p.read.keep(opened.stream, opened.source == p.source)
+	} else {
+		p.read, out, took = p.read.take(msg)
 	}
 
-	var cmd tea.Cmd
-	m.logs, cmd = m.logs.opened(msg.stream)
-
-	return m, cmd
+	return p, out, took
 }
 
-// fromOpenStream says a message came from the stream the screen reads.
-func (m Model) fromOpenStream(stream *nomad.LogStream) bool {
-	return stream == m.logs.stream
+// logsKeys are the keys of a log: the ones of any text, and the ones of a
+// stream that is still being followed.
+var logsKeys = []pageKey[logsPage]{
+	followKey[logsPage](),
+	// The key that opens stderr from the tasks switches to the other of
+	// the two here, and says which one it goes to.
+	{press: "ctrl+e", label: "Stderr", do: switchSource, offered: readsSource(nomad.LogStdout)},
+	{press: "ctrl+e", label: "Stdout", do: switchSource, offered: readsSource(nomad.LogStderr)},
+	{press: "p", label: "Previous Alloc", do: openPrevious, offered: hasPrevious},
+	wrapKey[logsPage](),
+	timesKey[logsPage](),
+	saveKey[logsPage](),
+}
+
+func (p logsPage) keys(e env) []keyHint { return hintsOf(p, e, logsKeys) }
+
+func (p logsPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, logsKeys, k)
+}
+
+// readsSource says the log reads the source.
+func readsSource(source string) func(p logsPage, _ env) bool {
+	return func(p logsPage, _ env) bool { return p.source == source }
+}
+
+// switchSource reads the other of the two a task writes to, on the same
+// screen and the same way: escape still goes back to the tasks.
+func switchSource(p logsPage, _ env) (logsPage, outcome) {
+	p.source = otherSource(p.source)
+
+	return p, then(reopenMsg{})
+}
+
+// hasPrevious says the allocation of the log replaced another one.
+func hasPrevious(p logsPage, _ env) bool { return p.read.previous != "" }
+
+// openPrevious reads the same task in the allocation this one replaced, on
+// top of this log: escape comes back to it. A task that crashed and was
+// placed again starts an empty log, and why it crashed is in the one before.
+func openPrevious(p logsPage, _ env) (logsPage, outcome) {
+	previous := logsPage{namespace: p.namespace, allocID: p.read.previous, task: p.task, source: p.source}
+
+	return p, then(openMsg(logsScreen(previous)))
 }
 
 // waitForLog waits for the next thing the task writes.
@@ -158,17 +225,43 @@ func (l logState) opened(stream *nomad.LogStream) (logState, tea.Cmd) {
 	return l, l.waitForLog()
 }
 
-// appendLog puts what arrived at the end and follows it, unless following was
-// stopped. When each line arrived is written down: a task writes no time of
-// its own, and the time urga read it is the only one there is.
-func (m Model) appendLog(chunk string) (Model, tea.Cmd) {
-	if !m.readsAStream() {
-		return m, nil
+// keep reads a stream that was opened for the page, when ours says it was.
+// One opened for something else, or next to a stream the page already
+// reads, is not the page's to keep: the session lets go of it.
+func (l logState) keep(stream *nomad.LogStream, ours bool) (logState, outcome, bool) {
+	if !ours || l.stream != nil {
+		return l, outcome{}, false
 	}
 
-	m = m.readLines(linesOf(chunk), nil, nil)
+	l, cmd := l.opened(stream)
 
-	return m, m.logs.waitForLog()
+	return l, outcome{cmd: cmd, reading: true}, true
+}
+
+// take keeps what the stream says: a line, after which it waits for the
+// next, or its end. None of it is an answer to what the page asked.
+func (l logState) take(msg tea.Msg) (logState, outcome, bool) {
+	switch msg := msg.(type) {
+	case logLineMsg:
+		if msg.stream != l.stream {
+			return l, outcome{}, false
+		}
+
+		// When each line arrived is written down: a task writes no time of
+		// its own, and the time urga read it is the only one there is.
+		l.content.add(linesOf(msg.text), time.Now(), nil, nil)
+
+		return l, outcome{cmd: l.waitForLog(), reading: true}, true
+
+	case logEndMsg:
+		if msg.stream != l.stream {
+			return l, outcome{}, false
+		}
+
+		return l.ended(), outcome{reading: true}, true
+	}
+
+	return l, outcome{}, false
 }
 
 // readLines puts lines a stream sent at the end, all with the one time they
@@ -176,7 +269,7 @@ func (m Model) appendLog(chunk string) (Model, tea.Cmd) {
 func (m Model) readLines(lines []string, label *tag, style *lipgloss.Style) Model {
 	m.text.add(lines, time.Now(), label, style)
 
-	if m.logs.following {
+	if m.text.following {
 		m.text.toEnd()
 	}
 
@@ -204,73 +297,6 @@ func (l *logState) stop() {
 	}
 }
 
-// logsTitle says whose output this is, in which allocation, which of the two
-// it is, and whether the task has stopped writing it.
-func logsTitle(s screen, finished bool) string {
-	source := s.source
-	if finished {
-		source += ", task finished"
-	}
-
-	return fmt.Sprintf("Logs (Task: %s, Allocation: %s) [%s]", s.task, shortID(s.allocID), source)
-}
-
-// logBindings are the keys of the log screen: the ones of any text, and
-// the ones of a stream that is still being followed.
-var logBindings = []binding{
-	{press: "s", label: "Toggle Autoscroll", do: toggleAutoscroll},
-	// The key that opens stderr from the tasks switches to the other of
-	// the two here, and says which one it goes to.
-	{press: "ctrl+e", label: "Stderr", do: switchSource, offered: onSource(nomad.LogStdout)},
-	{press: "ctrl+e", label: "Stdout", do: switchSource, offered: onSource(nomad.LogStderr)},
-	{press: "p", label: "Previous Alloc", do: openPrevious, offered: hasPrevious},
-	{press: "w", label: "Toggle Wrap", do: wrapLines},
-	{press: "t", label: "Toggle Timestamps", do: showTimes},
-	{press: "ctrl+s", label: "Save", do: saveScreen},
-}
-
-// onSource says the log screen reads the source.
-func onSource(source string) func(m Model) bool {
-	return func(m Model) bool { return m.screen.source == source }
-}
-
-// switchSource reads the other of the two a task writes to, on the same
-// screen and the same way: escape still goes back to the tasks.
-func switchSource(m Model) (Model, tea.Cmd) {
-	m.logs.stop()
-	m.logs = logState{following: true}
-
-	m.screen.source = otherSource(m.screen.source)
-	m.text = m.text.emptied()
-	m.layout()
-
-	return m, m.startLogs()
-}
-
-// hasPrevious says the allocation of the log replaced another one.
-func hasPrevious(m Model) bool { return m.logs.previous != "" }
-
-// openPrevious reads the same task in the allocation this one replaced, on
-// top of this log: escape comes back to it. A task that crashed and was
-// placed again starts an empty log, and why it crashed is in the one before.
-func openPrevious(m Model) (Model, tea.Cmd) {
-	next := m.screen
-	next.allocID = m.logs.previous
-
-	m.logs.stop()
-
-	return m.followLog(next)
-}
-
-// readAgain opens the stream of a log screen that is come back to. What the
-// text held was the log of the screen that was on top of it.
-func (m Model) readAgain() (Model, tea.Cmd) {
-	m.text = m.text.emptied()
-	m.logs = logState{following: true}
-
-	return m, m.startLogs()
-}
-
 // otherSource is the other of the two a task writes to.
 func otherSource(source string) string {
 	if source == nomad.LogStdout {
@@ -283,9 +309,9 @@ func otherSource(source string) string {
 // toggleAutoscroll follows the end of the log, or stops following it where
 // it stands. Turned on, it goes to the end at once.
 func toggleAutoscroll(m Model) (Model, tea.Cmd) {
-	m.logs.following = !m.logs.following
+	m.text.following = !m.text.following
 
-	if m.logs.following {
+	if m.text.following {
 		m.text.toEnd()
 	}
 
@@ -298,22 +324,22 @@ const logToggleGap = 6
 // logToggles is the line under the title of a log: what each toggle is set
 // to, named the way the keys that set it name it.
 func (m Model) logToggles(width int) string {
-	type toggle struct {
-		name string
-		on   bool
+	toggles := []struct {
+		press, name string
+		on          bool
+	}{
+		{"s", "Autoscroll", m.text.following},
+		{"t", "Timestamps", m.text.times},
+		{"w", "Wrap", m.text.wrap},
 	}
-
-	toggles := []toggle{{"Autoscroll", m.logs.following}}
-
-	// When urga read a line is nothing to a file.
-	if m.screen.kind != screenFile {
-		toggles = append(toggles, toggle{"Timestamps", m.text.times})
-	}
-
-	toggles = append(toggles, toggle{"Wrap", m.text.wrap})
 
 	cells := make([]string, 0, len(toggles))
 	for _, toggle := range toggles {
+		// A toggle the screen has no key for is nothing to it.
+		if _, ok := m.binding(toggle.press); !ok {
+			continue
+		}
+
 		state := styleMuted.Render("Off")
 		if toggle.on {
 			state = styleTitle.Render("On")
@@ -341,7 +367,11 @@ func (m Model) toggleRows() int {
 // readsAStream says the screen reads what something writes: the log of a
 // task, or a file of its allocation.
 func (m Model) readsAStream() bool {
-	return m.screen.kind == screenLogs || m.screen.kind == screenFile || m.screen.kind == screenJobLogs
+	if _, ok := m.screen.page.(streamer); ok {
+		return true
+	}
+
+	return m.screen.kind == screenJobLogs
 }
 
 // showTimes puts when each line was read in front of it. Only a log has

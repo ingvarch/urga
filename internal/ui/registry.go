@@ -100,17 +100,6 @@ func init() {
 			title: func(m Model, _ int) string { return jobLogsTitle(m.screen, m.jobLogs) },
 		},
 
-		screenFiles: {
-			titles: fileTitles,
-			keys:   fileBindings,
-			fetch:  fetchFiles,
-
-			title: func(m Model, count int) string {
-				return sprintf("Files (Allocation: %s, %s) [%d]", shortID(m.screen.allocID), m.screen.path, count)
-			},
-			rows: func(m Model) []tableRow { return fileRows(m.entries()) },
-		},
-
 		screenDeployments: {
 			stored:  "deployments",
 			aliases: []string{"deployments", "deployment", "dp"},
@@ -170,16 +159,6 @@ func init() {
 		screenPlan: {
 			keys:  planBindings,
 			title: func(m Model, _ int) string { return planTitle(m) },
-		},
-
-		screenLogs: {
-			keys:  logBindings,
-			title: func(m Model, _ int) string { return logsTitle(m.screen, m.logs.finished) },
-		},
-
-		screenFile: {
-			keys:  fileTextBindings,
-			title: func(m Model, _ int) string { return fileTitle(m.screen, m.logs) },
 		},
 	}
 

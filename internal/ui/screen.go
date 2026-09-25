@@ -57,8 +57,7 @@ type screen struct {
 	kind      screenKind
 	namespace string
 
-	jobID   string
-	allocID string
+	jobID string
 
 	// nodeID is the machine an allocation list was opened for: a client
 	// shows its own work rather than the work of a job.
@@ -74,12 +73,9 @@ type screen struct {
 	// taskGroup narrows the allocations to one group of the job.
 	taskGroup string
 
-	// task and source are whose output the log screen follows.
+	// task and source are whose output the logs of a job follow.
 	task   string
 	source string
-
-	// path is the directory of an allocation the files screen lists.
-	path string
 
 	// left is where the screen was when another one was opened on top of
 	// it, which is where escape comes back to.
@@ -421,6 +417,7 @@ func (m Model) push(next screen) (Model, tea.Cmd) {
 // was left for escape to come back to. What belonged to it, its filter and
 // the order of its rows, says nothing about the screen that is opening.
 func (m Model) stack(next screen) Model {
+	m = m.closeStream()
 	m.screen.left = place{cursor: m.list.table.cursor, top: m.list.table.top, filter: m.list.filter, sort: m.list.sort}
 	m.history = append(m.history, m.screen)
 	m.screen = next
@@ -450,18 +447,51 @@ func (m Model) back() (Model, tea.Cmd) {
 
 	var read tea.Cmd
 
-	switch arrived.screen.kind {
-	case screenLogs:
-		arrived, read = arrived.readAgain()
-	case screenFile:
-		arrived, read = arrived.readFileAgain()
-	case screenJobLogs:
+	if arrived.screen.kind == screenJobLogs {
 		arrived, read = reloadJobLogs(arrived)
 	}
 
 	cmd = tea.Batch(cmd, read)
 
 	return arrived.returnTo(arrived.screen.left), cmd
+}
+
+// closeStream lets go of what the page on top reads: it is no longer the
+// one on top.
+func (m Model) closeStream() Model {
+	if s, ok := m.screen.page.(streamer); ok {
+		m.screen.page = s.close()
+	}
+
+	return m
+}
+
+// openStream starts reading the stream of the page on top, and the window
+// follows its end when the page says to. What reads it belongs to the ask of
+// the page and ends with it.
+func (m Model) openStream() (Model, tea.Cmd) {
+	s, ok := m.screen.page.(streamer)
+	if !ok {
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+
+	m.text.following = s.follows()
+	m.screen.page, cmd = s.open(m.env())
+
+	return m, askedFor(m.asked, cmd)
+}
+
+// letGo closes a stream that was opened for a page that is no longer up:
+// nothing else would ever close it.
+func letGo(msg tea.Msg) {
+	switch opened := msg.(type) {
+	case logStreamMsg:
+		opened.stream.Close()
+	case fileMsg:
+		opened.stream.Close()
+	}
 }
 
 // returnTo puts a list back the way it was left. The rows it held are still
@@ -508,6 +538,10 @@ func (m Model) enter() (Model, tea.Cmd) {
 		m.text = textModel{}
 	}
 
+	// A stream is read afresh: whatever read it belonged to an ask that is
+	// over.
+	m, stream := m.openStream()
+
 	m.layout()
 
 	// A screen that can be opened by name shows the namespace of the
@@ -521,7 +555,7 @@ func (m Model) enter() (Model, tea.Cmd) {
 	// watches what it shows, if the cluster will say.
 	m.watch = m.watch.end()
 
-	return m, tea.Batch(m.fetch(), m.watchScreen())
+	return m, tea.Batch(m.fetch(), stream, m.watchScreen())
 }
 
 // stackText opens a screen that reads as text rather than as a list.

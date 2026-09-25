@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -48,13 +47,11 @@ func (m Model) saveText() tea.Cmd {
 // everything a file name cannot hold.
 func saveName(s screen) string {
 	what, extension := s.label, "txt"
+	if p, ok := s.page.(saving); ok {
+		what, extension = p.saveAs()
+	}
 
-	switch s.kind {
-	case screenLogs:
-		what, extension = fmt.Sprintf("%s-%s", s.task, s.source), "log"
-	case screenFile:
-		what = path.Base(s.path)
-	case screenJobLogs:
+	if s.kind == screenJobLogs {
 		what, extension = fmt.Sprintf("%s-%s-%s", s.jobID, s.task, s.source), "log"
 	}
 

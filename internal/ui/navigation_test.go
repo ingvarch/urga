@@ -202,7 +202,7 @@ func TestNavigation_AScreenStartsWithoutTheLastOnesFilter(t *testing.T) {
 	// filtered to.
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
-	m = drain(m, m.logs.waitForLog())
+	m = drain(m, logOf(m).waitForLog())
 
 	r.Empty(m.list.filter)
 	r.Contains(plain(m.render()), "the task says something")
