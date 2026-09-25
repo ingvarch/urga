@@ -55,19 +55,11 @@ func evaluationRows(evals []nomad.Evaluation) []tableRow {
 	rows := make([]tableRow, 0, len(evals))
 
 	for _, e := range evals {
-		rows = append(rows, tableRow{
-			cells: []string{
-				shortID(e.ID),
-				e.JobID,
-				e.Namespace,
-				e.Type,
-				e.TriggeredBy,
-				e.Status,
-				ageOf(e.Created),
-			},
-			ages:  moments{6: e.Created},
-			color: evaluationColor(e),
-		})
+		row := tableRow{color: evaluationColor(e)}
+		row.add(shortID(e.ID), e.JobID, e.Namespace, e.Type, e.TriggeredBy, e.Status)
+		row.addAge(e.Created)
+
+		rows = append(rows, row)
 	}
 
 	return rows

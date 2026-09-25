@@ -491,21 +491,20 @@ func deploymentAllocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUs
 			canary = "yes"
 		}
 
-		rows = append(rows, tableRow{
-			cells: []string{
-				shortID(alloc.ID),
-				alloc.TaskGroup,
-				alloc.NodeName,
-				alloc.Status,
-				canary,
-				alloc.Health,
-				cpuCell(use, known),
-				memoryCell(use, known),
-				ageOf(alloc.Created),
-			},
-			ages:  moments{8: alloc.Created},
-			color: allocColor(alloc),
-		})
+		row := tableRow{color: allocColor(alloc)}
+		row.add(
+			shortID(alloc.ID),
+			alloc.TaskGroup,
+			alloc.NodeName,
+			alloc.Status,
+			canary,
+			alloc.Health,
+			cpuCell(use, known),
+			memoryCell(use, known),
+		)
+		row.addAge(alloc.Created)
+
+		rows = append(rows, row)
 	}
 
 	return rows

@@ -82,17 +82,11 @@ func versionRows(versions []nomad.JobVersion) []tableRow {
 	rows := make([]tableRow, 0, len(versions))
 
 	for _, version := range versions {
-		rows = append(rows, tableRow{
-			cells: []string{
-				fmt.Sprintf("%d", version.Version),
-				versionState(version),
-				version.Tag,
-				changes(version.Changes),
-				ageOf(version.Submitted),
-			},
-			ages:  moments{4: version.Submitted},
-			color: versionColor(version),
-		})
+		row := tableRow{color: versionColor(version)}
+		row.add(fmt.Sprintf("%d", version.Version), versionState(version), version.Tag, changes(version.Changes))
+		row.addAge(version.Submitted)
+
+		rows = append(rows, row)
 	}
 
 	return rows

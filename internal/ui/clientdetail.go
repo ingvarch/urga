@@ -269,11 +269,11 @@ func nodeEventRows(events []nomad.NodeEvent) []tableRow {
 	rows := make([]tableRow, 0, len(events))
 
 	for _, event := range events {
-		rows = append(rows, tableRow{
-			cells: []string{ageOf(event.Time), event.Subsystem, event.Message},
-			ages:  moments{0: event.Time},
-			color: eventColor(event),
-		})
+		row := tableRow{color: eventColor(event)}
+		row.addAge(event.Time)
+		row.add(event.Subsystem, event.Message)
+
+		rows = append(rows, row)
 	}
 
 	return rows
@@ -292,17 +292,12 @@ func driverRows(drivers []nomad.Driver) []tableRow {
 	rows := make([]tableRow, 0, len(drivers))
 
 	for _, driver := range drivers {
-		rows = append(rows, tableRow{
-			cells: []string{
-				driver.Name,
-				yesNo(driver.Detected),
-				yesNo(driver.Healthy),
-				ageOf(driver.Updated),
-				driver.Description,
-			},
-			ages:  moments{3: driver.Updated},
-			color: driverColor(driver),
-		})
+		row := tableRow{color: driverColor(driver)}
+		row.add(driver.Name, yesNo(driver.Detected), yesNo(driver.Healthy))
+		row.addAge(driver.Updated)
+		row.add(driver.Description)
+
+		rows = append(rows, row)
 	}
 
 	return rows

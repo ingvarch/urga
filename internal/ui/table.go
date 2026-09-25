@@ -33,6 +33,23 @@ type tableRow struct {
 // "5h" and is older.
 type moments map[int]time.Time
 
+// add puts cells at the end of a row, as they read.
+func (r *tableRow) add(cells ...string) {
+	r.cells = append(r.cells, cells...)
+}
+
+// addAge puts at the end of a row how long ago a moment was, and keeps the
+// moment under the same column. Written apart, a column number that is not
+// the column of the cell sorts some other column by time.
+func (r *tableRow) addAge(moment time.Time) {
+	if r.ages == nil {
+		r.ages = moments{}
+	}
+
+	r.ages[len(r.cells)] = moment
+	r.add(ageOf(moment))
+}
+
 // tableModel is the list every screen shows: a header, rows, a cursor and a
 // window that follows it.
 type tableModel struct {

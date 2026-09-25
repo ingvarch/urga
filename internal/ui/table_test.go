@@ -4,6 +4,7 @@ import (
 	"image/color"
 	"strings"
 	"testing"
+	"time"
 
 	"charm.land/lipgloss/v2"
 
@@ -204,4 +205,20 @@ func TestTable_AMarkedRowOnAScreenWithNoRoom(t *testing.T) {
 		table.width = width
 		r.NotPanics(func() { table.view() }, "width %d", width)
 	}
+}
+
+func TestTableRow_AnAgeStaysWithItsCell(t *testing.T) {
+	r := require.New(t)
+
+	started, changed := time.Now().Add(-time.Hour), time.Now().Add(-48*time.Hour)
+
+	// The moment is kept where its cell is, so a cell moved among the
+	// others takes its moment along.
+	var row tableRow
+	row.addAge(started)
+	row.add("web", "running")
+	row.addAge(changed)
+
+	r.Equal([]string{"1h", "web", "running", "2d"}, row.cells)
+	r.Equal(moments{0: started, 3: changed}, row.ages)
 }

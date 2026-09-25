@@ -64,7 +64,11 @@ func TestSort_ShowsWhichColumn(t *testing.T) {
 func agedRow(id string, ago time.Duration) tableRow {
 	moment := time.Now().Add(-ago)
 
-	return tableRow{cells: []string{id, ageOf(moment)}, ages: moments{1: moment}}
+	var row tableRow
+	row.add(id)
+	row.addAge(moment)
+
+	return row
 }
 
 func TestSort_AgeGoesByTime(t *testing.T) {
