@@ -191,36 +191,9 @@ func (m Model) chartHeight() int {
 	return 0
 }
 
-// panelHeight is what the screen holds above its rows. A client has one:
-// what the machine is doing belongs over its allocations, not over a list of
-// its attributes. So do the tasks of an allocation: where it runs and
-// listens. A variable held as a lock says who holds it.
+// panelHeight is how many rows the panel takes from the table.
 func (m Model) panelHeight() int {
-	if m.screen.kind == screenTasks {
-		return len(m.tasksPanel(m.width))
-	}
-
-	if m.screen.isDeployment() {
-		return len(m.deploymentScreenPanel(m.width))
-	}
-
-	if m.screen.kind == screenVariable {
-		return len(m.variablePanel(m.width))
-	}
-
-	if !m.screen.isClient() {
-		return 0
-	}
-
-	if plot := m.chartHeight(); plot > 0 {
-		return plot + hostChartRest + hostPanelRest
-	}
-
-	if m.rowsForPanel() >= hostPanelRows {
-		return hostPanelRows
-	}
-
-	return 0
+	return len(m.panel(m.width))
 }
 
 // rowsForPanel is what is left of the box once the table has the rows it
@@ -229,7 +202,10 @@ func (m Model) rowsForPanel() int {
 	return m.bodyHeight() - 3 - rowsKept
 }
 
-// panel is what the screen holds above its rows, sized to it.
+// panel is what the screen holds above its rows, sized to it. A client has
+// one: what the machine is doing belongs over its allocations, not over a
+// list of its attributes. So do the tasks of an allocation: where it runs and
+// listens. A variable held as a lock says who holds it.
 func (m Model) panel(width int) []string {
 	if m.screen.kind == screenTasks {
 		return m.tasksPanel(width)
@@ -243,20 +219,25 @@ func (m Model) panel(width int) []string {
 		return m.variablePanel(width)
 	}
 
-	return m.host.view(width, m.chartWidth(), m.chartHeight(), hostUseEvery)
+	// A box with no room for even the machine leaves it to the allocations.
+	if !m.screen.isClient() || m.rowsForPanel() < hostPanelRows {
+		return nil
+	}
+
+	return m.host.view(width, m.chartWidth(), m.chartHeight())
 }
 
 // view is what a client shows above its allocations: what kind of machine
 // it is and what it has been doing since the screen was opened. Each chart
 // is half wide and plot tall, and a plot of no height leaves them out.
-func (h hostModel) view(width, half, plot int, every time.Duration) []string {
+func (h hostModel) view(width, half, plot int) []string {
 	// One column of the panel goes to the margin the table keeps.
 	width--
 
 	rows := []string{h.details(width), ""}
 
 	if plot > 0 {
-		window := time.Duration(half-chartAxisWidth) * every
+		window := time.Duration(half-chartAxisWidth) * hostUseEvery
 
 		cpu := chart{
 			name:    "CPU",

@@ -396,6 +396,74 @@ func TestClient_ComingBackReadsAgain(t *testing.T) {
 	r.Len(m.host.trail, before+1)
 }
 
+// drawnPanel is how many rows the screen draws above its table.
+func drawnPanel(m Model) int {
+	width := m.width - 2*screenPadX - 2
+	_, content := m.body(width)
+
+	return strings.Count(content, "\n") - strings.Count(m.withHint(m.table.view(), width), "\n")
+}
+
+func TestClient_ThePanelTakesWhatTheBoxHasRoomFor(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := clientScreen(t)
+	m, _ = m.update(reading(29))
+
+	// The box grows down from tall charts to short ones, to the machine
+	// alone, to the allocations alone. The table gets whatever is left.
+	for _, tc := range []struct {
+		width, box, panel int
+		charts            bool
+	}{
+		{width: 120, box: 40, panel: 15, charts: true},
+		{width: 120, box: 21, panel: 15, charts: true},
+		{width: 120, box: 20, panel: 11, charts: true},
+		{width: 120, box: 17, panel: 11, charts: true},
+		{width: 120, box: 16, panel: 2},
+		{width: 120, box: 8, panel: 2},
+		{width: 120, box: 7, panel: 0},
+		{width: 120, box: 3, panel: 0},
+		{width: 20, box: 40, panel: 2},
+	} {
+		sized, _ := m.update(tea.WindowSizeMsg{Width: tc.width, Height: tc.box + screenPadTop + headerHeight + statusHeight})
+		_, content := sized.body(sized.width - 2*screenPadX - 2)
+		body := plain(content)
+
+		r.Equal(tc.panel, sized.panelHeight(), "%dx%d", tc.width, tc.box)
+		r.Equal(tc.panel, drawnPanel(sized), "%dx%d", tc.width, tc.box)
+		r.Equal(max(tc.box-3-tc.panel, 1), sized.table.height, "%dx%d", tc.width, tc.box)
+		r.Equal(tc.panel > 0, strings.Contains(body, "ready"), "%dx%d", tc.width, tc.box)
+		r.Equal(tc.charts, strings.Contains(body, "100%"), "%dx%d", tc.width, tc.box)
+	}
+}
+
+func TestPanel_TakesTheRowsItDraws(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := clientScreen(t)
+	client, _ = client.update(reading(29))
+
+	screens := map[string]Model{
+		"client":     client,
+		"tasks":      openCanary(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}),
+		"deployment": onDeployment(t, &fakeClient{}),
+		"variable":   onVariable(t, &fakeClient{}, leaderVariable()),
+		"jobs":       newTestModel(&fakeClient{}),
+	}
+
+	// The rows kept for a panel are the rows it draws, at every size, and a
+	// screen without one keeps none.
+	for name, m := range screens {
+		for _, width := range []int{20, 60, 120} {
+			for height := 1; height <= 60; height++ {
+				sized, _ := m.update(tea.WindowSizeMsg{Width: width, Height: height})
+				r.Equal(sized.panelHeight(), drawnPanel(sized), "%s at %dx%d", name, width, height)
+			}
+		}
+	}
+}
+
 func TestClient_TheChartSaysHowFarBackItReaches(t *testing.T) {
 	r := require.New(t)
 
