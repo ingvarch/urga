@@ -35,6 +35,8 @@ type (
 
 // servicesPage is the services of the namespace the session looks at.
 type servicesPage struct {
+	ofTheSession
+
 	services []nomad.Service
 }
 

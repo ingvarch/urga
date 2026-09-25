@@ -8,6 +8,8 @@ import (
 
 // nodePoolsPage is the pools the nodes of the cluster are grouped in.
 type nodePoolsPage struct {
+	ofTheSession
+
 	noKeys
 
 	pools []nomad.NodePool

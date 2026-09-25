@@ -31,6 +31,8 @@ var deploymentTitles = []string{"ID", "JobID", "Namespace", "Version", "Status",
 
 // deploymentsPage is the deployments of the namespace the session looks at.
 type deploymentsPage struct {
+	ofTheSession
+
 	deployments []nomad.Deployment
 }
 

@@ -176,6 +176,8 @@ func yesNo(yes bool) string {
 
 // serversPage is the servers of the region in use.
 type serversPage struct {
+	ofTheSession
+
 	servers []nomad.Server
 }
 

@@ -33,6 +33,10 @@ func (p allocationsPage) title(e env, count int) string {
 	return sprintf("Allocations (Job: %s) [%d]", p.jobID, count)
 }
 
+// followsSession: the allocations the command line opens are those of the
+// namespace the session looks at; those of a job stay where the job lives.
+func (p allocationsPage) followsSession() bool { return p.jobID == "" }
+
 func (allocationsPage) titles() []string { return allocTitles }
 func (allocationsPage) topics() []string { return []string{nomad.TopicAllocation} }
 

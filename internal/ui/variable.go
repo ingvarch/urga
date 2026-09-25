@@ -23,6 +23,8 @@ type variableMsg nomad.VariableDetail
 
 // variablesPage is the variables of the namespace the session looks at.
 type variablesPage struct {
+	ofTheSession
+
 	variables []nomad.Variable
 }
 

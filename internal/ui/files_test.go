@@ -383,7 +383,7 @@ func TestFile_AnotherFileAskedMeanwhileIsLetGo(t *testing.T) {
 	r.Contains(plain(m.render()), "File (Allocation: af1f37df) [/server/local/app.env]")
 }
 
-func TestFile_ANamespaceSwitchReadsItAgain(t *testing.T) {
+func TestFile_ANamespaceSwitchLeavesItAsItIs(t *testing.T) {
 	r := require.New(t)
 
 	stream, closed := closing()
@@ -393,19 +393,17 @@ func TestFile_ANamespaceSwitchReadsItAgain(t *testing.T) {
 	m.namespaceOrder = []string{"production", "staging"}
 	m, _ = m.update(logLineMsg{stream: stream, text: "DB_HOST=10.0.0.5\n"})
 
-	// The switch ends every reading of the screen: the file is let go of
-	// and asked for again, where its allocation lives.
-	client.file = written("DB_HOST=10.0.0.6\n")
-
+	// The file belongs to its allocation: the namespace the lists look at
+	// changes nothing about it, and it is not read again.
+	// Played out with a deadline per command: a file opened again waits on
+	// its stream for good.
 	m, cmd := m.update(key('2'))
-	r.True(*closed)
+	m = playOut(m, cmd)
 
-	m = follow(m, cmd, 6)
-
-	r.Equal(2, client.fileCalls)
-	r.Equal("production", client.fileNamespace)
-	r.Contains(plain(m.render()), "DB_HOST=10.0.0.6")
-	r.NotContains(plain(m.render()), "DB_HOST=10.0.0.5")
+	r.Equal("staging", m.namespace)
+	r.False(*closed)
+	r.Equal(1, client.fileCalls)
+	r.Contains(plain(m.render()), "DB_HOST=10.0.0.5")
 }
 
 func TestFile_ReadAgainAfterLeavingIsLetGo(t *testing.T) {

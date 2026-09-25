@@ -95,6 +95,15 @@ type place struct {
 	sort   sortState
 }
 
+// followsSession says the screen is a list of what the session looks at: it
+// follows the session to another namespace or datacenter. A screen opened
+// for one job, allocation or stream does not.
+func (s screen) followsSession() bool {
+	f, ok := s.page.(follower)
+
+	return ok && f.followsSession()
+}
+
 // titles are the columns of a screen.
 func (s screen) titles() []string {
 	if s.page != nil {
@@ -547,7 +556,7 @@ func (m Model) enter() (Model, tea.Cmd) {
 	// A screen that can be opened by name shows the namespace of the
 	// session; one that was opened from another screen keeps the namespace
 	// it was opened for. The rows and the stream have to agree on which.
-	if m.screen.of().stored != "" {
+	if m.screen.followsSession() {
 		m.screen.namespace = m.namespace
 	}
 
