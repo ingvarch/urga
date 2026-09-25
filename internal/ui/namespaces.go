@@ -9,7 +9,7 @@ import (
 // namespacesPage is the namespaces of the cluster. The session keeps them
 // whatever is open, for the number keys and the command line; the page
 // shows what the session has.
-type namespacesPage struct{}
+type namespacesPage struct{ ofTheSession }
 
 var namespaceTitles = []string{"Name", "Quota", "Description"}
 

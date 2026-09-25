@@ -69,11 +69,27 @@ func (m Model) switchNamespace(namespace string) (Model, tea.Cmd) {
 	// A list opened by name follows the session there when it is entered; a
 	// screen opened for a job or an allocation stays where that one lives.
 	m.namespace = namespace
-	m.list.filter = ""
+	if m.screen.followsSession() {
+		m.list.filter = ""
+	}
 
-	next, cmd := m.enter()
+	next, cmd := m.followSession()
 
 	return next, tea.Batch(cmd, next.remember())
+}
+
+// followSession puts the open screen up again after the session moved to
+// another namespace or datacenter, when it is a list that follows the
+// session. A screen opened for one job, allocation or stream stays as it is:
+// asking it again would only start its stream over and lose its window.
+func (m Model) followSession() (Model, tea.Cmd) {
+	if !m.screen.followsSession() {
+		m.layout()
+
+		return m, nil
+	}
+
+	return m.enter()
 }
 
 // namespaceColumnData is what the header shows for the number keys.

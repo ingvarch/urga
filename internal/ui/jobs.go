@@ -15,6 +15,8 @@ var jobTitles = []string{"ID", "Name", "Type", "Namespace", "Status", "Allocs", 
 
 // jobsPage is the jobs of the namespace the session looks at.
 type jobsPage struct {
+	ofTheSession
+
 	jobs []nomad.Job
 }
 

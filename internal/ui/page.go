@@ -370,6 +370,17 @@ type restarter interface {
 	restart() page
 }
 
+// follower is a page that lists what the session looks at rather than one
+// thing: it follows the session to another namespace or datacenter.
+type follower interface {
+	followsSession() bool
+}
+
+// ofTheSession is a list the session opens by name, of what it looks at.
+type ofTheSession struct{}
+
+func (ofTheSession) followsSession() bool { return true }
+
 // noAnswers is a page that asks the cluster nothing: what it shows came
 // with it.
 type noAnswers struct{}

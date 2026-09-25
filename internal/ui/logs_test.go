@@ -661,39 +661,6 @@ func TestLogs_DoNotPoll(t *testing.T) {
 	r.Nil(cmd)
 }
 
-func TestLogs_ANamespaceSwitchReadsItAgain(t *testing.T) {
-	r := require.New(t)
-
-	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
-	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
-	m.namespaceOrder = []string{"production", "staging"}
-	m, _ = m.update(lineOf(m, "read before\n"))
-
-	// The switch ends every reading of the screen: the log is let go of
-	// and read again, where its allocation lives.
-	written := make(chan string, 1)
-	written <- "read again\n"
-
-	next := &nomad.LogStream{Lines: written}
-	client.logs = next
-	client.askedNamespace = ""
-
-	m, cmd := m.update(key('2'))
-	r.True(client.logsClosed)
-
-	m = drain(m, cmd)
-	m = drain(m, logOf(m).waitForLog())
-
-	r.Equal("staging", m.namespace)
-	r.Equal("production", client.askedNamespace)
-	r.Same(next, logOf(m).stream)
-
-	out := plain(m.render())
-	r.Contains(out, "Logs (Task: server, Allocation: af1f37df) [stdout]")
-	r.Contains(out, "read again")
-	r.NotContains(out, "read before")
-}
-
 func TestLogs_SavedUnderTheTaskAndWhatItWrites(t *testing.T) {
 	r := require.New(t)
 
@@ -740,4 +707,30 @@ func TestLogs_TheTogglesStandInTheMiddle(t *testing.T) {
 	}
 
 	t.Fatal("no line of toggles")
+}
+
+func TestLogs_ASwitchOfTheSessionLeavesTheLogAsItIs(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), datacenters: []string{"dc1", "dc2"}}
+	stream := &nomad.LogStream{Lines: make(chan string)}
+	m := openLog(t, client, stream)
+	m.namespaceOrder = []string{"production", "staging"}
+	m, _ = m.update(datacentersMsg{names: client.datacenters})
+	m, _ = m.update(key('w'))
+	r.True(m.text.wrap)
+
+	// The log belongs to its allocation: a namespace or a datacenter for
+	// the lists changes nothing about it, and it is not read again.
+	// Played out with a deadline per command: a log opened again waits on
+	// its stream for good.
+	m, cmd := m.update(key('2'))
+	m = playOut(m, cmd)
+	m, cmd = runLine(m, "dc dc2")
+	m = playOut(m, cmd)
+
+	r.Equal("staging", m.namespace)
+	r.Equal("dc2", m.datacenter)
+	r.True(m.text.wrap)
+	r.False(client.logsClosed, "the log was closed to be read again")
 }

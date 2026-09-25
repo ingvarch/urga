@@ -13,6 +13,8 @@ import (
 // nodesPage is the clients of the region in use, the machines that run the
 // work. Nomad calls them clients in its own interface.
 type nodesPage struct {
+	ofTheSession
+
 	nodes []nomad.Node
 }
 

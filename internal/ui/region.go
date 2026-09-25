@@ -145,7 +145,7 @@ func (m Model) switchDatacenter(datacenter string) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m.narrow(datacenter, Model.enter)
+	return m.narrow(datacenter, Model.followSession)
 }
 
 // narrow points the lists and the header at a datacenter, and puts up the

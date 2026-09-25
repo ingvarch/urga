@@ -16,6 +16,8 @@ import (
 
 // evaluationsPage is the evaluations of the namespace the session looks at.
 type evaluationsPage struct {
+	ofTheSession
+
 	evaluations []nomad.Evaluation
 }
 
