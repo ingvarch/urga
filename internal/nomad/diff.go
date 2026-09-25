@@ -36,12 +36,18 @@ const (
 	diffNone    = "None"
 )
 
+// changed says whether a part of a diff is a change. The cluster diffs in
+// context, so what did not change comes along as None.
+func changed(kind string) bool {
+	return kind != diffNone
+}
+
 // hclDiff lays a job diff out the way the job file reads, as a unified diff
 // shows a change to it: the blocks that lead to a change, and every changed
 // value as the line it was and the line it is. What did not change is left
 // out.
 func hclDiff(diff *api.JobDiff) []DiffLine {
-	if diff == nil || diff.Type == diffNone {
+	if diff == nil || !changed(diff.Type) {
 		return nil
 	}
 
@@ -50,14 +56,14 @@ func hclDiff(diff *api.JobDiff) []DiffLine {
 	parts := objectBlocks(diff.Objects, 0)
 
 	for _, group := range diff.TaskGroups {
-		if group == nil || group.Type == diffNone {
+		if group == nil || !changed(group.Type) {
 			continue
 		}
 
 		tasks := [][]DiffLine{}
 
 		for _, task := range group.Tasks {
-			if task == nil || task.Type == diffNone {
+			if task == nil || !changed(task.Type) {
 				continue
 			}
 
@@ -106,7 +112,7 @@ func objectBlocks(objects []*api.ObjectDiff, indent int) [][]DiffLine {
 	blocks := [][]DiffLine{}
 
 	for _, object := range objects {
-		if object == nil || object.Type == diffNone {
+		if object == nil || !changed(object.Type) {
 			continue
 		}
 
@@ -126,7 +132,7 @@ func fieldLines(kind string, fields []*api.FieldDiff, indent int) []DiffLine {
 	order := []string{}
 
 	for _, field := range fields {
-		if field == nil || field.Type == diffNone {
+		if field == nil || !changed(field.Type) {
 			continue
 		}
 

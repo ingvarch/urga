@@ -143,7 +143,7 @@ func countFields(fields []*api.FieldDiff, objects []*api.ObjectDiff) int {
 	count := 0
 
 	for _, field := range fields {
-		if field != nil {
+		if field != nil && changed(field.Type) {
 			count++
 		}
 	}
