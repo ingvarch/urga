@@ -100,34 +100,14 @@ func (s screen) topics() []string {
 	return s.of().topics
 }
 
-// bindings are the keys of the screen, in the order the header shows them,
-// whether or not each one does something right now.
-func (s screen) bindings() []binding { return s.of().keys }
-
-// bindings are the keys of the open screen, whether or not each does
-// something right now. A page's keys press the page.
-func (m Model) bindings() []binding {
-	p := m.screen.page
-	if p == nil {
-		return m.screen.bindings()
+// pageKeys are the keys of the open page, in the order the header shows
+// them, whether or not each one does something right now.
+func (m Model) pageKeys() []keyHint {
+	if m.screen.page == nil {
+		return nil
 	}
 
-	hints := p.keys(m.env())
-
-	out := make([]binding, 0, len(hints))
-	for _, h := range hints {
-		offered := h.offered
-
-		out = append(out, binding{
-			press:   h.press,
-			label:   h.label,
-			writes:  h.writes,
-			offered: func(Model) bool { return offered },
-			do:      func(m Model) (Model, tea.Cmd) { return m.pressPage(h.press) },
-		})
-	}
-
-	return out
+	return m.screen.page.keys(m.env())
 }
 
 // pressPage hands a key to the open page and takes what it asks for.
@@ -213,20 +193,16 @@ func (m Model) apply(out outcome) (Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-// keys are what the open screen offers now: a key that would do nothing in
-// the state the screen is in is not offered, nor, read-only, a key that
+// keys are what the open page offers now: a key that would do nothing in
+// the state the page is in is not offered, nor, read-only, a key that
 // changes the cluster.
-func (m Model) keys() []binding {
-	all := m.bindings()
+func (m Model) keys() []keyHint {
+	all := m.pageKeys()
 
-	keys := make([]binding, 0, len(all))
-	for _, b := range all {
-		if m.withheld(b) {
-			continue
-		}
-
-		if b.offered == nil || b.offered(m) {
-			keys = append(keys, b)
+	keys := make([]keyHint, 0, len(all))
+	for _, k := range all {
+		if k.offered && !m.withheld(k) {
+			keys = append(keys, k)
 		}
 	}
 
@@ -234,20 +210,20 @@ func (m Model) keys() []binding {
 }
 
 // withheld says read-only takes the key away.
-func (m Model) withheld(b binding) bool {
-	return m.opts.ReadOnly && b.writes
+func (m Model) withheld(k keyHint) bool {
+	return m.opts.ReadOnly && k.writes
 }
 
-// withheldKey is the key read-only took away from the open screen, when the
+// withheldKey is the key read-only took away from the open page, when the
 // press is one.
-func (m Model) withheldKey(press string) (binding, bool) {
-	for _, b := range m.bindings() {
-		if b.press == press && m.withheld(b) {
-			return b, true
+func (m Model) withheldKey(press string) (keyHint, bool) {
+	for _, k := range m.pageKeys() {
+		if k.press == press && m.withheld(k) {
+			return k, true
 		}
 	}
 
-	return binding{}, false
+	return keyHint{}, false
 }
 
 // hints are the keys the open resource answers. Keys that work everywhere
@@ -256,22 +232,22 @@ func (m Model) hints() []hint {
 	keys := m.keys()
 
 	hints := make([]hint, 0, len(keys))
-	for _, b := range keys {
-		hints = append(hints, b.hint())
+	for _, k := range keys {
+		hints = append(hints, k.hint())
 	}
 
 	return hints
 }
 
-// binding is what a key does on the screen, when the screen offers it.
-func (m Model) binding(press string) (binding, bool) {
-	for _, b := range m.keys() {
-		if b.press == press {
-			return b, true
+// offeredKey is what a key does on the page, when the page offers it.
+func (m Model) offeredKey(press string) (keyHint, bool) {
+	for _, k := range m.keys() {
+		if k.press == press {
+			return k, true
 		}
 	}
 
-	return binding{}, false
+	return keyHint{}, false
 }
 
 // title labels the box with what it holds and how much of it. The count is

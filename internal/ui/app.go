@@ -505,13 +505,13 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.overlayKey(msg)
 	}
 
-	if b, ok := m.binding(msg.String()); ok {
-		return b.do(m)
+	if k, ok := m.offeredKey(msg.String()); ok {
+		return m.pressPage(k.press)
 	}
 
 	// A key read-only took away says why, rather than do nothing.
-	if b, ok := m.withheldKey(msg.String()); ok {
-		return m.warn(fmt.Sprintf("read-only: %s is off", b.label)), nil
+	if k, ok := m.withheldKey(msg.String()); ok {
+		return m.warn(fmt.Sprintf("read-only: %s is off", k.label)), nil
 	}
 
 	if next, cmd, handled := m.buttonKey(msg); handled {

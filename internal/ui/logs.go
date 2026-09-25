@@ -323,7 +323,7 @@ func (m Model) logToggles(width int) string {
 	cells := make([]string, 0, len(toggles))
 	for _, toggle := range toggles {
 		// A toggle the screen has no key for is nothing to it.
-		if _, ok := m.binding(toggle.press); !ok {
+		if _, ok := m.offeredKey(toggle.press); !ok {
 			continue
 		}
 

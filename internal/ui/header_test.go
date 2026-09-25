@@ -182,7 +182,7 @@ func TestHeader_BeforeARegionIsKnown(t *testing.T) {
 func jobKeys() []hint {
 	keys := []hint{}
 	for _, k := range jobsKeys {
-		keys = append(keys, binding{press: k.press, label: k.label}.hint())
+		keys = append(keys, keyHint{press: k.press, label: k.label}.hint())
 	}
 
 	return keys
