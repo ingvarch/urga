@@ -7,7 +7,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -264,18 +263,6 @@ func (l logState) take(msg tea.Msg) (logState, outcome, bool) {
 	return l, outcome{}, false
 }
 
-// readLines puts lines a stream sent at the end, all with the one time they
-// arrived, and follows them unless following was stopped.
-func (m Model) readLines(lines []string, label *tag, style *lipgloss.Style) Model {
-	m.text.add(lines, time.Now(), label, style)
-
-	if m.text.following {
-		m.text.toEnd()
-	}
-
-	return m
-}
-
 // linesOf are the lines of a chunk a stream sent: the newline it ends with
 // ends its last line and starts none.
 func linesOf(chunk string) []string {
@@ -365,13 +352,11 @@ func (m Model) toggleRows() int {
 }
 
 // readsAStream says the screen reads what something writes: the log of a
-// task, or a file of its allocation.
+// task, the logs of a task in every allocation, or a file of an allocation.
 func (m Model) readsAStream() bool {
-	if _, ok := m.screen.page.(streamer); ok {
-		return true
-	}
+	_, ok := m.screen.page.(streamer)
 
-	return m.screen.kind == screenJobLogs
+	return ok
 }
 
 // showTimes puts when each line was read in front of it. Only a log has

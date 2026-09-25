@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -388,4 +391,206 @@ func TestPlan_ARevertSaysWhatItDoes(t *testing.T) {
 	out := plain(m.render())
 	r.Contains(out, "Revert web to version 3?")
 	r.NotContains(out, "Submit")
+}
+
+func TestPlan_TheHeaderSaysWhatAPlanCanDo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	m := planned(t, client)
+
+	r.Equal([]hint{
+		{Key: "<y>", Description: "Submit"},
+		{Key: "<r>", Description: "Replan"},
+		{Key: "<w>", Description: "Toggle Wrap"},
+		{Key: "<ctrl-s>", Description: "Save"},
+	}, m.hints())
+
+	// With nothing to send, there is no key that sends.
+	client.plan = shortOfMemory()
+	m = planned(t, client)
+
+	r.Equal([]hint{
+		{Key: "<r>", Description: "Replan"},
+		{Key: "<w>", Description: "Toggle Wrap"},
+		{Key: "<ctrl-s>", Description: "Save"},
+	}, m.hints())
+}
+
+func TestPlan_TheButtonsAreChosenTheWayTheButtonsOfAQuestionAre(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	m := planned(t, client)
+
+	cancel, submit := opening(styleButtonOn)+" Cancel ", opening(styleButtonOn)+" Submit "
+
+	m, _ = m.update(key('l'))
+	r.Contains(m.render(), submit)
+
+	m, _ = m.update(key('h'))
+	r.Contains(m.render(), cancel)
+
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyTab})
+	r.Contains(m.render(), submit)
+
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyTab, Mod: tea.ModShift})
+	r.Contains(m.render(), cancel)
+
+	// Those keys are the question's: help names them, the header does not.
+	for _, h := range m.hints() {
+		r.NotContains([]string{"<enter>", "<h>", "<l>", "<left>", "<right>", "<tab>", "<shift-tab>"}, h.Key)
+	}
+}
+
+func TestPlan_ReadOnlySendsNothing(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	m := planned(t, client)
+	m.opts.ReadOnly = true
+
+	m, cmd := m.update(key('y'))
+	m = drain(m, cmd)
+	r.Contains(plain(m.render()), "read-only: Submit is off")
+
+	// The button that sends cannot be chosen, and enter cancels.
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyRight})
+	r.Contains(m.render(), opening(styleButtonOn)+" Cancel ")
+
+	m, cmd = m.update(enter())
+	m = drain(m, cmd)
+
+	r.Equal(screenJobs, m.screen.kind)
+	r.Zero(client.submitted)
+}
+
+func TestPlan_PlannedAgainInPlaceOfTheOneBefore(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	m := planned(t, client)
+	m, _ = m.update(key('w'))
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyTab})
+
+	m, cmd := m.update(key('r'))
+	m = drain(m, cmd)
+
+	// Read the way the one before was, on the same button.
+	r.True(m.text.wrap)
+	r.Contains(m.render(), opening(styleButtonOn)+" Submit ")
+
+	// Escape goes back to where the plan was asked from.
+	m, _ = m.update(escape())
+	r.Equal(screenJobs, m.screen.kind)
+	r.Empty(m.history)
+}
+
+func TestPlan_ASubmitThatFailsStaysOnThePlan(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs:      twoJobs(),
+		spec:      nomad.JobSource{Source: "job \"web\" {}"},
+		plan:      changedEnv(),
+		actionErr: errors.New("Unexpected response code: 500 (rpc error)"),
+	}
+	m := planned(t, client)
+
+	m, cmd := m.update(key('y'))
+	m = drain(m, cmd)
+
+	r.Equal(screenPlan, m.screen.kind)
+	r.Contains(plain(m.render()), "rpc error")
+
+	// Planned again, what went wrong stays up for its time.
+	m, cmd = m.update(key('r'))
+	m = drain(m, cmd)
+
+	r.Equal(2, client.planCalls)
+	r.Contains(plain(m.render()), "rpc error")
+}
+
+func TestPlan_WhatCameOfASubmitIsSaidAfterLeaving(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	m := planned(t, client)
+
+	// Sent, and left before the cluster answers.
+	m, sent := m.update(key('y'))
+	m, _ = m.update(escape())
+	m = drain(m, sent)
+
+	r.Equal(1, client.submitted)
+	r.Equal(screenJobs, m.screen.kind)
+	r.Contains(plain(m.render()), "Job web submitted")
+}
+
+func TestPlan_DoesNotPoll(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	m := planned(t, client)
+
+	_, cmd := m.update(pollMsg{})
+	r.Nil(cmd)
+}
+
+func TestPlan_Saved(t *testing.T) {
+	r := require.New(t)
+
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	m := planned(t, client)
+
+	m, cmd := m.update(ctrlKey('s'))
+	drain(m, cmd)
+
+	files, err := filepath.Glob(filepath.Join(dir, "urga-*.txt"))
+	r.NoError(err)
+	r.Len(files, 1)
+
+	saved, err := os.ReadFile(files[0])
+	r.NoError(err)
+	r.Contains(string(saved), "What will happen when you submit this job:")
+}
+
+func TestPlan_ASwitchOfTheSessionLeavesThePlanAsItIs(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	m := planned(t, client)
+	m.namespaceOrder = []string{"production", "staging"}
+
+	m, cmd := m.update(key('2'))
+	m = playOut(m, cmd)
+
+	r.Equal("staging", m.namespace)
+	r.Equal(screenPlan, m.screen.kind)
+	r.Contains(plain(m.render()), "Plan (Job: web)")
+	r.Zero(client.submitted)
+}
+
+func TestPlan_OfAnotherJobGoesOnTop(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), plan: nomad.Plan{To: 3, Version: 4}}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	// Both jobs are asked to go back before either plan arrives.
+	m, web := m.update(key('u'))
+	m, _ = m.update(key('j'))
+	m, cron := m.update(key('u'))
+
+	m = drain(m, web)
+	m = drain(m, cron)
+	r.Contains(plain(m.render()), "Revert (Job: cron, Version: 3)")
+
+	// The plan of cron is not the plan of web planned again.
+	m, _ = m.update(escape())
+	r.Contains(plain(m.render()), "Revert (Job: web, Version: 3)")
 }

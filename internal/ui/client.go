@@ -223,9 +223,9 @@ func (clientPage) reading(ctx context.Context, client Client, ref rowRef) (nomad
 	return allocReading(ctx, client, ref)
 }
 
-// logScope: the logs are read of what runs on the machine.
-func (p clientPage) logScope(env) screen {
-	return screen{kind: screenNode, namespace: nomad.AllNamespaces, nodeID: p.nodeID, label: p.name}
+// logsOf: the logs are read of what runs on the machine.
+func (p clientPage) logsOf(env) logScope {
+	return logScope{namespace: nomad.AllNamespaces, nodeID: p.nodeID, label: p.name}
 }
 
 // clientKeys are the keys of the machine, and after them the keys of the

@@ -57,25 +57,8 @@ type screen struct {
 	kind      screenKind
 	namespace string
 
-	jobID string
-
-	// nodeID is the machine an allocation list was opened for: a client
-	// shows its own work rather than the work of a job.
-	nodeID string
-
-	// deploymentID is the deployment an allocation list was opened for: it
-	// shows the allocations that deployment placed, under its groups.
-	deploymentID string
-
 	// label titles a screen that is about one thing, like a description.
 	label string
-
-	// taskGroup narrows the allocations to one group of the job.
-	taskGroup string
-
-	// task and source are whose output the logs of a job follow.
-	task   string
-	source string
 
 	// left is where the screen was when another one was opened on top of
 	// it, which is where escape comes back to.
@@ -162,6 +145,40 @@ func (m Model) pressPage(press string) (Model, tea.Cmd) {
 	m.screen.page = next
 
 	return m.apply(out)
+}
+
+// buttonKey hands a key to the buttons at the foot of the open page, and
+// takes what they ask for.
+func (m Model) buttonKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
+	b, ok := m.screen.page.(buttoned)
+	if !ok {
+		return m, nil, false
+	}
+
+	next, out, ok := b.button(msg.String(), m.env())
+	if !ok {
+		return m, nil, false
+	}
+
+	m.screen.page = next
+	m, cmd := m.apply(out)
+
+	return m, cmd, true
+}
+
+// bar is the question at the foot of the open page, when it has one.
+func (m Model) bar(width int) []string {
+	if b, ok := m.screen.page.(buttoned); ok {
+		return b.bar(m.env(), width)
+	}
+
+	return nil
+}
+
+// barRows is how many rows of the box the question at the foot of the page
+// takes.
+func (m Model) barRows() int {
+	return len(m.bar(m.width - 2*screenPadX - 2))
 }
 
 // took keeps what the open page made of an answer, and takes what it asks
@@ -370,24 +387,6 @@ func fetchList[T any](load func(ctx context.Context) ([]T, error), wrap func([]T
 	return request(load, wrap)
 }
 
-// selectedOf is the resource the cursor is on, when the screen showing it is
-// the one that is open. Every key that acts on a row asks through here: the
-// bounds are checked in one place instead of at a dozen call sites.
-func selectedOf[T any](m Model, kind screenKind, items []T) (T, bool) {
-	var none T
-
-	if m.screen.kind != kind {
-		return none, false
-	}
-
-	row, ok := m.selectedIndex()
-	if !ok || row >= len(items) {
-		return none, false
-	}
-
-	return items[row], true
-}
-
 // selectedIndex is the resource the cursor is on. The filter shifts the rows,
 // so the row number is not the number of the resource.
 func (m Model) selectedIndex() (int, bool) {
@@ -445,7 +444,7 @@ func (m Model) back() (Model, tea.Cmd) {
 	}
 
 	// What the screen held on to is let go of before leaving it.
-	m = m.stopLogs()
+	m = m.closeStream()
 
 	m.screen = m.history[len(m.history)-1]
 	m.history = m.history[:len(m.history)-1]
@@ -453,14 +452,6 @@ func (m Model) back() (Model, tea.Cmd) {
 	m.list.marks = nil
 
 	arrived, cmd := m.arrive()
-
-	var read tea.Cmd
-
-	if arrived.screen.kind == screenJobLogs {
-		arrived, read = reloadJobLogs(arrived)
-	}
-
-	cmd = tea.Batch(cmd, read)
 
 	return arrived.returnTo(arrived.screen.left), cmd
 }
@@ -500,6 +491,10 @@ func letGo(msg tea.Msg) {
 		opened.stream.Close()
 	case fileMsg:
 		opened.stream.Close()
+	case jobLogOpenedMsg:
+		if opened.stream != nil {
+			opened.stream.Close()
+		}
 	}
 }
 
@@ -565,15 +560,6 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m.watch = m.watch.end()
 
 	return m, tea.Batch(m.fetch(), stream, m.watchScreen())
-}
-
-// stackText opens a screen that reads as text rather than as a list.
-func (m Model) stackText(next screen, text textModel) Model {
-	m = m.stack(next)
-	m.text = text
-	m.layout()
-
-	return m
 }
 
 // shortID keeps a UUID readable in a title.

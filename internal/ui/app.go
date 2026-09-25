@@ -157,8 +157,6 @@ type Model struct {
 	// troubled leaves only what the cluster is not happy with.
 	troubled bool
 
-	clusterData
-
 	// newer is a release of urga newer than this one, empty when there is
 	// none or it is not known. It is about urga, not the cluster: a switch
 	// keeps it.
@@ -168,11 +166,6 @@ type Model struct {
 	list list
 
 	text textModel
-	plan planState
-
-	// jobLogs are the logs of a task in every allocation that runs it.
-	// Not an answer of the cluster: requests held open, closed on leaving.
-	jobLogs jobLogsState
 
 	// asked counts the screens put up, so that an answer to one that is no
 	// longer up is dropped.
@@ -209,13 +202,6 @@ type Model struct {
 	// refused is a request the cluster refused before it said whose token
 	// the session sends.
 	refused error
-}
-
-// clusterData is what the cluster last said in the region the session asks
-// in, kept in one place so that leaving the region lets go of all of it.
-type clusterData struct {
-	// logPick is the question which task to read the logs of.
-	logPick logPick
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -329,14 +315,14 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case askMsg:
 		return m.ask(msg.question, msg.apply)
 
+	case requestMsg:
+		return m, askedFor(m.asked, tea.Cmd(msg))
+
 	case markMsg:
 		return mark(m)
 
 	case markAllMsg:
 		return markAll(m)
-
-	case jobLogsMsg:
-		return m.askLogScope(screen(msg))
 
 	case scaleMsg:
 		return m.askScale(nomad.TaskGroup(msg))
@@ -414,12 +400,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case describeMsg:
 		return m.showDescribe(msg)
 
-	case planMsg:
-		return m.showPlan(msg), nil
-
-	case planDoneMsg:
-		return m.finishPlan(msg), nil
-
 	case editFileMsg:
 		return m.startEdit(msg)
 
@@ -433,34 +413,11 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m.say(fmt.Sprintf("Shell in %s closed.", msg.task)), nil
 
-	case logStreamMsg, fileMsg:
+	case logStreamMsg, fileMsg, jobLogOpenedMsg:
 		// A stream no page took: the page it was opened for moved on.
 		letGo(msg)
 
 		return m, nil
-
-	case logLineMsg:
-		if allocID, ok := m.jobLogs.streams[msg.stream]; ok && m.screen.kind == screenJobLogs {
-			return m.appendJobLog(msg.stream, allocID, msg.text)
-		}
-
-		return m, nil
-
-	case logEndMsg:
-		if allocID, ok := m.jobLogs.streams[msg.stream]; ok {
-			return m.endJobLog(msg.stream, allocID), nil
-		}
-
-		return m, nil
-
-	case logScopeMsg:
-		return m.showLogScope(msg)
-
-	case jobLogOpenedMsg:
-		return m.openedJobLog(msg)
-
-	case jobLogAllocsMsg:
-		return m.reloadedJobLogs(msg)
 
 	case savedMsg:
 		return m.say(fmt.Sprintf("Saved to %s.", msg.path)), nil
@@ -557,7 +514,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.warn(fmt.Sprintf("read-only: %s is off", b.label)), nil
 	}
 
-	if next, cmd, handled := m.planButtonKey(msg); handled {
+	if next, cmd, handled := m.buttonKey(msg); handled {
 		return next, cmd
 	}
 
@@ -751,11 +708,11 @@ func (m Model) body(width int) (title, content string) {
 		}
 
 		// The question stays at the foot of the box, however short the plan.
-		if m.barRows() > 0 {
+		if bar := m.bar(width); len(bar) > 0 {
 			view := m.text.view()
 			gap := strings.Repeat("\n", max(m.text.height-strings.Count(view, "\n")-1, 0))
 
-			return m.title(), view + gap + "\n" + m.planBar(width)
+			return m.title(), view + gap + "\n" + strings.Join(bar, "\n")
 		}
 
 		return m.title(), m.text.view()

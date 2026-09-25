@@ -54,14 +54,6 @@ type textContent struct {
 	tags map[int]tag
 }
 
-// emptied is the same window with nothing in it: another text, read the way
-// this one was.
-func (t textModel) emptied() textModel {
-	t.textContent, t.top = textContent{}, 0
-
-	return t
-}
-
 // add puts lines read from a stream at the end, stamped with when they
 // arrived, behind a tag and in a style of their own when they have one.
 func (t *textContent) add(lines []string, arrived time.Time, label *tag, style *lipgloss.Style) {

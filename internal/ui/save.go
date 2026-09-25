@@ -51,10 +51,6 @@ func saveName(s screen) string {
 		what, extension = p.saveAs()
 	}
 
-	if s.kind == screenJobLogs {
-		what, extension = fmt.Sprintf("%s-%s-%s", s.jobID, s.task, s.source), "log"
-	}
-
 	return fmt.Sprintf("%s-%s.%s", plainName(what), time.Now().Format("20060102-150405"), extension)
 }
 

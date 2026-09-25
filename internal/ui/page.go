@@ -70,6 +70,9 @@ type env struct {
 	clusters    []string
 
 	namespaces []nomad.Namespace
+
+	// readOnly takes away every key that changes the cluster.
+	readOnly bool
 }
 
 // env is the session as the pages see it.
@@ -91,6 +94,7 @@ func (m Model) env() env {
 		cluster:     m.opts.Cluster,
 		clusters:    m.opts.Clusters,
 		namespaces:  m.namespaces,
+		readOnly:    m.opts.ReadOnly,
 	}
 }
 
@@ -238,6 +242,10 @@ type (
 		apply    tea.Cmd
 	}
 
+	// requestMsg is work for the screen that is up: what it answers is
+	// dropped once the screen is left, the way the answer to its fetch is.
+	requestMsg tea.Cmd
+
 	// markMsg takes the row under the cursor for an action, or lets it go;
 	// markAllMsg every row on the screen.
 	markMsg    struct{}
@@ -252,10 +260,6 @@ type (
 // What a page asks of the session that the session still does with code of
 // its own.
 type (
-	// jobLogsMsg reads the logs of the allocations a screen lists: which
-	// task, then that task in every allocation that runs it.
-	jobLogsMsg screen
-
 	// scaleMsg asks for the count of a group, and then whether to set it.
 	scaleMsg nomad.TaskGroup
 
@@ -316,6 +320,15 @@ type measured interface {
 // room rows.
 type panelled interface {
 	panel(e env, width, room int) []string
+}
+
+// buttoned is a page with a question at its foot: bar is the question and
+// its buttons, in the rows it takes. The buttons are chosen and pressed the
+// way the buttons of any question are, so their keys are the question's:
+// help names them, the header does not.
+type buttoned interface {
+	bar(e env, width int) []string
+	button(key string, e env) (page, outcome, bool)
 }
 
 // reader is a page that reads as text rather than as a list. The text is the

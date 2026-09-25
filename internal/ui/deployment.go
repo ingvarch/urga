@@ -292,9 +292,9 @@ func (deploymentPage) reading(ctx context.Context, client Client, ref rowRef) (n
 	return allocReading(ctx, client, ref)
 }
 
-// logScope: the logs are read of what the deployment placed for its job.
-func (p deploymentPage) logScope(env) screen {
-	return screen{kind: screenDeployment, namespace: p.namespace, jobID: p.jobID, deploymentID: p.deploymentID}
+// logsOf: the logs are read of what the deployment placed for its job.
+func (p deploymentPage) logsOf(env) logScope {
+	return logScope{namespace: p.namespace, jobID: p.jobID, deploymentID: p.deploymentID}
 }
 
 // inView is the deployment the page read.

@@ -619,16 +619,22 @@ func TestRegionCommand_LetsGoOfWhatTheRegionItLeftSaid(t *testing.T) {
 func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
 	r := require.New(t)
 
-	m := regionalModel(t, &fakeClient{})
+	m := regionalModel(t, &fakeClient{jobs: twoJobs(), allocs: webAllocs("server", "sidecar")})
+	m, _ = m.update(jobsMsg(twoJobs()))
 
-	// What the screens of eu held when they were left.
-	m.logPick = logPick{title: "Logs of which task?", choices: []logChoice{{task: "server"}}}
+	// What the screens of eu held when they were left: the tasks of web
+	// that run there.
+	m, cmd := m.update(key('l'))
+	m = drain(m, cmd)
+	r.Equal(screenLogTasks, m.screen.kind)
 
 	m, _ = runLine(m, "region us")
 
 	// A screen of us opened before us answers must not show eu under its
-	// name.
-	r.Zero(m.clusterData)
+	// name, nor go back to one that does.
+	r.Equal(screenJobs, m.screen.kind)
+	r.Empty(m.history)
+	r.NotContains(plain(m.render()), "frontend/sidecar")
 }
 
 func TestRegionCommand_LetsGoOfTheMarks(t *testing.T) {
