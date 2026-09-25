@@ -47,6 +47,10 @@ type env struct {
 	row   int
 	onRow bool
 
+	// marks are the resources an action is to take, by the ids the page
+	// names its rows with.
+	marks map[string]bool
+
 	// Where the session looks and what it can switch to: the region in use
 	// and the others, the datacenter the lists are narrowed to (empty is
 	// every one) and the choices, the cluster and those of the settings.
@@ -69,6 +73,7 @@ func (m Model) env() env {
 		namespace:   m.namespace,
 		row:         row,
 		onRow:       onRow,
+		marks:       m.list.marks,
 		region:      m.regionInUse(),
 		regions:     m.regions,
 		datacenter:  m.datacenter,
@@ -88,6 +93,33 @@ func pickedFrom[T any](e env, items []T) (T, bool) {
 	}
 
 	return items[e.row], true
+}
+
+// markedFrom are the items that carry a mark. A mark is on the resource,
+// not on the line it sits on, so a filter or a sort does not change what an
+// action takes. Without a mark anywhere, what the cursor is on is the
+// answer, which is how every action reads a list.
+func markedFrom[T any](e env, items []T, id func(T) string) []T {
+	out := []T{}
+
+	for _, item := range items {
+		if e.marks[id(item)] {
+			out = append(out, item)
+		}
+	}
+
+	// Marks that name nothing on this page any more leave the cursor to
+	// answer, rather than the key doing nothing at all.
+	if len(out) > 0 {
+		return out
+	}
+
+	one, ok := pickedFrom(e, items)
+	if !ok {
+		return nil
+	}
+
+	return []T{one}
 }
 
 // pageKey is one key a page answers. A page keeps a table of them typed by the
@@ -179,6 +211,22 @@ type (
 		question string
 		apply    tea.Cmd
 	}
+
+	// markMsg takes the row under the cursor for an action, or lets it go;
+	// markAllMsg every row on the screen.
+	markMsg    struct{}
+	markAllMsg struct{}
+)
+
+// What a page asks of the session that the session still does with code of
+// its own.
+type (
+	// jobLogsMsg reads the logs of the allocations a screen lists: which
+	// task, then that task in every allocation that runs it.
+	jobLogsMsg screen
+
+	// scaleMsg asks for the count of a group, and then whether to set it.
+	scaleMsg nomad.TaskGroup
 )
 
 // copyKey copies the value of the field under the cursor, on a page that
@@ -199,6 +247,23 @@ func copyKey[P page]() pageKey[P] {
 // copying puts a value on the clipboard and says whose it is.
 func copying(field, value string) outcome {
 	return outcome{now: []tea.Msg{sayMsg(sprintf("Copied %s.", field))}, cmd: tea.SetClipboard(value)}
+}
+
+// markKey and markAllKey take rows for an action, on a page whose rows name
+// what they show.
+func markKey[P page]() pageKey[P] {
+	return pageKey[P]{press: "space", label: "Mark", do: func(p P, _ env) (P, outcome) { return p, then(markMsg{}) }}
+}
+
+func markAllKey[P page]() pageKey[P] {
+	return pageKey[P]{press: "ctrl+a", label: "Mark All", do: func(p P, _ env) (P, outcome) { return p, then(markAllMsg{}) }}
+}
+
+// marking is a page whose rows can be marked: ids name the resource of each
+// row, in the order of the rows, so that a mark belongs to the resource and
+// not to the line it sits on.
+type marking interface {
+	ids(e env) []string
 }
 
 // panelled is a page with something to say above its rows, in no more than

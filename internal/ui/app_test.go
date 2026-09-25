@@ -269,14 +269,14 @@ func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.
 	return f.nodeAllocs, f.err
 }
 
-func (f *fakeClient) JobVersions(_ context.Context, _, jobID string) ([]nomad.JobVersion, error) {
-	f.askedJobID = jobID
+func (f *fakeClient) JobVersions(_ context.Context, namespace, jobID string) ([]nomad.JobVersion, error) {
+	f.askedNamespace, f.askedJobID = namespace, jobID
 
 	return f.versions, f.err
 }
 
-func (f *fakeClient) JobVersionDiff(_ context.Context, _, jobID string, version uint64) ([]nomad.DiffLine, error) {
-	f.askedJobID, f.askedVersion = jobID, version
+func (f *fakeClient) JobVersionDiff(_ context.Context, namespace, jobID string, version uint64) ([]nomad.DiffLine, error) {
+	f.askedNamespace, f.askedJobID, f.askedVersion = namespace, jobID, version
 
 	return f.diff, f.diffErr
 }

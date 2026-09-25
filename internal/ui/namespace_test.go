@@ -119,8 +119,9 @@ func TestNamespaceKeys_DropTheAnswerAskedBefore(t *testing.T) {
 	m, _ = m.update(late())
 
 	// They must not stand under the name of staging.
-	r.Empty(m.jobs)
-	r.NotContains(plain(m.render()), "cron")
+	out := plain(m.render())
+	r.Contains(out, "Jobs (staging) [0]")
+	r.NotContains(out, "cron")
 }
 
 func TestNamespaceState_KeysAndNames(t *testing.T) {

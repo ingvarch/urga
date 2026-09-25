@@ -215,12 +215,9 @@ type Model struct {
 // clusterData is what the cluster last said in the region the session asks
 // in, kept in one place so that leaving the region lets go of all of it.
 type clusterData struct {
-	jobs        []nomad.Job
 	allocs      []nomad.Alloc
-	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
 	nodes       []nomad.Node
-	versions    []nomad.JobVersion
 
 	// host is the machine a client screen is open on, and the readings
 	// taken of it since it was opened.
@@ -257,9 +254,9 @@ func New(client Client, opts Options) Model {
 		client:    client,
 		opts:      opts,
 		namespace: opts.Namespace,
-		screen:    screen{kind: screenJobs, namespace: opts.Namespace},
 		list:      newList(jobTitles),
 	}
+	m.screen = m.screenOf(screenJobs)
 
 	return m.restore()
 }
@@ -338,6 +335,18 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case askMsg:
 		return m.ask(msg.question, msg.apply)
 
+	case markMsg:
+		return mark(m)
+
+	case markAllMsg:
+		return markAll(m)
+
+	case jobLogsMsg:
+		return m.askLogScope(screen(msg))
+
+	case scaleMsg:
+		return m.askScale(nomad.TaskGroup(msg))
+
 	case switchRegionMsg:
 		return m.switchRegion(string(msg))
 
@@ -350,17 +359,11 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case tokenMsg:
 		return m.keepToken(msg), nil
 
-	case jobsMsg:
-		return m.applyList(screenJobs, func(m *Model) { m.jobs = m.jobsInView(msg) })
-
 	case allocsMsg:
 		return hostOnce(usageOnce(m.applyWhen(m.screen.listsAllocs(), func(m *Model) { m.allocs = msg })))
 
 	case allocMsg:
 		return m.keepAllocation(nomad.Alloc(msg))
-
-	case taskGroupsMsg:
-		return m.applyList(screenTaskGroups, func(m *Model) { m.groups = msg })
 
 	case deploymentsMsg:
 		return m.applyList(screenDeployments, func(m *Model) { m.deployments = msg })
@@ -491,10 +494,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		// The list is stale the moment the cluster changed, ask again.
 		return m, m.fetch()
-
-	case versionsMsg:
-		return m.applyWhen(m.screen.kind == screenJobVersions && m.screen.jobID == msg.jobID,
-			func(m *Model) { m.versions = msg.versions })
 
 	case nodeDetailMsg:
 		// The answer belongs to the machine it was asked of: leaving one
@@ -885,12 +884,7 @@ func (m *Model) layout() {
 	m.text.filter = m.list.filter
 	m.text.follow()
 
-	var ids []string
-	if res := m.screen.of(); res.ids != nil {
-		ids = res.ids(*m)
-	}
-
-	m.list = m.list.read(m.rows(), m.screen.titles(), ids, m.troubled)
+	m.list = m.list.read(m.rows(), m.screen.titles(), m.ids(), m.troubled)
 }
 
 // schedulePoll asks for the next poll, unless one is already on its way.
