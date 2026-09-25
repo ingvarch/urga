@@ -319,7 +319,6 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 		screenJobs:        {nomad.TopicJob},
 		screenAllocations: {nomad.TopicAllocation},
 		screenNode:        {nomad.TopicAllocation},
-		screenDeployment:  {nomad.TopicAllocation, nomad.TopicDeployment},
 		screenDeployments: {nomad.TopicDeployment},
 		screenEvaluations: {nomad.TopicEvaluation},
 		screenNodes:       {nomad.TopicNode},

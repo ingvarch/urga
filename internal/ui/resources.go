@@ -8,41 +8,6 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-var deploymentTitles = []string{"ID", "JobID", "Namespace", "Version", "Status", "Description"}
-
-func deploymentRows(deployments []nomad.Deployment) []tableRow {
-	rows := make([]tableRow, 0, len(deployments))
-
-	for _, d := range deployments {
-		rows = append(rows, tableRow{
-			cells: []string{
-				shortID(d.ID),
-				d.JobID,
-				d.Namespace,
-				fmt.Sprintf("%d", d.JobVersion),
-				d.Status,
-				d.StatusDescription,
-			},
-			color: deploymentColor(d),
-		})
-	}
-
-	return rows
-}
-
-func deploymentColor(d nomad.Deployment) color.Color {
-	switch d.Status {
-	case "running":
-		return colorPending
-	case "failed", "cancelled":
-		return colorDead
-	case "successful":
-		return nil
-	}
-
-	return nil
-}
-
 var nodeTitles = []string{"ID", "Name", "Datacenter", "Pool", "Version", "Status", "Eligibility", "Drain", "CPU", "MEM", "Address"}
 
 func nodeRows(nodes []nomad.Node, usage map[string]nomad.ResourceUse) []tableRow {

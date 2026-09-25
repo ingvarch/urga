@@ -189,3 +189,204 @@ func TestDeploymentPanel_ADeploymentThatIsOver(t *testing.T) {
 		r.NotContains(line, "in 4m")
 	}
 }
+
+// pausedCron is a deployment of cron that someone paused.
+func pausedCron() nomad.Deployment {
+	return nomad.Deployment{
+		ID: "7e8f9a0b-0000-0000-0000-000000000000", JobID: "cron", Namespace: "production", JobVersion: 3,
+		Status: "paused", StatusDescription: "Deployment is paused",
+	}
+}
+
+// onDeployments is the list of deployments opened by name: web waits for
+// its canary, cron is paused.
+func onDeployments(t *testing.T, client *fakeClient) Model {
+	t.Helper()
+
+	client.deployments = []nomad.Deployment{waitingCanary().Deployment, pausedCron()}
+
+	m, cmd := runLine(newTestModel(client), "deployments")
+
+	return drain(m, cmd)
+}
+
+func TestDeployments_TheList(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m := onDeployments(t, client)
+
+	// Those of the namespace the session looks at.
+	r.Equal("production", client.askedNamespace)
+	r.Contains(plain(m.render()), "Deployments (production) [2]")
+	r.Equal([]string{"ID", "JobID", "Namespace", "Version", "Status", "Description"}, m.screen.titles())
+	r.Equal([]string{nomad.TopicDeployment}, m.screen.topics())
+
+	r.Regexp(`^\s*5d1a2b3c\s+web\s+production\s+7\s+running\s+Deployment is running but requires manual promotion`, fileRow(t, m, 0))
+	r.Regexp(`^\s*7e8f9a0b\s+cron\s+production\s+3\s+paused\s+Deployment is paused`, fileRow(t, m, 1))
+}
+
+func TestDeployments_TheKeysOfTheList(t *testing.T) {
+	r := require.New(t)
+
+	m := onDeployments(t, &fakeClient{})
+
+	keys := func(m Model) []string {
+		out := []string{}
+		for _, b := range m.keys() {
+			out = append(out, b.press+" "+b.label)
+		}
+
+		return out
+	}
+
+	// The key that pauses says what it does to the deployment under the
+	// cursor.
+	r.Equal([]string{"enter Details", "d Describe", "p Promote", "f Fail", "ctrl+s Pause"}, keys(m))
+
+	m, _ = m.update(down())
+	r.Equal([]string{"enter Details", "d Describe", "p Promote", "f Fail", "ctrl+s Resume"}, keys(m))
+}
+
+func TestDeployments_DescribeTheOneUnderTheCursor(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{describe: "Deployment of cron, as the cluster describes it"}
+	m := onDeployments(t, client)
+
+	m, _ = m.update(down())
+	m, cmd := m.update(key('d'))
+	m = drain(m, cmd)
+
+	r.Equal(screenDescribe, m.screen.kind)
+	r.Equal("7e8f9a0b-0000-0000-0000-000000000000", client.askedID)
+	r.Equal("production", client.askedNamespace)
+
+	out := plain(m.render())
+	r.Contains(out, "Deployment: 7e8f9a0b")
+	r.Contains(out, "as the cluster describes it")
+}
+
+func TestDeployments_FollowTheSession(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m := onDeployments(t, client)
+	m, _ = m.update(namespacesMsg(twoNamespaces()))
+
+	m, cmd := m.update(key('2'))
+	m = drain(m, cmd)
+
+	// Opened by name, they are those of the namespace the session looks at.
+	r.Equal("staging", client.askedNamespace)
+	r.Contains(plain(m.render()), "Deployments (staging) [2]")
+}
+
+func TestDeployments_BackFromADeploymentToTheRowItWasOpenedFrom(t *testing.T) {
+	r := require.New(t)
+
+	m := onDeployments(t, &fakeClient{deploymentAllocs: canaryAllocs()})
+
+	m, _ = m.update(down())
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	r.Contains(plain(m.render()), "Deployment 7e8f9a0b (Job: cron)")
+
+	// A list of deployments that arrives meanwhile is not the screen's.
+	m, _ = m.update(deploymentsMsg([]nomad.Deployment{{ID: "another", JobID: "batch"}}))
+	r.Contains(plain(m.render()), "Deployment 7e8f9a0b (Job: cron)")
+
+	m, _ = m.update(escape())
+
+	// The list holds the rows it had, with the cursor where it was.
+	r.Contains(plain(m.render()), "Deployments (production) [2]")
+	r.Equal("7e8f9a0b", cursorName(m))
+}
+
+func TestDeployment_StaysInItsNamespace(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{changes: newChanges()}
+	m := onDeployment(t, client)
+	m.namespaceOrder = []string{"production", "staging"}
+
+	m, cmd := m.update(key('2'))
+	m = playOut(m, cmd)
+
+	// The deployment lives in production: it and what it placed are asked
+	// for, and watched, there.
+	r.Equal("staging", m.namespace)
+	r.Contains(plain(m.render()), "Deployment 5d1a2b3c (Job: web) [2]")
+	r.Equal("production", client.deploymentNamespace)
+	r.Equal("production", client.watchedNamespace)
+}
+
+func TestDeployment_NoPanelNorKeysOfItsOwnUntilItIsRead(t *testing.T) {
+	r := require.New(t)
+
+	// The cluster answers with the allocations, not yet with the
+	// deployment.
+	client := &fakeClient{deploymentAllocs: canaryAllocs()}
+	m := onDeployments(t, client)
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	// The columns of the allocations come right under the title of the box.
+	title, header := -1, -1
+
+	for i, row := range lines(m.render()) {
+		if strings.Contains(row, "Deployment 5d1a2b3c (Job: web) [2]") {
+			title = i
+		}
+
+		if strings.Contains(row, "Canary") && strings.Contains(row, "Health") {
+			header = i
+		}
+	}
+
+	r.Positive(title)
+	r.Equal(title+1, header)
+
+	for _, press := range []string{"p", "ctrl-p", "f", "ctrl-s"} {
+		r.False(offers(m, press), press)
+	}
+
+	r.True(offers(m, "r"))
+}
+
+func TestDeployment_ReadsWhatItsAllocationsTake(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{use: map[string]nomad.ResourceUse{
+		"9a1b2c3d-0000-0000-0000-000000000000": {CPUPercent: 42, CPUTicksAllowed: 500, MemoryPercent: 17, MemoryMBAllowed: 256},
+	}}
+	m := onDeployment(t, client)
+
+	m = drain(m, m.fetchUsage())
+
+	// Each is asked where it lives.
+	r.Equal("production", client.usageNamespace)
+	r.Contains(fileRow(t, m, 0), "42%")
+	r.Contains(fileRow(t, m, 0), "17%")
+}
+
+func TestDeployment_IsAskedWhereItLives(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{deployment: waitingCanary(), deploymentAllocs: canaryAllocs(), changes: newChanges()}
+	m := onDeployments(t, client)
+
+	// The session looks at every namespace; the deployment lives in
+	// production.
+	m, cmd := m.update(key('0'))
+	m = drain(m, cmd)
+
+	m, cmd = m.update(enter())
+	drain(m, cmd)
+
+	r.Equal("production", client.deploymentNamespace)
+
+	m.update(m.watchScreen()())
+	r.Equal("production", client.watchedNamespace)
+}

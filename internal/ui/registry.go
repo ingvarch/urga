@@ -154,25 +154,6 @@ func init() {
 			rows: allocListRows,
 		},
 
-		// The allocations of a deployment sit under its groups, and say
-		// what the deployment made of each of them.
-		screenDeployment: {
-			titles:   deploymentAllocTitles,
-			keys:     deploymentScreenBindings,
-			ids:      allocIDs,
-			topics:   []string{nomad.TopicAllocation, nomad.TopicDeployment},
-			readings: allocReadings,
-			reading:  allocReading,
-
-			title: func(m Model, count int) string {
-				return sprintf("Deployment %s (Job: %s) [%d]", shortID(m.screen.deploymentID), m.screen.jobID, count)
-			},
-			fetch: func(m Model) tea.Cmd {
-				return tea.Batch(fetchAllocs(m), fetchDeployment(m.client, m.screen))
-			},
-			rows: func(m Model) []tableRow { return deploymentAllocRows(m.allocs, m.usage.rows) },
-		},
-
 		screenLogTasks: {
 			titles: logTaskTitles,
 			keys:   logTaskBindings,
@@ -197,20 +178,9 @@ func init() {
 		},
 
 		screenDeployments: {
-			name:    "Deployments",
 			stored:  "deployments",
 			aliases: []string{"deployments", "deployment", "dp"},
-			titles:  deploymentTitles,
-			keys:    deploymentBindings,
-			topics:  []string{nomad.TopicDeployment},
-			fetch: func(m Model) tea.Cmd {
-				client, namespace := m.client, m.namespace
-
-				return fetchList(func(ctx context.Context) ([]nomad.Deployment, error) {
-					return client.Deployments(ctx, namespace)
-				}, func(items []nomad.Deployment) tea.Msg { return deploymentsMsg(items) })
-			},
-			rows: func(m Model) []tableRow { return deploymentRows(m.deployments) },
+			open:    func() page { return deploymentsPage{} },
 		},
 
 		screenServices: {

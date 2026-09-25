@@ -215,9 +215,8 @@ type Model struct {
 // clusterData is what the cluster last said in the region the session asks
 // in, kept in one place so that leaving the region lets go of all of it.
 type clusterData struct {
-	allocs      []nomad.Alloc
-	deployments []nomad.Deployment
-	nodes       []nomad.Node
+	allocs []nomad.Alloc
+	nodes  []nomad.Node
 
 	// host is the machine a client screen is open on, and the readings
 	// taken of it since it was opened.
@@ -230,9 +229,6 @@ type clusterData struct {
 
 	// dir is the directory of an allocation the files screen last listed.
 	dir dirState
-
-	// deployment is the deployment a deployment screen last read.
-	deployment nomad.DeploymentDetail
 
 	// logPick is the question which task to read the logs of.
 	logPick logPick
@@ -373,9 +369,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case allocsMsg:
 		return hostOnce(usageOnce(m.applyWhen(m.screen.listsAllocs(), func(m *Model) { m.allocs = msg })))
-
-	case deploymentsMsg:
-		return m.applyList(screenDeployments, func(m *Model) { m.deployments = msg })
 
 	case namespacesMsg:
 		// The namespaces are kept whatever is on the screen: the command
@@ -521,9 +514,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case pollHostMsg:
 		return m.pollHost()
-
-	case deploymentMsg:
-		return m.keepDeployment(msg)
 
 	case newerReleaseMsg:
 		return m.keepRelease(msg)

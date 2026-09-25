@@ -155,3 +155,116 @@ func offersLabel(m Model, press, label string) bool {
 
 	return false
 }
+
+func TestDeployments_PromoteFromTheList(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m := onDeployments(t, client)
+
+	m, _ = m.update(key('p'))
+	r.Contains(plain(m.render()), "Really promote the canaries of every group of web?")
+
+	m = confirmed(t, m)
+
+	r.Equal(1, client.promoted)
+	r.Equal("5d1a2b3c-0000-0000-0000-000000000000", client.askedID)
+	r.Equal("production", client.askedNamespace)
+	r.Contains(plain(m.render()), "Deployment of web promoted.")
+}
+
+func TestDeployments_FailFromTheList(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m := onDeployments(t, client)
+
+	m, _ = m.update(key('f'))
+	r.Contains(plain(m.render()), "Really fail the deployment of web? It rolls back where the job says to.")
+
+	m = confirmed(t, m)
+
+	r.Equal(1, client.failed)
+	r.Equal("5d1a2b3c-0000-0000-0000-000000000000", client.askedID)
+	r.Equal("production", client.askedNamespace)
+	r.Contains(plain(m.render()), "Deployment of web failed.")
+}
+
+func TestDeployments_ResumeFromTheList(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m := onDeployments(t, client)
+
+	m, _ = m.update(down())
+	m, _ = m.update(ctrl('s'))
+	r.Contains(plain(m.render()), "Really resume the deployment of cron?")
+
+	m = confirmed(t, m)
+
+	r.Equal([]bool{false}, client.paused)
+	r.Equal("7e8f9a0b-0000-0000-0000-000000000000", client.askedID)
+	r.Contains(plain(m.render()), "Deployment of cron resumed.")
+}
+
+func TestDeployment_DescribeTheAllocationUnderTheCursor(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{describe: "{}"}
+	m := onDeployment(t, client)
+
+	m, cmd := m.update(key('d'))
+	m = drain(m, cmd)
+
+	r.Equal(screenDescribe, m.screen.kind)
+	r.Equal("9a1b2c3d-0000-0000-0000-000000000000", client.askedID)
+	r.Equal("production", client.askedNamespace)
+	r.Contains(plain(m.render()), "Allocation: 9a1b2c3d")
+}
+
+func TestDeployment_RestartTheMarkedAllocations(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m := onDeployment(t, client)
+
+	m, _ = m.update(ctrl('a'))
+	m, _ = m.update(key('r'))
+	r.Contains(plain(m.render()), "Really restart 2 allocations?")
+
+	confirmed(t, m)
+
+	r.Equal(2, client.restarted)
+}
+
+func TestDeployment_StopTheAllocationUnderTheCursor(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m := onDeployment(t, client)
+
+	m, _ = m.update(key('j'))
+	m, _ = m.update(ctrl('k'))
+	r.Contains(plain(m.render()), "Really stop the allocation 4f2a1c9e?")
+
+	confirmed(t, m)
+
+	r.Equal(1, client.stoppedAllocs)
+	r.Equal("4f2a1c9e-0000-0000-0000-000000000000", client.askedID)
+}
+
+func TestDeployment_TheLogsOfWhatItPlaced(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m := onDeployment(t, client)
+	client.deploymentID = ""
+
+	m, cmd := m.update(key('l'))
+	m = drain(m, cmd)
+
+	// The allocations of the deployment are read again, and only what runs
+	// a task of the job has logs.
+	r.Equal("5d1a2b3c-0000-0000-0000-000000000000", client.deploymentID)
+	r.Contains(plain(m.render()), "web has no allocation running")
+}

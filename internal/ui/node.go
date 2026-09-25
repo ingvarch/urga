@@ -106,41 +106,6 @@ func bothWays[T any](items []T, yes func(T) bool, whenYes, whenNo, whenBoth stri
 	return whenNo
 }
 
-// promoteDeployment takes the canaries of every group of the deployment in
-// view into service.
-func promoteDeployment(m Model) (Model, tea.Cmd) {
-	deployment, ok := m.deploymentInView()
-	if !ok {
-		return m, nil
-	}
-
-	client := m.client
-
-	return m.ask(
-		fmt.Sprintf("Really promote the canaries of every group of %s?", deployment.JobID),
-		act(fmt.Sprintf("Deployment of %s promoted.", deployment.JobID), func(ctx context.Context) error {
-			return client.PromoteDeployment(ctx, deployment.Namespace, deployment.ID)
-		}),
-	)
-}
-
-// failDeployment stops a deployment where it is.
-func failDeployment(m Model) (Model, tea.Cmd) {
-	deployment, ok := m.deploymentInView()
-	if !ok {
-		return m, nil
-	}
-
-	client := m.client
-
-	return m.ask(
-		fmt.Sprintf("Really fail the deployment of %s? It rolls back where the job says to.", deployment.JobID),
-		act(fmt.Sprintf("Deployment of %s failed.", deployment.JobID), func(ctx context.Context) error {
-			return client.FailDeployment(ctx, deployment.Namespace, deployment.ID)
-		}),
-	)
-}
-
 var (
 	nodeBindings = []binding{
 		{press: "enter", label: "Allocations", do: openClient},
@@ -149,24 +114,4 @@ var (
 		{press: "space", label: "Mark", do: mark},
 		{press: "ctrl+a", label: "Mark All", do: markAll},
 	}
-
-	deploymentBindings = []binding{
-		{press: "enter", label: "Details", do: openDeployment},
-		{press: "d", label: "Describe", do: describeDeployment},
-		{press: "p", label: "Promote", do: promoteDeployment, writes: true},
-		{press: "f", label: "Fail", do: failDeployment, writes: true},
-		{press: "ctrl+s", label: "Pause", do: pauseDeployment, writes: true, offered: deploymentIs("running")},
-		{press: "ctrl+s", label: "Resume", do: pauseDeployment, writes: true, offered: deploymentIs("paused")},
-	}
-
-	// deploymentScreenBindings are the keys of a deployment screen: what
-	// the deployment can do, then what its allocations can, the way a
-	// client screen puts the machine first.
-	deploymentScreenBindings = append([]binding{
-		{press: "p", label: "Promote Group", do: promoteGroup, writes: true, offered: groupWaitsHere},
-		{press: "ctrl+p", label: "Promote All", do: promoteDeployment, writes: true, offered: someGroupWaits},
-		{press: "f", label: "Fail", do: failDeployment, writes: true, offered: deploymentActive},
-		{press: "ctrl+s", label: "Pause", do: pauseDeployment, writes: true, offered: deploymentIs("running")},
-		{press: "ctrl+s", label: "Resume", do: pauseDeployment, writes: true, offered: deploymentIs("paused")},
-	}, allocBindings...)
 )

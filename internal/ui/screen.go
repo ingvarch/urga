@@ -102,7 +102,7 @@ type place struct {
 // listsAllocs says the screen is a list of allocations that is not a page
 // yet, which answers the keys of an allocation whatever it was opened for.
 func (s screen) listsAllocs() bool {
-	return s.kind == screenNode || s.kind == screenDeployment
+	return s.kind == screenNode
 }
 
 // titles are the columns of a screen.
