@@ -34,6 +34,28 @@ func TestGiven(t *testing.T) {
 	r.True(given(flagsFrom(t, "-namespace", "from-env"), "namespace"))
 }
 
+func TestParseFlags(t *testing.T) {
+	r := require.New(t)
+
+	cl, err := parseFlags([]string{"-version", "-cluster", "prod", "-address", "http://10.0.0.9:4646",
+		"-region", "us", "-namespace", "batch", "-readonly"})
+	r.NoError(err)
+
+	r.True(cl.version)
+	r.Equal("prod", cl.cluster)
+	r.Equal("http://10.0.0.9:4646", cl.address)
+	r.Equal("us", cl.region)
+	r.Equal("batch", cl.namespace)
+	r.True(cl.namespaceGiven)
+	r.True(cl.readOnly)
+}
+
+func TestParseFlags_Help(t *testing.T) {
+	// run exits quietly on help, so the error has to come back as it is.
+	_, err := parseFlags([]string{"-h"})
+	require.ErrorIs(t, err, flag.ErrHelp)
+}
+
 // twoClusters are the settings of a user with a dev and a prod cluster.
 func twoClusters() settings.Settings {
 	return settings.Settings{
