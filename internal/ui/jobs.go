@@ -36,6 +36,7 @@ func jobRows(jobs []nomad.Job) []tableRow {
 				fmt.Sprintf("%d/%d", job.Running, job.Desired),
 				ageOf(job.SubmitTime),
 			},
+			ages:  moments{6: job.SubmitTime},
 			color: jobColor(job),
 		})
 	}

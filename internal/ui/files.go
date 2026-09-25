@@ -189,7 +189,7 @@ func fileRows(files []nomad.File) []tableRow {
 	rows := make([]tableRow, 0, len(files))
 
 	for _, f := range files {
-		row := tableRow{cells: []string{f.Name, sizeOf(f.Size), ageOf(f.Modified)}}
+		row := tableRow{cells: []string{f.Name, sizeOf(f.Size), ageOf(f.Modified)}, ages: moments{2: f.Modified}}
 
 		switch {
 		case f.Name == parentDir:

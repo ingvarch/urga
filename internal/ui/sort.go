@@ -3,7 +3,6 @@ package ui
 import (
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 	"unicode"
 
@@ -68,7 +67,8 @@ func sortRows(rows []tableRow, index []int, state sortState, titles []string) ([
 		return rows, index
 	}
 
-	byTime := isDurationColumn(titles[state.column])
+	byTime := holdsAges(rows, state.column)
+	now := time.Now()
 
 	order := make([]int, len(rows))
 	for i := range order {
@@ -76,18 +76,17 @@ func sortRows(rows []tableRow, index []int, state sortState, titles []string) ([
 	}
 
 	sort.SliceStable(order, func(a, b int) bool {
-		left := cellAt(rows[order[a]], state.column)
-		right := cellAt(rows[order[b]], state.column)
+		left, right := rows[order[a]], rows[order[b]]
 
 		if state.desc {
 			left, right = right, left
 		}
 
 		if byTime {
-			return durationOf(left) < durationOf(right)
+			return ageIn(left, state.column, now) < ageIn(right, state.column, now)
 		}
 
-		return naturalLess(left, right)
+		return naturalLess(cellAt(left, state.column), cellAt(right, state.column))
 	})
 
 	sortedRows := make([]tableRow, len(rows))
@@ -112,43 +111,27 @@ func cellAt(row tableRow, column int) string {
 	return ansi.Strip(row.cells[column])
 }
 
-// isDurationColumn says whether the column holds an age, where the text lies
-// about the order: "2d" reads before "5h" and is older.
-func isDurationColumn(title string) bool {
-	switch title {
-	case "Age", "Modified", "Started":
-		return true
+// holdsAges says whether a column shows ages, which the rows know from how
+// they were built.
+func holdsAges(rows []tableRow, column int) bool {
+	for _, row := range rows {
+		if _, ok := row.ages[column]; ok {
+			return true
+		}
 	}
 
 	return false
 }
 
-// durationOf reads back what the age columns write.
-func durationOf(value string) time.Duration {
-	value = strings.TrimSpace(value)
-	if value == "" || value == "-" {
+// ageIn is how long ago the moment behind a cell was. A cell with no moment
+// reads "-" or nothing, and counts as new.
+func ageIn(row tableRow, column int, now time.Time) time.Duration {
+	moment := row.ages[column]
+	if moment.IsZero() {
 		return 0
 	}
 
-	unit := value[len(value)-1]
-
-	number, err := strconv.Atoi(value[:len(value)-1])
-	if err != nil {
-		return 0
-	}
-
-	switch unit {
-	case 's':
-		return time.Duration(number) * time.Second
-	case 'm':
-		return time.Duration(number) * time.Minute
-	case 'h':
-		return time.Duration(number) * time.Hour
-	case 'd':
-		return time.Duration(number) * 24 * time.Hour
-	}
-
-	return 0
+	return now.Sub(moment)
 }
 
 // naturalLess compares the way a person reads: the digits in a value count as

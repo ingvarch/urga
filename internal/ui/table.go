@@ -3,6 +3,7 @@ package ui
 import (
 	"image/color"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -22,9 +23,15 @@ const (
 // that an action is to take it along with the others.
 type tableRow struct {
 	cells  []string
+	ages   moments
 	color  color.Color
 	marked bool
 }
+
+// moments are what the age cells of a row count from, by column. The list is
+// ordered by them: the text of an age lies about the order, "2d" reads before
+// "5h" and is older.
+type moments map[int]time.Time
 
 // tableModel is the list every screen shows: a header, rows, a cursor and a
 // window that follows it.
