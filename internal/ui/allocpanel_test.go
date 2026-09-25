@@ -223,3 +223,18 @@ func TestTasks_ThePanelKeepsWhatFits(t *testing.T) {
 	r.Contains(out, "sidecar")
 	r.Len(lines(out), 18)
 }
+
+func TestFitPanel_LeavesTheHeadItWasGiven(t *testing.T) {
+	r := require.New(t)
+
+	// A head with room behind it: what the panel adds must not land in the
+	// slice of whoever built the head.
+	backing := []string{"status", "kept"}
+	head := backing[:1]
+
+	// An empty block adds no rows, only the line of air under the head.
+	rows := fitPanel(head, panelBlock{}, 10)
+
+	r.Equal([]string{"status", "kept"}, backing)
+	r.Equal("status", rows[0])
+}
