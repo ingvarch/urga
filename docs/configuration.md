@@ -21,6 +21,7 @@ you can add an optional settings file. See [Named clusters](clusters.md).
 | `NOMAD_CLIENT_KEY` | Key of the client certificate. |
 | `NOMAD_TLS_SERVER_NAME` | Server name used to verify the certificate. |
 | `NOMAD_SKIP_VERIFY` | Set to `true` to skip certificate verification. |
+| `URGA_NO_UPDATE_CHECK` | Set to any value to stop urga from checking for a newer release. See [Newer releases](#newer-releases). |
 
 ## Flags
 
@@ -82,6 +83,27 @@ line says which token it refused: `Permission denied: deploy-bot may not do
 this`, `Permission denied: no token is set` or `Permission denied: the token
 is not valid`. For a management token, urga shows the error of the cluster
 as it is.
+
+## Newer releases
+
+When a newer release of urga is out, the header says so next to the version:
+
+```
+Urga Rev:  v0.5.0 (40f73c8) ↑ v0.5.1
+```
+
+urga asks GitHub for the latest release when it starts, and then once a day
+while it runs. The request goes to `api.github.com` and says nothing about
+your cluster. If GitHub cannot be reached within 3 seconds, urga shows
+nothing and asks again the next day.
+
+A build from source, such as `dev` or `v0.5.0-3-gabc1234`, does not ask.
+
+To turn the check off, set `URGA_NO_UPDATE_CHECK` to any value:
+
+```sh
+export URGA_NO_UPDATE_CHECK=1
+```
 
 ## Editor
 

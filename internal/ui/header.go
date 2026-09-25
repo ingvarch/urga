@@ -47,6 +47,7 @@ type header struct {
 	region       string
 	datacenter   string
 	version      string
+	newer        string
 	nomadVersion string
 	usage        string
 	memory       string
@@ -128,7 +129,7 @@ type infoRow struct {
 
 	// mark follows the value, which is cut at the width of the column
 	// as ever: the column grows by the mark instead of the value
-	// giving way to it.
+	// giving way to it. It comes styled.
 	mark string
 
 	// paint is the colour of the value, nil for the colour of values.
@@ -141,7 +142,7 @@ func infoColumn(h header, width int) string {
 		where(h),
 		{label: "Region:", value: orUnknown(h.region)},
 		{label: "DC:", value: orEvery(h.datacenter)},
-		{label: "Urga Rev:", value: h.version},
+		{label: "Urga Rev:", value: h.version, mark: newerMark(h.newer)},
 		{label: "Nomad Rev:", value: orUnknown(h.nomadVersion)},
 		{label: "CPU:", value: orUnknown(h.usage)},
 		{label: "MEM:", value: orUnknown(h.memory)},
@@ -155,7 +156,7 @@ func infoColumn(h header, width int) string {
 			style = lipgloss.NewStyle().Foreground(row.paint)
 		}
 
-		value := style.Render(truncate(row.value, max(width-labelWidth, 1))) + styleWarn.Render(row.mark)
+		value := style.Render(truncate(row.value, max(width-labelWidth, 1))) + row.mark
 
 		out = append(out, label+value)
 	}
@@ -181,7 +182,16 @@ func readOnlyMark(readOnly bool) string {
 		return ""
 	}
 
-	return " read-only"
+	return styleWarn.Render(" read-only")
+}
+
+// newerMark says, next to the version, that a newer urga is out.
+func newerMark(newer string) string {
+	if newer == "" {
+		return ""
+	}
+
+	return styleNewer.Render(" ↑ " + newer)
 }
 
 // namespaceColumn is the list of namespaces a number key switches to. The one

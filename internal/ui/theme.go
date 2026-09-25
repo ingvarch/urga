@@ -69,6 +69,9 @@ var (
 	styleDestructive = lipgloss.NewStyle().Foreground(colorAttention)
 	styleCanary      = lipgloss.NewStyle().Foreground(colorCanary)
 
+	// styleNewer is a newer release of urga, next to the version.
+	styleNewer = lipgloss.NewStyle().Foreground(colorBlue).Bold(true)
+
 	styleTableHeader = lipgloss.NewStyle().Foreground(colorAccent)
 
 	// styleMatch lights up what a filter matched inside a line of text.

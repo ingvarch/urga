@@ -183,3 +183,29 @@ func TestConnect_AClusterThatIsNotThere(t *testing.T) {
 	_, err = connectWith(cl, twoClusters())("stage")
 	require.ErrorContains(t, err, `no cluster "stage"`)
 }
+
+// environment is a set of variables as the process would read them.
+func environment(vars map[string]string) func(string) string {
+	return func(name string) string { return vars[name] }
+}
+
+func TestNewerRelease_OnlyARelease(t *testing.T) {
+	r := require.New(t)
+
+	none := environment(nil)
+
+	r.NotNil(newerRelease(none, "v0.5.0"))
+
+	// A build from source has no release to be behind.
+	r.Nil(newerRelease(none, "dev"))
+	r.Nil(newerRelease(none, "v0.5.0-3-gabc1234-dirty"))
+}
+
+func TestNewerRelease_TurnedOff(t *testing.T) {
+	r := require.New(t)
+
+	// Any value turns it off, the way NO_COLOR does.
+	r.Nil(newerRelease(environment(map[string]string{"URGA_NO_UPDATE_CHECK": "1"}), "v0.5.0"))
+	r.Nil(newerRelease(environment(map[string]string{"URGA_NO_UPDATE_CHECK": "yes"}), "v0.5.0"))
+	r.NotNil(newerRelease(environment(map[string]string{"URGA_NO_UPDATE_CHECK": ""}), "v0.5.0"))
+}
