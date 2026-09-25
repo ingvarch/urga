@@ -245,20 +245,26 @@ func fileRows(files []nomad.File) []tableRow {
 	rows := make([]tableRow, 0, len(files))
 
 	for _, f := range files {
-		row := tableRow{cells: []string{f.Name, sizeOf(f.Size), ageOf(f.Modified)}, ages: moments{2: f.Modified}}
+		var row tableRow
 
 		switch {
 		case f.Name == parentDir:
-			row.cells = []string{parentDir, "", ""}
+			row.add(parentDir, "", "")
 
 		case f.Dir:
-			row.cells = []string{f.Name + "/", "", ageOf(f.Modified)}
+			row.add(f.Name+"/", "")
+			row.addAge(f.Modified)
 			row.color = colorTitle
 
-		case f.Pipe():
+		default:
+			row.add(f.Name, sizeOf(f.Size))
+			row.addAge(f.Modified)
+
 			// Nothing to read here: it is read by whoever holds its
 			// other end.
-			row.color = colorSpent
+			if f.Pipe() {
+				row.color = colorSpent
+			}
 		}
 
 		rows = append(rows, row)

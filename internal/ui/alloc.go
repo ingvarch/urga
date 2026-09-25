@@ -208,22 +208,21 @@ func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []table
 	for _, alloc := range allocs {
 		use, known := usage[alloc.ID]
 
-		rows = append(rows, tableRow{
-			cells: []string{
-				shortID(alloc.ID),
-				alloc.TaskGroup,
-				alloc.JobID,
-				alloc.Namespace,
-				alloc.NodeName,
-				alloc.Status,
-				alloc.DesiredStatus,
-				cpuCell(use, known),
-				memoryCell(use, known),
-				ageOf(alloc.Created),
-			},
-			ages:  moments{9: alloc.Created},
-			color: allocColor(alloc),
-		})
+		row := tableRow{color: allocColor(alloc)}
+		row.add(
+			shortID(alloc.ID),
+			alloc.TaskGroup,
+			alloc.JobID,
+			alloc.Namespace,
+			alloc.NodeName,
+			alloc.Status,
+			alloc.DesiredStatus,
+			cpuCell(use, known),
+			memoryCell(use, known),
+		)
+		row.addAge(alloc.Created)
+
+		rows = append(rows, row)
 	}
 
 	return rows

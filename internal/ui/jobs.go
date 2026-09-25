@@ -95,19 +95,11 @@ func jobRows(jobs []nomad.Job) []tableRow {
 	rows := make([]tableRow, 0, len(jobs))
 
 	for _, job := range jobs {
-		rows = append(rows, tableRow{
-			cells: []string{
-				job.ID,
-				job.Name,
-				job.Type,
-				job.Namespace,
-				job.Status,
-				fmt.Sprintf("%d/%d", job.Running, job.Desired),
-				ageOf(job.SubmitTime),
-			},
-			ages:  moments{6: job.SubmitTime},
-			color: jobColor(job),
-		})
+		row := tableRow{color: jobColor(job)}
+		row.add(job.ID, job.Name, job.Type, job.Namespace, job.Status, fmt.Sprintf("%d/%d", job.Running, job.Desired))
+		row.addAge(job.SubmitTime)
+
+		rows = append(rows, row)
 	}
 
 	return rows

@@ -62,10 +62,12 @@ func variableRows(variables []nomad.Variable) []tableRow {
 	rows := make([]tableRow, 0, len(variables))
 
 	for _, v := range variables {
-		rows = append(rows, tableRow{
-			cells: []string{v.Path, v.Namespace, lockOf(v), ageOf(v.Created), ageOf(v.Modified)},
-			ages:  moments{3: v.Created, 4: v.Modified},
-		})
+		var row tableRow
+		row.add(v.Path, v.Namespace, lockOf(v))
+		row.addAge(v.Created)
+		row.addAge(v.Modified)
+
+		rows = append(rows, row)
 	}
 
 	return rows

@@ -119,17 +119,11 @@ func taskRows(tasks []nomad.Task) []tableRow {
 	rows := make([]tableRow, 0, len(tasks))
 
 	for _, task := range tasks {
-		rows = append(rows, tableRow{
-			cells: []string{
-				task.Name,
-				task.State,
-				fmt.Sprintf("%t", task.Failed),
-				fmt.Sprintf("%d", task.Restarts),
-				ageOf(task.Started),
-			},
-			ages:  moments{4: task.Started},
-			color: taskColor(task),
-		})
+		row := tableRow{color: taskColor(task)}
+		row.add(task.Name, task.State, fmt.Sprintf("%t", task.Failed), fmt.Sprintf("%d", task.Restarts))
+		row.addAge(task.Started)
+
+		rows = append(rows, row)
 	}
 
 	return rows
@@ -215,7 +209,10 @@ func taskEventRows(events []nomad.TaskEvent) []tableRow {
 	rows := make([]tableRow, 0, len(events))
 
 	for _, event := range events {
-		row := tableRow{cells: []string{ageOf(event.Time), event.Type, event.Message}, ages: moments{0: event.Time}}
+		var row tableRow
+		row.addAge(event.Time)
+		row.add(event.Type, event.Message)
+
 		if event.Failed {
 			row.color = colorDead
 		}
