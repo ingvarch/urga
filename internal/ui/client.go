@@ -73,7 +73,7 @@ type hostModel struct {
 
 // fetchHost reads the machine itself, so that what the panel says about it
 // keeps up with the rest of the screen.
-func fetchHost(client Client, nodeID string) tea.Cmd {
+func fetchHost(client nodesClient, nodeID string) tea.Cmd {
 	return request(func(ctx context.Context) (nomad.Node, error) {
 		return client.Node(ctx, nodeID)
 	}, func(node nomad.Node) tea.Msg { return hostMsg(node) })
@@ -81,7 +81,7 @@ func fetchHost(client Client, nodeID string) tea.Cmd {
 
 // fetchHostUse reads what the machine itself is doing, which is more than
 // its allocations: the chart shows the host, not the sum of the work.
-func fetchHostUse(client Client, nodeID string) tea.Cmd {
+func fetchHostUse(client nodesClient, nodeID string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()

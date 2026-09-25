@@ -25,7 +25,7 @@ const (
 )
 
 // fetchToken asks the cluster whose token the session sends.
-func fetchToken(client Client) tea.Cmd {
+func fetchToken(client clusterClient) tea.Cmd {
 	return request(client.Token, func(token nomad.Token) tea.Msg { return tokenMsg(token) })
 }
 

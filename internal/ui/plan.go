@@ -142,7 +142,7 @@ func (m Model) barRows() int {
 
 // planFor asks the cluster what submitting the file, or going back to the
 // version, would do.
-func planFor(client Client, state planState) tea.Cmd {
+func planFor(client jobsClient, state planState) tea.Cmd {
 	return request(func(ctx context.Context) (planMsg, error) {
 		if state.revert {
 			plan, err := client.PlanRevert(ctx, state.namespace, state.jobID, state.to)

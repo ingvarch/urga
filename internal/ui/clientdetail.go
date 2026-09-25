@@ -201,7 +201,7 @@ func (m Model) driverAttributes() map[string]string {
 }
 
 // metaFile is the metadata of a client as a file.
-func metaFile(client Client, nodeID, name string) load {
+func metaFile(client nodesClient, nodeID, name string) load {
 	return func(ctx context.Context) (file, error) {
 		content, err := client.NodeMetaSpec(ctx, nodeID)
 

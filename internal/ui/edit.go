@@ -105,7 +105,7 @@ type load func(ctx context.Context) (file, error)
 
 // jobFile is the job as a file: what it was submitted with, and what the
 // cluster does have of it when that was not kept.
-func jobFile(client Client, job nomad.Job) load {
+func jobFile(client jobsClient, job nomad.Job) load {
 	return func(ctx context.Context) (file, error) {
 		spec, err := client.JobSpec(ctx, job.Namespace, job.ID)
 		if errors.Is(err, nomad.ErrNoSource) {
@@ -144,7 +144,7 @@ func jobExtension(format string) string {
 }
 
 // namespaceFile is a namespace as a file.
-func namespaceFile(client Client, name string) load {
+func namespaceFile(client namespacesClient, name string) load {
 	return func(ctx context.Context) (file, error) {
 		content, err := client.NamespaceSpec(ctx, name)
 

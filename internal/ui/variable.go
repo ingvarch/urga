@@ -161,7 +161,7 @@ func editVariable(m Model) (Model, tea.Cmd) {
 
 // variableFile is a variable as a file, saved over the version it was read
 // at.
-func variableFile(client Client, namespace, path string) load {
+func variableFile(client variablesClient, namespace, path string) load {
 	return func(ctx context.Context) (file, error) {
 		spec, err := client.VariableSpec(ctx, namespace, path)
 
@@ -173,7 +173,7 @@ func variableFile(client Client, namespace, path string) load {
 // refuses goes back to the editor instead of being lost. A variable changed
 // or deleted since it was read is saved over the next time, and the file
 // says so; a locked one is asked at the old version again.
-func saveVariable(client Client, namespace, path string, index uint64) func(source string) tea.Cmd {
+func saveVariable(client variablesClient, namespace, path string, index uint64) func(source string) tea.Cmd {
 	return func(source string) tea.Cmd {
 		return func() tea.Msg {
 			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)

@@ -125,7 +125,7 @@ func (m Model) openFile(entry nomad.File) (Model, tea.Cmd) {
 
 // readFile opens the stream of a file. What is not text comes back as the
 // reason it is not read, and the screen stays where it is.
-func readFile(client Client, file screen) tea.Cmd {
+func readFile(client filesClient, file screen) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
