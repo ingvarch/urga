@@ -35,6 +35,8 @@ type fakeClient struct {
 	placementErr error
 	nodes        []nomad.Node
 	variables    []nomad.Variable
+	variable     nomad.VariableDetail
+	variablePath string
 	nodePools    []nomad.NodePool
 	servers      []nomad.Server
 	changes      *fakeChanges
@@ -598,6 +600,12 @@ func (f *fakeClient) Variables(_ context.Context, namespace string) ([]nomad.Var
 	f.askedNamespace = namespace
 
 	return f.variables, f.err
+}
+
+func (f *fakeClient) Variable(_ context.Context, namespace, path string) (nomad.VariableDetail, error) {
+	f.askedNamespace, f.variablePath = namespace, path
+
+	return f.variable, f.err
 }
 
 func (f *fakeClient) NodePools(context.Context) ([]nomad.NodePool, error) {

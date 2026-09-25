@@ -37,8 +37,11 @@ func copyField(m Model) (Model, tea.Cmd) {
 
 	// The value is the second column on every screen of fields; a screen
 	// may carry more after it, like where the value came from.
-	field, value := row.cells[0], row.cells[1]
+	return copied(m, row.cells[0], row.cells[1])
+}
 
+// copied puts a value on the clipboard and says whose it is.
+func copied(m Model, field, value string) (Model, tea.Cmd) {
 	return m.say(sprintf("Copied %s.", field)), tea.SetClipboard(value)
 }
 

@@ -194,7 +194,7 @@ func (m Model) chartHeight() int {
 // panelHeight is what the screen holds above its rows. A client has one:
 // what the machine is doing belongs over its allocations, not over a list of
 // its attributes. So do the tasks of an allocation: where it runs and
-// listens.
+// listens. A variable held as a lock says who holds it.
 func (m Model) panelHeight() int {
 	if m.screen.kind == screenTasks {
 		return len(m.tasksPanel(m.width))
@@ -202,6 +202,10 @@ func (m Model) panelHeight() int {
 
 	if m.screen.isDeployment() {
 		return len(m.deploymentScreenPanel(m.width))
+	}
+
+	if m.screen.kind == screenVariable {
+		return len(m.variablePanel(m.width))
 	}
 
 	if !m.screen.isClient() {
@@ -233,6 +237,10 @@ func (m Model) panel(width int) []string {
 
 	if m.screen.isDeployment() {
 		return m.deploymentScreenPanel(width)
+	}
+
+	if m.screen.kind == screenVariable {
+		return m.variablePanel(width)
 	}
 
 	return m.host.view(width, m.chartWidth(), m.chartHeight(), hostUseEvery)

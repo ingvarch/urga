@@ -31,7 +31,7 @@ var (
 		"Allocations", "NodeAllocations", "Allocation", "Logs",
 		"Usage", "AllocationUsage", "NodeUsage",
 		"Node", "NodeDetail", "NodeMeta", "NodeMetaSpec", "Nodes", "NodePools",
-		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "FailedPlacement", "Variables",
+		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "FailedPlacement", "Variables", "Variable",
 		"Servers", "Server", "RaftPeers", "Events",
 	}
 )

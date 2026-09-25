@@ -44,6 +44,7 @@ const (
 	screenLogTasks
 	screenJobLogs
 	screenServiceInstances
+	screenVariable
 )
 
 // screen is what is open: the resource and what it was opened for. The
