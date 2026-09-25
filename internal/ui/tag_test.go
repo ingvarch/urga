@@ -4,8 +4,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,4 +65,30 @@ func TestText_ATagThroughTheWrapAndTheTimes(t *testing.T) {
 	view := strings.Split(text.view(), "\n")
 	r.Contains(view[1], opening(second)+"4f2a1c9e │ ")
 	r.NotContains(view[2], opening(second))
+}
+
+func TestText_ATagCutAtTheEdgeOfTheScreen(t *testing.T) {
+	r := require.New(t)
+
+	for _, label := range []string{"9a1b2c3d │ ", "función │ ", "日本語 │ "} {
+		text := textModel{
+			lines:  []string{"GET /health 200"},
+			stamps: map[int]time.Time{0: time.Date(2026, 9, 24, 18, 26, 44, 0, time.UTC)},
+			tags:   map[int]tag{0: {text: label, style: lipgloss.NewStyle().Foreground(colorTitle)}},
+			times:  true,
+		}
+		whole := "18:26:44  " + label + "GET /health 200"
+
+		// The edge falls in the time, on the mark that says the line goes
+		// on, and in the tag: the row reads as the line cut there.
+		for width := 1; width <= ansi.StringWidth(whole)+1; width++ {
+			text.setSize(width, 1)
+
+			drawn := text.view()
+			cut := truncate(whole, width)
+
+			r.True(utf8.ValidString(drawn), "%q at %d: %q", label, width, drawn)
+			r.Equal(cut+strings.Repeat(" ", width-ansi.StringWidth(cut)), ansi.Strip(drawn), "%q at %d", label, width)
+		}
+	}
 }

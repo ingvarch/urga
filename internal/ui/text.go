@@ -3,7 +3,6 @@ package ui
 import (
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"charm.land/lipgloss/v2"
 
@@ -98,7 +97,9 @@ type textRow struct {
 	style lipgloss.Style
 
 	// tagFrom and tagTo are where the tag of the line is in text, and
-	// tagStyle what it is drawn in. A row without one has them empty.
+	// tagStyle what it is drawn in. A row without one has them empty. They
+	// count cells, not bytes: the edge of the screen cuts a row by what it
+	// looks like.
 	tagFrom, tagTo int
 	tagStyle       lipgloss.Style
 }
@@ -147,14 +148,14 @@ func (t textModel) visible() []textRow {
 		}
 
 		// The time a line arrived comes first, then where it came from.
-		text := t.stamped(i, label.text+line)
-		from := len(text) - len(label.text+line)
+		stamp := t.stamp(i)
+		from := ansi.StringWidth(stamp)
 
 		kept = append(kept, textRow{
-			text:     text,
+			text:     stamp + label.text + line,
 			style:    style,
 			tagFrom:  from,
-			tagTo:    from + len(label.text),
+			tagTo:    from + ansi.StringWidth(label.text),
 			tagStyle: label.style,
 		})
 	}
@@ -162,18 +163,18 @@ func (t textModel) visible() []textRow {
 	return kept
 }
 
-// stamped puts the time a line arrived in front of it, where there is one.
-func (t textModel) stamped(at int, line string) string {
+// stamp is the time a line arrived, to go in front of it, where there is one.
+func (t textModel) stamp(at int) string {
 	if !t.times {
-		return line
+		return ""
 	}
 
-	stamp, ok := t.stamps[at]
+	arrived, ok := t.stamps[at]
 	if !ok {
-		return strings.Repeat(" ", len(logTimeFormat)+2) + line
+		return strings.Repeat(" ", len(logTimeFormat)+2)
 	}
 
-	return stamp.Format(logTimeFormat) + "  " + line
+	return arrived.Format(logTimeFormat) + "  "
 }
 
 // logTimeFormat is how the time a line arrived reads.
@@ -194,7 +195,7 @@ func (t textModel) rows() []textRow {
 		for i, part := range wrapLine(line.text, t.width) {
 			row := textRow{text: part, style: line.style}
 			if i == 0 {
-				row.tagFrom, row.tagTo, row.tagStyle = line.tagFrom, min(line.tagTo, len(part)), line.tagStyle
+				row.tagFrom, row.tagTo, row.tagStyle = line.tagFrom, line.tagTo, line.tagStyle
 			}
 
 			out = append(out, row)
@@ -269,14 +270,11 @@ func (t textModel) line(row textRow) string {
 	gap := strings.Repeat(" ", max(t.width-ansi.StringWidth(line), 0))
 
 	// The tag may be cut at the edge, in the middle of the mark that says
-	// so: it ends where a character does.
-	from, to := min(row.tagFrom, len(line)), min(row.tagTo, len(line))
-	for to < len(line) && !utf8.RuneStart(line[to]) {
-		to++
-	}
-
-	return t.lit(line[:from], row.style) + t.lit(line[from:to], row.tagStyle) +
-		t.lit(line[to:], row.style) + row.style.Render(gap)
+	// so: splitting the row by cells ends every piece where a character
+	// does.
+	return t.lit(ansi.Cut(line, 0, row.tagFrom), row.style) +
+		t.lit(ansi.Cut(line, row.tagFrom, row.tagTo), row.tagStyle) +
+		t.lit(ansi.TruncateLeft(line, row.tagTo, ""), row.style) + row.style.Render(gap)
 }
 
 // lit is a piece of a row in its style, with what the filter matched lit up
