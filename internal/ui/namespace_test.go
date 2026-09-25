@@ -141,3 +141,26 @@ func TestNamespaceState_KeysAndNames(t *testing.T) {
 	r.True(s.knowsNamespace("production"))
 	r.False(s.knowsNamespace("nowhere"))
 }
+
+func TestNamespaceKey_AScreenOpenedForAJobStaysInItsNamespace(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges()}
+	m := newTestModel(client)
+	m.namespaceOrder = []string{"production", "staging"}
+	m, _ = m.update(jobsMsg(client.jobs))
+
+	m, cmd := m.update(enter())
+	m = playOut(m, cmd)
+	r.Contains(plain(m.render()), "Allocations (Job: web)")
+
+	// The job lives in production: what is asked about it, and what the
+	// cluster is asked to say about it, stay there.
+	m, cmd = m.update(key('2'))
+	m = playOut(m, cmd)
+
+	r.Equal("staging", m.namespace)
+	r.Contains(plain(m.render()), "Allocations (Job: web)")
+	r.Equal("production", client.askedNamespace)
+	r.Equal("production", client.watchedNamespace)
+}
