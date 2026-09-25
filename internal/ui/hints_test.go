@@ -302,7 +302,7 @@ func TestHints_EveryKeyIsNamedInOneOrTwoWords(t *testing.T) {
 	}
 
 	for name, m := range everyScreen(t) {
-		for _, b := range m.screen.bindings() {
+		for _, b := range m.bindings() {
 			named(fmt.Sprintf("%s on the %s screen", b.press, name), b.label)
 		}
 	}

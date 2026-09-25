@@ -129,11 +129,66 @@ func (s screen) topics() []string {
 // whether or not each one does something right now.
 func (s screen) bindings() []binding { return s.of().keys }
 
+// bindings are the keys of the open screen, whether or not each does
+// something right now. A page's keys press the page.
+func (m Model) bindings() []binding {
+	p := m.screen.page
+	if p == nil {
+		return m.screen.bindings()
+	}
+
+	hints := p.keys(m.env())
+
+	out := make([]binding, 0, len(hints))
+	for _, h := range hints {
+		offered := h.offered
+
+		out = append(out, binding{
+			press:   h.press,
+			label:   h.label,
+			writes:  h.writes,
+			offered: func(Model) bool { return offered },
+			do:      func(m Model) (Model, tea.Cmd) { return m.pressPage(h.press) },
+		})
+	}
+
+	return out
+}
+
+// pressPage hands a key to the open page and takes what it asks for.
+func (m Model) pressPage(press string) (Model, tea.Cmd) {
+	next, out, ok := m.screen.page.press(press, m.env())
+	if !ok {
+		return m, nil
+	}
+
+	m.screen.page = next
+
+	return m.apply(out)
+}
+
+// apply takes what a page asked for: its messages at once, in order, and its
+// work meanwhile.
+func (m Model) apply(out outcome) (Model, tea.Cmd) {
+	cmds := []tea.Cmd{out.cmd}
+
+	for _, msg := range out.now {
+		var cmd tea.Cmd
+
+		m, cmd = m.update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	m.layout()
+
+	return m, tea.Batch(cmds...)
+}
+
 // keys are what the open screen offers now: a key that would do nothing in
 // the state the screen is in is not offered, nor, read-only, a key that
 // changes the cluster.
 func (m Model) keys() []binding {
-	all := m.screen.bindings()
+	all := m.bindings()
 
 	keys := make([]binding, 0, len(all))
 	for _, b := range all {
@@ -157,7 +212,7 @@ func (m Model) withheld(b binding) bool {
 // withheldKey is the key read-only took away from the open screen, when the
 // press is one.
 func (m Model) withheldKey(press string) (binding, bool) {
-	for _, b := range m.screen.bindings() {
+	for _, b := range m.bindings() {
 		if b.press == press && m.withheld(b) {
 			return b, true
 		}

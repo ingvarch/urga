@@ -77,13 +77,6 @@ var (
 		{press: "w", label: "Toggle Wrap", do: wrapLines},
 		{press: "ctrl+s", label: "Save", do: saveScreen},
 	}
-
-	namespaceBindings = []binding{{press: "e", label: "Edit", do: editNamespace, writes: true}}
-
-	// regionBindings and datacenterBindings are the keys of a list a region
-	// or a datacenter is picked from.
-	regionBindings     = []binding{{press: "enter", label: "Switch", do: chooseRegion}}
-	datacenterBindings = []binding{{press: "enter", label: "Switch", do: chooseDatacenter}}
 )
 
 // resource is everything a screen knows about itself: what it is called, what
@@ -249,14 +242,6 @@ func init() {
 			rows: func(m Model) []tableRow { return taskRows(m.tasks()) },
 		},
 
-		screenClusters: {
-			name:    "Clusters",
-			titles:  choiceTitles,
-			keys:    clusterBindings,
-			cluster: true,
-			rows:    func(m Model) []tableRow { return choiceRows(m.opts.Clusters, m.opts.Cluster) },
-		},
-
 		screenServiceInstances: {
 			titles: instanceTitles,
 			keys:   instanceBindings,
@@ -324,19 +309,6 @@ func init() {
 				}, func(items []nomad.Deployment) tea.Msg { return deploymentsMsg(items) })
 			},
 			rows: func(m Model) []tableRow { return deploymentRows(m.deployments) },
-		},
-
-		screenNamespaces: {
-			name:    "Namespaces",
-			stored:  "namespaces",
-			aliases: []string{"namespaces", "namespace", "ns"},
-			titles:  namespaceTitles,
-			keys:    namespaceBindings,
-			cluster: true,
-			fetch: func(m Model) tea.Cmd {
-				return fetchList(m.client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) })
-			},
-			rows: func(m Model) []tableRow { return namespaceRows(m.namespaces) },
 		},
 
 		screenServices: {
@@ -432,6 +404,16 @@ func init() {
 			},
 			fetch: fetchVariable,
 			rows:  func(m Model) []tableRow { return variableItemRows(m.variable) },
+		},
+
+		screenRegions:     {open: func() page { return regionsPage{} }},
+		screenDatacenters: {open: func() page { return datacentersPage{} }},
+		screenClusters:    {open: func() page { return clustersPage{} }},
+
+		screenNamespaces: {
+			stored:  "namespaces",
+			aliases: []string{"namespaces", "namespace", "ns"},
+			open:    func() page { return namespacesPage{} },
 		},
 
 		screenNodePools: {
@@ -582,23 +564,6 @@ func init() {
 
 		// The lists a region and a datacenter are picked from. The words that
 		// switch them open them, so they have no alias of their own.
-		screenRegions: {
-			name:    "Regions",
-			titles:  choiceTitles,
-			keys:    regionBindings,
-			cluster: true,
-			fetch:   func(m Model) tea.Cmd { return fetchRegions(m.client) },
-			rows:    func(m Model) []tableRow { return choiceRows(m.regions, m.regionInUse()) },
-		},
-
-		screenDatacenters: {
-			name:    "Datacenters",
-			titles:  choiceTitles,
-			keys:    datacenterBindings,
-			cluster: true,
-			fetch:   func(m Model) tea.Cmd { return fetchDatacenters(m.client) },
-			rows:    func(m Model) []tableRow { return choiceRows(m.datacenterChoices(), orEvery(m.datacenter)) },
-		},
 
 		screenDescribe: {
 			keys:  textBindings,

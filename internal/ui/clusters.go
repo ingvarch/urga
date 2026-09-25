@@ -36,8 +36,6 @@ type (
 // errNoClusters is a session started without clusters in its settings.
 var errNoClusters = errors.New("no clusters to switch to: the settings file names none")
 
-var clusterBindings = []binding{{press: "enter", label: "Switch", do: chooseCluster}}
-
 // clusterCommand switches to a cluster of the settings by name, or opens the
 // list of them to pick one from.
 func (m Model) clusterCommand(name string) (Model, tea.Cmd) {
@@ -50,21 +48,6 @@ func (m Model) clusterCommand(name string) (Model, tea.Cmd) {
 	}
 
 	return m.pick(name, m.opts.Clusters, "cluster", Model.switchCluster)
-}
-
-// chooseCluster switches to the cluster under the cursor. The one in use has
-// nothing to switch, and the list goes back to where it was opened from.
-func chooseCluster(m Model) (Model, tea.Cmd) {
-	name, ok := selectedOf(m, screenClusters, m.opts.Clusters)
-	if !ok {
-		return m, nil
-	}
-
-	if name == m.opts.Cluster {
-		return m.back()
-	}
-
-	return m.switchCluster(name)
 }
 
 // switchCluster connects to another cluster of the settings. Its token may

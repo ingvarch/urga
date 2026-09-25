@@ -344,6 +344,18 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case connectedMsg:
 		return m.connected(Connection(msg))
 
+	case backMsg:
+		return m.back()
+
+	case switchRegionMsg:
+		return m.switchRegion(string(msg))
+
+	case narrowMsg:
+		return m.narrow(string(msg), Model.back)
+
+	case switchClusterMsg:
+		return m.switchCluster(string(msg))
+
 	case tokenMsg:
 		return m.keepToken(msg), nil
 

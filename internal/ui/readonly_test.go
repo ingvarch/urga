@@ -27,7 +27,7 @@ func TestReadOnly_OffersOnlyWhatChangesNothing(t *testing.T) {
 		m := readOnly(open, &fakeShell{})
 
 		want := []hint{}
-		for _, b := range m.screen.bindings() {
+		for _, b := range m.bindings() {
 			if !b.writes && (b.offered == nil || b.offered(m)) {
 				want = append(want, b.hint())
 			}
@@ -46,7 +46,7 @@ func TestReadOnly_AWriteKeyChangesNothing(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 
 	for name, open := range everyScreen(t) {
-		for _, b := range open.screen.bindings() {
+		for _, b := range open.bindings() {
 			if !b.writes {
 				continue
 			}

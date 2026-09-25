@@ -272,7 +272,7 @@ func TestAllocations_EachListAnswersItsOwnKeys(t *testing.T) {
 
 	for name, m := range allocationLists(t) {
 		got := []string{}
-		for _, b := range m.screen.bindings() {
+		for _, b := range m.bindings() {
 			got = append(got, b.press+" "+b.label)
 		}
 

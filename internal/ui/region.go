@@ -76,41 +76,6 @@ func (m Model) datacenterCommand(name string) (Model, tea.Cmd) {
 	return m.pick(name, m.datacenters, "datacenter", Model.switchDatacenter)
 }
 
-// chooseRegion switches to the region under the cursor. The one in use has
-// nothing to switch, and the list goes back to where it was opened from.
-func chooseRegion(m Model) (Model, tea.Cmd) {
-	region, ok := selectedOf(m, screenRegions, m.regions)
-	if !ok {
-		return m, nil
-	}
-
-	if region == m.regionInUse() {
-		return m.back()
-	}
-
-	return m.switchRegion(region)
-}
-
-// chooseDatacenter narrows the screen the list was opened from to the
-// datacenter under the cursor.
-func chooseDatacenter(m Model) (Model, tea.Cmd) {
-	choice, ok := selectedOf(m, screenDatacenters, m.datacenterChoices())
-	if !ok {
-		return m, nil
-	}
-
-	datacenter := choice
-	if choice == everyDatacenter {
-		datacenter = ""
-	}
-
-	if datacenter == m.datacenter {
-		return m.back()
-	}
-
-	return m.narrow(datacenter, Model.back)
-}
-
 // regionState is where in the cluster the session looks. agentRegion is the
 // region of the agent, which answers a session that names none. regions and
 // datacenters are what the command line can switch to, datacenter the one
@@ -126,28 +91,6 @@ type regionState struct {
 // them at once, then each of them.
 func (s regionState) datacenterChoices() []string {
 	return append([]string{everyDatacenter}, s.datacenters...)
-}
-
-// choiceTitles are the columns of a list a region or a datacenter is
-// picked from.
-var choiceTitles = []string{"Name", ""}
-
-// choiceRows are the names to pick from, the one in use marked.
-func choiceRows(names []string, inUse string) []tableRow {
-	rows := make([]tableRow, 0, len(names))
-
-	for _, name := range names {
-		row := tableRow{cells: []string{name, ""}}
-
-		if name == inUse {
-			row.cells[1] = "in use"
-			row.color = colorTitle
-		}
-
-		rows = append(rows, row)
-	}
-
-	return rows
 }
 
 // pick switches to a name the cluster knows, and turns down one it does not

@@ -179,7 +179,7 @@ func TestBindings_TheKeysThatChangeTheCluster(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 
 	for name, open := range everyScreen(t) {
-		for _, b := range open.screen.bindings() {
+		for _, b := range open.bindings() {
 			fake, ok := open.client.(*fakeClient)
 			require.True(t, ok)
 
