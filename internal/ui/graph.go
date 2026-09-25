@@ -306,5 +306,5 @@ var blocks = []rune(" ▁▂▃▄▅▆▇█")
 
 // eighths is how much of one cell a share of it fills, in eighths.
 func eighths(share float64) int {
-	return clamp(int(share*8+0.5), 0, 8)
+	return max(0, min(int(share*8+0.5), 8))
 }

@@ -63,7 +63,7 @@ func (t *tableModel) setSize(width, height int) {
 func (t *tableModel) show(rows []tableRow, order sortState) {
 	t.sort = order
 	t.rows = rows
-	t.cursor = clamp(t.cursor, 0, len(rows)-1)
+	t.cursor = max(0, min(t.cursor, len(rows)-1))
 	t.follow()
 }
 
@@ -77,7 +77,7 @@ func (t tableModel) selected() (tableRow, bool) {
 }
 
 func (t *tableModel) move(delta int) {
-	t.cursor = clamp(t.cursor+delta, 0, len(t.rows)-1)
+	t.cursor = max(0, min(t.cursor+delta, len(t.rows)-1))
 	t.follow()
 }
 
@@ -92,7 +92,7 @@ func (t *tableModel) follow() {
 		t.top = t.cursor - t.height + 1
 	}
 
-	t.top = clamp(t.top, 0, max(len(t.rows)-t.height, 0))
+	t.top = max(0, min(t.top, len(t.rows)-t.height))
 }
 
 func (t tableModel) view() string {
@@ -162,7 +162,7 @@ func columnWidths(titles []string, rows []tableRow, width int) []int {
 	}
 
 	for i := range widths {
-		widths[i] = clamp(widths[i], minColumnWidth, maxColumnWidth)
+		widths[i] = max(minColumnWidth, min(widths[i], maxColumnWidth))
 	}
 
 	// The same space is left on both sides, so the last column does not lean
@@ -234,12 +234,4 @@ func total(widths []int) int {
 	}
 
 	return sum
-}
-
-func clamp(v, low, high int) int {
-	if high < low {
-		return low
-	}
-
-	return min(max(v, low), high)
 }
