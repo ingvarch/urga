@@ -43,6 +43,11 @@ type fakeClient struct {
 	server       nomad.Server
 	raft         []nomad.RaftPeer
 
+	// variableSpec is a variable as a file, and submitErrs what its saves
+	// answer, in turn.
+	variableSpec nomad.VariableSource
+	submitErrs   []error
+
 	describe      string
 	spec          nomad.JobSource
 	specErr       error
@@ -606,6 +611,27 @@ func (f *fakeClient) Variable(_ context.Context, namespace, path string) (nomad.
 	f.askedNamespace, f.variablePath = namespace, path
 
 	return f.variable, f.err
+}
+
+func (f *fakeClient) VariableSpec(_ context.Context, namespace, path string) (nomad.VariableSource, error) {
+	f.askedNamespace, f.variablePath = namespace, path
+
+	return f.variableSpec, f.err
+}
+
+func (f *fakeClient) SubmitVariable(_ context.Context, namespace, path, source string, index uint64) error {
+	f.wrote("SubmitVariable")
+	f.askedNamespace, f.variablePath = namespace, path
+	f.submittedSource, f.submittedIndex = source, index
+
+	if len(f.submitErrs) > 0 {
+		err := f.submitErrs[0]
+		f.submitErrs = f.submitErrs[1:]
+
+		return err
+	}
+
+	return f.actionErr
 }
 
 func (f *fakeClient) NodePools(context.Context) ([]nomad.NodePool, error) {

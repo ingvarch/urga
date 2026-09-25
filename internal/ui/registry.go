@@ -452,7 +452,10 @@ func init() {
 			stored:  "variables",
 			aliases: []string{"variables", "variable", "vars", "var"},
 			titles:  variableTitles,
-			keys:    []binding{{press: "enter", label: "Values", do: openVariable}},
+			keys: []binding{
+				{press: "enter", label: "Values", do: openVariable},
+				{press: "e", label: "Edit", do: editVariable, writes: true, offered: variableUnlocked},
+			},
 			fetch: func(m Model) tea.Cmd {
 				client, namespace := m.client, m.namespace
 

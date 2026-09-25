@@ -240,18 +240,22 @@ func (c *Client) Variable(ctx context.Context, namespace, path string) (Variable
 
 // variableOf is what the list and a read have in common.
 func variableOf(path, namespace string, created, modified int64, lock *api.VariableLock) Variable {
-	variable := Variable{
+	return Variable{
 		Path:      path,
 		Namespace: namespace,
 		Created:   unixTime(created),
 		Modified:  unixTime(modified),
+		Lock:      lockOf(lock),
+	}
+}
+
+// lockOf is the lock held on a variable, nil when none is.
+func lockOf(lock *api.VariableLock) *VariableLock {
+	if lock == nil {
+		return nil
 	}
 
-	if lock != nil {
-		variable.Lock = &VariableLock{ID: lock.ID, TTL: lock.TTL, Delay: lock.LockDelay}
-	}
-
-	return variable
+	return &VariableLock{ID: lock.ID, TTL: lock.TTL, Delay: lock.LockDelay}
 }
 
 // NodePool groups the nodes a job can be placed on.

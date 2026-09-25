@@ -85,10 +85,11 @@ as it is.
 
 ## Editor
 
-urga opens jobs, namespaces and client metadata in the editor set in
-`$VISUAL`. If `$VISUAL` is not set, it uses `$EDITOR`. When you save and close
-the editor, urga sends the change to the cluster. A job is planned first, see
-[Editing a job](jobs.md#editing-a-job).
+urga opens jobs, namespaces, variables and client metadata in the editor set
+in `$VISUAL`. If `$VISUAL` is not set, it uses `$EDITOR`. When you save and
+close the editor, urga sends the change to the cluster. A job is planned
+first, see [Editing a job](jobs.md#editing-a-job). A variable is saved with
+check-and-set, see [Editing a variable](clients.md#editing-a-variable).
 
 ## How urga stays up to date
 

@@ -86,6 +86,8 @@ type Client interface {
 	Nodes(ctx context.Context) ([]nomad.Node, error)
 	Variables(ctx context.Context, namespace string) ([]nomad.Variable, error)
 	Variable(ctx context.Context, namespace, path string) (nomad.VariableDetail, error)
+	VariableSpec(ctx context.Context, namespace, path string) (nomad.VariableSource, error)
+	SubmitVariable(ctx context.Context, namespace, path, source string, index uint64) error
 	NodePools(ctx context.Context) ([]nomad.NodePool, error)
 	Servers(ctx context.Context) ([]nomad.Server, error)
 	Events(ctx context.Context, namespace string, topics []string) (*nomad.Changes, error)
@@ -616,6 +618,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case variableMsg:
 		return m.keepVariable(msg)
+
+	case variableRefusedMsg:
+		return m, m.reopenVariable(msg)
 
 	case instancesMsg:
 		return instanceChecksOnce(m.applyList(screenServiceInstances, func(m *Model) { m.instances = msg }))
