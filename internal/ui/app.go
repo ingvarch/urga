@@ -136,6 +136,10 @@ type Options struct {
 	// InRegion is the same cluster asked in another region. It may be nil,
 	// and switching regions then says so.
 	InRegion func(region string) Client
+
+	// NewerRelease asks whether a newer urga is out: its version, or empty.
+	// Nil asks nothing.
+	NewerRelease func(ctx context.Context) (string, error)
 }
 
 const (
@@ -248,6 +252,11 @@ type Model struct {
 	held  int
 
 	clusterData
+
+	// newer is a release of urga newer than this one, empty when there is
+	// none or it is not known. It is about urga, not the cluster: a switch
+	// keeps it.
+	newer string
 
 	table tableModel
 	text  textModel
@@ -372,6 +381,7 @@ func (m Model) Init() tea.Cmd {
 		m.fetch(),
 		m.watchScreen(),
 		m.askAboutTheCluster(),
+		m.checkRelease(),
 	)
 }
 
@@ -619,6 +629,12 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case variableMsg:
 		return m.keepVariable(msg)
 
+	case newerReleaseMsg:
+		return m.keepRelease(msg)
+
+	case checkReleaseMsg:
+		return m, m.checkRelease()
+
 	case refusedEditMsg:
 		return m, m.reopenEdit(msg)
 
@@ -864,6 +880,7 @@ func (m Model) headerData() header {
 		region:        m.regionInUse(),
 		datacenter:    m.datacenter,
 		version:       m.opts.Version,
+		newer:         m.newer,
 		nomadVersion:  m.nomadVersion,
 		usage:         percentOf(m.usage.cluster.CPUPercent),
 		memory:        percentOf(m.usage.cluster.MemoryPercent),

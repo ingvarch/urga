@@ -3,9 +3,11 @@ package main
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
+	"github.com/ingvarch/urga/internal/release"
 	"github.com/ingvarch/urga/internal/settings"
 	"github.com/ingvarch/urga/internal/ui"
 	"github.com/ingvarch/urga/internal/version"
@@ -87,6 +90,7 @@ func run() error {
 		Editor:         ui.NewEditor(),
 		Shell:          ui.NewShell(client),
 		InRegion:       ui.InRegionOf(client),
+		NewerRelease:   newerRelease(os.Getenv, version.Version),
 	})
 
 	_, err = tea.NewProgram(model).Run()
@@ -236,4 +240,21 @@ func given(flags *flag.FlagSet, name string) bool {
 	flags.Visit(func(f *flag.Flag) { found = found || f.Name == name })
 
 	return found
+}
+
+// noUpdateCheck set to anything keeps urga from asking whether a newer one
+// is out, for a network that cannot reach it or should not.
+const noUpdateCheck = "URGA_NO_UPDATE_CHECK"
+
+// newerRelease asks whether a release newer than current is out. It is nil
+// when it must not ask: the check is turned off, or current was built from
+// source and has no release to be behind.
+func newerRelease(getenv func(string) string, current string) func(ctx context.Context) (string, error) {
+	if getenv(noUpdateCheck) != "" || !release.IsRelease(current) {
+		return nil
+	}
+
+	return func(ctx context.Context) (string, error) {
+		return release.NewerThan(ctx, http.DefaultClient, release.LatestURL, current)
+	}
 }
