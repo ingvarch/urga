@@ -190,6 +190,24 @@ type Variable struct {
 	Namespace string
 	Created   time.Time
 	Modified  time.Time
+
+	// Lock is who holds the variable as a lock, nil when nobody does.
+	Lock *VariableLock
+}
+
+// VariableLock is a lock held on a variable. Nomad knows its holder by the
+// ID only; TTL and Delay are as Nomad writes them, like "30m0s".
+type VariableLock struct {
+	ID    string
+	TTL   string
+	Delay string
+}
+
+// VariableDetail is a variable with its values.
+type VariableDetail struct {
+	Variable
+
+	Items map[string]string
 }
 
 // Variables lists what the variable store of a namespace holds.
@@ -201,15 +219,39 @@ func (c *Client) Variables(ctx context.Context, namespace string) ([]Variable, e
 
 	out := make([]Variable, 0, len(list))
 	for _, v := range list {
-		variable := Variable{Path: v.Path, Namespace: v.Namespace}
-
-		variable.Created = unixTime(v.CreateTime)
-		variable.Modified = unixTime(v.ModifyTime)
-
-		out = append(out, variable)
+		out = append(out, variableOf(v.Path, v.Namespace, v.CreateTime, v.ModifyTime, v.Lock))
 	}
 
 	return out, nil
+}
+
+// Variable reads a variable with its values.
+func (c *Client) Variable(ctx context.Context, namespace, path string) (VariableDetail, error) {
+	v, _, err := c.api.Variables().Read(path, c.query(ctx, namespace))
+	if err != nil {
+		return VariableDetail{}, err
+	}
+
+	return VariableDetail{
+		Variable: variableOf(v.Path, v.Namespace, v.CreateTime, v.ModifyTime, v.Lock),
+		Items:    v.Items,
+	}, nil
+}
+
+// variableOf is what the list and a read have in common.
+func variableOf(path, namespace string, created, modified int64, lock *api.VariableLock) Variable {
+	variable := Variable{
+		Path:      path,
+		Namespace: namespace,
+		Created:   unixTime(created),
+		Modified:  unixTime(modified),
+	}
+
+	if lock != nil {
+		variable.Lock = &VariableLock{ID: lock.ID, TTL: lock.TTL, Delay: lock.LockDelay}
+	}
+
+	return variable
 }
 
 // NodePool groups the nodes a job can be placed on.

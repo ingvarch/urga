@@ -192,6 +192,36 @@ func TestVariables_Read(t *testing.T) {
 	r.Equal("nomad/jobs/web", variables[0].Path)
 	r.False(variables[0].Created.IsZero())
 	r.False(variables[0].Modified.IsZero())
+	r.Nil(variables[0].Lock)
+}
+
+func TestVariables_SayWhoHoldsTheLock(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{"Path": "locks/leader", "Namespace": "default",
+		"Lock": {"ID": "874ae5d0-f47a-afb0-804f-fcdb04a14a0b", "TTL": "30m0s", "LockDelay": "15s"}}]`)
+
+	variables, err := client.Variables(context.Background(), "default")
+	r.NoError(err)
+	r.Len(variables, 1)
+
+	r.Equal(&nomad.VariableLock{ID: "874ae5d0-f47a-afb0-804f-fcdb04a14a0b", TTL: "30m0s", Delay: "15s"}, variables[0].Lock)
+}
+
+func TestVariable_ReadsItsValues(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{"Path": "nomad/jobs/web", "Namespace": "production", "ModifyIndex": 769,
+		"Items": {"DB_HOST": "10.0.0.5", "CERT": "line1\nline2\n"}}`)
+
+	variable, err := client.Variable(context.Background(), "production", "nomad/jobs/web")
+	r.NoError(err)
+
+	r.Equal("/v1/var/nomad/jobs/web", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+	r.Equal("nomad/jobs/web", variable.Path)
+	r.Equal(map[string]string{"DB_HOST": "10.0.0.5", "CERT": "line1\nline2\n"}, variable.Items)
+	r.Nil(variable.Lock)
 }
 
 func TestNodePools_Read(t *testing.T) {

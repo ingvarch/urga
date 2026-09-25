@@ -452,6 +452,7 @@ func init() {
 			stored:  "variables",
 			aliases: []string{"variables", "variable", "vars", "var"},
 			titles:  variableTitles,
+			keys:    []binding{{press: "enter", label: "Values", do: openVariable}},
 			fetch: func(m Model) tea.Cmd {
 				client, namespace := m.client, m.namespace
 
@@ -460,6 +461,17 @@ func init() {
 				}, func(items []nomad.Variable) tea.Msg { return variablesMsg(items) })
 			},
 			rows: func(m Model) []tableRow { return variableRows(m.variables) },
+		},
+
+		screenVariable: {
+			titles: variableItemTitles,
+			keys:   variableBindings,
+
+			title: func(m Model, count int) string {
+				return sprintf("Variable %s (%s) [%d]", m.screen.label, namespaceLabel(m.screen.namespace), count)
+			},
+			fetch: fetchVariable,
+			rows:  func(m Model) []tableRow { return variableItemRows(m.variable) },
 		},
 
 		screenNodePools: {

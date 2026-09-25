@@ -185,18 +185,28 @@ func serverColor(s nomad.Server) color.Color {
 	return nil
 }
 
-var variableTitles = []string{"Path", "Namespace", "Age", "Modified"}
+var variableTitles = []string{"Path", "Namespace", "Lock", "Age", "Modified"}
 
 func variableRows(variables []nomad.Variable) []tableRow {
 	rows := make([]tableRow, 0, len(variables))
 
 	for _, v := range variables {
 		rows = append(rows, tableRow{
-			cells: []string{v.Path, v.Namespace, ageOf(v.Created), ageOf(v.Modified)},
+			cells: []string{v.Path, v.Namespace, lockOf(v), ageOf(v.Created), ageOf(v.Modified)},
 		})
 	}
 
 	return rows
+}
+
+// lockOf names who holds a variable as a lock, by the ID of the lock: Nomad
+// knows the holder by nothing else.
+func lockOf(v nomad.Variable) string {
+	if v.Lock == nil {
+		return ""
+	}
+
+	return shortID(v.Lock.ID)
 }
 
 var nodePoolTitles = []string{"Name", "Scheduler", "Description"}

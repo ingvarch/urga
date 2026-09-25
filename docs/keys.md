@@ -246,6 +246,19 @@ when the group under the cursor has canaries waiting to be promoted.
 | `enter` | Tasks of the allocation that registered the instance | |
 | `ctrl-d` | Delete a stale registration. Shown only on a stale one. | yes |
 
+### Variables
+
+| Key | What it does | Changes |
+| --- | --- | --- |
+| `enter` | Open the variable on its values | |
+
+### A variable
+
+| Key | What it does | Changes |
+| --- | --- | --- |
+| `v` | Show or hide the values | |
+| `c` | Copy the value under the cursor, even when it is hidden | |
+
 ### Clients
 
 | Key | What it does | Changes |

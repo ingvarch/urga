@@ -85,6 +85,7 @@ type Client interface {
 	FailedPlacement(ctx context.Context, namespace, jobID string) (nomad.EvaluationDetail, error)
 	Nodes(ctx context.Context) ([]nomad.Node, error)
 	Variables(ctx context.Context, namespace string) ([]nomad.Variable, error)
+	Variable(ctx context.Context, namespace, path string) (nomad.VariableDetail, error)
 	NodePools(ctx context.Context) ([]nomad.NodePool, error)
 	Servers(ctx context.Context) ([]nomad.Server, error)
 	Events(ctx context.Context, namespace string, topics []string) (*nomad.Changes, error)
@@ -339,6 +340,9 @@ type clusterData struct {
 	// their checks last said.
 	instances      []nomad.ServiceInstance
 	instanceChecks instanceChecksState
+
+	// variable is the variable a variable screen last read.
+	variable variableState
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -609,6 +613,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case deploymentMsg:
 		return m.keepDeployment(msg)
+
+	case variableMsg:
+		return m.keepVariable(msg)
 
 	case instancesMsg:
 		return instanceChecksOnce(m.applyList(screenServiceInstances, func(m *Model) { m.instances = msg }))

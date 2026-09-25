@@ -80,11 +80,27 @@ registered it, its tags, its checks and its status.
 It is not offered on a registration that still takes traffic. `enter` on an
 instance opens the tasks of its allocation.
 
-## Variables and node pools
+## Variables
 
-- `:variables` lists the variables by path, with their age and last change.
-  urga does not show their values.
-- `:nodepools` lists the node pools and their schedulers.
+`:variables` lists the variables by path, with their age and last change.
+When a variable is held as a lock, the **Lock** column shows the short ID of
+the lock. Nomad knows the holder of a lock by this ID only.
+
+`enter` opens a variable on its values, one row per key. The values are
+hidden until you press `v`, so a password does not show up on a shared
+screen by accident. `v` hides them again, and they are hidden each time you
+open the variable. A value of several lines, such as a certificate, shows its
+first line and how many lines it has.
+
+`c` copies the value under the cursor, the whole of it, even while it is
+hidden.
+
+When the variable is held as a lock, a line above the values shows the ID of
+the lock, its TTL and its lock delay, as Nomad reports them.
+
+## Node pools
+
+`:nodepools` lists the node pools and their schedulers.
 
 ## Regions and datacenters
 

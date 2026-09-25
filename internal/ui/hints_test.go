@@ -62,6 +62,11 @@ func everyScreen(t *testing.T) map[string]Model {
 			{ID: "reg-1", Service: "api", Namespace: "production", JobID: "web", AllocID: "alloc-lost", Address: "10.0.0.7", Port: 80, AllocStatus: "lost"},
 			{ID: "reg-2", Service: "api", Namespace: "production", JobID: "web", AllocID: "alloc-1", Address: "10.0.0.8", Port: 80, AllocStatus: "running"},
 		},
+
+		variable: nomad.VariableDetail{
+			Variable: nomad.Variable{Path: "nomad/jobs/web", Namespace: "production"},
+			Items:    map[string]string{"DB_HOST": "10.0.0.5"},
+		},
 	}
 
 	rows := map[string]tea.Msg{
@@ -139,6 +144,10 @@ func everyScreen(t *testing.T) map[string]Model {
 	// The instances of a service.
 	instances, cmd := open["services"].update(enter())
 	open["instances"] = drain(instances, cmd)
+
+	// The values of a variable.
+	variable, cmd := open["variables"].update(enter())
+	open["variable"] = drain(variable, cmd)
 
 	// The screen of a deployment, opened from the list of them.
 	deployment, cmd := open["deployments"].update(enter())
