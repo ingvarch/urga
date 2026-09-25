@@ -186,7 +186,11 @@ func stopAllocation(m Model) (Model, tea.Cmd) {
 // takes each of them on its own: one that will not answer must not stop the
 // rest, and a screenful of them must not share one timeout.
 func (m Model) askEachAlloc(verb, done string, do func(context.Context, nomad.Alloc) error) (Model, tea.Cmd) {
-	allocs := marked(m, screenAllocations, m.visibleAllocs())
+	if !m.screen.listsAllocs() {
+		return m, nil
+	}
+
+	allocs := marked(m, m.screen.kind, m.visibleAllocs())
 	if len(allocs) == 0 {
 		return m, nil
 	}

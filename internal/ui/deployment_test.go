@@ -106,7 +106,7 @@ func TestDeployments_EnterOpensTheDeployment(t *testing.T) {
 	m := onDeployment(t, client)
 
 	// The deployment and its allocations, asked for in its namespace.
-	r.Equal(screenAllocations, m.screen.kind)
+	r.Equal(screenDeployment, m.screen.kind)
 	r.Equal("5d1a2b3c-0000-0000-0000-000000000000", client.deploymentID)
 	r.Equal("production", client.deploymentNamespace)
 

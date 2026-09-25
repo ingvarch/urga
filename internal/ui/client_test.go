@@ -403,7 +403,7 @@ func TestClient_ComingBackReadsAgain(t *testing.T) {
 	before := len(m.host.trail)
 
 	m, _ = m.update(escape())
-	r.True(m.screen.isClient())
+	r.Equal(screenNode, m.screen.kind)
 
 	m, cmd = m.update(allocsMsg(client.nodeAllocs))
 	m = drain(m, cmd)

@@ -37,7 +37,7 @@ func describeJob(m Model) (Model, tea.Cmd) {
 }
 
 func describeAllocation(m Model) (Model, tea.Cmd) {
-	alloc, ok := selectedOf(m, screenAllocations, m.visibleAllocs())
+	alloc, ok := m.selectedAlloc()
 	if !ok {
 		return m, nil
 	}

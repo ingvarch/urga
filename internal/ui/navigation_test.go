@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -242,4 +243,84 @@ func TestAllocations_WithoutAJob(t *testing.T) {
 	// there.
 	r.Contains(plain(m.render()), "Allocations (production)")
 	r.NotContains(plain(m.render()), "Job: )")
+}
+
+// allocationLists are the lists of allocations, each opened the way a person
+// opens it: of a job, of a client and of a deployment.
+func allocationLists(t *testing.T) map[string]Model {
+	t.Helper()
+
+	open := everyScreen(t)
+
+	return map[string]Model{"job": open["allocations"], "client": open["client"], "deployment": open["deployment"]}
+}
+
+func TestAllocations_EachListAnswersItsOwnKeys(t *testing.T) {
+	r := require.New(t)
+
+	allocKeys := []string{"enter Tasks", "d Describe", "r Restart", "ctrl+k Stop", "l Logs", "space Mark", "ctrl+a Mark All"}
+
+	want := map[string][]string{
+		"job": allocKeys,
+
+		// The machine first, then the work on it.
+		"client": slices.Concat([]string{"e Events", "ctrl+d Drivers", "ctrl+h Host Volumes", "a Attributes", "m Meta"}, allocKeys),
+
+		// The deployment first, then what it placed.
+		"deployment": slices.Concat([]string{"p Promote Group", "ctrl+p Promote All", "f Fail", "ctrl+s Pause", "ctrl+s Resume"}, allocKeys),
+	}
+
+	for name, m := range allocationLists(t) {
+		got := []string{}
+		for _, b := range m.screen.bindings() {
+			got = append(got, b.press+" "+b.label)
+		}
+
+		r.Equal(want[name], got, name)
+	}
+}
+
+func TestAllocations_EachListHasItsOwnColumnsTitleAndTopics(t *testing.T) {
+	r := require.New(t)
+
+	allocColumns := []string{"ID", "TaskGroup", "JobID", "Namespace", "Node", "Status", "Desired", "CPU", "MEM", "Age"}
+
+	want := map[string]struct {
+		columns []string
+		title   string
+		topics  []string
+	}{
+		"job":    {allocColumns, "Allocations (Job: web) [2]", []string{nomad.TopicAllocation}},
+		"client": {allocColumns, "Client nomad-server-01 [1]", []string{nomad.TopicAllocation}},
+		"deployment": {
+			[]string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "CPU", "MEM", "Age"},
+			"Deployment dep-1 (Job: web) [1]",
+			[]string{nomad.TopicAllocation, nomad.TopicDeployment},
+		},
+	}
+
+	for name, m := range allocationLists(t) {
+		r.Equal(want[name].columns, m.screen.titles(), name)
+		r.Equal(want[name].title, m.title(), name)
+		r.Equal(want[name].topics, m.screen.topics(), name)
+
+		// Every one of them reads what its running allocations take.
+		r.NotNil(m.fetchUsage(), name)
+	}
+}
+
+func TestAllocations_TheCommandLineOpensThoseOfTheNamespaceFromAClientOrADeployment(t *testing.T) {
+	r := require.New(t)
+
+	lists := allocationLists(t)
+
+	for _, name := range []string{"client", "deployment"} {
+		m, cmd := runLine(lists[name], "allocations")
+		m = drain(m, cmd)
+
+		// Both screens list allocations, but neither is the list the word
+		// names, so the word opens that list over them.
+		r.Equal(screenAllocations, m.screen.kind, name)
+		r.Contains(plain(m.render()), "Allocations (production)", name)
+	}
 }

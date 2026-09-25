@@ -34,7 +34,7 @@ func openDeployment(m Model) (Model, tea.Cmd) {
 	}
 
 	return m.push(screen{
-		kind:         screenAllocations,
+		kind:         screenDeployment,
 		namespace:    deployment.Namespace,
 		jobID:        deployment.JobID,
 		deploymentID: deployment.ID,
@@ -44,7 +44,7 @@ func openDeployment(m Model) (Model, tea.Cmd) {
 // deploymentInView is the deployment a key acts on: the one under the
 // cursor on the list, or the one a deployment screen read.
 func (m Model) deploymentInView() (nomad.Deployment, bool) {
-	if m.screen.isDeployment() {
+	if m.screen.kind == screenDeployment {
 		return m.deployment.Deployment, m.deployment.ID == m.screen.deploymentID
 	}
 
@@ -54,7 +54,7 @@ func (m Model) deploymentInView() (nomad.Deployment, bool) {
 // waitingGroup is the group of the allocation under the cursor, when its
 // canaries wait to be promoted.
 func (m Model) waitingGroup() (string, bool) {
-	alloc, ok := selectedOf(m, screenAllocations, m.visibleAllocs())
+	alloc, ok := selectedOf(m, screenDeployment, m.visibleAllocs())
 	if !ok || !deploymentActive(m) {
 		return "", false
 	}
@@ -93,7 +93,7 @@ func groupWaitsHere(m Model) bool {
 // someGroupWaits says a group of the deployment on the screen has canaries
 // to promote.
 func someGroupWaits(m Model) bool {
-	if !m.screen.isDeployment() || !deploymentActive(m) {
+	if m.screen.kind != screenDeployment || !deploymentActive(m) {
 		return false
 	}
 
@@ -151,7 +151,7 @@ func fetchDeployment(client Client, s screen) tea.Cmd {
 
 // keepDeployment keeps what the deployment of the screen says about itself.
 func (m Model) keepDeployment(msg deploymentMsg) (Model, tea.Cmd) {
-	ours := m.screen.isDeployment() && msg.ID == m.screen.deploymentID
+	ours := m.screen.kind == screenDeployment && msg.ID == m.screen.deploymentID
 
 	return m.applyWhen(ours, func(m *Model) { m.deployment = nomad.DeploymentDetail(msg) })
 }

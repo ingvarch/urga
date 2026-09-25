@@ -438,7 +438,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.applyList(screenJobs, func(m *Model) { m.jobs = m.jobsInView(msg) })
 
 	case allocsMsg:
-		return hostOnce(usageOnce(m.applyList(screenAllocations, func(m *Model) { m.allocs = msg })))
+		return hostOnce(usageOnce(m.applyWhen(m.screen.listsAllocs(), func(m *Model) { m.allocs = msg })))
 
 	case allocMsg:
 		return m.keepAllocation(nomad.Alloc(msg))

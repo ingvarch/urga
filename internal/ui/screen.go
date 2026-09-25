@@ -45,6 +45,12 @@ const (
 	screenJobLogs
 	screenServiceInstances
 	screenVariable
+
+	// screenNode is one client: the allocations on it, under what the
+	// machine itself is doing. screenDeployment is one deployment: the
+	// allocations it placed, under its groups.
+	screenNode
+	screenDeployment
 )
 
 // screen is what is open: the resource and what it was opened for. The
@@ -92,45 +98,21 @@ type place struct {
 	sort   sortState
 }
 
-// isClient says the screen was opened for one machine of the cluster, which
-// answers keys of its own.
-func (s screen) isClient() bool {
-	return s.kind == screenAllocations && s.nodeID != ""
-}
-
-// isDeployment says the screen was opened for one deployment.
-func (s screen) isDeployment() bool {
-	return s.kind == screenAllocations && s.deploymentID != ""
+// listsAllocs says the screen is a list of allocations, which answers the
+// keys of an allocation whatever it was opened for.
+func (s screen) listsAllocs() bool {
+	return s.kind == screenAllocations || s.kind == screenNode || s.kind == screenDeployment
 }
 
 // titles are the columns of a screen.
-func (s screen) titles() []string {
-	if res := s.of(); res.titlesFor != nil {
-		return res.titlesFor(s)
-	}
-
-	return s.of().titles
-}
+func (s screen) titles() []string { return s.of().titles }
 
 // topics are what the cluster is asked to say about while the screen is up.
-func (s screen) topics() []string {
-	if res := s.of(); res.topicsFor != nil {
-		return res.topicsFor(s)
-	}
-
-	return s.of().topics
-}
+func (s screen) topics() []string { return s.of().topics }
 
 // bindings are the keys of the screen, in the order the header shows them,
 // whether or not each one does something right now.
-func (s screen) bindings() []binding {
-	res := s.of()
-	if res.keysFor != nil {
-		return res.keysFor(s)
-	}
-
-	return res.keys
-}
+func (s screen) bindings() []binding { return s.of().keys }
 
 // keys are what the open screen offers now: a key that would do nothing in
 // the state the screen is in is not offered, nor, read-only, a key that

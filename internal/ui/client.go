@@ -95,7 +95,7 @@ func fetchHostUse(client Client, nodeID string) tea.Cmd {
 // hostOnce takes the first reading of the chart when the list of a client is
 // filled, and only then: the timer of the chart keeps them coming after that.
 func hostOnce(m Model, filled tea.Cmd) (Model, tea.Cmd) {
-	if !m.screen.isClient() || m.host.due {
+	if m.screen.kind != screenNode || m.host.due {
 		return m, filled
 	}
 
@@ -113,7 +113,7 @@ func (m Model) readHost() tea.Cmd {
 // pollHost takes the next reading of the chart. Its timer has gone off, and
 // the answer sets the next one.
 func (m Model) pollHost() (Model, tea.Cmd) {
-	if !m.screen.isClient() {
+	if m.screen.kind != screenNode {
 		return m, nil
 	}
 
@@ -207,24 +207,24 @@ func (m Model) rowsForPanel() int {
 // list of its attributes. So do the tasks of an allocation: where it runs and
 // listens. A variable held as a lock says who holds it.
 func (m Model) panel(width int) []string {
-	if m.screen.kind == screenTasks {
+	switch m.screen.kind {
+	case screenTasks:
 		return m.tasksPanel(width)
-	}
-
-	if m.screen.isDeployment() {
+	case screenDeployment:
 		return m.deploymentScreenPanel(width)
-	}
-
-	if m.screen.kind == screenVariable {
+	case screenVariable:
 		return m.variablePanel(width)
+	case screenNode:
+		// A box with no room for even the machine leaves it to the
+		// allocations.
+		if m.rowsForPanel() < hostPanelRows {
+			return nil
+		}
+
+		return m.host.view(width, m.chartWidth(), m.chartHeight())
 	}
 
-	// A box with no room for even the machine leaves it to the allocations.
-	if !m.screen.isClient() || m.rowsForPanel() < hostPanelRows {
-		return nil
-	}
-
-	return m.host.view(width, m.chartWidth(), m.chartHeight())
+	return nil
 }
 
 // view is what a client shows above its allocations: what kind of machine
@@ -382,7 +382,7 @@ func (m Model) openNode(node nomad.Node) (Model, tea.Cmd) {
 	m.host = hostModel{node: node}
 
 	return m.push(screen{
-		kind:      screenAllocations,
+		kind:      screenNode,
 		namespace: nomad.AllNamespaces,
 		nodeID:    node.ID,
 		label:     node.Name,

@@ -139,7 +139,7 @@ func (m Model) fetchUsage() tea.Cmd {
 		out := rowUsageMsg{readings: make(map[string]nomad.ResourceUse, len(refs))}
 
 		for _, ref := range refs {
-			use, err := read(client, ctx, ref)
+			use, err := read(ctx, client, ref)
 
 			// A machine that does not answer leaves its row empty, the rest
 			// of the list is still worth showing. What it said is kept, a

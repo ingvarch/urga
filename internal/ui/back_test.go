@@ -198,7 +198,7 @@ func TestBack_ComesBackToTheRowOfEveryScreenOfAClient(t *testing.T) {
 	m, _ = m.update(nodesMsg(client.nodes))
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
-	r.True(m.screen.isClient())
+	r.Equal(screenNode, m.screen.kind)
 
 	m, _ = m.update(down())
 	left := cursorName(m)
@@ -208,7 +208,7 @@ func TestBack_ComesBackToTheRowOfEveryScreenOfAClient(t *testing.T) {
 	for _, press := range []tea.KeyPressMsg{key('e'), ctrlKey('d'), ctrlKey('h'), key('a'), key('m')} {
 		back := openAndBack(t, m, press)
 
-		r.True(back.screen.isClient(), press.String())
+		r.Equal(screenNode, back.screen.kind, press.String())
 		r.Equal(left, cursorName(back), press.String())
 	}
 }
