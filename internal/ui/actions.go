@@ -230,3 +230,21 @@ func each[T any](done, label string, items []T, mark func(T) string, do func(con
 		return out
 	}
 }
+
+// done says what came of an action on the marked rows.
+func (m Model) done(msg doneMsg) (Model, tea.Cmd) {
+	// What did not happen stays marked, so the same key tries it again;
+	// what did happen is let go of, so the key does not undo it.
+	m.list.marks = msg.kept
+
+	if msg.err != nil {
+		m = m.fail(msg.err)
+	} else {
+		m = m.say(msg.said)
+	}
+
+	m.layout()
+
+	// The list is stale the moment the cluster changed, ask again.
+	return m, m.fetch()
+}

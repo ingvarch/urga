@@ -123,3 +123,12 @@ func (s *shellSession) Run() error {
 
 	return nil
 }
+
+// shellDone says the shell closed, or why it could not open.
+func (m Model) shellDone(msg shellDoneMsg) Model {
+	if msg.err != nil {
+		return m.fail(msg.err)
+	}
+
+	return m.say(fmt.Sprintf("Shell in %s closed.", msg.task))
+}

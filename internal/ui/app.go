@@ -265,20 +265,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.paste(msg.Content)
 
 	case answerMsg:
-		if msg.asked != m.asked {
-			letGo(msg.msg)
-
-			return m, nil
-		}
-
-		return m.update(msg.msg)
+		return m.takeAnswer(msg)
 
 	case connectionMsg:
-		if msg.connection != m.connection {
-			return m, nil
-		}
-
-		return m.update(msg.msg)
+		return m.takeConnection(msg)
 
 	case connectedMsg:
 		return m.connected(Connection(msg))
@@ -350,14 +340,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.keepToken(msg), nil
 
 	case namespacesMsg:
-		// The namespaces are kept whatever is on the screen: the command
-		// line and the number keys need the list to switch between them.
-		m.namespaces = msg
-		m.rememberNamespaces(msg)
-
-		next, cmd := m.applyList(namespacesView, func(*Model) {})
-
-		return next, tea.Batch(cmd, next.remember())
+		return m.keepNamespaces(msg)
 
 	case agentMsg:
 		return m.keepAgent(msg), nil
@@ -381,19 +364,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.readRows()
 
 	case errMsg:
-		// The rows that are on the screen stay there. An empty table reads as
-		// an empty cluster.
-		if why, ok := m.refusedBecause(msg.err); ok {
-			return m.flashed(why, flashErr).schedulePoll()
-		}
-
-		// Refused before the cluster said whose token it is: said again
-		// when it has.
-		if nomad.Forbidden(msg.err) {
-			m.refused = msg.err
-		}
-
-		return m.fail(msg.err).schedulePoll()
+		return m.takeError(msg.err)
 
 	case describeMsg:
 		return m.showDescribe(msg)
@@ -405,11 +376,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.finishEdit(msg)
 
 	case shellDoneMsg:
-		if msg.err != nil {
-			return m.fail(msg.err), nil
-		}
-
-		return m.say(fmt.Sprintf("Shell in %s closed.", msg.task)), nil
+		return m.shellDone(msg), nil
 
 	case logStreamMsg, fileMsg, jobLogOpenedMsg:
 		// A stream no page took: the page it was opened for moved on.
@@ -421,20 +388,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.say(fmt.Sprintf("Saved to %s.", msg.path)), nil
 
 	case doneMsg:
-		// What did not happen stays marked, so the same key tries it again;
-		// what did happen is let go of, so the key does not undo it.
-		m.list.marks = msg.kept
-
-		if msg.err != nil {
-			m = m.fail(msg.err)
-		} else {
-			m = m.say(msg.said)
-		}
-
-		m.layout()
-
-		// The list is stale the moment the cluster changed, ask again.
-		return m, m.fetch()
+		return m.done(msg)
 
 	case newerReleaseMsg:
 		return m.keepRelease(msg)
@@ -446,16 +400,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, m.reopenEdit(msg)
 
 	case watchingMsg:
-		var cmd tea.Cmd
-		m.watch, cmd = m.watch.start(msg)
-
-		return m, cmd
+		return m.startWatch(msg)
 
 	case changeMsg:
-		var cmd tea.Cmd
-		m.watch, cmd = m.watch.keepChange(msg)
-
-		return m, cmd
+		return m.keepChange(msg)
 
 	case settleMsg:
 		return m.settled()
@@ -477,6 +425,22 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 // was left: it would show up under the wrong title.
 func (m Model) applyList(v *view, store func(*Model)) (Model, tea.Cmd) {
 	return m.applyWhen(m.screen.view == v, store)
+}
+
+// takeError says what went wrong. The rows that are on the screen stay
+// there. An empty table reads as an empty cluster.
+func (m Model) takeError(err error) (Model, tea.Cmd) {
+	if why, ok := m.refusedBecause(err); ok {
+		return m.flashed(why, flashErr).schedulePoll()
+	}
+
+	// Refused before the cluster said whose token it is: said again when it
+	// has.
+	if nomad.Forbidden(err) {
+		m.refused = err
+	}
+
+	return m.fail(err).schedulePoll()
 }
 
 // applyWhen stores an answer that belongs to what is open, and asks again

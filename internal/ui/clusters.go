@@ -120,3 +120,13 @@ func (m Model) onConnection(cmd tea.Cmd) tea.Cmd {
 
 	return labelled(cmd, func(msg tea.Msg) tea.Msg { return connectionMsg{connection: connection, msg: msg} })
 }
+
+// takeConnection hands on what a cluster the session is still connected to
+// said.
+func (m Model) takeConnection(msg connectionMsg) (Model, tea.Cmd) {
+	if msg.connection != m.connection {
+		return m, nil
+	}
+
+	return m.update(msg.msg)
+}

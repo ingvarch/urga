@@ -432,3 +432,15 @@ func shortID(id string) string {
 
 	return id
 }
+
+// takeAnswer hands on an answer to what is up. One to an ask that is over
+// lets go of what it opened.
+func (m Model) takeAnswer(msg answerMsg) (Model, tea.Cmd) {
+	if msg.asked != m.asked {
+		letGo(msg.msg)
+
+		return m, nil
+	}
+
+	return m.update(msg.msg)
+}
