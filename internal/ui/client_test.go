@@ -576,6 +576,37 @@ func TestClient_TheLogsOfWhatRunsOnIt(t *testing.T) {
 	r.Contains(plain(m.render()), "Logs of which task? (Client: nomad-server-01)")
 }
 
+func TestClient_TheLogsOfATaskOnItAreReadAgainFromIt(t *testing.T) {
+	r := require.New(t)
+
+	cron := "bb2f37df-0000-0000-0000-000000000000"
+	client := &fakeClient{nodes: busyClient(), nodeAllocs: twoOnAClient(), logsByAlloc: map[string]*nomad.LogStream{cron: writing()}}
+
+	m, _ := nodeModelOf(client)
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	m, cmd = m.update(key('l'))
+	m = drain(m, cmd)
+
+	// Tasks of several jobs are named with their job.
+	r.Contains(fileRow(t, m, 0), "cron/nightly/job")
+	r.Contains(fileRow(t, m, 1), "pelmeni_buh_bot/pelmenis/bot")
+
+	m, cmd = m.update(enter())
+	m = playOut(m, cmd)
+	r.Contains(plain(m.render()), "Logs (Job: cron, Task: job) [stdout, 1 allocation]")
+
+	// Read again, the allocations are those of the client.
+	client.askedNodeID, client.logsOpened = "", nil
+
+	m, cmd = m.update(key('r'))
+	playOut(m, cmd)
+
+	r.Equal("node-1", client.askedNodeID)
+	r.Equal([]string{cron}, client.logsOpened)
+}
+
 func TestClient_NothingRunsOnIt(t *testing.T) {
 	r := require.New(t)
 

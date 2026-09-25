@@ -277,7 +277,7 @@ func TestHints_EveryKeyThatDoesSomethingIsInTheHeader(t *testing.T) {
 			// The buttons at the foot of a plan are chosen and pressed the
 			// way the buttons of a question are: those keys are the
 			// dialog's, and help names them.
-			if _, _, buttons := m.planButtonKey(press); buttons {
+			if _, _, buttons := m.buttonKey(press); buttons {
 				continue
 			}
 

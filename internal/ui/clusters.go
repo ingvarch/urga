@@ -74,7 +74,7 @@ func (m Model) switchCluster(name string) (Model, tea.Cmd) {
 // belongs to the cluster it left: it starts over where the new one was
 // left, and what was still asked of the old one is answered for no one.
 func (m Model) connected(conn Connection) (Model, tea.Cmd) {
-	m = m.stopLogs()
+	m = m.closeStream()
 
 	m.connection++
 	m.client = conn.Client

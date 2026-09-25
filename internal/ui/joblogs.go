@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"slices"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -25,13 +26,6 @@ var tagColours = []color.Color{
 
 // Messages of the logs of a job.
 type (
-	// logScopeMsg is the allocations a key asked about: which task each of
-	// them runs is what the logs are read from.
-	logScopeMsg struct {
-		scope  screen
-		allocs []nomad.Alloc
-	}
-
 	// jobLogOpenedMsg is the log of one allocation, opened for a reading.
 	jobLogOpenedMsg struct {
 		reading int
@@ -47,18 +41,20 @@ type (
 	}
 )
 
+// logScope is what the logs are read of: the allocations of a job, of one
+// group of it, of a client, or of a deployment.
+type logScope struct {
+	namespace, jobID, group string
+
+	// nodeID and deploymentID read the allocations of a client or of a
+	// deployment rather than those of the job; label names the client.
+	nodeID, deploymentID, label string
+}
+
 // logChoice is a task and the allocations that run it.
 type logChoice struct {
 	job, group, task string
 	allocs           []nomad.Alloc
-}
-
-// logPick is the question which task to read: what it was asked about, and
-// the answers.
-type logPick struct {
-	title   string
-	scope   screen
-	choices []logChoice
 }
 
 // jobLogsState is the log of one task, read from every allocation that runs
@@ -90,15 +86,6 @@ func (l *jobLogsState) stop() {
 	l.reading++
 }
 
-// stopLogs closes every log the session follows: what the page on top
-// reads, and the logs of a job.
-func (m Model) stopLogs() Model {
-	m = m.closeStream()
-	m.jobLogs.stop()
-
-	return m
-}
-
 // jobLogs reads the logs of the job under the cursor.
 func jobLogs(p jobsPage, e env) (jobsPage, outcome) {
 	job, ok := p.picked(e)
@@ -106,7 +93,7 @@ func jobLogs(p jobsPage, e env) (jobsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(jobLogsMsg(screen{kind: screenAllocations, namespace: job.Namespace, jobID: job.ID}))
+	return p, askLogScope(e, logScope{namespace: job.Namespace, jobID: job.ID})
 }
 
 // groupLogs reads the logs of the task group under the cursor.
@@ -116,20 +103,20 @@ func groupLogs(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(jobLogsMsg(screen{kind: screenAllocations, namespace: p.namespace, jobID: p.jobID, taskGroup: group.Name}))
+	return p, askLogScope(e, logScope{namespace: p.namespace, jobID: p.jobID, group: group.Name})
 }
 
 // askLogScope reads the allocations the logs are to come from: which of
-// them run, and which tasks.
-func (m Model) askLogScope(scope screen) (Model, tea.Cmd) {
-	return m, askedFor(m.asked, request(allocsOf(m.client, scope), func(allocs []nomad.Alloc) tea.Msg {
-		return logScopeMsg{scope: scope, allocs: allocs}
-	}))
+// them run, and which tasks. What they answer is for the screen that asked.
+func askLogScope(e env, scope logScope) outcome {
+	return then(requestMsg(request(allocsOf(e.client, scope), func(allocs []nomad.Alloc) tea.Msg {
+		return showLogScope(scope, allocs)
+	})))
 }
 
 // allocsOf reads the allocations of a list: of a deployment, of a client, of
 // a job, or of the namespace.
-func allocsOf(client allocsClient, s screen) func(ctx context.Context) ([]nomad.Alloc, error) {
+func allocsOf(client allocsClient, s logScope) func(ctx context.Context) ([]nomad.Alloc, error) {
 	return func(ctx context.Context) ([]nomad.Alloc, error) {
 		switch {
 		case s.deploymentID != "":
@@ -144,7 +131,7 @@ func allocsOf(client allocsClient, s screen) func(ctx context.Context) ([]nomad.
 
 // choices are the tasks that run in the allocations of a list, each with
 // the allocations that run it, the newest first.
-func choices(scope screen, allocs []nomad.Alloc) []logChoice {
+func choices(scope logScope, allocs []nomad.Alloc) []logChoice {
 	byTask := map[[3]string]*logChoice{}
 
 	for _, alloc := range allocs {
@@ -176,16 +163,16 @@ func choices(scope screen, allocs []nomad.Alloc) []logChoice {
 }
 
 // inScope says the allocation belongs to what the logs were asked of.
-func inScope(scope screen, alloc nomad.Alloc) bool {
+func inScope(scope logScope, alloc nomad.Alloc) bool {
 	return (scope.jobID == "" || alloc.JobID == scope.jobID) &&
-		(scope.taskGroup == "" || alloc.TaskGroup == scope.taskGroup)
+		(scope.group == "" || alloc.TaskGroup == scope.group)
 }
 
 // scopeName names what the logs were asked of, for a question or a warning.
-func scopeName(scope screen) string {
+func scopeName(scope logScope) string {
 	switch {
-	case scope.taskGroup != "":
-		return scope.taskGroup
+	case scope.group != "":
+		return scope.group
 	case scope.jobID != "":
 		return scope.jobID
 	case scope.label != "":
@@ -198,32 +185,44 @@ func scopeName(scope screen) string {
 }
 
 // showLogScope reads the only task there is, or asks which one.
-func (m Model) showLogScope(msg logScopeMsg) (Model, tea.Cmd) {
-	found := choices(msg.scope, msg.allocs)
+func showLogScope(scope logScope, allocs []nomad.Alloc) tea.Msg {
+	found := choices(scope, allocs)
 
 	switch len(found) {
 	case 0:
-		return m.warn(fmt.Sprintf("%s has no allocation running", scopeName(msg.scope))), nil
+		return warnMsg(fmt.Sprintf("%s has no allocation running", scopeName(scope)))
 	case 1:
-		return m.openJobLogs(msg.scope, found[0])
+		return openMsg(jobLogsScreen(scope, found[0]))
 	}
 
-	m.logPick = logPick{title: pickTitle(msg.scope), scope: msg.scope, choices: found}
-
-	return m.push(screen{kind: screenLogTasks, namespace: msg.scope.namespace, jobID: msg.scope.jobID})
+	return openMsg(screen{kind: screenLogTasks, namespace: scope.namespace, page: logTasksPage{scope: scope, choices: found}})
 }
 
-// pickTitle says what the question of which task is about.
-func pickTitle(scope screen) string {
+// logTasksPage is the question which task to read: what it was asked
+// about, and the answers.
+type logTasksPage struct {
+	noAnswers
+
+	scope   logScope
+	choices []logChoice
+}
+
+// title says what the question of which task is about.
+func (p logTasksPage) title(env, int) string {
 	switch {
-	case scope.jobID != "":
-		return fmt.Sprintf("Logs of which task? (Job: %s)", scope.jobID)
-	case scope.nodeID != "":
-		return fmt.Sprintf("Logs of which task? (Client: %s)", scope.label)
+	case p.scope.jobID != "":
+		return fmt.Sprintf("Logs of which task? (Job: %s)", p.scope.jobID)
+	case p.scope.nodeID != "":
+		return fmt.Sprintf("Logs of which task? (Client: %s)", p.scope.label)
 	}
 
 	return "Logs of which task?"
 }
+
+func (logTasksPage) titles() []string      { return logTaskTitles }
+func (logTasksPage) topics() []string      { return nil }
+func (logTasksPage) fetch(env) tea.Cmd     { return nil }
+func (p logTasksPage) rows(env) []tableRow { return logTaskRows(p.choices) }
 
 // logTaskTitles are the columns of the question of which task.
 var logTaskTitles = []string{"Task", "Allocations"}
@@ -250,173 +249,256 @@ func logTaskRows(found []logChoice) []tableRow {
 	return rows
 }
 
-var logTaskBindings = []binding{{press: "enter", label: "Logs", do: pickLogTask}}
+var logTasksKeys = []pageKey[logTasksPage]{{press: "enter", label: "Logs", do: pickLogTask}}
+
+func (p logTasksPage) keys(e env) []keyHint { return hintsOf(p, e, logTasksKeys) }
+
+func (p logTasksPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, logTasksKeys, k)
+}
 
 // pickLogTask reads the task under the cursor.
-func pickLogTask(m Model) (Model, tea.Cmd) {
-	choice, ok := selectedOf(m, screenLogTasks, m.logPick.choices)
+func pickLogTask(p logTasksPage, e env) (logTasksPage, outcome) {
+	choice, ok := pickedFrom(e, p.choices)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	return m.openJobLogs(m.logPick.scope, choice)
+	return p, then(openMsg(jobLogsScreen(p.scope, choice)))
 }
 
-// openJobLogs follows what the task writes to stdout in every allocation
+// jobLogsPage follows what a task writes in every allocation that runs it.
+type jobLogsPage struct {
+	// scope is what the allocations are read of, narrowed to the job and
+	// the group of the task.
+	scope        logScope
+	task, source string
+
+	// first are the allocations the task was picked with, read when the
+	// page is entered the first time. Every time after that they are read
+	// again: a deployment may have replaced them meanwhile.
+	first []nomad.Alloc
+
+	logs    jobLogsState
+	content textContent
+}
+
+// jobLogsScreen follows what the task writes to stdout in every allocation
 // that runs it, on top of the screen it was asked from: escape closes them
 // all and goes back.
-func (m Model) openJobLogs(scope screen, choice logChoice) (Model, tea.Cmd) {
-	next := scope
-	next.kind, next.jobID, next.taskGroup = screenJobLogs, choice.job, choice.group
-	next.task, next.source = choice.task, nomad.LogStdout
+func jobLogsScreen(scope logScope, choice logChoice) screen {
+	scope.jobID, scope.group = choice.job, choice.group
 
-	m = m.stackText(next, textModel{following: true})
+	p := jobLogsPage{scope: scope, task: choice.task, source: nomad.LogStdout, first: choice.allocs}
 
-	return m.readJobLogs(choice.allocs)
+	return screen{kind: screenJobLogs, namespace: scope.namespace, page: p}
 }
 
-// readJobLogs opens a stream for each of the allocations, the newest first
-// and no more than the limit.
-func (m Model) readJobLogs(allocs []nomad.Alloc) (Model, tea.Cmd) {
-	m.jobLogs.stop()
+// title says which task of which job, which of its outputs, and how many of
+// its allocations are read.
+func (p jobLogsPage) title(env, int) string {
+	read := plural(len(p.logs.allocs), "allocation")
+	if len(p.logs.all) > len(p.logs.allocs) {
+		read = fmt.Sprintf("%d of %d allocations", len(p.logs.allocs), len(p.logs.all))
+	}
+
+	return fmt.Sprintf("Logs (Job: %s, Task: %s) [%s, %s]", p.scope.jobID, p.task, p.source, read)
+}
+
+func (jobLogsPage) titles() []string       { return nil }
+func (jobLogsPage) topics() []string       { return nil }
+func (jobLogsPage) fetch(env) tea.Cmd      { return nil }
+func (jobLogsPage) rows(env) []tableRow    { return nil }
+func (jobLogsPage) follows() bool          { return true }
+func (p jobLogsPage) text(env) textContent { return p.content }
+
+func (p jobLogsPage) saveAs() (string, string) {
+	return fmt.Sprintf("%s-%s-%s", p.scope.jobID, p.task, p.source), "log"
+}
+
+// open reads the allocations the task was picked with, the first time.
+// Coming back, they are read again.
+func (p jobLogsPage) open(e env) (page, tea.Cmd) {
+	if p.first != nil {
+		first := p.first
+		p.first = nil
+
+		return p.read(e.client, first)
+	}
+
+	return p.reload(e.client)
+}
+
+func (p jobLogsPage) close() page {
+	p.logs.stop()
+
+	return p
+}
+
+// read opens a stream for each of the allocations, the newest first and no
+// more than the limit.
+func (p jobLogsPage) read(client filesClient, allocs []nomad.Alloc) (jobLogsPage, tea.Cmd) {
+	p.logs.stop()
 
 	read := allocs[:min(len(allocs), jobLogLimit)]
 
-	m.jobLogs = jobLogsState{
-		reading: m.jobLogs.reading,
+	p.logs = jobLogsState{
+		reading: p.logs.reading,
 		streams: map[*nomad.LogStream]string{},
 		tags:    map[string]tag{},
 		all:     allocs,
 		allocs:  read,
 	}
 
-	client, s, reading := m.client, m.screen, m.jobLogs.reading
+	namespace, task, source, reading := p.scope.namespace, p.task, p.source, p.logs.reading
 	cmds := make([]tea.Cmd, 0, len(read))
 
 	for i, alloc := range read {
 		style := lipgloss.NewStyle().Foreground(tagColours[i%len(tagColours)])
-		m.jobLogs.tags[alloc.ID] = tag{text: shortID(alloc.ID) + " │ ", style: style}
+		p.logs.tags[alloc.ID] = tag{text: shortID(alloc.ID) + " │ ", style: style}
 
 		id := alloc.ID
 		cmds = append(cmds, func() tea.Msg {
-			stream, err := client.Logs(context.Background(), s.namespace, id, s.task, s.source)
+			stream, err := client.Logs(context.Background(), namespace, id, task, source)
 
 			return jobLogOpenedMsg{reading: reading, allocID: id, stream: stream, err: err}
 		})
 	}
 
-	return m, tea.Batch(cmds...)
+	return p, tea.Batch(cmds...)
 }
 
-// openedJobLog keeps a stream that was opened for the reading on the
-// screen, and lets go of one opened for another.
-func (m Model) openedJobLog(msg jobLogOpenedMsg) (Model, tea.Cmd) {
-	if msg.reading != m.jobLogs.reading || m.screen.kind != screenJobLogs {
-		if msg.stream != nil {
-			msg.stream.Close()
-		}
+// reload reads the allocations again, to open the logs of the ones that
+// run the task now.
+func (p jobLogsPage) reload(client allocsClient) (jobLogsPage, tea.Cmd) {
+	p.logs.stop()
+	p.content = textContent{}
 
-		return m, nil
-	}
+	reading := p.logs.reading
 
-	if msg.err != nil {
-		return m.jobLogLines(msg.allocID, &styleError, "could not read: "+msg.err.Error()), nil
-	}
-
-	m.jobLogs.streams[msg.stream] = msg.allocID
-
-	return m, waitForStream(msg.stream)
-}
-
-// appendJobLog puts what an allocation wrote at the end, behind the tag of
-// the allocation.
-func (m Model) appendJobLog(stream *nomad.LogStream, allocID, chunk string) (Model, tea.Cmd) {
-	return m.jobLogLines(allocID, nil, linesOf(chunk)...), waitForStream(stream)
-}
-
-// endJobLog lets go of a stream that ended, and says so: the others go on.
-func (m Model) endJobLog(stream *nomad.LogStream, allocID string) Model {
-	delete(m.jobLogs.streams, stream)
-
-	return m.jobLogLines(allocID, &styleMuted, "stopped")
-}
-
-// jobLogLines adds lines of an allocation, in a style of their own when
-// they are not something the task wrote.
-func (m Model) jobLogLines(allocID string, style *lipgloss.Style, lines ...string) Model {
-	label := m.jobLogs.tags[allocID]
-
-	return m.readLines(lines, &label, style)
-}
-
-// jobLogsTitle says which task of which job, which of its outputs, and how
-// many of its allocations are read.
-func jobLogsTitle(s screen, logs jobLogsState) string {
-	read := plural(len(logs.allocs), "allocation")
-	if len(logs.all) > len(logs.allocs) {
-		read = fmt.Sprintf("%d of %d allocations", len(logs.allocs), len(logs.all))
-	}
-
-	return fmt.Sprintf("Logs (Job: %s, Task: %s) [%s, %s]", s.jobID, s.task, s.source, read)
-}
-
-// reloadJobLogs reads the allocations again and opens the logs of the ones
-// that run the task now: a deployment may have replaced them since.
-func reloadJobLogs(m Model) (Model, tea.Cmd) {
-	m.jobLogs.stop()
-	m.text = m.text.emptied()
-
-	reading := m.jobLogs.reading
-
-	return m, request(allocsOf(m.client, m.screen), func(allocs []nomad.Alloc) tea.Msg {
+	return p, request(allocsOf(client, p.scope), func(allocs []nomad.Alloc) tea.Msg {
 		return jobLogAllocsMsg{reading: reading, allocs: allocs}
 	})
 }
 
-// reloadedJobLogs opens the logs of the allocations read again, when they
-// are for the reading on the screen.
-func (m Model) reloadedJobLogs(msg jobLogAllocsMsg) (Model, tea.Cmd) {
-	if msg.reading != m.jobLogs.reading || m.screen.kind != screenJobLogs {
-		return m, nil
+// take keeps what the logs of the reading on the screen say. A stream
+// opened for another reading is not the page's: the session lets go of it.
+// None of it is an answer to what the page asked.
+func (p jobLogsPage) take(msg tea.Msg, e env) (page, outcome, bool) {
+	switch msg := msg.(type) {
+	case jobLogAllocsMsg:
+		if msg.reading != p.logs.reading {
+			return p, outcome{}, false
+		}
+
+		return p.reloaded(e.client, msg.allocs)
+
+	case jobLogOpenedMsg:
+		if msg.reading != p.logs.reading {
+			return p, outcome{}, false
+		}
+
+		if msg.err != nil {
+			return p.lines(msg.allocID, &styleError, "could not read: "+msg.err.Error()), outcome{reading: true}, true
+		}
+
+		// The streams are kept from the first one on, whatever came before.
+		if p.logs.streams == nil {
+			p.logs.streams = map[*nomad.LogStream]string{}
+		}
+
+		p.logs.streams[msg.stream] = msg.allocID
+
+		return p, outcome{cmd: waitForStream(msg.stream), reading: true}, true
+
+	case logLineMsg:
+		allocID, ok := p.logs.streams[msg.stream]
+		if !ok {
+			return p, outcome{}, false
+		}
+
+		// What an allocation wrote goes at the end, behind its tag.
+		return p.lines(allocID, nil, linesOf(msg.text)...), outcome{cmd: waitForStream(msg.stream), reading: true}, true
+
+	case logEndMsg:
+		allocID, ok := p.logs.streams[msg.stream]
+		if !ok {
+			return p, outcome{}, false
+		}
+
+		// A stream that ended is let go of, and says so: the others go on.
+		delete(p.logs.streams, msg.stream)
+
+		return p.lines(allocID, &styleMuted, "stopped"), outcome{reading: true}, true
 	}
 
-	s := m.screen
+	return p, outcome{}, false
+}
 
-	for _, choice := range choices(s, msg.allocs) {
-		if choice.task == s.task {
-			return m.readJobLogs(choice.allocs)
+// reloaded opens the logs of the allocations read again.
+func (p jobLogsPage) reloaded(client filesClient, allocs []nomad.Alloc) (page, outcome, bool) {
+	for _, choice := range choices(p.scope, allocs) {
+		if choice.task == p.task {
+			p, cmd := p.read(client, choice.allocs)
+
+			return p, outcome{cmd: cmd, reading: true}, true
 		}
 	}
 
-	m, cmd := m.readJobLogs(nil)
+	p, cmd := p.read(client, nil)
+	warn := warnMsg(fmt.Sprintf("%s runs in no allocation now", p.task))
 
-	return m.warn(fmt.Sprintf("%s runs in no allocation now", s.task)), cmd
+	return p, outcome{now: []tea.Msg{warn}, cmd: cmd, reading: true}, true
+}
+
+// lines adds lines of an allocation, all with the one time they arrived, in
+// a style of their own when they are not something the task wrote.
+func (p jobLogsPage) lines(allocID string, style *lipgloss.Style, lines ...string) jobLogsPage {
+	label := p.logs.tags[allocID]
+	p.content.add(lines, time.Now(), &label, style)
+
+	return p
+}
+
+// jobLogsKeys are the keys of the logs of a job.
+var jobLogsKeys = []pageKey[jobLogsPage]{
+	{press: "r", label: "Reload", do: reloadJobLogs},
+	// The key that opens stderr from the tasks switches to the other of
+	// the two here, and says which one it goes to.
+	{press: "ctrl+e", label: "Stderr", do: switchJobSource, offered: readsJobSource(nomad.LogStdout)},
+	{press: "ctrl+e", label: "Stdout", do: switchJobSource, offered: readsJobSource(nomad.LogStderr)},
+	followKey[jobLogsPage](),
+	wrapKey[jobLogsPage](),
+	timesKey[jobLogsPage](),
+	saveKey[jobLogsPage](),
+}
+
+func (p jobLogsPage) keys(e env) []keyHint { return hintsOf(p, e, jobLogsKeys) }
+
+func (p jobLogsPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, jobLogsKeys, k)
+}
+
+// readsJobSource says the logs read the source.
+func readsJobSource(source string) func(p jobLogsPage, _ env) bool {
+	return func(p jobLogsPage, _ env) bool { return p.source == source }
+}
+
+// reloadJobLogs reads the allocations again and opens the logs of the ones
+// that run the task now: a deployment may have replaced them since.
+func reloadJobLogs(p jobLogsPage, e env) (jobLogsPage, outcome) {
+	p, cmd := p.reload(e.client)
+
+	return p, then(requestMsg(cmd))
 }
 
 // switchJobSource reads the other of the two outputs, from the same
 // allocations.
-func switchJobSource(m Model) (Model, tea.Cmd) {
-	m.screen.source = otherSource(m.screen.source)
-	m.text = m.text.emptied()
-	m.layout()
+func switchJobSource(p jobLogsPage, e env) (jobLogsPage, outcome) {
+	p.source = otherSource(p.source)
+	p.content = textContent{}
 
-	return m.readJobLogs(m.jobLogs.all)
-}
+	p, cmd := p.read(e.client, p.logs.all)
 
-// onSource says the log screen reads the source.
-func onSource(source string) func(m Model) bool {
-	return func(m Model) bool { return m.screen.source == source }
-}
-
-// jobLogBindings are the keys of the logs of a job.
-var jobLogBindings = []binding{
-	{press: "r", label: "Reload", do: reloadJobLogs},
-	// The key that opens stderr from the tasks switches to the other of
-	// the two here, and says which one it goes to.
-	{press: "ctrl+e", label: "Stderr", do: switchJobSource, offered: onSource(nomad.LogStdout)},
-	{press: "ctrl+e", label: "Stdout", do: switchJobSource, offered: onSource(nomad.LogStderr)},
-	{press: "s", label: "Toggle Autoscroll", do: toggleAutoscroll},
-	{press: "w", label: "Toggle Wrap", do: wrapLines},
-	{press: "t", label: "Toggle Timestamps", do: showTimes},
-	{press: "ctrl+s", label: "Save", do: saveScreen},
+	return p, then(requestMsg(cmd))
 }

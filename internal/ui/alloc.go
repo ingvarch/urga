@@ -89,10 +89,10 @@ func (allocationsPage) reading(ctx context.Context, client Client, ref rowRef) (
 	return allocReading(ctx, client, ref)
 }
 
-// logScope is what the logs of the page are read of: the allocations of the
+// logsOf is what the logs of the page are read of: the allocations of the
 // job, of the group, or of the namespace.
-func (p allocationsPage) logScope(e env) screen {
-	return screen{kind: screenAllocations, namespace: p.where(e), jobID: p.jobID, taskGroup: p.group}
+func (p allocationsPage) logsOf(e env) logScope {
+	return logScope{namespace: p.where(e), jobID: p.jobID, group: p.group}
 }
 
 var allocationsKeys = allocKeys[allocationsPage]()
@@ -111,8 +111,8 @@ type allocLister interface {
 	// visible are the allocations of the rows, in their order.
 	visible(e env) []nomad.Alloc
 
-	// logScope is what the logs of the list are read of.
-	logScope(e env) screen
+	// logsOf is what the logs of the list are read of.
+	logsOf(e env) logScope
 }
 
 // allocKeys are the keys of an allocation, for a page that lists them. A
@@ -183,7 +183,7 @@ func eachAllocAsked(e env, allocs []nomad.Alloc, action allocAction) outcome {
 // allocLogs reads the logs of the allocations of the list: which task, then
 // that task in every allocation that runs it.
 func allocLogs[P allocLister](p P, e env) (P, outcome) {
-	return p, then(jobLogsMsg(p.logScope(e)))
+	return p, askLogScope(e, p.logsOf(e))
 }
 
 // runningRefs are the allocations whose usage the rows on the screen show:

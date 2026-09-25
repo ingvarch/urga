@@ -39,204 +39,201 @@ type planState struct {
 	choice int
 }
 
-// Messages of a plan.
-type (
-	// planMsg is a plan the cluster answered with, for the file it carries.
-	planMsg struct {
-		plan  nomad.Plan
-		state planState
-	}
+// planDoneMsg says a plan of the job went through: it is spent.
+type planDoneMsg struct{ jobID string }
 
-	// planDoneMsg is what came of submitting a plan, and what to say when
-	// it went through.
-	planDoneMsg struct {
-		jobID string
-		said  string
-		err   error
-	}
-)
+// planPage is what the cluster would do with a job, before anything is
+// sent: the file of an edit submitted, or the job gone back to a version.
+type planPage struct {
+	planState
 
-var planBindings = []binding{
-	// The key that sends a plan says what it sends.
-	{press: "y", label: "Submit", do: submitPlan, writes: true, offered: planOfAnEdit},
-	{press: "y", label: "Revert", do: submitPlan, writes: true, offered: planOfARevert},
-	{press: "r", label: "Replan", do: replan},
-	{press: "w", label: "Toggle Wrap", do: wrapLines},
-	{press: "ctrl+s", label: "Save", do: saveScreen},
+	content textContent
 }
 
-func planOfAnEdit(m Model) bool { return !m.plan.revert && !m.plan.failed }
-
-func planOfARevert(m Model) bool { return m.plan.revert && !m.plan.failed }
-
-// sendKey is the key that sends the plan, when there is one to send.
-func (m Model) sendKey() (binding, bool) {
-	return m.binding("y")
-}
-
-// planButtonKey moves between the buttons at the foot of a plan, and presses
-// the one the cursor is on.
-func (m Model) planButtonKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
-	if m.screen.kind != screenPlan {
-		return m, nil, false
-	}
-
-	switch msg.String() {
-	case "left", "shift+tab", "h":
-		m.plan.choice = buttonCancel
-
-	case "right", "tab", "l":
-		if _, ok := m.sendKey(); ok {
-			m.plan.choice = buttonConfirm
-		}
-
-	case "enter":
-		if send, ok := m.sendKey(); ok && m.plan.choice == buttonConfirm {
-			next, cmd := send.do(m)
-
-			return next, cmd, true
-		}
-
-		next, cmd := m.back()
-
-		return next, cmd, true
-
-	default:
-		return m, nil, false
-	}
-
-	return m, nil, true
-}
-
-// planBar is the question at the foot of a plan, with its buttons: cancel,
-// and the one that sends it, or says why nothing can be sent.
-func (m Model) planBar(width int) string {
-	verb := planVerb(m.plan.revert)
-
-	question := fmt.Sprintf("%s %s?", verb, m.screen.jobID)
-	if m.plan.revert && m.plan.to != nil {
-		question = fmt.Sprintf("%s %s to version %d?", verb, m.screen.jobID, *m.plan.to)
-	}
-
-	send := button(verb, m.plan.choice == buttonConfirm)
-	if m.plan.failed {
-		send = styleButtonOff.Render(fmt.Sprintf(" Can't %s: placement failed ", strings.ToLower(verb)))
-	}
-
-	buttons := button("Cancel", m.plan.choice == buttonCancel) + "  " + send
-	gap := max(width-ansi.StringWidth(question)-ansi.StringWidth(buttons), 1)
-
-	return styleMuted.Render(strings.Repeat("─", width)) + "\n" +
-		truncate(styleText.Render(question)+strings.Repeat(" ", gap)+buttons, width)
-}
-
-// barRows is how many rows of the box the question at the foot of a plan
-// takes.
-func (m Model) barRows() int {
-	if m.screen.kind == screenPlan {
-		return 2
-	}
-
-	return 0
-}
-
-// planFor asks the cluster what submitting the file, or going back to the
-// version, would do.
-func planFor(client jobsClient, state planState) tea.Cmd {
-	return request(func(ctx context.Context) (planMsg, error) {
-		if state.revert {
-			plan, err := client.PlanRevert(ctx, state.namespace, state.jobID, state.to)
-
-			return planMsg{plan: plan, state: state}, err
-		}
-
-		plan, err := client.PlanJob(ctx, state.namespace, state.source, state.vars)
-
-		return planMsg{plan: plan, state: state}, err
-	}, func(msg planMsg) tea.Msg { return msg })
-}
-
-// planTitle says whose plan it is, and for a revert, to which version.
-func planTitle(m Model) string {
-	if m.plan.revert && m.plan.to != nil {
-		return sprintf("Revert (Job: %s, Version: %d)", m.screen.jobID, *m.plan.to)
-	}
-
-	return sprintf("Plan (Job: %s)", m.screen.jobID)
-}
-
-// showPlan puts a plan up, or in place of the one on the screen when it is
-// the same job planned again.
-func (m Model) showPlan(msg planMsg) Model {
-	state := msg.state
-	state.index = msg.plan.Index
-	state.failed = len(msg.plan.Failures) > 0
+// planOf is the page of a plan the cluster answered with, for what was
+// planned.
+func planOf(plan nomad.Plan, state planState) planPage {
+	state.index = plan.Index
+	state.failed = len(plan.Failures) > 0
 
 	// A revert is planned to a version and from one: the one it goes back
 	// to is known now, and the one the job has is what submitting checks.
 	if state.revert {
-		to := msg.plan.To
-		state.to, state.from = &to, msg.plan.Version
+		to := plan.To
+		state.to, state.from = &to, plan.Version
 	}
 
-	if m.screen.kind == screenPlan && m.screen.jobID == state.jobID {
-		m.plan = state
-		planned := paintedText(planText(msg.plan, state.revert))
-		m.text.lines, m.text.paint = planned.lines, planned.paint
-		m.layout()
+	return planPage{planState: state, content: paintedText(planText(plan, state.revert)).textContent}
+}
 
-		return m
+// planScreen puts a plan up where its job lives.
+func planScreen(p planPage) screen {
+	return screen{kind: screenPlan, namespace: p.namespace, page: p}
+}
+
+// title says whose plan it is, and for a revert, to which version.
+func (p planPage) title(env, int) string {
+	if p.revert && p.to != nil {
+		return sprintf("Revert (Job: %s, Version: %d)", p.jobID, *p.to)
 	}
 
-	m = m.stackText(screen{kind: screenPlan, namespace: state.namespace, jobID: state.jobID}, paintedText(planText(msg.plan, state.revert)))
-	m.plan = state
+	return sprintf("Plan (Job: %s)", p.jobID)
+}
 
-	return m
+func (planPage) titles() []string       { return nil }
+func (planPage) topics() []string       { return nil }
+func (planPage) fetch(env) tea.Cmd      { return nil }
+func (planPage) rows(env) []tableRow    { return nil }
+func (p planPage) text(env) textContent { return p.content }
+
+// take keeps the same job planned again in place of this plan, rather than
+// on top of it: escape still goes back to where the plan was asked from. A
+// plan that went through is spent, and the screen goes back to where the
+// edit started.
+func (p planPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	switch msg := msg.(type) {
+	case openMsg:
+		again, ok := msg.page.(planPage)
+		if !ok || again.jobID != p.jobID {
+			return p, outcome{}, false
+		}
+
+		return again, outcome{reading: true}, true
+
+	case planDoneMsg:
+		if msg.jobID != p.jobID {
+			return p, outcome{}, false
+		}
+
+		return p, outcome{now: []tea.Msg{backMsg{}}, reading: true}, true
+	}
+
+	return p, outcome{}, false
+}
+
+var planKeys = append([]pageKey[planPage]{
+	// The key that sends a plan says what it sends.
+	{press: "y", label: "Submit", do: submitPlan, writes: true, offered: planOfAnEdit},
+	{press: "y", label: "Revert", do: submitPlan, writes: true, offered: planOfARevert},
+	{press: "r", label: "Replan", do: replan},
+}, textKeys[planPage]()...)
+
+func (p planPage) keys(e env) []keyHint { return hintsOf(p, e, planKeys) }
+
+func (p planPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, planKeys, k)
+}
+
+func planOfAnEdit(p planPage, _ env) bool { return !p.revert && !p.failed }
+
+func planOfARevert(p planPage, _ env) bool { return p.revert && !p.failed }
+
+// sends says there is something to send, and a key to send it with.
+func (p planPage) sends(e env) bool { return !p.failed && !e.readOnly }
+
+// button moves between the buttons at the foot of a plan, and presses the
+// one the cursor is on.
+func (p planPage) button(key string, e env) (page, outcome, bool) {
+	switch key {
+	case "left", "shift+tab", "h":
+		p.choice = buttonCancel
+
+	case "right", "tab", "l":
+		if p.sends(e) {
+			p.choice = buttonConfirm
+		}
+
+	case "enter":
+		if p.sends(e) && p.choice == buttonConfirm {
+			next, out := submitPlan(p, e)
+
+			return next, out, true
+		}
+
+		return p, then(backMsg{}), true
+
+	default:
+		return p, outcome{}, false
+	}
+
+	return p, outcome{}, true
+}
+
+// bar is the question at the foot of a plan, with its buttons: cancel,
+// and the one that sends it, or says why nothing can be sent.
+func (p planPage) bar(_ env, width int) []string {
+	verb := planVerb(p.revert)
+
+	question := fmt.Sprintf("%s %s?", verb, p.jobID)
+	if p.revert && p.to != nil {
+		question = fmt.Sprintf("%s %s to version %d?", verb, p.jobID, *p.to)
+	}
+
+	send := button(verb, p.choice == buttonConfirm)
+	if p.failed {
+		send = styleButtonOff.Render(fmt.Sprintf(" Can't %s: placement failed ", strings.ToLower(verb)))
+	}
+
+	buttons := button("Cancel", p.choice == buttonCancel) + "  " + send
+	gap := max(width-ansi.StringWidth(question)-ansi.StringWidth(buttons), 1)
+
+	return []string{
+		styleMuted.Render(strings.Repeat("─", width)),
+		truncate(styleText.Render(question)+strings.Repeat(" ", gap)+buttons, width),
+	}
+}
+
+// planFor asks the cluster what submitting the file, or going back to the
+// version, would do, and puts the plan up.
+func planFor(client jobsClient, state planState) tea.Cmd {
+	return request(func(ctx context.Context) (nomad.Plan, error) {
+		if state.revert {
+			return client.PlanRevert(ctx, state.namespace, state.jobID, state.to)
+		}
+
+		return client.PlanJob(ctx, state.namespace, state.source, state.vars)
+	}, func(plan nomad.Plan) tea.Msg { return openMsg(planScreen(planOf(plan, state))) })
 }
 
 // submitPlan sends what was planned: the file at the index it was planned
-// at, or the revert from the version it was planned from.
-func submitPlan(m Model) (Model, tea.Cmd) {
-	client, state := m.client, m.plan
+// at, or the revert from the version it was planned from. What came of it
+// is said whether or not the plan is still up; a plan the job changed under
+// stays, with its file, to be planned again.
+func submitPlan(p planPage, e env) (planPage, outcome) {
+	client, state := e.client, p.planState
 
-	return m, func() tea.Msg {
+	return p, outcome{cmd: func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		if state.revert && state.to != nil {
-			err := client.RevertJobTo(ctx, state.namespace, state.jobID, *state.to, state.from)
+		said := fmt.Sprintf("Job %s submitted.", state.jobID)
 
-			return planDoneMsg{jobID: state.jobID, said: fmt.Sprintf("Job %s reverted to version %d.", state.jobID, *state.to), err: err}
+		var err error
+		if state.revert && state.to != nil {
+			said = fmt.Sprintf("Job %s reverted to version %d.", state.jobID, *state.to)
+			err = client.RevertJobTo(ctx, state.namespace, state.jobID, *state.to, state.from)
+		} else {
+			err = client.SubmitJob(ctx, state.namespace, state.source, state.vars, state.index)
 		}
 
-		err := client.SubmitJob(ctx, state.namespace, state.source, state.vars, state.index)
+		switch {
+		case errors.Is(err, nomad.ErrJobChanged):
+			return warnMsg(fmt.Sprintf("%s changed since this plan: r plans it again", state.jobID))
 
-		return planDoneMsg{jobID: state.jobID, said: fmt.Sprintf("Job %s submitted.", state.jobID), err: err}
-	}
+		case err != nil:
+			return failMsg{err: err}
+		}
+
+		return tea.BatchMsg{
+			func() tea.Msg { return planDoneMsg{jobID: state.jobID} },
+			func() tea.Msg { return sayMsg(said) },
+		}
+	}}
 }
 
 // replan asks about the same file, or the same version, again.
-func replan(m Model) (Model, tea.Cmd) {
-	return m, planFor(m.client, m.plan)
-}
-
-// finishPlan says what came of a submit. A plan that went through is spent,
-// and the screen goes back to where the edit started; one the job changed
-// under stays, with its file, to be planned again.
-func (m Model) finishPlan(msg planDoneMsg) Model {
-	switch {
-	case errors.Is(msg.err, nomad.ErrJobChanged):
-		return m.warn(fmt.Sprintf("%s changed since this plan: r plans it again", msg.jobID))
-
-	case msg.err != nil:
-		return m.fail(msg.err)
-	}
-
-	if m.screen.kind == screenPlan {
-		m, _ = m.back()
-	}
-
-	return m.say(msg.said)
+func replan(p planPage, e env) (planPage, outcome) {
+	return p, outcome{cmd: planFor(e.client, p.planState)}
 }
 
 // planText is a plan as a page: first what keeps it from the cluster and

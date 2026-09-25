@@ -88,18 +88,6 @@ func init() {
 			open:    func() page { return allocationsPage{} },
 		},
 
-		screenLogTasks: {
-			titles: logTaskTitles,
-			keys:   logTaskBindings,
-			title:  func(m Model, _ int) string { return m.logPick.title },
-			rows:   func(m Model) []tableRow { return logTaskRows(m.logPick.choices) },
-		},
-
-		screenJobLogs: {
-			keys:  jobLogBindings,
-			title: func(m Model, _ int) string { return jobLogsTitle(m.screen, m.jobLogs) },
-		},
-
 		screenDeployments: {
 			stored:  "deployments",
 			aliases: []string{"deployments", "deployment", "dp"},
@@ -154,11 +142,6 @@ func init() {
 			stored:  "nodepools",
 			aliases: []string{"nodepools", "nodepool", "np"},
 			open:    func() page { return nodePoolsPage{} },
-		},
-
-		screenPlan: {
-			keys:  planBindings,
-			title: func(m Model, _ int) string { return planTitle(m) },
 		},
 	}
 
