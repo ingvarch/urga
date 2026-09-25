@@ -172,7 +172,7 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 		return m.fail(errNoRegions), nil
 	}
 
-	m.logs.stop()
+	m = m.stopLogs()
 
 	m.client = m.opts.InRegion(region)
 	m = m.forgetRegion()
