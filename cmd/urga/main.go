@@ -107,7 +107,7 @@ type cmdline struct {
 	namespace string
 	readOnly  bool
 
-	flags *flag.FlagSet
+	namespaceGiven bool
 }
 
 func parseFlags(args []string) (cmdline, error) {
@@ -121,9 +121,10 @@ func parseFlags(args []string) (cmdline, error) {
 	flags.StringVar(&cl.namespace, "namespace", os.Getenv("NOMAD_NAMESPACE"), "namespace to look at, empty is all of them")
 	flags.BoolVar(&cl.readOnly, "readonly", false, "change nothing in the cluster: the keys that would are taken away")
 
-	cl.flags = flags
+	err := flags.Parse(args)
+	cl.namespaceGiven = given(flags, "namespace")
 
-	return cl, flags.Parse(args)
+	return cl, err
 }
 
 // start is where urga starts: the cluster, how to reach it, how careful to
@@ -141,7 +142,7 @@ type start struct {
 // default of the settings, then the environment. What the command line says
 // wins over the settings of the cluster.
 func startOn(cl cmdline, s settings.Settings) (start, error) {
-	st := start{readOnly: cl.readOnly, namespace: cl.namespace, namespaceGiven: given(cl.flags, "namespace")}
+	st := start{readOnly: cl.readOnly, namespace: cl.namespace, namespaceGiven: cl.namespaceGiven}
 
 	name := cl.cluster
 	if name == "" {
