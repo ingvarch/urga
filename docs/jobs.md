@@ -36,7 +36,9 @@ current count filled in, and then asks you to confirm.
 with. If the cluster has no file for the job, urga opens the job as JSON.
 
 When you save and close the editor, urga does not submit the job yet. It asks
-the cluster for a plan and shows it.
+the cluster for a plan and shows it. If the cluster cannot plan the file, for
+example because of a syntax error, urga opens the editor again with your edit
+and the reason at the top. See [Editor](configuration.md#editor).
 
 ## The plan
 

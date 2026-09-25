@@ -43,10 +43,12 @@ type fakeClient struct {
 	server       nomad.Server
 	raft         []nomad.RaftPeer
 
-	// variableSpec is a variable as a file, and submitErrs what its saves
-	// answer, in turn.
+	// variableSpec is a variable as a file.
 	variableSpec nomad.VariableSource
-	submitErrs   []error
+
+	// refusals are what the sends of an edit answer, in turn: the plan of a
+	// job, a namespace, metadata and a variable.
+	refusals []error
 
 	describe      string
 	spec          nomad.JobSource
@@ -327,7 +329,7 @@ func (f *fakeClient) SubmitNodeMeta(_ context.Context, nodeID, source string) er
 	f.wrote("SubmitNodeMeta")
 	f.askedNodeID, f.metaSubmitted = nodeID, source
 
-	return f.err
+	return f.refused(f.err)
 }
 
 func (f *fakeClient) DescribeJob(_ context.Context, namespace, jobID string) (string, error) {
@@ -456,7 +458,7 @@ func (f *fakeClient) PlanJob(_ context.Context, namespace, source string, vars n
 	f.askedNamespace, f.plannedSource, f.plannedVars = namespace, source, vars
 	f.planCalls++
 
-	return f.plan, f.err
+	return f.plan, f.refused(f.err)
 }
 
 func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error {
@@ -479,7 +481,7 @@ func (f *fakeClient) SubmitNamespace(_ context.Context, source string) error {
 	f.submittedSource = source
 	f.submittedNamespaces++
 
-	return f.actionErr
+	return f.refused(f.actionErr)
 }
 
 func (f *fakeClient) DrainNode(_ context.Context, nodeID string, drain bool) error {
@@ -624,14 +626,19 @@ func (f *fakeClient) SubmitVariable(_ context.Context, namespace, path, source s
 	f.askedNamespace, f.variablePath = namespace, path
 	f.submittedSource, f.submittedIndex = source, index
 
-	if len(f.submitErrs) > 0 {
-		err := f.submitErrs[0]
-		f.submitErrs = f.submitErrs[1:]
+	return f.refused(f.actionErr)
+}
 
-		return err
+// refused is the next of the refusals, or otherwise what the call answers.
+func (f *fakeClient) refused(otherwise error) error {
+	if len(f.refusals) == 0 {
+		return otherwise
 	}
 
-	return f.actionErr
+	err := f.refusals[0]
+	f.refusals = f.refusals[1:]
+
+	return err
 }
 
 func (f *fakeClient) NodePools(context.Context) ([]nomad.NodePool, error) {

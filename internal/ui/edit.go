@@ -120,14 +120,16 @@ func jobFile(client Client, job nomad.Job) load {
 		// The editor holds the file only, the values of the variables are
 		// sent back beside it. What comes back is planned first: a changed
 		// file can restart every allocation of the job.
-		return file{extension: jobExtension(spec.Format), content: spec.Source, submit: func(source string) tea.Cmd {
+		extension := jobExtension(spec.Format)
+
+		return file{extension: extension, content: spec.Source, submit: reopening(extension, func(source string) tea.Cmd {
 			return planFor(client, planState{
 				namespace: job.Namespace,
 				jobID:     job.ID,
 				source:    source,
 				vars:      spec.Variables,
 			})
-		}}, nil
+		})}, nil
 	}
 }
 
@@ -146,12 +148,78 @@ func namespaceFile(client Client, name string) load {
 	return func(ctx context.Context) (file, error) {
 		content, err := client.NamespaceSpec(ctx, name)
 
-		return file{extension: "json", content: content, submit: func(source string) tea.Cmd {
+		return file{extension: "json", content: content, submit: reopening("json", func(source string) tea.Cmd {
 			return act(fmt.Sprintf("Namespace %s submitted.", name), func(ctx context.Context) error {
 				return client.SubmitNamespace(ctx, source)
 			})
-		}}, err
+		})}, err
 	}
+}
+
+// refusedEditMsg is an edit the cluster refused, and the file to open it in
+// again: what was typed, and how it is sent the next time. advice says what
+// sending it again does, when that is not plain.
+type refusedEditMsg struct {
+	err    error
+	advice string
+	again  file
+}
+
+// reopening sends an edit as send does. When the cluster refuses it, the
+// edit opens again instead of being lost, and is sent the same way.
+func reopening(extension string, send func(source string) tea.Cmd) func(source string) tea.Cmd {
+	var submit func(source string) tea.Cmd
+
+	submit = func(source string) tea.Cmd {
+		sent := send(source)
+
+		return func() tea.Msg {
+			msg := sent()
+			if failed, ok := msg.(errMsg); ok {
+				return refusedEditMsg{err: failed.err, again: file{extension: extension, content: source, submit: submit}}
+			}
+
+			return msg
+		}
+	}
+
+	return submit
+}
+
+// reopenEdit opens a refused edit again, with why at the top. The reason
+// comes off before the file is sent: JSON has no comments, and the comments
+// at the top of a job are part of it.
+func (m Model) reopenEdit(msg refusedEditMsg) tea.Cmd {
+	reason, ok := m.refusedBecause(msg.err)
+	if !ok {
+		reason = msg.err.Error()
+	}
+
+	header := refusal(reason, msg.advice)
+
+	again, submit := msg.again, msg.again.submit
+	again.content = header + again.content
+	again.submit = func(source string) tea.Cmd { return submit(strings.TrimPrefix(source, header)) }
+
+	return openEditor(func(context.Context) (file, error) { return again, nil })
+}
+
+// refusal is why an edit was refused, as comment lines. A file that comes
+// back as it went out changes nothing, so saving it again takes a change.
+func refusal(reason, advice string) string {
+	lines := strings.Split("Not saved: "+reason+".", "\n")
+	if advice != "" {
+		lines = append(lines, advice)
+	}
+
+	lines = append(lines, "To save, change the file: delete these lines at least.", "To drop your edit, quit without saving.")
+
+	var b strings.Builder
+	for _, line := range lines {
+		b.WriteString("# " + line + "\n")
+	}
+
+	return b.String()
 }
 
 // openEditor puts what the cluster has in a file and hands it over.

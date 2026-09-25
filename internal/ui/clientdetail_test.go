@@ -173,18 +173,13 @@ func TestClient_ShowsItsMetadataAndWhereItComesFrom(t *testing.T) {
 	r.Equal("igor", clipboardOf(cmd))
 }
 
-func TestClient_EditsTheMetadata(t *testing.T) {
-	r := require.New(t)
+// onMeta is the metadata of the client, with the editor at hand.
+func onMeta(t *testing.T, client *fakeClient, editor *fakeEditor) Model {
+	t.Helper()
 
-	editor := &fakeEditor{replace: `{"owner": "ingvar"}`}
-
-	client := &fakeClient{
-		nodes:      busyClient(),
-		nodeAllocs: clientAllocs(),
-		nodeDetail: clientDetail(),
-		nodeMeta:   clientMeta(),
-		metaSpec:   `{"owner": "igor"}`,
-	}
+	client.nodes, client.nodeAllocs = busyClient(), clientAllocs()
+	client.nodeDetail, client.nodeMeta = clientDetail(), clientMeta()
+	client.metaSpec = `{"owner": "igor"}`
 
 	m := New(client, Options{Namespace: "production", Version: "v-test", Editor: editor, PollEvery: time.Millisecond})
 	m, _ = m.update(sizeMsg())
@@ -197,9 +192,18 @@ func TestClient_EditsTheMetadata(t *testing.T) {
 	m = drain(m, cmd)
 
 	m, cmd = m.update(key('m'))
-	m = drain(m, cmd)
 
-	m, cmd = m.update(key('e'))
+	return drain(m, cmd)
+}
+
+func TestClient_EditsTheMetadata(t *testing.T) {
+	r := require.New(t)
+
+	editor := &fakeEditor{replace: `{"owner": "ingvar"}`}
+	client := &fakeClient{}
+	m := onMeta(t, client, editor)
+
+	m, cmd := m.update(key('e'))
 	follow(m, cmd, 5)
 
 	// What the API can set is what the editor was given, and what comes

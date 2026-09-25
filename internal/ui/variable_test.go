@@ -241,21 +241,15 @@ func TestVariable_NoEditOfALockedVariable(t *testing.T) {
 func TestVariable_ARefusedSaveOpensTheEditAgain(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{submitErrs: []error{errors.New("the variable is not valid TOML: line 2: expected value")}}
+	client := &fakeClient{refusals: []error{errors.New("the variable is not valid TOML: line 2: expected value")}}
 	m, editor := editingWeb(t, client, webFile+"DB_PORT = \n")
 
 	m, cmd := m.update(key('e'))
 	m = follow(m, cmd, 12)
 
-	// The edit comes back with why at the top, in place of the comments it
-	// had there.
+	// The edit comes back as it was, with why at the top.
 	r.Len(editor.seen, 2)
-	r.Equal(`# Not saved: the variable is not valid TOML: line 2: expected value.
-# To save, change the file: delete these lines at least.
-# To drop your edit, quit without saving.
-DB_HOST = "10.0.0.5"
-DB_PORT = 
-`, editor.seen[1])
+	r.Equal(reasonFor("the variable is not valid TOML: line 2: expected value")+webFile+"DB_PORT = \n", editor.seen[1])
 
 	// Left as it came back, it is dropped.
 	r.Equal([]string{"SubmitVariable"}, client.writes)
@@ -266,7 +260,7 @@ func TestVariable_AChangedVariableIsSavedOverWhenAsked(t *testing.T) {
 	r := require.New(t)
 
 	edit := "DB_HOST = \"10.0.0.6\"\n"
-	client := &fakeClient{submitErrs: []error{&nomad.VariableConflict{Path: "nomad/jobs/web", Index: 800}}}
+	client := &fakeClient{refusals: []error{&nomad.VariableConflict{Path: "nomad/jobs/web", Index: 800}}}
 
 	// The second time, the lines of the refusal are deleted.
 	m, editor := editingWeb(t, client, edit, edit)
@@ -286,7 +280,7 @@ func TestVariable_ADeletedVariableIsCreatedWhenAsked(t *testing.T) {
 	r := require.New(t)
 
 	edit := "DB_HOST = \"10.0.0.6\"\n"
-	client := &fakeClient{submitErrs: []error{&nomad.VariableConflict{Path: "nomad/jobs/web", Deleted: true}}}
+	client := &fakeClient{refusals: []error{&nomad.VariableConflict{Path: "nomad/jobs/web", Deleted: true}}}
 	m, editor := editingWeb(t, client, edit, edit)
 
 	m, cmd := m.update(key('e'))
@@ -303,7 +297,7 @@ func TestVariable_ALockedVariableIsNotSavedOver(t *testing.T) {
 
 	lock := &nomad.VariableLock{ID: leaderLock}
 	edit := "DB_HOST = \"10.0.0.6\"\n"
-	client := &fakeClient{submitErrs: []error{&nomad.VariableConflict{Path: "nomad/jobs/web", Lock: lock, Index: 800}}}
+	client := &fakeClient{refusals: []error{&nomad.VariableConflict{Path: "nomad/jobs/web", Lock: lock, Index: 800}}}
 	m, editor := editingWeb(t, client, edit, edit)
 
 	m, cmd := m.update(key('e'))
@@ -318,7 +312,7 @@ func TestVariable_ALockedVariableIsNotSavedOver(t *testing.T) {
 func TestVariable_ARefusedSaveSaysWhoseTokenWasRefused(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{submitErrs: []error{forbidden(t)}}
+	client := &fakeClient{refusals: []error{forbidden(t)}}
 	m, editor := editingWeb(t, client, "DB_HOST = \"10.0.0.6\"\n")
 	m, _ = m.update(tokenMsg(nomad.Token{Name: "deploy-bot", Type: "client"}))
 
