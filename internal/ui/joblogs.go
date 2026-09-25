@@ -195,7 +195,7 @@ func showLogScope(scope logScope, allocs []nomad.Alloc) tea.Msg {
 		return openMsg(jobLogsScreen(scope, found[0]))
 	}
 
-	return openMsg(screen{kind: screenLogTasks, namespace: scope.namespace, page: logTasksPage{scope: scope, choices: found}})
+	return openMsg(screen{kind: screenLogTasks, page: logTasksPage{scope: scope, choices: found}})
 }
 
 // logTasksPage is the question which task to read: what it was asked
@@ -291,7 +291,7 @@ func jobLogsScreen(scope logScope, choice logChoice) screen {
 
 	p := jobLogsPage{scope: scope, task: choice.task, source: nomad.LogStdout, first: choice.allocs}
 
-	return screen{kind: screenJobLogs, namespace: scope.namespace, page: p}
+	return screen{kind: screenJobLogs, page: p}
 }
 
 // title says which task of which job, which of its outputs, and how many of

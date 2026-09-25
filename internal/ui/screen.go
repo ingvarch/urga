@@ -51,11 +51,9 @@ const (
 	screenDeployment
 )
 
-// screen is what is open: the resource and what it was opened for. The
-// namespace travels with it, a job of another namespace keeps its own.
+// screen is what is open: the resource and what it was opened for.
 type screen struct {
-	kind      screenKind
-	namespace string
+	kind screenKind
 
 	// label titles a screen that is about one thing, like a description.
 	label string
@@ -407,7 +405,7 @@ func (m Model) show(kind screenKind) (Model, tea.Cmd) {
 // screenOf is a screen opened by name, in the namespace of the session, with
 // nothing read into it yet.
 func (m Model) screenOf(kind screenKind) screen {
-	s := screen{kind: kind, namespace: m.namespace}
+	s := screen{kind: kind}
 	if open := resources[kind].open; open != nil {
 		s.page = open()
 	}
@@ -547,13 +545,6 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m, stream := m.openStream()
 
 	m.layout()
-
-	// A screen that can be opened by name shows the namespace of the
-	// session; one that was opened from another screen keeps the namespace
-	// it was opened for. The rows and the stream have to agree on which.
-	if m.screen.followsSession() {
-		m.screen.namespace = m.namespace
-	}
 
 	// What the screen that was left was watching is let go of: the new one
 	// watches what it shows, if the cluster will say.

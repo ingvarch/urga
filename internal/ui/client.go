@@ -104,12 +104,10 @@ type clientPage struct {
 	allocs []nomad.Alloc
 }
 
-// clientScreen opens a client with what is known of the machine so far. It
-// runs the work of every namespace, which is what its stream watches.
+// clientScreen opens a client with what is known of the machine so far.
 func clientScreen(node nomad.Node) screen {
 	return screen{
-		kind:      screenNode,
-		namespace: nomad.AllNamespaces,
+		kind: screenNode,
 
 		// The readings belong to the machine they were taken on, the chart
 		// starts over on every client.
@@ -123,6 +121,10 @@ func (p clientPage) title(_ env, count int) string {
 
 func (clientPage) titles() []string { return allocTitles }
 func (clientPage) topics() []string { return []string{nomad.TopicAllocation} }
+
+// where: a client runs the work of every namespace, which is what its stream
+// watches.
+func (clientPage) where(env) string { return nomad.AllNamespaces }
 
 // fetch reads the work of the machine, and the machine itself: what the
 // panel says about it keeps up with the rest of the screen. What the host is

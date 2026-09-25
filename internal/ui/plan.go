@@ -68,7 +68,7 @@ func planOf(plan nomad.Plan, state planState) planPage {
 
 // planScreen puts a plan up where its job lives.
 func planScreen(p planPage) screen {
-	return screen{kind: screenPlan, namespace: p.namespace, page: p}
+	return screen{kind: screenPlan, page: p}
 }
 
 // title says whose plan it is, and for a revert, to which version.

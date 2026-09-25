@@ -60,7 +60,7 @@ type logsPage struct {
 
 // logsScreen opens a log where its allocation lives.
 func logsScreen(p logsPage) screen {
-	return screen{kind: screenLogs, namespace: p.namespace, page: p}
+	return screen{kind: screenLogs, page: p}
 }
 
 // followLogs follows what the task under the cursor writes to a source.

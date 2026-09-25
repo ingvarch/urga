@@ -109,9 +109,8 @@ func openJobGroups(p jobsPage, e env) (jobsPage, outcome) {
 	}
 
 	return p, then(openMsg(screen{
-		kind:      screenTaskGroups,
-		namespace: job.Namespace,
-		page:      taskGroupsPage{namespace: job.Namespace, jobID: job.ID},
+		kind: screenTaskGroups,
+		page: taskGroupsPage{namespace: job.Namespace, jobID: job.ID},
 	}))
 }
 
@@ -122,12 +121,19 @@ func scaleGroup(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(scaleMsg(group))
+	return p, then(scaleMsg(groupRef{namespace: p.namespace, TaskGroup: group}))
+}
+
+// groupRef is a task group with the namespace of its job, where a count is
+// sent.
+type groupRef struct {
+	namespace string
+	nomad.TaskGroup
 }
 
 // askScale puts up the line that asks for the count of a group, with the
 // count it runs now.
-func (m Model) askScale(group nomad.TaskGroup) (Model, tea.Cmd) {
+func (m Model) askScale(group groupRef) (Model, tea.Cmd) {
 	m.overlay = overlayScale
 	m.prompt = promptModel{
 		prefix: fmt.Sprintf("scale %s to: ", group.Name),
@@ -141,13 +147,13 @@ func (m Model) askScale(group nomad.TaskGroup) (Model, tea.Cmd) {
 
 // scaleTo sets the count of a group, when the answer is a count and the
 // question that follows is answered yes.
-func (m Model) scaleTo(group nomad.TaskGroup, input string) (Model, tea.Cmd) {
+func (m Model) scaleTo(group groupRef, input string) (Model, tea.Cmd) {
 	count, err := strconv.Atoi(input)
 	if err != nil || count < 0 {
 		return m.fail(fmt.Errorf("%q is not a count", input)), nil
 	}
 
-	client, namespace := m.client, m.screen.namespace
+	client, namespace := m.client, group.namespace
 
 	return m.ask(
 		fmt.Sprintf("Really scale %s of %s from %d to %d?", group.Name, group.JobID, group.Count, count),
@@ -166,8 +172,7 @@ func openGroupAllocations(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
 	}
 
 	return p, then(openMsg(screen{
-		kind:      screenAllocations,
-		namespace: p.namespace,
-		page:      allocationsPage{namespace: p.namespace, jobID: group.JobID, group: group.Name},
+		kind: screenAllocations,
+		page: allocationsPage{namespace: p.namespace, jobID: group.JobID, group: group.Name},
 	}))
 }

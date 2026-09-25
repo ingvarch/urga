@@ -40,7 +40,7 @@ func listedTasks(alloc nomad.Alloc) tasksPage {
 // tasksScreen opens the tasks of an allocation where it lives, which is
 // where its stream watches.
 func tasksScreen(p tasksPage) screen {
-	return screen{kind: screenTasks, namespace: p.namespace, page: p}
+	return screen{kind: screenTasks, page: p}
 }
 
 func (p tasksPage) title(_ env, count int) string {
@@ -50,7 +50,8 @@ func (p tasksPage) title(_ env, count int) string {
 func (tasksPage) titles() []string { return taskTitles }
 
 // topics: a change to an allocation is a change to its tasks.
-func (tasksPage) topics() []string { return []string{nomad.TopicAllocation} }
+func (tasksPage) topics() []string   { return []string{nomad.TopicAllocation} }
+func (p tasksPage) where(env) string { return p.namespace }
 
 func (p tasksPage) fetch(e env) tea.Cmd {
 	return fetchAllocation(e.client, p.namespace, p.allocID)
@@ -161,9 +162,8 @@ func openTaskEvents(p tasksPage, e env) (tasksPage, outcome) {
 	}
 
 	return p, then(openMsg(screen{
-		kind:      screenTaskEvents,
-		namespace: p.namespace,
-		page:      taskEventsPage{namespace: p.namespace, allocID: p.allocID, task: task.Name, alloc: p.alloc},
+		kind: screenTaskEvents,
+		page: taskEventsPage{namespace: p.namespace, allocID: p.allocID, task: task.Name, alloc: p.alloc},
 	}))
 }
 
@@ -186,7 +186,8 @@ func (taskEventsPage) titles() []string { return taskEventTitles }
 
 // topics: a change to an allocation is a change to what its tasks went
 // through.
-func (taskEventsPage) topics() []string { return []string{nomad.TopicAllocation} }
+func (taskEventsPage) topics() []string   { return []string{nomad.TopicAllocation} }
+func (p taskEventsPage) where(env) string { return p.namespace }
 
 func (p taskEventsPage) fetch(e env) tea.Cmd {
 	return fetchAllocation(e.client, p.namespace, p.allocID)

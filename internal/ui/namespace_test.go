@@ -164,3 +164,26 @@ func TestNamespaceKey_AScreenOpenedForAJobStaysInItsNamespace(t *testing.T) {
 	r.Equal("production", client.askedNamespace)
 	r.Equal("production", client.watchedNamespace)
 }
+
+func TestCommand_ANamespaceGivenLeavesTheScreenBelowWhereItIs(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), namespaces: threeNamespaces(), changes: newChanges()}
+	m := newTestModel(client)
+	m, _ = m.update(namespacesMsg(threeNamespaces()))
+	m, _ = m.update(jobsMsg(client.jobs))
+
+	m, cmd := m.update(enter())
+	m = playOut(m, cmd)
+	r.Contains(plain(m.render()), "Allocations (Job: web)")
+
+	// The namespace is the session's to switch; the allocations of a job in
+	// production stay there when the list opens again under the jobs.
+	m = typeCommand(m, "jobs staging")
+	m, cmd = m.update(escape())
+	m = playOut(m, cmd)
+
+	r.Contains(plain(m.render()), "Allocations (Job: web)")
+	r.Equal("production", client.askedNamespace)
+	r.Equal("production", client.watchedNamespace)
+}

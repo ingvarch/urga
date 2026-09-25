@@ -100,9 +100,8 @@ func openServiceInstances(p servicesPage, e env) (servicesPage, outcome) {
 	}
 
 	return p, then(openMsg(screen{
-		kind:      screenServiceInstances,
-		namespace: service.Namespace,
-		page:      serviceInstancesPage{namespace: service.Namespace, service: service.Name},
+		kind: screenServiceInstances,
+		page: serviceInstancesPage{namespace: service.Namespace, service: service.Name},
 	}))
 }
 
@@ -138,8 +137,9 @@ func (p serviceInstancesPage) title(_ env, count int) string {
 	return sprintf("Service %s (%s) [%d]", p.service, namespaceLabel(p.namespace), count)
 }
 
-func (serviceInstancesPage) titles() []string { return instanceTitles }
-func (serviceInstancesPage) topics() []string { return []string{nomad.TopicService} }
+func (serviceInstancesPage) titles() []string   { return instanceTitles }
+func (serviceInstancesPage) topics() []string   { return []string{nomad.TopicService} }
+func (p serviceInstancesPage) where(env) string { return p.namespace }
 
 // fetch reads the instances of the service the page is open on.
 func (p serviceInstancesPage) fetch(e env) tea.Cmd {

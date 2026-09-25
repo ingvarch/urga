@@ -89,10 +89,9 @@ func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
 	}
 
 	return m.push(screen{
-		kind:      screenDescribe,
-		namespace: m.screen.namespace,
-		label:     msg.label,
-		page:      describePage{label: msg.label, content: text.textContent},
+		kind:  screenDescribe,
+		label: msg.label,
+		page:  describePage{label: msg.label, content: text.textContent},
 	})
 }
 

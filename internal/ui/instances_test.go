@@ -294,7 +294,7 @@ func TestServiceInstances_TheTasksOpenWhereTheAllocationLives(t *testing.T) {
 	m := onServed(t, &fakeClient{})
 	m, _ = m.update(enter())
 
-	r.Equal("default", m.screen.namespace)
+	r.Equal("default", m.screen.page.(tasksPage).namespace)
 	r.Contains(plain(m.render()), "Tasks (Allocation: 37f18b8e)")
 }
 
