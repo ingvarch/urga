@@ -25,7 +25,8 @@ type page interface {
 	fetch(e env) tea.Cmd
 
 	// take keeps an answer the page asked for, and says whether it was one.
-	take(msg tea.Msg) (page, bool)
+	// What it asks of the session then belongs to the ask of the page.
+	take(msg tea.Msg, e env) (page, outcome, bool)
 
 	// rows are what the page shows.
 	rows(e env) []tableRow
@@ -146,6 +147,11 @@ func pressOf[P page](p P, e env, table []pageKey[P], press string) (page, outcom
 type outcome struct {
 	now []tea.Msg
 	cmd tea.Cmd
+
+	// reading says what the page took came from a timer of its own, not
+	// the answer to its ask: the screen is no fresher for it, so the error
+	// that is up stays and the poll keeps its time.
+	reading bool
 }
 
 // then is an outcome of messages the root takes at once.
@@ -167,6 +173,12 @@ type (
 	switchRegionMsg  string
 	narrowMsg        string
 	switchClusterMsg string
+
+	// askMsg puts a question up; yes runs apply.
+	askMsg struct {
+		question string
+		apply    tea.Cmd
+	}
 )
 
 // copyKey copies the value of the field under the cursor, on a page that
@@ -193,6 +205,13 @@ func copying(field, value string) outcome {
 // room rows.
 type panelled interface {
 	panel(e env, width, room int) []string
+}
+
+// restarter is a page with timers of its own. Every ask of the session ends
+// the chains it had, so restart lets go of the ones the page thinks are on
+// their way.
+type restarter interface {
+	restart() page
 }
 
 // noKeys is a page without keys of its own.

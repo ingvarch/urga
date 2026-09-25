@@ -167,6 +167,25 @@ func (m Model) pressPage(press string) (Model, tea.Cmd) {
 	return m.apply(out)
 }
 
+// took keeps what the open page made of an answer, and takes what it asks
+// for. The work it starts belongs to the ask of the page and ends with it.
+// An answer to the ask is the screen answered; a reading of a timer of the
+// page is not.
+func (m Model) took(next page, out outcome) (Model, tea.Cmd) {
+	out.cmd = askedFor(m.asked, out.cmd)
+
+	if out.reading {
+		m.screen.page = next
+
+		return m.apply(out)
+	}
+
+	m, poll := m.applyWhen(true, func(m *Model) { m.screen.page = next })
+	m, cmd := m.apply(out)
+
+	return m, tea.Batch(poll, cmd)
+}
+
 // apply takes what a page asked for: its messages at once, in order, and its
 // work meanwhile.
 func (m Model) apply(out outcome) (Model, tea.Cmd) {
@@ -490,7 +509,10 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m.usage = m.usage.forgetRows()
 	m.host.due = false
 	m.checks.due = false
-	m.instanceChecks.due = false
+
+	if p, ok := m.screen.page.(restarter); ok {
+		m.screen.page = p.restart()
+	}
 
 	m.list.table = newTableModel(m.screen.titles())
 	m.list.filter = ""

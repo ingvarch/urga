@@ -13,10 +13,10 @@ type namespacesPage struct{}
 
 var namespaceTitles = []string{"Name", "Quota", "Description"}
 
-func (namespacesPage) title(_ env, count int) string { return sprintf("Namespaces [%d]", count) }
-func (namespacesPage) titles() []string              { return namespaceTitles }
-func (namespacesPage) topics() []string              { return nil }
-func (p namespacesPage) take(tea.Msg) (page, bool)   { return p, false }
+func (namespacesPage) title(_ env, count int) string             { return sprintf("Namespaces [%d]", count) }
+func (namespacesPage) titles() []string                          { return namespaceTitles }
+func (namespacesPage) topics() []string                          { return nil }
+func (p namespacesPage) take(tea.Msg, env) (page, outcome, bool) { return p, outcome{}, false }
 
 func (namespacesPage) fetch(e env) tea.Cmd {
 	return fetchList(e.client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) })

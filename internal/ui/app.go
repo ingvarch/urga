@@ -219,8 +219,6 @@ type clusterData struct {
 	allocs      []nomad.Alloc
 	groups      []nomad.TaskGroup
 	deployments []nomad.Deployment
-	services    []nomad.Service
-	evaluations []nomad.Evaluation
 	nodes       []nomad.Node
 	versions    []nomad.JobVersion
 
@@ -247,11 +245,6 @@ type clusterData struct {
 
 	// logPick is the question which task to read the logs of.
 	logPick logPick
-
-	// instances are the instances of a service, and instanceChecks what
-	// their checks last said.
-	instances      []nomad.ServiceInstance
-	instanceChecks instanceChecksState
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -301,8 +294,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	// An answer the open page asked for is the page's to keep.
 	if p := m.screen.page; p != nil {
-		if next, ok := p.take(msg); ok {
-			return m.applyWhen(true, func(m *Model) { m.screen.page = next })
+		if next, out, ok := p.take(msg, m.env()); ok {
+			return m.took(next, out)
 		}
 	}
 
@@ -342,6 +335,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case sayMsg:
 		return m.say(string(msg)), nil
 
+	case askMsg:
+		return m.ask(msg.question, msg.apply)
+
 	case switchRegionMsg:
 		return m.switchRegion(string(msg))
 
@@ -378,12 +374,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		next, cmd := m.applyList(screenNamespaces, func(*Model) {})
 
 		return next, tea.Batch(cmd, next.remember())
-
-	case servicesMsg:
-		return m.applyList(screenServices, func(m *Model) { m.services = msg })
-
-	case evaluationsMsg:
-		return m.applyList(screenEvaluations, func(m *Model) { m.evaluations = msg })
 
 	case nodesMsg:
 		return usageOnce(m.applyList(screenNodes, func(m *Model) { m.nodes = m.nodesInView(msg) }))
@@ -538,15 +528,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case refusedEditMsg:
 		return m, m.reopenEdit(msg)
-
-	case instancesMsg:
-		return instanceChecksOnce(m.applyList(screenServiceInstances, func(m *Model) { m.instances = msg }))
-
-	case instanceChecksMsg:
-		return m.keepInstanceChecks(msg)
-
-	case pollInstanceChecksMsg:
-		return m.pollInstanceChecks()
 
 	case filesMsg:
 		return m.applyList(screenFiles, func(m *Model) { m.dir = dirState(msg) })

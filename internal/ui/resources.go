@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image/color"
 	"strconv"
-	"strings"
 
 	"github.com/ingvarch/urga/internal/nomad"
 )
@@ -39,53 +38,6 @@ func deploymentColor(d nomad.Deployment) color.Color {
 		return colorDead
 	case "successful":
 		return nil
-	}
-
-	return nil
-}
-
-var serviceTitles = []string{"Name", "Namespace", "Tags"}
-
-func serviceRows(services []nomad.Service) []tableRow {
-	rows := make([]tableRow, 0, len(services))
-
-	for _, s := range services {
-		rows = append(rows, tableRow{cells: []string{s.Name, s.Namespace, strings.Join(s.Tags, ", ")}})
-	}
-
-	return rows
-}
-
-var evaluationTitles = []string{"ID", "JobID", "Namespace", "Type", "TriggeredBy", "Status", "Age"}
-
-func evaluationRows(evals []nomad.Evaluation) []tableRow {
-	rows := make([]tableRow, 0, len(evals))
-
-	for _, e := range evals {
-		rows = append(rows, tableRow{
-			cells: []string{
-				shortID(e.ID),
-				e.JobID,
-				e.Namespace,
-				e.Type,
-				e.TriggeredBy,
-				e.Status,
-				ageOf(e.Created),
-			},
-			ages:  moments{6: e.Created},
-			color: evaluationColor(e),
-		})
-	}
-
-	return rows
-}
-
-func evaluationColor(e nomad.Evaluation) color.Color {
-	switch e.Status {
-	case "pending", "blocked":
-		return colorPending
-	case "failed", "canceled":
-		return colorDead
 	}
 
 	return nil

@@ -210,15 +210,15 @@ func (serversPage) fetch(e env) tea.Cmd {
 	return fetchList(e.client.Servers, func(items []nomad.Server) tea.Msg { return serversMsg(items) })
 }
 
-func (p serversPage) take(msg tea.Msg) (page, bool) {
+func (p serversPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	servers, ok := msg.(serversMsg)
 	if !ok {
-		return p, false
+		return p, outcome{}, false
 	}
 
 	p.servers = servers
 
-	return p, true
+	return p, outcome{}, true
 }
 
 // visible are the servers of the datacenter the session is narrowed to. The
@@ -272,17 +272,17 @@ func (p serverPage) fetch(e env) tea.Cmd {
 	)
 }
 
-func (p serverPage) take(msg tea.Msg) (page, bool) {
+func (p serverPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	switch msg := msg.(type) {
 	case serverMsg:
 		p.server = nomad.Server(msg)
 	case raftMsg:
 		p.peers, p.raftErr = msg.peers, msg.err
 	default:
-		return p, false
+		return p, outcome{}, false
 	}
 
-	return p, true
+	return p, outcome{}, true
 }
 
 func (p serverPage) rows(env) []tableRow { return serverDetailRows(p.server, p.peers, p.raftErr) }

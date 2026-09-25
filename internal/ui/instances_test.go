@@ -58,6 +58,10 @@ func TestServices_EnterOpensTheInstances(t *testing.T) {
 
 	r.Contains(plain(m.render()), "Service served (default) [3]")
 
+	// The stream watches the services where this one lives.
+	r.Equal("default", client.watchedNamespace)
+	r.Equal([]string{nomad.TopicService}, client.watchedTopics)
+
 	// Where each instance takes traffic, what registered it, and whether
 	// it still does.
 	r.Contains(fileRow(t, m, 0), "10.0.0.5:23133")
@@ -144,4 +148,243 @@ func TestServiceInstances_TheirChecks(t *testing.T) {
 	// What does not run has no checks to read.
 	checks := slices.Index(instanceTitles, "Checks")
 	r.Equal("-", m.list.table.rows[1].cells[checks])
+}
+
+func TestServices_TheListOfTheNamespaceAndItsKeys(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{services: []nomad.Service{
+		{Name: "api", Namespace: "production", Tags: []string{"http", "v1"}},
+		{Name: "web", Namespace: "production"},
+	}}
+	m := typeCommand(newTestModel(client), "services")
+
+	// Asked in the namespace of the session, and titled with it.
+	r.Equal("production", client.askedNamespace)
+	r.Contains(plain(m.render()), "Services (production) [2]")
+
+	header := fileRow(t, m, -1)
+	for _, title := range []string{"Name", "Namespace", "Tags"} {
+		r.Contains(header, title)
+	}
+
+	r.Contains(fileRow(t, m, 0), "api")
+	r.Contains(fileRow(t, m, 0), "http, v1")
+	r.Contains(fileRow(t, m, 1), "web")
+
+	r.Equal([]hint{{Key: "<enter>", Description: "Instances"}, {Key: "<d>", Description: "Describe"}}, m.hints())
+}
+
+func TestServices_DescribeTheOneUnderTheCursor(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		services: []nomad.Service{{Name: "api", Namespace: "production"}, {Name: "web", Namespace: "default"}},
+		describe: "{\n  \"Name\": \"web\"\n}",
+	}
+	m, _ := runLine(newTestModel(client), "services")
+	m, _ = m.update(servicesMsg(client.services))
+	m, _ = m.update(down())
+
+	m, cmd := m.update(key('d'))
+	m = drain(m, cmd)
+
+	// Asked where the service lives, under a title that names it.
+	r.Equal("default", client.askedNamespace)
+	r.Equal("web", client.askedID)
+	r.Equal(screenDescribe, m.screen.kind)
+
+	out := plain(m.render())
+	r.Contains(out, "Service: web")
+	r.Contains(out, `"Name": "web"`)
+}
+
+func TestServices_EnterOpensTheInstancesOfTheOneUnderTheCursor(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{services: []nomad.Service{{Name: "api", Namespace: "production"}, {Name: "web", Namespace: "default"}}}
+	m, _ := runLine(newTestModel(client), "services")
+	m, _ = m.update(servicesMsg(client.services))
+	m, _ = m.update(down())
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	r.Equal("web", client.instancesName)
+	r.Equal("default", client.instancesNamespace)
+	r.Contains(plain(m.render()), "Service web (default) [0]")
+}
+
+func TestServices_AListThatAnswersLateIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	m := onServed(t, &fakeClient{})
+
+	// The list answers while the instances of one of its services are open.
+	m, _ = m.update(servicesMsg{{Name: "billing", Namespace: "default"}})
+	r.Contains(fileRow(t, m, 0), "10.0.0.5:23133")
+
+	// Back on the list, it shows what it held.
+	m, _ = m.update(escape())
+
+	out := plain(m.render())
+	r.Contains(out, "Services (production) [1]")
+	r.Contains(fileRow(t, m, 0), "served")
+	r.NotContains(out, "billing")
+}
+
+func TestServices_OfTheRegionLeftAreLetGo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{services: []nomad.Service{{Name: "served", Namespace: "default"}}, instances: servedInstances()}
+	m := regionalModel(t, client)
+	m = typeCommand(m, "services")
+	r.Contains(fileRow(t, m, 0), "served")
+
+	// From the instances of one of them: the region is left for the list.
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	r.Contains(plain(m.render()), "Service served (default) [3]")
+
+	// The services of eu must not stand under the name of us before us
+	// answers.
+	client.services = nil
+	m, _ = runLine(m, "region us")
+
+	out := plain(m.render())
+	r.Contains(out, "Services (production) [0]")
+	r.NotContains(out, "served")
+}
+
+func TestServiceInstances_TheKeysOfAnInstance(t *testing.T) {
+	r := require.New(t)
+
+	m := onServed(t, &fakeClient{})
+
+	// One that takes traffic has tasks to open and nothing to delete.
+	r.Equal([]hint{{Key: "<enter>", Description: "Tasks"}}, m.hints())
+
+	// One its lost allocation left behind has both.
+	m, _ = m.update(key('j'))
+	r.Equal([]hint{{Key: "<enter>", Description: "Tasks"}, {Key: "<ctrl-d>", Description: "Delete"}}, m.hints())
+
+	// One whose allocation is gone has no tasks left.
+	m, _ = m.update(key('j'))
+	r.Equal([]hint{{Key: "<ctrl-d>", Description: "Delete"}}, m.hints())
+}
+
+func TestServiceInstances_ReadOnlyDeletesNothing(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m := onServed(t, client)
+	m.opts.ReadOnly = true
+
+	m, _ = m.update(key('j'))
+	r.Equal([]hint{{Key: "<enter>", Description: "Tasks"}}, m.hints())
+
+	m, _ = m.update(ctrl('d'))
+	r.Contains(plain(m.render()), "read-only: Delete is off")
+	r.Equal(overlayNone, m.overlay)
+	r.Empty(client.deletedRegistration)
+}
+
+func TestServiceInstances_TheTasksOpenWhereTheAllocationLives(t *testing.T) {
+	r := require.New(t)
+
+	m := onServed(t, &fakeClient{})
+	m, _ = m.update(enter())
+
+	r.Equal("default", m.screen.namespace)
+	r.Contains(plain(m.render()), "Tasks (Allocation: 37f18b8e)")
+}
+
+func TestServiceInstances_WhatNeedsLookingAtStandsOut(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{checks: []nomad.Check{{Service: "served", Name: "ready", Status: "failure"}}}
+	m := onServed(t, client)
+
+	m, cmd := m.update(pollInstanceChecksMsg{})
+	m = drain(m, cmd)
+
+	// Failing its checks, and outliving its allocation.
+	rows := m.list.table.rows
+	r.Equal(colorAttention, rows[0].color)
+	r.Equal(colorDead, rows[1].color)
+	r.Equal(colorDead, rows[2].color)
+}
+
+func TestServiceInstances_TheChecksAreReadOnceForEveryVisit(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{checks: []nomad.Check{{Service: "served", Name: "alive", Status: "success"}}}
+	m := onServed(t, client)
+
+	// The first answer started the reading. The instances are read again
+	// on every change: none of those starts a second one.
+	m, cmd := m.update(instancesMsg(servedInstances()))
+	drain(m, cmd)
+	r.Zero(client.checksCalls)
+
+	// Coming back to them is a visit of its own, with its own reading.
+	m, _ = m.update(enter())
+	m, _ = m.update(escape())
+
+	m, cmd = m.update(instancesMsg(servedInstances()))
+	m = drain(m, cmd)
+
+	r.Equal(1, client.checksCalls)
+	r.Contains(fileRow(t, m, 0), "1 passing")
+}
+
+func TestServiceInstances_EveryReadingOfTheChecksSetsTheTimerForTheNext(t *testing.T) {
+	r := require.New(t)
+
+	m := onServed(t, &fakeClient{})
+
+	_, cmd := m.update(instanceChecksMsg{service: "served", byAlloc: map[string][]nomad.Check{}})
+	r.NotNil(cmd)
+}
+
+func TestServiceInstances_ChecksOfAnotherServiceAreDropped(t *testing.T) {
+	r := require.New(t)
+
+	m := onServed(t, &fakeClient{})
+
+	failing := map[string][]nomad.Check{servedRunning: {{Service: "served", Name: "ready", Status: "failure"}}}
+	m, cmd := m.update(instanceChecksMsg{service: "other", byAlloc: failing})
+
+	r.Nil(cmd)
+	r.NotContains(fileRow(t, m, 0), "failing")
+}
+
+func TestServiceInstances_AReadingOfTheLastVisitIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	m := onServed(t, &fakeClient{checks: []nomad.Check{{Service: "served", Name: "ready", Status: "failure"}}})
+	_, read := m.update(pollInstanceChecksMsg{})
+
+	// The instances are left and come back before the reading answers.
+	m, _ = m.update(enter())
+	m, _ = m.update(escape())
+
+	// It answers for the visit that asked, and starts no second timer.
+	m, cmd := m.update(read())
+	r.Nil(cmd)
+	r.NotContains(fileRow(t, m, 0), "failing")
+}
+
+func TestServiceInstances_AReadingOfTheChecksLeavesTheErrorUp(t *testing.T) {
+	r := require.New(t)
+
+	m := onServed(t, &fakeClient{})
+	m, _ = m.update(errMsg{err: errTest})
+
+	// A reading is no answer of the cluster about the instances: what went
+	// wrong with them still stands.
+	m, _ = m.update(pollInstanceChecksMsg{})
+	m, _ = m.update(instanceChecksMsg{service: "served", byAlloc: map[string][]nomad.Check{}})
+
+	r.Contains(plain(m.render()), errTest.Error())
 }

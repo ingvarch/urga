@@ -28,15 +28,15 @@ func (nodePoolsPage) fetch(e env) tea.Cmd {
 	return fetchList(e.client.NodePools, func(items []nomad.NodePool) tea.Msg { return nodePoolsMsg(items) })
 }
 
-func (p nodePoolsPage) take(msg tea.Msg) (page, bool) {
+func (p nodePoolsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	pools, ok := msg.(nodePoolsMsg)
 	if !ok {
-		return p, false
+		return p, outcome{}, false
 	}
 
 	p.pools = pools
 
-	return p, true
+	return p, outcome{}, true
 }
 
 func (p nodePoolsPage) rows(env) []tableRow {

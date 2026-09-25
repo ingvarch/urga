@@ -95,6 +95,27 @@ func TestEvaluation_OpensFromTheList(t *testing.T) {
 	r.Contains(page, `Dimension "memory" exhausted on 2 nodes`)
 }
 
+func TestEvaluation_OpensTheOneUnderTheCursorWhereItLives(t *testing.T) {
+	r := require.New(t)
+
+	other := nomad.Evaluation{ID: "e2222222-0000-0000-0000-000000000000", JobID: "billing", Namespace: "default", Status: "complete"}
+	listed := []nomad.Evaluation{shortOfRoom().Evaluation, other}
+	client := &fakeClient{evaluations: listed, evaluation: shortOfRoom()}
+
+	// Every namespace is listed, so the one of the session is not the one
+	// of the evaluation.
+	m, _ := runLine(newTestModel(client), "evals")
+	m, _ = m.update(key('0'))
+	m, _ = m.update(evaluationsMsg(listed))
+	m, _ = m.update(down())
+
+	m, cmd := m.update(enter())
+	drain(m, cmd)
+
+	r.Equal("default", client.askedNamespace)
+	r.Equal(other.ID, client.askedID)
+}
+
 func TestEvaluationText(t *testing.T) {
 	r := require.New(t)
 
@@ -208,4 +229,75 @@ func TestPlacement_WhenNoEvaluationSaysWhy(t *testing.T) {
 	// to the job yet.
 	r.Equal(screenDescribe, m.screen.kind)
 	r.Contains(plain(m.render()), "No evaluation of web says why")
+}
+
+func TestEvaluations_TheListOfTheNamespaceAndItsKeys(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{evaluations: []nomad.Evaluation{shortOfRoom().Evaluation}}
+	m := typeCommand(newTestModel(client), "evaluations")
+
+	// Asked in the namespace of the session, and titled with it.
+	r.Equal("production", client.askedNamespace)
+	r.Contains(plain(m.render()), "Evaluations (production) [1]")
+
+	header := fileRow(t, m, -1)
+	for _, title := range []string{"ID", "JobID", "Namespace", "Type", "TriggeredBy", "Status", "Age"} {
+		r.Contains(header, title)
+	}
+
+	row := fileRow(t, m, 0)
+	for _, cell := range []string{"1ad88fd0", "web", "production", "service", "queued-allocs", "blocked", "3m"} {
+		r.Contains(row, cell)
+	}
+
+	r.NotContains(row, "1ad88fd0-6b1c")
+
+	// A blocked one waits.
+	r.Equal(colorPending, m.list.table.rows[0].color)
+
+	r.Equal([]hint{{Key: "<enter>", Description: "Details"}}, m.hints())
+}
+
+func TestEvaluations_AListThatAnswersLateIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	listed := []nomad.Evaluation{shortOfRoom().Evaluation}
+	client := &fakeClient{evaluations: listed, evaluation: shortOfRoom()}
+
+	m, _ := runLine(newTestModel(client), "evals")
+	m, _ = m.update(evaluationsMsg(listed))
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	// The list answers while one of its evaluations is open.
+	m, _ = m.update(evaluationsMsg{{ID: "b1111111-0000-0000-0000-000000000000", JobID: "billing", Namespace: "production"}})
+	r.Contains(plain(m.render()), "Evaluation 1ad88fd0")
+
+	// Back on the list, it shows what it held.
+	m, _ = m.update(escape())
+
+	out := plain(m.render())
+	r.Contains(out, "Evaluations (production) [1]")
+	r.Contains(fileRow(t, m, 0), "1ad88fd0")
+	r.NotContains(out, "billing")
+}
+
+func TestEvaluations_OfTheRegionLeftAreLetGo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{evaluations: []nomad.Evaluation{shortOfRoom().Evaluation}}
+	m := regionalModel(t, client)
+	m = typeCommand(m, "evaluations")
+	r.Contains(fileRow(t, m, 0), "1ad88fd0")
+
+	// The evaluations of eu must not stand under the name of us before us
+	// answers.
+	client.evaluations = nil
+	m, _ = runLine(m, "region us")
+
+	out := plain(m.render())
+	r.Contains(out, "Evaluations (production) [0]")
+	r.NotContains(out, "1ad88fd0")
 }

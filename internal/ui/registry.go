@@ -64,11 +64,6 @@ var (
 
 	fieldBindings = []binding{{press: "c", label: "Copy", do: copyField}}
 
-	serviceBindings = []binding{
-		{press: "enter", label: "Instances", do: openServiceInstances},
-		{press: "d", label: "Describe", do: describeService},
-	}
-
 	// textBindings are the keys of a screen that reads as text rather than
 	// as a list.
 	textBindings = []binding{
@@ -240,18 +235,6 @@ func init() {
 			rows: func(m Model) []tableRow { return taskRows(m.tasks()) },
 		},
 
-		screenServiceInstances: {
-			titles: instanceTitles,
-			keys:   instanceBindings,
-			topics: []string{nomad.TopicService},
-			fetch:  fetchInstances,
-
-			title: func(m Model, count int) string {
-				return sprintf("Service %s (%s) [%d]", m.screen.label, namespaceLabel(m.screen.namespace), count)
-			},
-			rows: func(m Model) []tableRow { return instanceRows(m.instances, m.instanceChecks.byAlloc) },
-		},
-
 		screenLogTasks: {
 			titles: logTaskTitles,
 			keys:   logTaskBindings,
@@ -310,37 +293,15 @@ func init() {
 		},
 
 		screenServices: {
-			name:    "Services",
 			stored:  "services",
 			aliases: []string{"services", "service", "svc"},
-			titles:  serviceTitles,
-			keys:    serviceBindings,
-			topics:  []string{nomad.TopicService},
-			fetch: func(m Model) tea.Cmd {
-				client, namespace := m.client, m.namespace
-
-				return fetchList(func(ctx context.Context) ([]nomad.Service, error) {
-					return client.Services(ctx, namespace)
-				}, func(items []nomad.Service) tea.Msg { return servicesMsg(items) })
-			},
-			rows: func(m Model) []tableRow { return serviceRows(m.services) },
+			open:    func() page { return servicesPage{} },
 		},
 
 		screenEvaluations: {
-			name:    "Evaluations",
 			stored:  "evaluations",
 			aliases: []string{"evaluations", "evaluation", "evals", "eval", "ev"},
-			titles:  evaluationTitles,
-			keys:    evaluationBindings,
-			topics:  []string{nomad.TopicEvaluation},
-			fetch: func(m Model) tea.Cmd {
-				client, namespace := m.client, m.namespace
-
-				return fetchList(func(ctx context.Context) ([]nomad.Evaluation, error) {
-					return client.Evaluations(ctx, namespace)
-				}, func(items []nomad.Evaluation) tea.Msg { return evaluationsMsg(items) })
-			},
-			rows: func(m Model) []tableRow { return evaluationRows(m.evaluations) },
+			open:    func() page { return evaluationsPage{} },
 		},
 
 		screenNodes: {

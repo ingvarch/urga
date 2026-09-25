@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image/color"
 	"maps"
 	"slices"
 	"strings"
@@ -13,17 +14,91 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-var evaluationBindings = []binding{{press: "enter", label: "Details", do: openEvaluation}}
+// evaluationsPage is the evaluations of the namespace the session looks at.
+type evaluationsPage struct {
+	evaluations []nomad.Evaluation
+}
+
+var evaluationTitles = []string{"ID", "JobID", "Namespace", "Type", "TriggeredBy", "Status", "Age"}
+
+func (evaluationsPage) title(e env, count int) string {
+	return sprintf("Evaluations (%s) [%d]", namespaceLabel(e.namespace), count)
+}
+
+func (evaluationsPage) titles() []string { return evaluationTitles }
+func (evaluationsPage) topics() []string { return []string{nomad.TopicEvaluation} }
+
+func (evaluationsPage) fetch(e env) tea.Cmd {
+	client, namespace := e.client, e.namespace
+
+	return fetchList(func(ctx context.Context) ([]nomad.Evaluation, error) {
+		return client.Evaluations(ctx, namespace)
+	}, func(items []nomad.Evaluation) tea.Msg { return evaluationsMsg(items) })
+}
+
+func (p evaluationsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	evaluations, ok := msg.(evaluationsMsg)
+	if !ok {
+		return p, outcome{}, false
+	}
+
+	p.evaluations = evaluations
+
+	return p, outcome{}, true
+}
+
+func (p evaluationsPage) rows(env) []tableRow { return evaluationRows(p.evaluations) }
+
+func evaluationRows(evals []nomad.Evaluation) []tableRow {
+	rows := make([]tableRow, 0, len(evals))
+
+	for _, e := range evals {
+		rows = append(rows, tableRow{
+			cells: []string{
+				shortID(e.ID),
+				e.JobID,
+				e.Namespace,
+				e.Type,
+				e.TriggeredBy,
+				e.Status,
+				ageOf(e.Created),
+			},
+			ages:  moments{6: e.Created},
+			color: evaluationColor(e),
+		})
+	}
+
+	return rows
+}
+
+func evaluationColor(e nomad.Evaluation) color.Color {
+	switch e.Status {
+	case "pending", "blocked":
+		return colorPending
+	case "failed", "canceled":
+		return colorDead
+	}
+
+	return nil
+}
+
+var evaluationsKeys = []pageKey[evaluationsPage]{{press: "enter", label: "Details", do: openEvaluation}}
+
+func (p evaluationsPage) keys(e env) []keyHint { return hintsOf(p, e, evaluationsKeys) }
+
+func (p evaluationsPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, evaluationsKeys, k)
+}
 
 // openEvaluation reads the evaluation under the cursor in full: how it
 // ended, and why it placed nothing when it did not.
-func openEvaluation(m Model) (Model, tea.Cmd) {
-	eval, ok := selectedOf(m, screenEvaluations, m.evaluations)
+func openEvaluation(p evaluationsPage, e env) (evaluationsPage, outcome) {
+	eval, ok := pickedFrom(e, p.evaluations)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	return m, describeEvaluation(m.client, eval.Namespace, eval.ID)
+	return p, outcome{cmd: describeEvaluation(e.client, eval.Namespace, eval.ID)}
 }
 
 // describeEvaluation reads one evaluation in full.
