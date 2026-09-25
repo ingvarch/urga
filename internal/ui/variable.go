@@ -43,15 +43,15 @@ func (variablesPage) fetch(e env) tea.Cmd {
 	}, func(items []nomad.Variable) tea.Msg { return variablesMsg(items) })
 }
 
-func (p variablesPage) take(msg tea.Msg) (page, bool) {
+func (p variablesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	variables, ok := msg.(variablesMsg)
 	if !ok {
-		return p, false
+		return p, outcome{}, false
 	}
 
 	p.variables = variables
 
-	return p, true
+	return p, outcome{}, true
 }
 
 func (p variablesPage) rows(env) []tableRow { return variableRows(p.variables) }
@@ -130,15 +130,15 @@ func (p variablePage) fetch(e env) tea.Cmd {
 }
 
 // take keeps a variable that is the one the page is open on.
-func (p variablePage) take(msg tea.Msg) (page, bool) {
+func (p variablePage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	v, ok := msg.(variableMsg)
 	if !ok || v.Path != p.path || v.Namespace != p.namespace {
-		return p, false
+		return p, outcome{}, false
 	}
 
 	p.detail = nomad.VariableDetail(v)
 
-	return p, true
+	return p, outcome{}, true
 }
 
 func (p variablePage) rows(env) []tableRow { return variableItemRows(p.detail.Items, p.shown) }

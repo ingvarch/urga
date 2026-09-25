@@ -62,19 +62,6 @@ func describeDeployment(m Model) (Model, tea.Cmd) {
 	})
 }
 
-func describeService(m Model) (Model, tea.Cmd) {
-	service, ok := selectedOf(m, screenServices, m.services)
-	if !ok {
-		return m, nil
-	}
-
-	client := m.client
-
-	return m, describe(fmt.Sprintf("Service: %s", service.Name), func(ctx context.Context) (string, error) {
-		return client.DescribeService(ctx, service.Namespace, service.Name)
-	})
-}
-
 // showJobSpec asks for the file the job under the cursor was submitted with.
 func showJobSpec(m Model) (Model, tea.Cmd) {
 	job, ok := selectedOf(m, screenJobs, m.jobs)

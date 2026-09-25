@@ -33,64 +33,177 @@ type (
 	pollInstanceChecksMsg struct{}
 )
 
-// instanceChecksState is what the checks of the instances last said.
-type instanceChecksState struct {
-	byAlloc map[string][]nomad.Check
+// servicesPage is the services of the namespace the session looks at.
+type servicesPage struct {
+	services []nomad.Service
+}
+
+var serviceTitles = []string{"Name", "Namespace", "Tags"}
+
+func (servicesPage) title(e env, count int) string {
+	return sprintf("Services (%s) [%d]", namespaceLabel(e.namespace), count)
+}
+
+func (servicesPage) titles() []string { return serviceTitles }
+func (servicesPage) topics() []string { return []string{nomad.TopicService} }
+
+func (servicesPage) fetch(e env) tea.Cmd {
+	client, namespace := e.client, e.namespace
+
+	return fetchList(func(ctx context.Context) ([]nomad.Service, error) {
+		return client.Services(ctx, namespace)
+	}, func(items []nomad.Service) tea.Msg { return servicesMsg(items) })
+}
+
+func (p servicesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	services, ok := msg.(servicesMsg)
+	if !ok {
+		return p, outcome{}, false
+	}
+
+	p.services = services
+
+	return p, outcome{}, true
+}
+
+func (p servicesPage) rows(env) []tableRow { return serviceRows(p.services) }
+
+func serviceRows(services []nomad.Service) []tableRow {
+	rows := make([]tableRow, 0, len(services))
+
+	for _, s := range services {
+		rows = append(rows, tableRow{cells: []string{s.Name, s.Namespace, strings.Join(s.Tags, ", ")}})
+	}
+
+	return rows
+}
+
+var servicesKeys = []pageKey[servicesPage]{
+	{press: "enter", label: "Instances", do: openServiceInstances},
+	{press: "d", label: "Describe", do: describeService},
+}
+
+func (p servicesPage) keys(e env) []keyHint { return hintsOf(p, e, servicesKeys) }
+
+func (p servicesPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, servicesKeys, k)
+}
+
+// openServiceInstances opens the instances of the service under the cursor.
+// The screen keeps the namespace of the service: its stream watches there.
+func openServiceInstances(p servicesPage, e env) (servicesPage, outcome) {
+	service, ok := pickedFrom(e, p.services)
+	if !ok {
+		return p, outcome{}
+	}
+
+	return p, then(openMsg(screen{
+		kind:      screenServiceInstances,
+		namespace: service.Namespace,
+		page:      serviceInstancesPage{namespace: service.Namespace, service: service.Name},
+	}))
+}
+
+// describeService asks for the service under the cursor, in the words of
+// the cluster.
+func describeService(p servicesPage, e env) (servicesPage, outcome) {
+	service, ok := pickedFrom(e, p.services)
+	if !ok {
+		return p, outcome{}
+	}
+
+	client := e.client
+
+	return p, outcome{cmd: describe(fmt.Sprintf("Service: %s", service.Name), func(ctx context.Context) (string, error) {
+		return client.DescribeService(ctx, service.Namespace, service.Name)
+	})}
+}
+
+// serviceInstancesPage is the instances of one service, and what their
+// checks last said, by the allocation that runs them.
+type serviceInstancesPage struct {
+	namespace, service string
+
+	instances []nomad.ServiceInstance
+	byAlloc   map[string][]nomad.Check
 
 	// due says the next reading or its timer is on its way: the list is read
 	// again on every change, and none of those may start a second chain.
 	due bool
 }
 
-var instanceBindings = []binding{
-	{press: "enter", label: "Tasks", do: openInstanceAlloc, offered: instanceAllocHeld},
-	{press: "ctrl+d", label: "Delete", do: deleteRegistration, writes: true, offered: instanceStale},
+func (p serviceInstancesPage) title(_ env, count int) string {
+	return sprintf("Service %s (%s) [%d]", p.service, namespaceLabel(p.namespace), count)
 }
 
-// openServiceInstances opens the instances of the service under the cursor.
-func openServiceInstances(m Model) (Model, tea.Cmd) {
-	service, ok := selectedOf(m, screenServices, m.services)
-	if !ok {
-		return m, nil
-	}
+func (serviceInstancesPage) titles() []string { return instanceTitles }
+func (serviceInstancesPage) topics() []string { return []string{nomad.TopicService} }
 
-	return m.push(screen{kind: screenServiceInstances, namespace: service.Namespace, label: service.Name})
-}
-
-// fetchInstances reads the instances of the service the screen is open on.
-func fetchInstances(m Model) tea.Cmd {
-	client, s := m.client, m.screen
+// fetch reads the instances of the service the page is open on.
+func (p serviceInstancesPage) fetch(e env) tea.Cmd {
+	client, namespace, service := e.client, p.namespace, p.service
 
 	return fetchList(func(ctx context.Context) ([]nomad.ServiceInstance, error) {
-		return client.ServiceInstances(ctx, s.namespace, s.label)
+		return client.ServiceInstances(ctx, namespace, service)
 	}, func(items []nomad.ServiceInstance) tea.Msg { return instancesMsg(items) })
 }
 
-// instanceChecksOnce takes the first reading of the checks when the
-// instances are listed, and only then: the timer keeps them coming.
-func instanceChecksOnce(m Model, read tea.Cmd) (Model, tea.Cmd) {
-	if m.screen.kind != screenServiceInstances || m.instanceChecks.due {
-		return m, read
+func (p serviceInstancesPage) take(msg tea.Msg, e env) (page, outcome, bool) {
+	switch msg := msg.(type) {
+	case instancesMsg:
+		p.instances = msg
+
+		// The first reading of the checks is taken when the instances are
+		// listed, and only then: the timer keeps them coming.
+		if p.due {
+			return p, outcome{}, true
+		}
+
+		p.due = true
+
+		return p, outcome{cmd: p.readChecks(e)}, true
+
+	case instanceChecksMsg:
+		if msg.service != p.service {
+			return p, outcome{}, false
+		}
+
+		// What the checks said goes on the rows, and the timer is set for
+		// the next reading.
+		p.byAlloc = msg.byAlloc
+		next := tea.Tick(checksEvery, func(time.Time) tea.Msg { return pollInstanceChecksMsg{} })
+
+		return p, outcome{cmd: next, reading: true}, true
+
+	case pollInstanceChecksMsg:
+		// The timer went off: the checks are read again.
+		return p, outcome{cmd: p.readChecks(e), reading: true}, true
 	}
 
-	m.instanceChecks.due = true
-
-	return m, tea.Batch(read, m.readInstanceChecks())
+	return p, outcome{}, false
 }
 
-// readInstanceChecks reads the checks of the instances whose allocation
-// runs, each from the client that runs it, all at once.
-func (m Model) readInstanceChecks() tea.Cmd {
-	client, service := m.client, m.screen.label
+// restart lets go of the reading the page thinks is on its way: it belonged
+// to an ask that is over.
+func (p serviceInstancesPage) restart() page {
+	p.due = false
+
+	return p
+}
+
+// readChecks reads the checks of the instances whose allocation runs, each
+// from the client that runs it, all at once.
+func (p serviceInstancesPage) readChecks(e env) tea.Cmd {
+	client, service := e.client, p.service
 
 	running := map[string]string{}
-	for _, instance := range m.instances {
+	for _, instance := range p.instances {
 		if instance.AllocStatus == statusRunning {
 			running[instance.AllocID] = instance.Namespace
 		}
 	}
 
-	return askedFor(m.asked, func() tea.Msg {
+	return func() tea.Msg {
 		byAlloc := map[string][]nomad.Check{}
 
 		var (
@@ -117,29 +230,25 @@ func (m Model) readInstanceChecks() tea.Cmd {
 		wait.Wait()
 
 		return instanceChecksMsg{service: service, byAlloc: byAlloc}
-	})
+	}
 }
 
-// keepInstanceChecks puts what the checks said on the rows, and sets the
-// timer for the next reading.
-func (m Model) keepInstanceChecks(msg instanceChecksMsg) (Model, tea.Cmd) {
-	if m.screen.kind != screenServiceInstances || msg.service != m.screen.label {
-		return m, nil
-	}
+func (p serviceInstancesPage) rows(env) []tableRow { return instanceRows(p.instances, p.byAlloc) }
 
-	m.instanceChecks.byAlloc = msg.byAlloc
-	m.layout()
-
-	return m, askedFor(m.asked, tea.Tick(checksEvery, func(time.Time) tea.Msg { return pollInstanceChecksMsg{} }))
+var serviceInstanceKeys = []pageKey[serviceInstancesPage]{
+	{press: "enter", label: "Tasks", do: openInstanceAlloc, offered: instanceAllocHeld},
+	{press: "ctrl+d", label: "Delete", do: deleteRegistration, writes: true, offered: instanceStale},
 }
 
-// pollInstanceChecks reads the checks again when their timer goes off.
-func (m Model) pollInstanceChecks() (Model, tea.Cmd) {
-	if m.screen.kind != screenServiceInstances {
-		return m, nil
-	}
+func (p serviceInstancesPage) keys(e env) []keyHint { return hintsOf(p, e, serviceInstanceKeys) }
 
-	return m, m.readInstanceChecks()
+func (p serviceInstancesPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, serviceInstanceKeys, k)
+}
+
+// picked is the instance under the cursor.
+func (p serviceInstancesPage) picked(e env) (nomad.ServiceInstance, bool) {
+	return pickedFrom(e, p.instances)
 }
 
 // instanceRows are the instances of a service: where each takes traffic,
@@ -234,45 +343,45 @@ func addressOf(instance nomad.ServiceInstance) string {
 
 // instanceAllocHeld says the allocation of the instance under the cursor is
 // still held by the cluster: there are tasks to open.
-func instanceAllocHeld(m Model) bool {
-	instance, ok := selectedOf(m, screenServiceInstances, m.instances)
+func instanceAllocHeld(p serviceInstancesPage, e env) bool {
+	instance, ok := p.picked(e)
 
 	return ok && instance.AllocStatus != ""
 }
 
 // instanceStale says the instance under the cursor outlived its allocation.
-func instanceStale(m Model) bool {
-	instance, ok := selectedOf(m, screenServiceInstances, m.instances)
+func instanceStale(p serviceInstancesPage, e env) bool {
+	instance, ok := p.picked(e)
 
 	return ok && instance.Stale()
 }
 
 // openInstanceAlloc opens the tasks of the allocation that registered the
 // instance under the cursor.
-func openInstanceAlloc(m Model) (Model, tea.Cmd) {
-	instance, ok := selectedOf(m, screenServiceInstances, m.instances)
+func openInstanceAlloc(p serviceInstancesPage, e env) (serviceInstancesPage, outcome) {
+	instance, ok := p.picked(e)
 	if !ok || instance.AllocStatus == "" {
-		return m, nil
+		return p, outcome{}
 	}
 
-	return m.push(screen{kind: screenTasks, namespace: instance.Namespace, jobID: instance.JobID, allocID: instance.AllocID})
+	return p, then(openMsg(screen{kind: screenTasks, namespace: instance.Namespace, jobID: instance.JobID, allocID: instance.AllocID}))
 }
 
 // deleteRegistration takes a registration that outlived its allocation out
 // of the catalog, once it is asked about. The key is offered on no other:
 // one that still takes traffic is left alone.
-func deleteRegistration(m Model) (Model, tea.Cmd) {
-	instance, ok := selectedOf(m, screenServiceInstances, m.instances)
+func deleteRegistration(p serviceInstancesPage, e env) (serviceInstancesPage, outcome) {
+	instance, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	client, where := m.client, addressOf(instance)
+	client, where := e.client, addressOf(instance)
 
-	return m.ask(
-		fmt.Sprintf("Really delete the registration of %s at %s? Its allocation is %s.", instance.Service, where, allocState(instance)),
-		act(fmt.Sprintf("Registration of %s at %s deleted.", instance.Service, where), func(ctx context.Context) error {
+	return p, then(askMsg{
+		question: fmt.Sprintf("Really delete the registration of %s at %s? Its allocation is %s.", instance.Service, where, allocState(instance)),
+		apply: act(fmt.Sprintf("Registration of %s at %s deleted.", instance.Service, where), func(ctx context.Context) error {
 			return client.DeleteServiceRegistration(ctx, instance.Namespace, instance.Service, instance.ID)
 		}),
-	)
+	})
 }

@@ -47,12 +47,12 @@ func switchTo(e env, choices []string, inUse string, move func(string) tea.Msg) 
 	return then(move(choice))
 }
 
-func (regionsPage) title(_ env, count int) string { return sprintf("Regions [%d]", count) }
-func (regionsPage) titles() []string              { return choiceTitles }
-func (regionsPage) topics() []string              { return nil }
-func (regionsPage) fetch(e env) tea.Cmd           { return fetchRegions(e.client) }
-func (p regionsPage) take(tea.Msg) (page, bool)   { return p, false }
-func (regionsPage) rows(e env) []tableRow         { return choiceRows(e.regions, e.region) }
+func (regionsPage) title(_ env, count int) string             { return sprintf("Regions [%d]", count) }
+func (regionsPage) titles() []string                          { return choiceTitles }
+func (regionsPage) topics() []string                          { return nil }
+func (regionsPage) fetch(e env) tea.Cmd                       { return fetchRegions(e.client) }
+func (p regionsPage) take(tea.Msg, env) (page, outcome, bool) { return p, outcome{}, false }
+func (regionsPage) rows(e env) []tableRow                     { return choiceRows(e.regions, e.region) }
 
 var regionKeys = []pageKey[regionsPage]{
 	{press: "enter", label: "Switch", do: func(p regionsPage, e env) (regionsPage, outcome) {
@@ -66,11 +66,11 @@ func (p regionsPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, regionKeys, k)
 }
 
-func (datacentersPage) title(_ env, count int) string { return sprintf("Datacenters [%d]", count) }
-func (datacentersPage) titles() []string              { return choiceTitles }
-func (datacentersPage) topics() []string              { return nil }
-func (datacentersPage) fetch(e env) tea.Cmd           { return fetchDatacenters(e.client) }
-func (p datacentersPage) take(tea.Msg) (page, bool)   { return p, false }
+func (datacentersPage) title(_ env, count int) string             { return sprintf("Datacenters [%d]", count) }
+func (datacentersPage) titles() []string                          { return choiceTitles }
+func (datacentersPage) topics() []string                          { return nil }
+func (datacentersPage) fetch(e env) tea.Cmd                       { return fetchDatacenters(e.client) }
+func (p datacentersPage) take(tea.Msg, env) (page, outcome, bool) { return p, outcome{}, false }
 func (datacentersPage) rows(e env) []tableRow {
 	return choiceRows(e.datacenters, orEvery(e.datacenter))
 }
@@ -95,12 +95,12 @@ func (p datacentersPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, datacenterKeys, k)
 }
 
-func (clustersPage) title(_ env, count int) string { return sprintf("Clusters [%d]", count) }
-func (clustersPage) titles() []string              { return choiceTitles }
-func (clustersPage) topics() []string              { return nil }
-func (clustersPage) fetch(env) tea.Cmd             { return nil }
-func (p clustersPage) take(tea.Msg) (page, bool)   { return p, false }
-func (clustersPage) rows(e env) []tableRow         { return choiceRows(e.clusters, e.cluster) }
+func (clustersPage) title(_ env, count int) string             { return sprintf("Clusters [%d]", count) }
+func (clustersPage) titles() []string                          { return choiceTitles }
+func (clustersPage) topics() []string                          { return nil }
+func (clustersPage) fetch(env) tea.Cmd                         { return nil }
+func (p clustersPage) take(tea.Msg, env) (page, outcome, bool) { return p, outcome{}, false }
+func (clustersPage) rows(e env) []tableRow                     { return choiceRows(e.clusters, e.cluster) }
 
 var clusterKeys = []pageKey[clustersPage]{
 	{press: "enter", label: "Switch", do: func(p clustersPage, e env) (clustersPage, outcome) {
