@@ -110,7 +110,7 @@ func TestBack_ComesBackToTheRowOfEveryKeyThatOpensAScreen(t *testing.T) {
 
 			back, _ := next.update(escape())
 
-			require.Equal(t, m.screen.kind, back.screen.kind, "%s %s", name, h.Key)
+			require.IsType(t, m.screen.page, back.screen.page, "%s %s", name, h.Key)
 			require.Equal(t, left, cursorName(back), "the %s screen after %s and escape", name, h.Key)
 		}
 	}
@@ -198,7 +198,7 @@ func TestBack_ComesBackToTheRowOfEveryScreenOfAClient(t *testing.T) {
 	m, _ = m.update(nodesMsg(client.nodes))
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
-	r.Equal(screenNode, m.screen.kind)
+	r.IsType(clientPage{}, m.screen.page)
 
 	m, _ = m.update(down())
 	left := cursorName(m)
@@ -208,7 +208,7 @@ func TestBack_ComesBackToTheRowOfEveryScreenOfAClient(t *testing.T) {
 	for _, press := range []tea.KeyPressMsg{key('e'), ctrlKey('d'), ctrlKey('h'), key('a'), key('m')} {
 		back := openAndBack(t, m, press)
 
-		r.Equal(screenNode, back.screen.kind, press.String())
+		r.IsType(clientPage{}, back.screen.page, press.String())
 		r.Equal(left, cursorName(back), press.String())
 	}
 }
@@ -222,6 +222,6 @@ func TestBack_ComesBackToTheVersionADiffWasAskedFrom(t *testing.T) {
 
 	m = openAndBack(t, m, enter())
 
-	r.Equal(screenJobVersions, m.screen.kind)
+	r.IsType(versionsPage{}, m.screen.page)
 	r.Equal(left, cursorName(m))
 }

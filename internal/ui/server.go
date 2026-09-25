@@ -223,7 +223,7 @@ func openServer(p serversPage, e env) (serversPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{kind: screenServer, page: serverPage{server: server}}))
+	return p, then(openMsg{serverPage{server: server}})
 }
 
 // serverPage is what the agent of one server says about itself, and what

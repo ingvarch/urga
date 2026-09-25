@@ -104,15 +104,11 @@ type clientPage struct {
 	allocs []nomad.Alloc
 }
 
-// clientScreen opens a client with what is known of the machine so far.
-func clientScreen(node nomad.Node) screen {
-	return screen{
-		kind: screenNode,
-
-		// The readings belong to the machine they were taken on, the chart
-		// starts over on every client.
-		page: clientPage{nodeID: node.ID, name: node.Name, host: hostModel{node: node}},
-	}
+// clientOf is a client with what is known of the machine so far.
+func clientOf(node nomad.Node) clientPage {
+	// The readings belong to the machine they were taken on, the chart
+	// starts over on every client.
+	return clientPage{nodeID: node.ID, name: node.Name, host: hostModel{node: node}}
 }
 
 func (p clientPage) title(_ env, count int) string {
@@ -233,13 +229,13 @@ func (p clientPage) logsOf(env) logScope {
 // clientKeys are the keys of the machine, and after them the keys of the
 // allocations on it, which answer here as on any other list of allocations.
 var clientKeys = append([]pageKey[clientPage]{
-	{press: "e", label: "Events", do: nodeScreen(screenNodeEvents, func(d machine) page { return nodeEventsPage{machine: d} })},
+	{press: "e", label: "Events", do: nodeScreen(func(d machine) page { return nodeEventsPage{machine: d} })},
 	// Draining is a key of the list of clients; on the screen of one client
 	// the same key opens what it can run.
-	{press: "ctrl+d", label: "Drivers", do: nodeScreen(screenNodeDrivers, func(d machine) page { return nodeDriversPage{machine: d} })},
-	{press: "ctrl+h", label: "Host Volumes", do: nodeScreen(screenNodeVolumes, func(d machine) page { return nodeVolumesPage{machine: d} })},
-	{press: "a", label: "Attributes", do: nodeScreen(screenNodeAttributes, func(d machine) page { return nodeAttributesPage{machine: d} })},
-	{press: "m", label: "Meta", do: nodeScreen(screenNodeMeta, func(d machine) page { return nodeMetaPage{nodeID: d.nodeID, name: d.name} })},
+	{press: "ctrl+d", label: "Drivers", do: nodeScreen(func(d machine) page { return nodeDriversPage{machine: d} })},
+	{press: "ctrl+h", label: "Host Volumes", do: nodeScreen(func(d machine) page { return nodeVolumesPage{machine: d} })},
+	{press: "a", label: "Attributes", do: nodeScreen(func(d machine) page { return nodeAttributesPage{machine: d} })},
+	{press: "m", label: "Meta", do: nodeScreen(func(d machine) page { return nodeMetaPage{nodeID: d.nodeID, name: d.name} })},
 }, allocKeys[clientPage]()...)
 
 func (p clientPage) keys(e env) []keyHint { return hintsOf(p, e, clientKeys) }

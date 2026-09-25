@@ -86,14 +86,14 @@ func TestTaskEvents_ShowWhatHappensNext(t *testing.T) {
 
 	m := openTasks(t, client)
 	m, _ = m.update(key('e'))
-	r.Equal(screenTaskEvents, m.screen.kind)
+	r.IsType(taskEventsPage{}, m.screen.page)
 
 	m = drain(m, m.fetch())
 
 	// The events of a task are read again like any list: the one that
 	// happened after the screen was opened is on it.
 	r.Contains(plain(m.render()), "Task restarting in 15s")
-	r.Equal([]string{nomad.TopicAllocation}, m.screen.topics())
+	r.Equal([]string{nomad.TopicAllocation}, m.screen.page.topics())
 }
 
 func TestTaskEvents_WatchTheAllocationWhereItLives(t *testing.T) {

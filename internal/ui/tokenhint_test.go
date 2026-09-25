@@ -73,7 +73,7 @@ func TestEmptyList_OnlyOnceItIsAnswered(t *testing.T) {
 	r.Contains(plain(m.render()), "Nothing here")
 
 	// Another screen opens: its list is on its way again.
-	m, _ = m.show(screenDeployments)
+	m, _ = m.show(deploymentsView)
 	r.NotContains(plain(m.render()), "Nothing here")
 }
 

@@ -123,7 +123,7 @@ func openDeployment(p deploymentsPage, e env) (deploymentsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(deploymentScreen(deployment)))
+	return p, then(openMsg{deploymentOf(deployment)})
 }
 
 // deploymentHolder is a page whose keys act on one deployment: the one
@@ -214,13 +214,10 @@ type deploymentPage struct {
 	allocs []nomad.Alloc
 }
 
-// deploymentScreen opens a deployment where it lives, which is where its
-// stream watches.
-func deploymentScreen(d nomad.Deployment) screen {
-	return screen{
-		kind: screenDeployment,
-		page: deploymentPage{namespace: d.Namespace, jobID: d.JobID, deploymentID: d.ID},
-	}
+// deploymentOf is a deployment where it lives, which is where its stream
+// watches.
+func deploymentOf(d nomad.Deployment) deploymentPage {
+	return deploymentPage{namespace: d.Namespace, jobID: d.JobID, deploymentID: d.ID}
 }
 
 func (p deploymentPage) title(_ env, count int) string {

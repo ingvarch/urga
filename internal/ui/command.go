@@ -7,15 +7,15 @@ import (
 )
 
 // commandAliases are the words the prompt understands for a resource. They
-// come from the one table that knows what urga can show.
-var commandAliases map[string]screenKind
+// come from the one table that knows what urga opens by name.
+var commandAliases = aliasIndex()
 
-func aliasIndex() map[string]screenKind {
-	aliases := map[string]screenKind{}
+func aliasIndex() map[string]*view {
+	aliases := map[string]*view{}
 
-	for kind, res := range resources {
-		for _, alias := range res.aliases {
-			aliases[alias] = kind
+	for _, v := range views {
+		for _, alias := range v.aliases {
+			aliases[alias] = v
 		}
 	}
 
@@ -26,14 +26,14 @@ func aliasIndex() map[string]screenKind {
 // resource, which is the one that reads as the thing it opens. Short forms
 // stay out of it, and so does leaving urga: that is a command, not a
 // resource to walk into.
-var commandNames []string
+var commandNames = nameIndex()
 
 func nameIndex() []string {
 	names := []string{}
 
-	for _, res := range resources {
-		if len(res.aliases) > 0 {
-			names = append(names, res.aliases[0])
+	for _, v := range views {
+		if len(v.aliases) > 0 {
+			names = append(names, v.aliases[0])
 		}
 	}
 
@@ -76,7 +76,7 @@ var scopeAliases = map[string]scope{
 // command is what the prompt was asked to do.
 type command struct {
 	bail      bool
-	kind      screenKind
+	view      *view
 	namespace string
 
 	// switching is the scope the line switches, name what it switches to.
@@ -108,8 +108,8 @@ func parseCommand(input string) (command, bool) {
 		return command{switching: switching, name: second}, true
 	}
 
-	if kind, ok := resolveAlias(word); ok {
-		return command{kind: kind, namespace: second}, true
+	if v, ok := resolveAlias(word); ok {
+		return command{view: v, namespace: second}, true
 	}
 
 	if switching, ok := resolveScope(word); ok {
@@ -137,27 +137,26 @@ func resolveScope(word string) (scope, bool) {
 }
 
 // resolveAlias takes a whole alias or a prefix that fits one resource.
-func resolveAlias(word string) (screenKind, bool) {
-	if kind, ok := commandAliases[word]; ok {
-		return kind, true
+func resolveAlias(word string) (*view, bool) {
+	if v, ok := commandAliases[word]; ok {
+		return v, true
 	}
 
-	var found screenKind
-	matched := false
+	var found *view
 
-	for alias, kind := range commandAliases {
+	for alias, v := range commandAliases {
 		if !strings.HasPrefix(alias, word) {
 			continue
 		}
 
-		if matched && kind != found {
-			return 0, false
+		if found != nil && v != found {
+			return nil, false
 		}
 
-		found, matched = kind, true
+		found = v
 	}
 
-	return found, matched
+	return found, found != nil
 }
 
 // matchingCommands are the resources a line could still be about: all of
@@ -185,9 +184,9 @@ func matchingCommands(typed string) []string {
 }
 
 // nameOf is what a resource is called in the command line.
-func nameOf(kind screenKind) string {
-	if res, ok := resources[kind]; ok && len(res.aliases) > 0 {
-		return res.aliases[0]
+func nameOf(v *view) string {
+	if len(v.aliases) > 0 {
+		return v.aliases[0]
 	}
 
 	return ""

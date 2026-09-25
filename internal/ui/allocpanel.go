@@ -37,7 +37,7 @@ func allocHas(where func(nomad.Alloc) string) func(p tasksPage, e env) bool {
 
 // openAllocNode opens the client the allocation runs on.
 func openAllocNode(p tasksPage, _ env) (tasksPage, outcome) {
-	return p, then(openMsg(clientScreen(nomad.Node{ID: p.alloc.NodeID, Name: p.alloc.NodeName})))
+	return p, then(openMsg{clientOf(nomad.Node{ID: p.alloc.NodeID, Name: p.alloc.NodeName})})
 }
 
 // openReplaced and openReplacement open the tasks of the allocation this one
@@ -53,7 +53,7 @@ func openReplacement(p tasksPage, _ env) (tasksPage, outcome) {
 // openAllocTasks opens the tasks of another allocation of the same job. It
 // is not in the list the tasks were opened from: they show once it is read.
 func (p tasksPage) openAllocTasks(allocID string) outcome {
-	return then(openMsg(tasksScreen(tasksPage{namespace: p.alloc.Namespace, jobID: p.alloc.JobID, allocID: allocID})))
+	return then(openMsg{tasksPage{namespace: p.alloc.Namespace, jobID: p.alloc.JobID, allocID: allocID}})
 }
 
 // openFollowUp reads the evaluation that will place the allocation again.

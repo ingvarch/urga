@@ -124,7 +124,7 @@ func TestClusters_PickFromTheList(t *testing.T) {
 	m, clusters := onDev(t)
 	m = typeCommand(m, "ctx")
 
-	r.Equal(screenClusters, m.screen.kind)
+	r.IsType(clustersPage{}, m.screen.page)
 	r.Contains(fileRow(t, m, 0), "dev")
 	r.Contains(fileRow(t, m, 0), "in use")
 	r.Contains(fileRow(t, m, 1), "prod")
@@ -180,7 +180,7 @@ func TestClusters_ClosesTheLogsOfEveryAllocation(t *testing.T) {
 
 	m, cmd := m.update(key('l'))
 	m = playOut(m, cmd)
-	r.Equal(screenJobLogs, m.screen.kind)
+	r.IsType(jobLogsPage{}, m.screen.page)
 
 	closed := countClosed(clusters.dev.logsByAlloc)
 	m = typeCommand(m, "ctx prod")

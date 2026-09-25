@@ -74,7 +74,7 @@ func TestPrompt_SwitchesResource(t *testing.T) {
 
 	// The prompt closes and the resource is on the screen.
 	r.Equal(overlayNone, m.overlay)
-	r.Equal(screenDeployments, m.screen.kind)
+	r.IsType(deploymentsPage{}, m.screen.page)
 	r.NotNil(cmd)
 }
 
@@ -90,7 +90,7 @@ func TestPrompt_SwitchesNamespaceToo(t *testing.T) {
 	m, cmd := m.update(enter())
 
 	r.Equal("staging", m.namespace)
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 
 	m = drain(m, cmd)
 	r.Equal("staging", client.askedNamespace)
@@ -111,7 +111,7 @@ func TestPrompt_UnknownResourceSays(t *testing.T) {
 	r.Contains(plain(m.render()), "no such resource: zzz")
 
 	// The list that was there stays there.
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 }
 
 func TestPrompt_UnknownNamespaceSays(t *testing.T) {
@@ -239,7 +239,7 @@ func TestPaste_WithNoLineOpenChangesNothing(t *testing.T) {
 
 	r.Nil(cmd)
 	r.Equal(overlayNone, next.overlay)
-	r.Equal(m.screen.kind, next.screen.kind)
+	r.IsType(m.screen.page, next.screen.page)
 	r.Empty(next.list.filter)
 }
 
@@ -280,7 +280,7 @@ func TestFilter_CursorFollowsTheFilteredRow(t *testing.T) {
 	r.Equal(overlayNone, m.overlay)
 
 	m, _ = m.update(enter())
-	r.Equal(screenAllocations, m.screen.kind)
+	r.IsType(allocationsPage{}, m.screen.page)
 
 	// The allocations of the job that was filtered to, not of the first row
 	// of the unfiltered list.
@@ -351,7 +351,7 @@ func TestPrompt_SwitchesBothAtOnce(t *testing.T) {
 
 	// A command that names a resource and a namespace does both, not one of
 	// the two.
-	r.Equal(screenDeployments, m.screen.kind)
+	r.IsType(deploymentsPage{}, m.screen.page)
 	r.Equal("staging", m.namespace)
 
 	m = drain(m, cmd)

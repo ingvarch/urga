@@ -38,7 +38,7 @@ func onServed(t *testing.T, client *fakeClient) Model {
 	client.instances = servedInstances()
 
 	m := newTestModel(client)
-	m, _ = m.show(screenServices)
+	m, _ = m.show(servicesView)
 	m, _ = m.update(servicesMsg(client.services))
 
 	m, cmd := m.update(enter())
@@ -52,7 +52,7 @@ func TestServices_EnterOpensTheInstances(t *testing.T) {
 	client := &fakeClient{}
 	m := onServed(t, client)
 
-	r.Equal(screenServiceInstances, m.screen.kind)
+	r.IsType(serviceInstancesPage{}, m.screen.page)
 	r.Equal("served", client.instancesName)
 	r.Equal("default", client.instancesNamespace)
 
@@ -111,7 +111,7 @@ func TestServiceInstances_EnterOpensTheAllocation(t *testing.T) {
 
 	m, _ = m.update(enter())
 
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Tasks (Allocation: "+shortID(servedRunning)+")")
 }
 
@@ -191,7 +191,7 @@ func TestServices_DescribeTheOneUnderTheCursor(t *testing.T) {
 	// Asked where the service lives, under a title that names it.
 	r.Equal("default", client.askedNamespace)
 	r.Equal("web", client.askedID)
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 
 	out := plain(m.render())
 	r.Contains(out, "Service: web")

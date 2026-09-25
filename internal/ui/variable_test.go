@@ -41,7 +41,7 @@ func onVariable(t *testing.T, client *fakeClient, detail nomad.VariableDetail) M
 	client.variable = detail
 
 	m := newTestModel(client)
-	m, _ = m.show(screenVariables)
+	m, _ = m.show(variablesView)
 	m, _ = m.update(variablesMsg(client.variables))
 
 	m, cmd := m.update(enter())
@@ -55,7 +55,7 @@ func TestVariables_EnterOpensTheValuesHidden(t *testing.T) {
 	client := &fakeClient{}
 	m := onVariable(t, client, webVariable())
 
-	r.Equal(screenVariable, m.screen.kind)
+	r.IsType(variablePage{}, m.screen.page)
 	r.Equal("nomad/jobs/web", client.variablePath)
 	r.Equal("default", client.askedNamespace)
 
@@ -97,7 +97,7 @@ func TestVariable_OpenedAgainItIsHidden(t *testing.T) {
 	m, _ = m.update(key('v'))
 
 	m, _ = m.update(escape())
-	r.Equal(screenVariables, m.screen.kind)
+	r.IsType(variablesPage{}, m.screen.page)
 
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
@@ -155,7 +155,7 @@ func TestVariables_ListSaysWhoHoldsTheLock(t *testing.T) {
 	client := &fakeClient{variables: []nomad.Variable{leaderVariable().Variable, webVariable().Variable}}
 
 	m := newTestModel(client)
-	m, _ = m.show(screenVariables)
+	m, _ = m.show(variablesView)
 	m, _ = m.update(variablesMsg(client.variables))
 
 	r.Contains(fileRow(t, m, -1), "Lock")
@@ -285,7 +285,7 @@ func TestVariables_EditFromTheList(t *testing.T) {
 	m, _ := editingWeb(t, client, "DB_HOST = \"10.0.0.6\"\n")
 
 	m, _ = m.update(escape())
-	r.Equal(screenVariables, m.screen.kind)
+	r.IsType(variablesPage{}, m.screen.page)
 
 	m, cmd := m.update(key('e'))
 	follow(m, cmd, 8)

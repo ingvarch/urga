@@ -25,7 +25,7 @@ func TestServers_Screen(t *testing.T) {
 	m = typeIn(m, "servers")
 	m, cmd := m.update(enter())
 
-	r.Equal(screenServers, m.screen.kind)
+	r.IsType(serversPage{}, m.screen.page)
 
 	m = drain(m, cmd)
 
@@ -74,7 +74,7 @@ func TestClients_IsWhatNomadCallsTheNodes(t *testing.T) {
 		m, _ = m.update(enter())
 		m, _ = m.update(nodesMsg(nodes))
 
-		r.Equal(screenNodes, m.screen.kind, word)
+		r.IsType(nodesPage{}, m.screen.page, word)
 		r.Contains(plain(m.render()), "Clients [1]", word)
 	}
 }
@@ -116,7 +116,7 @@ func TestServer_OpensWhatTheAgentSaysAboutItself(t *testing.T) {
 
 	m, client := serverScreen(t)
 
-	r.Equal(screenServer, m.screen.kind)
+	r.IsType(serverPage{}, m.screen.page)
 	r.Equal("server-02.global", client.askedServer)
 
 	out := plain(m.render())

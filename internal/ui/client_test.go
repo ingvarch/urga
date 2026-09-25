@@ -218,7 +218,7 @@ func TestClient_OpensTheTasksOfAnAllocation(t *testing.T) {
 
 	// The allocations of a client answer the same keys as any other
 	// allocation list.
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "bot")
 }
 
@@ -404,12 +404,12 @@ func TestClient_ComingBackReadsAgain(t *testing.T) {
 	m = drain(m, cmd)
 
 	m, _ = m.update(enter())
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 
 	// The timer of the chart was let go of with the screen. Coming back
 	// starts another one, or the chart stands still under a live list.
 	m, _ = m.update(escape())
-	r.Equal(screenNode, m.screen.kind)
+	r.IsType(clientPage{}, m.screen.page)
 
 	before := len(trailOf(m))
 
@@ -522,7 +522,7 @@ func TestClient_TheAllocationsOnItAnswerTheirKeys(t *testing.T) {
 	described, cmd := m.update(key('d'))
 	described = drain(described, cmd)
 
-	r.Equal(screenDescribe, described.screen.kind)
+	r.IsType(describePage{}, described.screen.page)
 	r.Contains(plain(described.render()), "Allocation: af1f37df")
 	r.Equal("production", client.askedNamespace)
 }
@@ -572,7 +572,7 @@ func TestClient_TheLogsOfWhatRunsOnIt(t *testing.T) {
 
 	// The work of the machine is read again, and the question names it.
 	r.Equal("node-1", client.askedNodeID)
-	r.Equal(screenLogTasks, m.screen.kind)
+	r.IsType(logTasksPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Logs of which task? (Client: nomad-server-01)")
 }
 
@@ -622,7 +622,7 @@ func TestClient_NothingRunsOnIt(t *testing.T) {
 	m, cmd = m.update(key('l'))
 	m = drain(m, cmd)
 
-	r.Equal(screenNode, m.screen.kind)
+	r.IsType(clientPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "nomad-server-01 has no allocation running")
 }
 

@@ -112,7 +112,7 @@ func TestTasks_OpenTheClient(t *testing.T) {
 	m = drain(m, cmd)
 
 	// The machine it runs on, with what it runs and what it is doing.
-	r.Equal(screenNode, m.screen.kind)
+	r.IsType(clientPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Client node-01")
 	r.Equal("a3e23694-4528-6395-3a51-1ffcbf3c2ba4", client.askedNodeID)
 }
@@ -135,7 +135,7 @@ func TestTasks_OpenTheAllocationItReplaced(t *testing.T) {
 	m, cmd := m.update(key('p'))
 	m = drain(m, cmd)
 
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Tasks (Allocation: 4f2a1c9e)")
 	r.Equal("production", client.askedNamespace)
 	r.Contains(taskLine(t, m, "old-server"), "dead")
@@ -176,7 +176,7 @@ func TestTasks_OpenTheFollowUpEvaluation(t *testing.T) {
 	// evaluations opens one.
 	r.Equal("8b1c2d3e-0000-0000-0000-000000000000", client.askedID)
 	r.Equal("production", client.askedNamespace)
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Evaluation 8b1c2d3e")
 }
 

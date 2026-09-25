@@ -75,10 +75,7 @@ func openVersions(p jobsPage, e env) (jobsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{
-		kind: screenJobVersions,
-		page: versionsPage{namespace: job.Namespace, jobID: job.ID},
-	}))
+	return p, then(openMsg{versionsPage{namespace: job.Namespace, jobID: job.ID}})
 }
 
 func versionRows(versions []nomad.JobVersion) []tableRow {

@@ -84,7 +84,7 @@ func TestEvaluation_OpensFromTheList(t *testing.T) {
 	r.Equal("production", client.askedNamespace)
 	r.Equal("1ad88fd0-6b1c-da67-5e8f-482b5a15af1f", client.askedID)
 
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 
 	r.Contains(plain(m.render()), "Evaluation 1ad88fd0")
 
@@ -179,7 +179,7 @@ func TestPlacement_FromAJobThatWaits(t *testing.T) {
 	r.Equal("production", client.askedNamespace)
 	r.Equal("web", client.askedJobID)
 
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Placement (Job: web)")
 	r.Contains(strings.Join(m.text.lines, "\n"), `Dimension "memory" exhausted on 2 nodes`)
 }
@@ -227,7 +227,7 @@ func TestPlacement_WhenNoEvaluationSaysWhy(t *testing.T) {
 
 	// Saying so is the page, not an error: the scheduler may not have got
 	// to the job yet.
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 	r.Contains(plain(m.render()), "No evaluation of web says why")
 }
 

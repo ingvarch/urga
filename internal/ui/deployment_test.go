@@ -91,7 +91,7 @@ func onDeployment(t *testing.T, client *fakeClient) Model {
 	client.deploymentAllocs = canaryAllocs()
 
 	m := newTestModel(client)
-	m, _ = m.show(screenDeployments)
+	m, _ = m.show(deploymentsView)
 	m, _ = m.update(deploymentsMsg(client.deployments))
 
 	m, cmd := m.update(enter())
@@ -106,7 +106,7 @@ func TestDeployments_EnterOpensTheDeployment(t *testing.T) {
 	m := onDeployment(t, client)
 
 	// The deployment and its allocations, asked for in its namespace.
-	r.Equal(screenDeployment, m.screen.kind)
+	r.IsType(deploymentPage{}, m.screen.page)
 	r.Equal("5d1a2b3c-0000-0000-0000-000000000000", client.deploymentID)
 	r.Equal("production", client.deploymentNamespace)
 
@@ -139,7 +139,7 @@ func TestDeployment_ColumnsOfItsAllocations(t *testing.T) {
 
 	m := onDeployment(t, &fakeClient{})
 
-	r.Equal([]string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "CPU", "MEM", "Age"}, m.screen.titles())
+	r.Equal([]string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "CPU", "MEM", "Age"}, m.screen.page.titles())
 }
 
 func TestDeployment_WatchesItsAllocationsAndItself(t *testing.T) {
@@ -147,7 +147,7 @@ func TestDeployment_WatchesItsAllocationsAndItself(t *testing.T) {
 
 	m := onDeployment(t, &fakeClient{})
 
-	r.Equal([]string{nomad.TopicAllocation, nomad.TopicDeployment}, m.screen.topics())
+	r.Equal([]string{nomad.TopicAllocation, nomad.TopicDeployment}, m.screen.page.topics())
 }
 
 func TestDeployment_TheKeysOfAllocations(t *testing.T) {
@@ -157,7 +157,7 @@ func TestDeployment_TheKeysOfAllocations(t *testing.T) {
 
 	m, _ = m.update(enter())
 
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Tasks (Allocation: 9a1b2c3d)")
 }
 
@@ -219,8 +219,8 @@ func TestDeployments_TheList(t *testing.T) {
 	// Those of the namespace the session looks at.
 	r.Equal("production", client.askedNamespace)
 	r.Contains(plain(m.render()), "Deployments (production) [2]")
-	r.Equal([]string{"ID", "JobID", "Namespace", "Version", "Status", "Description"}, m.screen.titles())
-	r.Equal([]string{nomad.TopicDeployment}, m.screen.topics())
+	r.Equal([]string{"ID", "JobID", "Namespace", "Version", "Status", "Description"}, m.screen.page.titles())
+	r.Equal([]string{nomad.TopicDeployment}, m.screen.page.topics())
 
 	r.Regexp(`^\s*5d1a2b3c\s+web\s+production\s+7\s+running\s+Deployment is running but requires manual promotion`, fileRow(t, m, 0))
 	r.Regexp(`^\s*7e8f9a0b\s+cron\s+production\s+3\s+paused\s+Deployment is paused`, fileRow(t, m, 1))
@@ -258,7 +258,7 @@ func TestDeployments_DescribeTheOneUnderTheCursor(t *testing.T) {
 	m, cmd := m.update(key('d'))
 	m = drain(m, cmd)
 
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 	r.Equal("7e8f9a0b-0000-0000-0000-000000000000", client.askedID)
 	r.Equal("production", client.askedNamespace)
 

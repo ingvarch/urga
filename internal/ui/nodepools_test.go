@@ -35,7 +35,7 @@ func TestNodePools_ListsThePoolsOfTheCluster(t *testing.T) {
 
 	// The next run comes back to it, and it follows what pools do.
 	r.Equal("nodepools", cfg.Screen)
-	r.Equal([]string{nomad.TopicNodePool}, m.screen.topics())
+	r.Equal([]string{nomad.TopicNodePool}, m.screen.page.topics())
 }
 
 func TestNodePools_ASessionStartsOnThem(t *testing.T) {

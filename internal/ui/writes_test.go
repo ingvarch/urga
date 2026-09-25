@@ -84,11 +84,11 @@ func playOut(m Model, cmd tea.Cmd) Model {
 
 	// A plan is answered when the key opened it. One that was on the screen
 	// before the key is not the key's to send.
-	planned := m.screen.kind == screenPlan
+	_, planned := m.screen.page.(planPage)
 
 	for range 300 {
 		if len(queue) == 0 {
-			if planned && m.screen.kind == screenPlan && m.overlay == overlayNone {
+			if _, onPlan := m.screen.page.(planPage); planned && onPlan && m.overlay == overlayNone {
 				return m
 			}
 
@@ -127,7 +127,7 @@ func playOut(m Model, cmd tea.Cmd) Model {
 // answer says yes to a question and to a plan, gives the scale line a
 // count, and sends the signal the signal line offers.
 func answer(m Model) (Model, tea.Cmd, bool) {
-	if m.overlay == overlayNone && m.screen.kind == screenPlan {
+	if _, onPlan := m.screen.page.(planPage); onPlan && m.overlay == overlayNone {
 		next, cmd := m.update(key('y'))
 
 		return next, cmd, true

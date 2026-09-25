@@ -36,7 +36,7 @@ func TestTaskGroups_OpenFromAJob(t *testing.T) {
 	m, _ = m.update(jobsMsg(twoJobs()))
 
 	m, cmd := m.update(key('t'))
-	r.Equal(screenTaskGroups, m.screen.kind)
+	r.IsType(taskGroupsPage{}, m.screen.page)
 
 	m = drain(m, cmd)
 
@@ -58,7 +58,7 @@ func TestTaskGroups_EnterOpensTheirAllocations(t *testing.T) {
 	m := openTaskGroups(t, client)
 
 	m, cmd := m.update(enter())
-	r.Equal(screenAllocations, m.screen.kind)
+	r.IsType(allocationsPage{}, m.screen.page)
 
 	m = drain(m, cmd)
 	m, _ = m.update(allocsMsg(twoAllocs()))
@@ -246,7 +246,7 @@ func TestTaskGroups_PlacementAndLogsWhereTheJobLives(t *testing.T) {
 
 	r.Equal("default", client.askedNamespace)
 	r.Equal("web", client.askedJobID)
-	r.Equal(screenJobLogs, next.screen.kind)
+	r.IsType(jobLogsPage{}, next.screen.page)
 	r.Contains(plain(next.render()), "Logs (Job: web, Task: server)")
 }
 

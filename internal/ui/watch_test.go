@@ -313,23 +313,23 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 
 	// A list the cluster has a topic for is watched; one it does not, like
 	// the namespaces or the variables, is asked for on a timer.
-	watched := map[screenKind][]string{
-		screenJobs:        {nomad.TopicJob},
-		screenAllocations: {nomad.TopicAllocation},
-		screenDeployments: {nomad.TopicDeployment},
-		screenEvaluations: {nomad.TopicEvaluation},
-		screenNodes:       {nomad.TopicNode},
-		screenServices:    {nomad.TopicService},
-		screenNodePools:   {nomad.TopicNodePool},
+	watched := map[*view][]string{
+		jobsView:        {nomad.TopicJob},
+		allocationsView: {nomad.TopicAllocation},
+		deploymentsView: {nomad.TopicDeployment},
+		evaluationsView: {nomad.TopicEvaluation},
+		nodesView:       {nomad.TopicNode},
+		servicesView:    {nomad.TopicService},
+		nodePoolsView:   {nomad.TopicNodePool},
 	}
 
 	// Each is asked the way the program opens it, page and all.
-	for kind, topics := range watched {
-		r.Equal(topics, Model{}.screenOf(kind).topics(), "screen %d", kind)
+	for v, topics := range watched {
+		r.Equal(topics, v.open().topics(), nameOf(v))
 	}
 
-	for _, kind := range []screenKind{screenNamespaces, screenVariables, screenServers} {
-		r.Empty(Model{}.screenOf(kind).topics(), "screen %d", kind)
+	for _, v := range []*view{namespacesView, variablesView, serversView} {
+		r.Empty(v.open().topics(), nameOf(v))
 	}
 }
 

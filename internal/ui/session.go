@@ -7,15 +7,15 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// screenOfName is how a screen is written down between runs, and back.
-var screenOfName map[string]screenKind
+// viewOfName is how a view is written down between runs, and back.
+var viewOfName = storedIndex()
 
-func storedIndex() map[string]screenKind {
-	names := map[string]screenKind{}
+func storedIndex() map[string]*view {
+	names := map[string]*view{}
 
-	for kind, res := range resources {
-		if res.stored != "" {
-			names[res.stored] = kind
+	for _, v := range views {
+		if v.stored != "" {
+			names[v.stored] = v
 		}
 	}
 
@@ -36,9 +36,9 @@ func (m Model) restore() Model {
 
 	m.namespaceOrder = cfg.Namespaces
 
-	if kind, ok := screenOfName[cfg.Screen]; ok {
-		m.screen = m.screenOf(kind)
-		m.list.table = newTableModel(m.screen.titles())
+	if v, ok := viewOfName[cfg.Screen]; ok {
+		m.screen = v.opened()
+		m.list.table = newTableModel(m.screen.page.titles())
 	}
 
 	return m
@@ -61,8 +61,8 @@ func (m Model) remember() tea.Cmd {
 	session.UseNamespace(NamespaceOrAll(m.namespace))
 	session.Remember(m.namespaceOrder)
 
-	if stored := m.screen.of().stored; stored != "" {
-		session.Screen = stored
+	if v := m.screen.view; v != nil && v.stored != "" {
+		session.Screen = v.stored
 	}
 
 	return func() tea.Msg {

@@ -71,7 +71,7 @@ func TestClient_ShowsWhatHappenedToIt(t *testing.T) {
 
 	m, client := pressed(t, key('e'))
 
-	r.Equal(screenNodeEvents, m.screen.kind)
+	r.IsType(nodeEventsPage{}, m.screen.page)
 	r.Equal("node-1", client.askedNodeID)
 
 	out := plain(m.render())
@@ -89,7 +89,7 @@ func TestClient_ShowsWhatItCanRun(t *testing.T) {
 
 	m, _ := pressed(t, ctrlKey('d'))
 
-	r.Equal(screenNodeDrivers, m.screen.kind)
+	r.IsType(nodeDriversPage{}, m.screen.page)
 
 	out := plain(m.render())
 	r.Contains(out, "Drivers (Client: nomad-server-01) [2]")
@@ -106,7 +106,7 @@ func TestClient_ADriverOpensItsOwnDetails(t *testing.T) {
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
-	r.Equal(screenNodeDriver, m.screen.kind)
+	r.IsType(nodeDriverPage{}, m.screen.page)
 
 	out := plain(m.render())
 	r.Contains(out, "Driver docker")
@@ -141,7 +141,7 @@ func TestClient_ShowsWhatItLendsOut(t *testing.T) {
 
 	m, _ := pressed(t, ctrlKey('h'))
 
-	r.Equal(screenNodeVolumes, m.screen.kind)
+	r.IsType(nodeVolumesPage{}, m.screen.page)
 
 	out := plain(m.render())
 	r.Contains(out, "Host volumes (Client: nomad-server-01) [2]")
@@ -154,7 +154,7 @@ func TestClient_ShowsHowItIsBuilt(t *testing.T) {
 
 	m, _ := pressed(t, key('a'))
 
-	r.Equal(screenNodeAttributes, m.screen.kind)
+	r.IsType(nodeAttributesPage{}, m.screen.page)
 
 	out := plain(m.render())
 	r.Contains(out, "Attributes (Client: nomad-server-01) [2]")
@@ -172,7 +172,7 @@ func TestClient_ShowsItsMetadataAndWhereItComesFrom(t *testing.T) {
 
 	m, _ := pressed(t, key('m'))
 
-	r.Equal(screenNodeMeta, m.screen.kind)
+	r.IsType(nodeMetaPage{}, m.screen.page)
 
 	out := plain(m.render())
 	r.Contains(out, "Meta (Client: nomad-server-01) [2]")
@@ -315,12 +315,12 @@ func TestClient_EachOfItsScreensHasItsColumnsAndKeys(t *testing.T) {
 	for _, s := range machineScreens {
 		m, _ := pressed(t, s.press)
 
-		r.Equal(s.titles, m.screen.titles(), s.name)
+		r.Equal(s.titles, m.screen.page.titles(), s.name)
 		r.Equal(s.keys, keyNames(m), s.name)
 
 		// The cluster says nothing of a machine on its stream: the screens
 		// of one are asked on a timer.
-		r.Empty(m.screen.topics(), s.name)
+		r.Empty(m.screen.page.topics(), s.name)
 	}
 
 	m, _ := pressed(t, ctrlKey('d'))
@@ -328,9 +328,9 @@ func TestClient_EachOfItsScreensHasItsColumnsAndKeys(t *testing.T) {
 	m = drain(m, cmd)
 
 	r.Contains(plain(m.render()), "Driver docker [1]")
-	r.Equal([]string{"Field", "Value"}, m.screen.titles())
+	r.Equal([]string{"Field", "Value"}, m.screen.page.titles())
 	r.Equal([]string{"c Copy"}, keyNames(m))
-	r.Empty(m.screen.topics())
+	r.Empty(m.screen.page.topics())
 }
 
 func TestClient_WhatAnotherMachineSaysIsNotShownOnAnyOfItsScreens(t *testing.T) {

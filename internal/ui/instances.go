@@ -99,10 +99,7 @@ func openServiceInstances(p servicesPage, e env) (servicesPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{
-		kind: screenServiceInstances,
-		page: serviceInstancesPage{namespace: service.Namespace, service: service.Name},
-	}))
+	return p, then(openMsg{serviceInstancesPage{namespace: service.Namespace, service: service.Name}})
 }
 
 // describeService asks for the service under the cursor, in the words of
@@ -366,7 +363,7 @@ func openInstanceAlloc(p serviceInstancesPage, e env) (serviceInstancesPage, out
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(tasksScreen(tasksPage{namespace: instance.Namespace, jobID: instance.JobID, allocID: instance.AllocID})))
+	return p, then(openMsg{tasksPage{namespace: instance.Namespace, jobID: instance.JobID, allocID: instance.AllocID}})
 }
 
 // deleteRegistration takes a registration that outlived its allocation out

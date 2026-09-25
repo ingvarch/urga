@@ -159,7 +159,7 @@ func TestPlan_ComesBeforeTheSubmit(t *testing.T) {
 
 	// Saving the file asks the cluster what it would do, and does nothing
 	// yet: a changed file can restart every allocation of the job.
-	r.Equal(screenPlan, m.screen.kind)
+	r.IsType(planPage{}, m.screen.page)
 	r.Equal("job \"web\" {\n  type = \"batch\"\n}", client.plannedSource)
 	r.Equal("production", client.askedNamespace)
 	r.Zero(client.submitted)
@@ -184,7 +184,7 @@ func TestPlan_SubmitsAtItsIndex(t *testing.T) {
 	r.Equal(uint64(42), client.submittedIndex)
 
 	// The plan is spent: the screen goes back to the job list.
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Job web submitted")
 }
 
@@ -204,7 +204,7 @@ func TestPlan_WhenTheJobChangedSinceThePlan(t *testing.T) {
 
 	// The plan on the screen is not what submitting would do any more.
 	// The file is still there to be planned again.
-	r.Equal(screenPlan, m.screen.kind)
+	r.IsType(planPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "web changed since this plan: r plans it again")
 }
 
@@ -224,7 +224,7 @@ func TestPlan_PlansTheSameFileAgain(t *testing.T) {
 
 	r.Equal(2, client.planCalls)
 	r.Equal("job \"web\" {\n  type = \"batch\"\n}", client.plannedSource)
-	r.Equal(screenPlan, m.screen.kind)
+	r.IsType(planPage{}, m.screen.page)
 	r.Contains(strings.Join(m.text.lines, "\n"), "3 allocations will be updated in-place")
 
 	// Submitted after a new plan, it goes at the new index.
@@ -241,7 +241,7 @@ func TestPlan_EscapeLeavesTheJobAsItIs(t *testing.T) {
 
 	m, _ = m.update(escape())
 
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Zero(client.submitted)
 }
 
@@ -299,7 +299,7 @@ func TestPlan_EnterOnCancelLeavesTheJobAsItIs(t *testing.T) {
 	m, cmd := m.update(enter())
 	drain(m, cmd)
 
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Zero(client.submitted)
 }
 
@@ -317,7 +317,7 @@ func TestPlan_EnterOnSubmitSendsIt(t *testing.T) {
 
 	r.Equal(1, client.submitted)
 	r.Equal(uint64(42), client.submittedIndex)
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 }
 
 func TestPlan_WhatCannotBePlacedIsNotSent(t *testing.T) {
@@ -334,7 +334,7 @@ func TestPlan_WhatCannotBePlacedIsNotSent(t *testing.T) {
 
 	m, cmd := m.update(key('y'))
 	m = drain(m, cmd)
-	r.Equal(screenPlan, m.screen.kind)
+	r.IsType(planPage{}, m.screen.page)
 
 	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyRight})
 	m, cmd = m.update(enter())
@@ -356,7 +356,7 @@ func TestPlan_ARevertThatTheJobMovedPast(t *testing.T) {
 	m, cmd = m.update(key('y'))
 	m = drain(m, cmd)
 
-	r.Equal(screenPlan, m.screen.kind)
+	r.IsType(planPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "web changed since this plan: r plans it again")
 
 	// Planned again, it is the same revert: to the version it was asked for.
@@ -461,7 +461,7 @@ func TestPlan_ReadOnlySendsNothing(t *testing.T) {
 	m, cmd = m.update(enter())
 	m = drain(m, cmd)
 
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Zero(client.submitted)
 }
 
@@ -482,7 +482,7 @@ func TestPlan_PlannedAgainInPlaceOfTheOneBefore(t *testing.T) {
 
 	// Escape goes back to where the plan was asked from.
 	m, _ = m.update(escape())
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Empty(m.history)
 }
 
@@ -500,7 +500,7 @@ func TestPlan_ASubmitThatFailsStaysOnThePlan(t *testing.T) {
 	m, cmd := m.update(key('y'))
 	m = drain(m, cmd)
 
-	r.Equal(screenPlan, m.screen.kind)
+	r.IsType(planPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "rpc error")
 
 	// Planned again, what went wrong stays up for its time.
@@ -523,7 +523,7 @@ func TestPlan_WhatCameOfASubmitIsSaidAfterLeaving(t *testing.T) {
 	m = drain(m, sent)
 
 	r.Equal(1, client.submitted)
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Job web submitted")
 }
 
@@ -569,7 +569,7 @@ func TestPlan_ASwitchOfTheSessionLeavesThePlanAsItIs(t *testing.T) {
 	m = playOut(m, cmd)
 
 	r.Equal("staging", m.namespace)
-	r.Equal(screenPlan, m.screen.kind)
+	r.IsType(planPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Plan (Job: web)")
 	r.Zero(client.submitted)
 }

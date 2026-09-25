@@ -40,3 +40,7 @@ func truncate(value string, width int) string {
 
 	return ansi.Truncate(value, width, "…")
 }
+
+// sprintf is fmt.Sprintf, named short because the titles read better that
+// way.
+func sprintf(format string, args ...any) string { return fmt.Sprintf(format, args...) }

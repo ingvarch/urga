@@ -108,10 +108,7 @@ func openJobGroups(p jobsPage, e env) (jobsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{
-		kind: screenTaskGroups,
-		page: taskGroupsPage{namespace: job.Namespace, jobID: job.ID},
-	}))
+	return p, then(openMsg{taskGroupsPage{namespace: job.Namespace, jobID: job.ID}})
 }
 
 // scaleGroup asks how many allocations the group under the cursor should run.
@@ -171,8 +168,5 @@ func openGroupAllocations(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{
-		kind: screenAllocations,
-		page: allocationsPage{namespace: p.namespace, jobID: group.JobID, group: group.Name},
-	}))
+	return p, then(openMsg{allocationsPage{namespace: p.namespace, jobID: group.JobID, group: group.Name}})
 }

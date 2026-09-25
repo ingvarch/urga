@@ -345,7 +345,7 @@ func (m Model) commit() (Model, tea.Cmd) {
 		m.namespace = cmd.namespace
 	}
 
-	return m.show(cmd.kind)
+	return m.show(cmd.view)
 }
 
 func firstWord(input string) string {

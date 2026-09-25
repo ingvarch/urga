@@ -66,11 +66,6 @@ func planOf(plan nomad.Plan, state planState) planPage {
 	return planPage{planState: state, content: paintedText(planText(plan, state.revert)).textContent}
 }
 
-// planScreen puts a plan up where its job lives.
-func planScreen(p planPage) screen {
-	return screen{kind: screenPlan, page: p}
-}
-
 // title says whose plan it is, and for a revert, to which version.
 func (p planPage) title(env, int) string {
 	if p.revert && p.to != nil {
@@ -192,7 +187,7 @@ func planFor(client jobsClient, state planState) tea.Cmd {
 		}
 
 		return client.PlanJob(ctx, state.namespace, state.source, state.vars)
-	}, func(plan nomad.Plan) tea.Msg { return openMsg(planScreen(planOf(plan, state))) })
+	}, func(plan nomad.Plan) tea.Msg { return openMsg{planOf(plan, state)} })
 }
 
 // submitPlan sends what was planned: the file at the index it was planned

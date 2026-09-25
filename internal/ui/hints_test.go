@@ -2,6 +2,10 @@ package ui
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -312,20 +316,59 @@ func TestHints_EveryKeyIsNamedInOneOrTwoWords(t *testing.T) {
 	}
 }
 
-func TestEveryScreen_CoversEveryKindOfScreen(t *testing.T) {
+func TestEveryScreen_CoversEveryPage(t *testing.T) {
 	r := require.New(t)
 
-	covered := map[screenKind]bool{}
+	covered := map[string]bool{}
 	for _, m := range everyScreen(t) {
-		covered[m.screen.kind] = true
+		covered[reflect.TypeOf(m.screen.page).Name()] = true
 	}
 
 	// A screen left out of the tests of the keys is a screen whose keys
-	// read-only is never checked against. Every kind counts, not only those
-	// the registry still holds.
-	for kind := screenJobs; kind <= screenDeployment; kind++ {
-		r.True(covered[kind], "no screen of kind %d in everyScreen", kind)
+	// read-only is never checked against. Every page counts: they are read
+	// out of the source, not out of a list someone has to keep.
+	pages := pageTypes(t)
+	r.NotEmpty(pages)
+
+	for _, name := range pages {
+		r.True(covered[name], "no %s in everyScreen", name)
 	}
+}
+
+// pageTypes are the pages of the package, by name: every type that labels
+// a box with title(env, int).
+func pageTypes(t *testing.T) []string {
+	t.Helper()
+
+	files, err := filepath.Glob("*.go")
+	require.NoError(t, err)
+
+	fset := token.NewFileSet()
+	names := []string{}
+
+	for _, name := range files {
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		require.NoError(t, err)
+
+		for _, decl := range file.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok || fn.Recv == nil || fn.Name.Name != "title" || fn.Type.Params.NumFields() != 2 {
+				continue
+			}
+
+			// A page is a value: a pointer receiver would not be one.
+			receiver, ok := fn.Recv.List[0].Type.(*ast.Ident)
+			require.True(t, ok, "the title of a page in %s has a pointer receiver", name)
+
+			names = append(names, receiver.Name)
+		}
+	}
+
+	return names
 }
 
 // changed says a key did something to the model. What a model is given to
