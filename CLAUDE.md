@@ -58,6 +58,8 @@ over decisions and lessons, write the code here from scratch.
 - TDD, no exceptions. A failing test that names the behaviour comes first, then
   the smallest code that passes it. This holds for "simple" functions too.
 - `make check` (fmt, vet, lint, test, build) is green before every commit.
+  It needs `golangci-lint` of the version the Makefile names, the one CI uses,
+  and fails without it.
 - Conventional commits: `feat(ui): ...`, `fix(nomad): ...`, `chore: ...`.
 - No mention of other tools by name in code comments or commit messages.
 - Comments are short and say why, never what the line already says. Existing
