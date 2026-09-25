@@ -10,9 +10,9 @@ import (
 )
 
 // page is a screen as a type of its own: what it was opened for, what the
-// cluster said about it, and how that reads as rows. How the rows are read,
-// the filter, the order and the marks, is the list's; what belongs to the
-// session is the root's.
+// cluster returned for it, and how that shows as rows. The filter, the order
+// and the marks of the rows belong to the list; the state of the session
+// belongs to the root.
 type page interface {
 	// title labels the box; count is what the filter leaves on the screen.
 	title(e env, count int) string
@@ -20,9 +20,9 @@ type page interface {
 	// titles are the columns of the rows.
 	titles() []string
 
-	// topics are what the cluster is asked to say about while the page is
-	// up: a change in one of them is the page no longer being what it shows.
-	// A page with none is asked on its own.
+	// topics are the event topics the page watches while it is on top: a
+	// change in one of them means the page is out of date. A page with none
+	// is polled.
 	topics() []string
 
 	// fetch asks the cluster for what the page shows. Nil asks nothing:
@@ -30,13 +30,14 @@ type page interface {
 	fetch(e env) tea.Cmd
 
 	// take keeps an answer the page asked for, and says whether it was one.
-	// What it asks of the session then belongs to the ask of the page.
+	// The command it returns is tied to the ask of the page: its answer is
+	// dropped once the screen is left.
 	take(msg tea.Msg, e env) (page, outcome, bool)
 
 	// rows are what the page shows.
 	rows(e env) []tableRow
 
-	// keys are what the page answers, and press is one of them pressed; it
+	// keys are the keys the page handles, and press runs one of them; it
 	// says whether the key did anything.
 	keys(e env) []keyHint
 	press(key string, e env) (page, outcome, bool)
@@ -52,7 +53,7 @@ type env struct {
 	row   int
 	onRow bool
 
-	// marks are the resources an action is to take, by the ids the page
+	// marks are the resources an action applies to, by the ids the page
 	// names its rows with.
 	marks map[string]bool
 
@@ -114,8 +115,8 @@ func pickedFrom[T any](e env, items []T) (T, bool) {
 
 // markedFrom are the items that carry a mark. A mark is on the resource,
 // not on the line it sits on, so a filter or a sort does not change what an
-// action takes. Without a mark anywhere, what the cursor is on is the
-// answer, which is how every action reads a list.
+// action applies to. Without any mark, it returns the item under the
+// cursor, which is how every action uses a list.
 func markedFrom[T any](e env, items []T, id func(T) string) []T {
 	out := []T{}
 
@@ -125,8 +126,8 @@ func markedFrom[T any](e env, items []T, id func(T) string) []T {
 		}
 	}
 
-	// Marks that name nothing on this page any more leave the cursor to
-	// answer, rather than the key doing nothing at all.
+	// When no mark matches an item on this page any more, the item under
+	// the cursor is used, so the key still does something.
 	if len(out) > 0 {
 		return out
 	}
@@ -139,8 +140,8 @@ func markedFrom[T any](e env, items []T, id func(T) string) []T {
 	return []T{one}
 }
 
-// pageKey is one key a page answers. A page keeps a table of them typed by the
-// page, so what a key does reads and returns that page.
+// pageKey is one key a page handles. A page keeps a table of them typed by the
+// page, so what a key does takes and returns that page.
 type pageKey[P any] struct {
 	press string
 	label string
@@ -150,7 +151,7 @@ type pageKey[P any] struct {
 	writes bool
 
 	// offered says the key does something in the state the page is in. Nil
-	// is always.
+	// means always.
 	offered func(p P, e env) bool
 }
 
@@ -207,7 +208,7 @@ type outcome struct {
 
 	// reading says what the page took came from a timer of its own, not
 	// the answer to its ask: the screen is no fresher for it, so the error
-	// that is up stays and the poll keeps its time.
+	// on the status line stays and the poll keeps its schedule.
 	reading bool
 }
 
@@ -222,23 +223,22 @@ type (
 	// openMsg opens a page on top of this one.
 	openMsg struct{ page page }
 
-	// sayMsg puts what came of a key on the status line; warnMsg puts
-	// something worth knowing there.
+	// sayMsg shows the result of a key on the status line; warnMsg shows
+	// a warning there.
 	sayMsg  string
 	warnMsg string
 
-	// wrapMsg and saveMsg are the window over a text: wrap its lines, or
+	// wrapMsg and saveMsg act on the window over a text: wrap its lines, or
 	// write what it shows to a file. followMsg follows the end of a stream,
-	// or stops following it, and timesMsg puts when each line arrived in
-	// front of it.
+	// or stops following it, and timesMsg shows or hides the time each line
+	// arrived in front of it.
 	wrapMsg   struct{}
 	saveMsg   struct{}
 	followMsg struct{}
 	timesMsg  struct{}
 
-	// reopenMsg reads the stream of the page again, the way entering the
-	// page does, in the window it is read in: the page reads another
-	// stream now.
+	// reopenMsg opens the stream of the page again, the way entering the
+	// page does, in the same window: the page now reads another stream.
 	reopenMsg struct{}
 
 	// switchRegionMsg, narrowMsg and switchClusterMsg move the session to
@@ -247,23 +247,23 @@ type (
 	narrowMsg        string
 	switchClusterMsg string
 
-	// askMsg puts a question up; yes runs apply.
+	// askMsg shows a question; yes runs apply.
 	askMsg struct {
 		question string
 		apply    tea.Cmd
 	}
 
-	// requestMsg is work for the screen that is up: what it answers is
-	// dropped once the screen is left, the way the answer to its fetch is.
+	// requestMsg is work for the screen on top: its answer is dropped once
+	// the screen is left, the way the answer to its fetch is.
 	requestMsg tea.Cmd
 
-	// markMsg takes the row under the cursor for an action, or lets it go;
-	// markAllMsg every row on the screen.
+	// markMsg marks the row under the cursor for an action, or unmarks it;
+	// markAllMsg does that for every row on the screen.
 	markMsg    struct{}
 	markAllMsg struct{}
 
-	// failMsg puts what went wrong on the status line; forgetMsg takes an
-	// error off it, once what went wrong is over.
+	// failMsg shows an error on the status line; forgetMsg clears the
+	// error once the problem is over.
 	failMsg   struct{ err error }
 	forgetMsg struct{}
 )
@@ -298,12 +298,12 @@ func copyKey[P page]() pageKey[P] {
 	}}
 }
 
-// copying puts a value on the clipboard and says whose it is.
+// copying puts a value on the clipboard and shows which field was copied.
 func copying(field, value string) outcome {
 	return outcome{now: []tea.Msg{sayMsg(sprintf("Copied %s.", field))}, cmd: tea.SetClipboard(value)}
 }
 
-// markKey and markAllKey take rows for an action, on a page whose rows name
+// markKey and markAllKey mark rows for an action, on a page whose rows name
 // what they show.
 func markKey[P page]() pageKey[P] {
 	return pageKey[P]{press: "space", label: "Mark", do: func(p P, _ env) (P, outcome) { return p, then(markMsg{}) }}
@@ -320,20 +320,21 @@ type marking interface {
 	ids(e env) []string
 }
 
-// measured is a page whose rows show what their resources take: readings
-// are the resources of the rows on the screen, and reading reads one.
+// measured is a page whose rows show the CPU and memory their resources
+// use: readings are the resources of the rows on the screen, and reading
+// reads one.
 type measured interface {
 	readings(e env) []rowRef
 	reading(ctx context.Context, client Client, ref rowRef) (nomad.ResourceUse, error)
 }
 
-// panelled is a page with something to say above its rows, in no more than
+// panelled is a page that shows a panel above its rows, in no more than
 // room rows.
 type panelled interface {
 	panel(e env, width, room int) []string
 }
 
-// buttoned is a page with a question at its foot: bar is the question and
+// buttoned is a page with a question at the bottom: bar is the question and
 // its buttons, in the rows it takes. The buttons are chosen and pressed the
 // way the buttons of any question are, so their keys are the question's:
 // help names them, the header does not.
@@ -359,8 +360,8 @@ func wrapKey[P page]() pageKey[P] { return windowKey[P]("w", "Toggle Wrap", wrap
 func saveKey[P page]() pageKey[P] { return windowKey[P]("ctrl+s", "Save", saveMsg{}) }
 
 // followKey follows the end of what a stream writes, or stops following it
-// where it stands; timesKey puts when each line of it arrived in front of
-// the line.
+// where the view is; timesKey shows or hides the time each line of it
+// arrived in front of the line.
 func followKey[P page]() pageKey[P] { return windowKey[P]("s", "Toggle Autoscroll", followMsg{}) }
 
 func timesKey[P page]() pageKey[P] { return windowKey[P]("t", "Toggle Timestamps", timesMsg{}) }
@@ -370,26 +371,26 @@ func windowKey[P page](press, label string, msg tea.Msg) pageKey[P] {
 	return pageKey[P]{press: press, label: label, do: func(p P, _ env) (P, outcome) { return p, then(msg) }}
 }
 
-// saving is a page of text that says what a file of it is called: what it
-// is of, and the extension.
+// saving is a page of text that names the file it is saved to: what it is
+// of, and the extension.
 type saving interface {
 	saveAs() (what, extension string)
 }
 
 // streamer is a page that reads what something writes as it is written: a
 // log, or a file. The root opens the stream every time the page is entered,
-// since every ask of the session ends the reading it had, and closes it
+// since a new ask of the session drops what the old one read, and closes it
 // whenever the page stops being the one on top. follows says the window
-// keeps to the end of what arrives from the start.
+// follows the end of the stream from the start.
 type streamer interface {
 	open(e env) (page, tea.Cmd)
 	close() page
 	follows() bool
 }
 
-// restarter is a page with timers of its own. Every ask of the session ends
-// the chains it had, so restart lets go of the ones the page thinks are on
-// their way.
+// restarter is a page with timers of its own. A new ask of the session drops
+// the timer chains of the old one, so restart forgets the ones the page
+// still expects.
 type restarter interface {
 	restart() page
 }
@@ -401,8 +402,8 @@ type follower interface {
 }
 
 // placed is a page of one thing that lives in a namespace of its own. Its
-// rows and what the cluster says about them are asked there, whatever the
-// session looks at, so the two agree.
+// rows and the events about them are requested there, whatever the session
+// looks at, so the two agree.
 type placed interface {
 	where(e env) string
 }

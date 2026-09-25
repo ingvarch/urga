@@ -38,8 +38,8 @@ func TestPlanJob(t *testing.T) {
 	plan, err := client.PlanJob(context.Background(), "production", `{"ID": "web", "Name": "web"}`, nomad.JobVariables{})
 	r.NoError(err)
 
-	// A plan is asked of the cluster in the namespace of the job, with the
-	// diff: what would change is what the plan is read for.
+	// The plan is requested in the namespace of the job, with the diff:
+	// showing what would change is what a plan is for.
 	r.Len(*asked, 1)
 	r.Equal("/v1/job/web/plan", (*asked)[0].path)
 	r.Equal("production", (*asked)[0].namespace)
@@ -179,8 +179,8 @@ func TestPlanRevert_AtTheFirstVersion(t *testing.T) {
 		"/v1/job/web/versions": `{"Versions": [{"ID": "web", "Version": 0}]}`,
 	})
 
-	// There is nothing behind the first version, and saying so is better than
-	// a cluster error.
+	// There is no version before the first one, and an error that names this
+	// is clearer than a cluster error.
 	_, err := client.PlanRevert(context.Background(), "production", "web", nil)
 	r.ErrorContains(err, "no earlier version")
 }
@@ -202,8 +202,8 @@ func TestRevertJobTo_FromTheVersionItWasPlannedAt(t *testing.T) {
 
 	r.NoError(client.RevertJobTo(context.Background(), "production", "web", 4, 5))
 
-	// The version travels in the body, with the one the job had when the
-	// revert was planned: a job that moved on since is not moved back.
+	// The version goes in the body, with the one the job had when the revert
+	// was planned: a job that changed since is not reverted.
 	body := (*asked)[0].body
 	r.Equal("web", body["JobID"])
 	r.Equal(float64(4), body["JobVersion"])

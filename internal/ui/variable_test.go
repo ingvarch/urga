@@ -62,7 +62,7 @@ func TestVariables_EnterOpensTheValuesHidden(t *testing.T) {
 	out := plain(m.render())
 	r.Contains(out, "Variable nomad/jobs/web (default) [3]")
 
-	// By key, and nothing of a value on the screen until it is asked for.
+	// Listed by key, and no value is on the screen until it is asked for.
 	r.Contains(fileRow(t, m, 0), "CERT")
 	r.Contains(fileRow(t, m, 1), "DB_HOST")
 	r.Contains(fileRow(t, m, 2), "DB_PASSWORD")
@@ -71,7 +71,7 @@ func TestVariables_EnterOpensTheValuesHidden(t *testing.T) {
 	r.NotContains(out, "10.0.0.5")
 	r.NotContains(out, "BEGIN")
 
-	// A value of several lines says so.
+	// A value of several lines shows how many.
 	r.Contains(fileRow(t, m, 0), "(4 lines)")
 }
 
@@ -212,7 +212,7 @@ func TestVariables_AListThatAnswersLateIsDropped(t *testing.T) {
 	m, _ = m.update(variablesMsg{leaderVariable().Variable})
 	r.Contains(fileRow(t, m, 0), "CERT")
 
-	// Back on the list, it shows what it held.
+	// Back on the list, it shows the rows it had before.
 	m, _ = m.update(escape())
 
 	out := plain(m.render())
@@ -228,7 +228,7 @@ func TestVariables_OfTheRegionLeftAreLetGo(t *testing.T) {
 	m = typeCommand(m, "variables")
 	r.Contains(plain(m.render()), "nomad/jobs/web")
 
-	// The variables of eu must not stand under the name of us before us
+	// The variables of eu must not show under the name of us before us
 	// answers.
 	client.variables = nil
 	m, _ = runLine(m, "region us")
@@ -240,9 +240,9 @@ func TestVariables_OfTheRegionLeftAreLetGo(t *testing.T) {
 // webFile is the web variable as the editor gets it.
 const webFile = "# Variable nomad/jobs/web in namespace default.\nDB_HOST = \"10.0.0.5\"\n"
 
-// editingWeb is the web variable open, the editor at hand, and the cluster
-// ready to hand it over as a file read at 769. What the editor types is
-// given in turn.
+// editingWeb is the web variable open with a fake editor, and a cluster that
+// returns it as a file read at index 769. The editor returns the given edits
+// one by one.
 func editingWeb(t *testing.T, client *fakeClient, edits ...string) (Model, *fakeEditor) {
 	t.Helper()
 
@@ -269,7 +269,7 @@ func TestVariable_EditSavesWithCheckAndSet(t *testing.T) {
 	r.Equal([]string{webFile}, editor.seen)
 	r.True(strings.HasSuffix(editor.opened, ".toml"))
 
-	// Saved over the version it was read at, and nothing else.
+	// Saved at the index it was read at, and nothing else is written.
 	r.Equal([]string{"SubmitVariable"}, client.writes)
 	r.Equal("default", client.askedNamespace)
 	r.Equal("nomad/jobs/web", client.variablePath)
@@ -320,11 +320,11 @@ func TestVariable_ARefusedSaveOpensTheEditAgain(t *testing.T) {
 	m, cmd := m.update(key('e'))
 	m = follow(m, cmd, 12)
 
-	// The edit comes back as it was, with why at the top.
+	// The edit opens again as it was, with the reason at the top.
 	r.Len(editor.seen, 2)
 	r.Equal(reasonFor("the variable is not valid TOML: line 2: expected value")+webFile+"DB_PORT = \n", editor.seen[1])
 
-	// Left as it came back, it is dropped.
+	// Saved unchanged, it is dropped.
 	r.Equal([]string{"SubmitVariable"}, client.writes)
 	r.Contains(plain(m.render()), "unchanged")
 }
@@ -376,8 +376,8 @@ func TestVariable_ALockedVariableIsNotSavedOver(t *testing.T) {
 	m, cmd := m.update(key('e'))
 	follow(m, cmd, 16)
 
-	// Saved again, it asks at the version it was read at: the lock may be
-	// gone by then, the reason to keep out of a change may not.
+	// Saved again, it is sent at the index it was read at: the lock may be
+	// gone by then, but the reason to stay out of the change may not.
 	r.NotContains(editor.seen[1], "Saving again")
 	r.Equal(uint64(769), client.submittedIndex)
 }

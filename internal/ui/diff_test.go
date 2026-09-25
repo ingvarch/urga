@@ -10,7 +10,7 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// opening is how a style starts on the screen, before the text it paints.
+// opening is the escape sequence a style writes before the text it paints.
 func opening(style lipgloss.Style) string {
 	return strings.Split(style.Render("\x00"), "\x00")[0]
 }
@@ -36,8 +36,8 @@ func TestDiffLines(t *testing.T) {
 		{Kind: nomad.DiffContext, Text: "}"},
 	})
 
-	// As a unified diff reads: a column for what happened to the line, then the
-	// line as deep in the job as it sits.
+	// Like a unified diff: a column for what happened to the line, then the
+	// line indented as deep as it sits in the job.
 	r.Equal([]string{
 		`  group "web" {`,
 		`-   count = 1`,
@@ -46,7 +46,7 @@ func TestDiffLines(t *testing.T) {
 		`  }`,
 	}, texts(lines))
 
-	// Added lines green, deleted red, and what leads to them steps back.
+	// Added lines green, deleted red, and the blocks around them muted.
 	r.Equal(opening(styleMuted), opening(*lines[0].style))
 	r.Equal(opening(styleDeleted), opening(*lines[1].style))
 	r.Equal(opening(styleAdded), opening(*lines[2].style))
@@ -63,7 +63,7 @@ func TestText_PaintsALineWholeThroughTheFilterAndTheWrap(t *testing.T) {
 	text.setSize(20, 10)
 
 	// A painted line keeps its colour on every row it wraps onto, and the
-	// filter reads its words, not its colour.
+	// filter matches its words, not its colour.
 	text.wrap = true
 	text.filter = "count"
 
@@ -78,7 +78,7 @@ func TestText_PaintsALineWholeThroughTheFilterAndTheWrap(t *testing.T) {
 		r.True(strings.HasPrefix(row, opening(styleAdded)), row)
 	}
 
-	// What is saved is the words.
+	// What is saved is the words, without escape codes.
 	for _, row := range text.rows() {
 		r.NotContains(row.text, "\x1b")
 	}

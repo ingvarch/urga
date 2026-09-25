@@ -22,8 +22,8 @@ type screen struct {
 }
 
 // place is where a list was left: the row under the cursor, how far down the
-// window was, and the filter and the order it was read in. A row number means
-// nothing in a list that is read another way.
+// window was, and the filter and the sort order it had. A row number means
+// nothing in a list that is filtered or sorted another way.
 type place struct {
 	cursor int
 	top    int
@@ -46,7 +46,7 @@ func (m Model) pageKeys() []keyHint {
 	return m.screen.page.keys(m.env())
 }
 
-// pressPage hands a key to the open page and takes what it asks for.
+// pressPage passes a key to the open page and applies what it returns.
 func (m Model) pressPage(press string) (Model, tea.Cmd) {
 	next, out, ok := m.screen.page.press(press, m.env())
 	if !ok {
@@ -58,8 +58,8 @@ func (m Model) pressPage(press string) (Model, tea.Cmd) {
 	return m.apply(out)
 }
 
-// buttonKey hands a key to the buttons at the foot of the open page, and
-// takes what they ask for.
+// buttonKey passes a key to the buttons at the foot of the open page, and
+// applies what they return.
 func (m Model) buttonKey(msg tea.KeyPressMsg) (Model, tea.Cmd, bool) {
 	b, ok := m.screen.page.(buttoned)
 	if !ok {
@@ -92,10 +92,10 @@ func (m Model) barRows() int {
 	return len(m.bar(m.width - 2*screenPadX - 2))
 }
 
-// took keeps what the open page made of an answer, and takes what it asks
-// for. The work it starts belongs to the ask of the page and ends with it.
-// An answer to the ask is the screen answered; a reading of a timer of the
-// page is not.
+// took stores what the open page made of an answer, and applies what it
+// returns. The work it starts belongs to the ask of the page and ends with
+// it. An answer to the ask marks the screen as answered; a reading from a
+// timer of the page does not.
 func (m Model) took(next page, out outcome) (Model, tea.Cmd) {
 	out.cmd = askedFor(m.asked, out.cmd)
 
@@ -108,12 +108,12 @@ func (m Model) took(next page, out outcome) (Model, tea.Cmd) {
 	m, poll := m.applyWhen(true, func(m *Model) { m.screen.page = next })
 	m, cmd := m.apply(out)
 
-	// Rows that show what they take are read once they are filled.
+	// Rows that show their resource usage are read once they are filled.
 	return usageOnce(m, tea.Batch(poll, cmd))
 }
 
-// apply takes what a page asked for: its messages at once, in order, and its
-// work meanwhile.
+// apply carries out what a page returned: its messages at once, in order,
+// and its command in the background.
 func (m Model) apply(out outcome) (Model, tea.Cmd) {
 	cmds := []tea.Cmd{out.cmd}
 
@@ -145,13 +145,13 @@ func (m Model) keys() []keyHint {
 	return keys
 }
 
-// withheld says read-only takes the key away.
+// withheld says read-only mode hides the key.
 func (m Model) withheld(k keyHint) bool {
 	return m.opts.ReadOnly && k.writes
 }
 
-// withheldKey is the key read-only took away from the open page, when the
-// press is one.
+// withheldKey is the key of the open page that read-only mode hides, when
+// the press is one.
 func (m Model) withheldKey(press string) (keyHint, bool) {
 	for _, k := range m.pageKeys() {
 		if k.press == press && m.withheld(k) {
@@ -204,21 +204,21 @@ func (m Model) fetch() tea.Cmd {
 	return askedFor(m.asked, m.screen.page.fetch(m.env()))
 }
 
-// answerMsg is an answer with the ask it belongs to. The session moves on
-// while a request is out; what was asked before that is no longer what the
-// screen shows.
+// answerMsg is an answer with the ask it belongs to. The session can move
+// on while a request is out; an answer to an earlier ask no longer matches
+// the screen.
 type answerMsg struct {
 	asked int
 	msg   tea.Msg
 }
 
-// askedFor labels whatever a command answers with, the commands of a batch
+// askedFor labels every message a command returns, the commands of a batch
 // included.
 func askedFor(asked int, cmd tea.Cmd) tea.Cmd {
 	return labelled(cmd, func(msg tea.Msg) tea.Msg { return answerMsg{asked: asked, msg: msg} })
 }
 
-// labelled wraps whatever a command answers, the commands of a batch
+// labelled wraps every message a command returns, the commands of a batch
 // included.
 func labelled(cmd tea.Cmd, label func(tea.Msg) tea.Msg) tea.Cmd {
 	if cmd == nil {
@@ -245,7 +245,7 @@ func labelled(cmd tea.Cmd, label func(tea.Msg) tea.Msg) tea.Cmd {
 	}
 }
 
-// request asks the cluster in the background and hands the answer over as a
+// request asks the cluster in the background and returns the answer as a
 // message. Nothing here touches the model: every answer arrives through
 // Update like any other message.
 func request[T any](load func(ctx context.Context) (T, error), wrap func(T) tea.Msg) tea.Cmd {
@@ -274,8 +274,8 @@ func (m Model) selectedIndex() (int, bool) {
 }
 
 // show switches to a resource, which is what the command prompt does. Either
-// way the session writes down where it is looking, so the next run comes back
-// to the same place.
+// way the session saves which list is open, so the next run opens the same
+// one.
 func (m Model) show(v *view) (Model, tea.Cmd) {
 	if v != m.screen.view {
 		return m.push(v.opened())
@@ -290,9 +290,9 @@ func (m Model) push(next screen) (Model, tea.Cmd) {
 	return m.stack(next).arrive()
 }
 
-// stack puts a screen on top of the one that is there, which keeps where it
-// was left for escape to come back to. What belonged to it, its filter and
-// the order of its rows, says nothing about the screen that is opening.
+// stack puts a screen on top of the one that is there, and saves where that
+// one was left for escape to come back to. Its filter and the order of its
+// rows do not carry over to the screen that opens.
 func (m Model) stack(next screen) Model {
 	m = m.closeStream()
 	m.screen.left = place{cursor: m.list.table.cursor, top: m.list.table.top, filter: m.list.filter, sort: m.list.sort}
@@ -312,7 +312,7 @@ func (m Model) back() (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// What the screen held on to is let go of before leaving it.
+	// The stream of the screen is closed before leaving it.
 	m = m.closeStream()
 
 	m.screen = m.history[len(m.history)-1]
@@ -325,7 +325,7 @@ func (m Model) back() (Model, tea.Cmd) {
 	return arrived.returnTo(arrived.screen.left), cmd
 }
 
-// closeStream lets go of what the page on top reads: it is no longer the
+// closeStream closes the stream the page on top reads: it is no longer the
 // one on top.
 func (m Model) closeStream() Model {
 	if s, ok := m.screen.page.(streamer); ok {
@@ -336,8 +336,8 @@ func (m Model) closeStream() Model {
 }
 
 // openStream starts reading the stream of the page on top, and the window
-// follows its end when the page says to. What reads it belongs to the ask of
-// the page and ends with it.
+// follows its end when the page wants that. The command that reads it
+// belongs to the ask of the page and ends with it.
 func (m Model) openStream() (Model, tea.Cmd) {
 	s, ok := m.screen.page.(streamer)
 	if !ok {
@@ -352,7 +352,7 @@ func (m Model) openStream() (Model, tea.Cmd) {
 	return m, askedFor(m.asked, cmd)
 }
 
-// letGo closes a stream that was opened for a page that is no longer up:
+// letGo closes a stream that was opened for a page that is no longer open:
 // nothing else would ever close it.
 func letGo(msg tea.Msg) {
 	switch opened := msg.(type) {
@@ -367,9 +367,9 @@ func letGo(msg tea.Msg) {
 	}
 }
 
-// returnTo puts a list back the way it was left. The rows it held are still
-// there, so the cursor lands on the same one; the answer that follows keeps
-// it there the way any refresh does.
+// returnTo puts a list back the way it was left. Its rows are still there,
+// so the cursor lands on the same one; the next answer keeps it there the
+// way any refresh does.
 func (m Model) returnTo(left place) Model {
 	m.list.filter, m.list.sort = left.filter, left.sort
 	m.layout()
@@ -380,18 +380,18 @@ func (m Model) returnTo(left place) Model {
 	return m
 }
 
-// arrive puts the screen up and writes the session down. Every way of
-// arriving at a screen goes through here, so that where the session is
-// looking is never one screen behind what is on display.
+// arrive shows the screen and saves the session. Every way of arriving at
+// a screen goes through here, so the saved session is never one screen
+// behind what is on display.
 func (m Model) arrive() (Model, tea.Cmd) {
 	entered, cmd := m.enter()
 
 	return entered, tea.Batch(cmd, entered.remember())
 }
 
-// enter puts the screen on the table and asks the cluster for its rows.
+// enter sets up the table for the screen and asks the cluster for its rows.
 func (m Model) enter() (Model, tea.Cmd) {
-	// Whatever is still out was asked for what was on the screen before.
+	// Any request still out was made for the screen before.
 	m.asked++
 	m.answered = false
 
@@ -411,14 +411,14 @@ func (m Model) enter() (Model, tea.Cmd) {
 		m.text = textModel{}
 	}
 
-	// A stream is read afresh: whatever read it belonged to an ask that is
-	// over.
+	// A stream is opened again: the command that read it before belonged to
+	// an ask that is over.
 	m, stream := m.openStream()
 
 	m.layout()
 
-	// What the screen that was left was watching is let go of: the new one
-	// watches what it shows, if the cluster will say.
+	// The watch of the screen that was left is stopped: the new one watches
+	// what it shows, if the cluster can stream.
 	m.watch = m.watch.end()
 
 	return m, tea.Batch(m.fetch(), stream, m.watchScreen())
@@ -433,8 +433,8 @@ func shortID(id string) string {
 	return id
 }
 
-// takeAnswer hands on an answer to what is up. One to an ask that is over
-// lets go of what it opened.
+// takeAnswer passes an answer to the open screen. An answer to an ask that
+// is over is dropped, and a stream it opened is closed.
 func (m Model) takeAnswer(msg answerMsg) (Model, tea.Cmd) {
 	if msg.asked != m.asked {
 		letGo(msg.msg)

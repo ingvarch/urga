@@ -43,8 +43,8 @@ func TestAction_StopAJobAsks(t *testing.T) {
 	r.Equal(1, client.stopped)
 	r.Equal("production", client.askedNamespace)
 
-	// What happened is said in one line, not in a window that has to be
-	// clicked away.
+	// The result shows on one line, not in a window that has to be
+	// closed.
 	r.Contains(plain(m.render()), "Stopped the job web")
 }
 
@@ -137,8 +137,8 @@ func TestAction_RevertAJob(t *testing.T) {
 	m, cmd = m.update(key('y'))
 	m = drain(m, cmd)
 
-	// From the version it was planned at: a job that moved on is not moved
-	// back.
+	// From the version it was planned at: a job that changed since is not
+	// reverted.
 	r.Equal(uint64(3), client.revertedTo)
 	r.Equal(uint64(4), client.revertedFrom)
 	r.Contains(plain(m.render()), "Job web reverted to version 3")
@@ -167,7 +167,8 @@ func TestAction_ConfirmTakesTheKeys(t *testing.T) {
 
 	m, _ = m.update(ctrlKey('s'))
 
-	// While the question is up, the list does not move and q does not quit.
+	// While the question is shown, the list does not move and q does not
+	// quit.
 	m, cmd := m.update(key('q'))
 	r.Nil(cmd)
 	r.Equal(overlayConfirm, m.overlay)

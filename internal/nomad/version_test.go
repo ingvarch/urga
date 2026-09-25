@@ -49,7 +49,7 @@ func TestJobVersions_Read(t *testing.T) {
 	r.Equal("true", asked.URL.Query().Get("diffs"))
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 
-	// The newest version is the one that runs, and the list says so.
+	// The newest version is the one that runs, and it is marked current.
 	r.Equal(uint64(3), versions[0].Version)
 	r.True(versions[0].Current)
 	r.True(versions[0].Stable)

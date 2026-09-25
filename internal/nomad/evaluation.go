@@ -107,7 +107,7 @@ func newPlacementFailures(metrics map[string]*api.AllocationMetric) []PlacementF
 		failures = append(failures, PlacementFailure{
 			Group: group,
 
-			// The failures folded into this one are allocations too.
+			// The failures merged into this one are unplaced allocations too.
 			Unplaced: metric.CoalescedFailures + 1,
 
 			NodesEvaluated:     metric.NodesEvaluated,
@@ -128,9 +128,9 @@ func newPlacementFailures(metrics map[string]*api.AllocationMetric) []PlacementF
 var ErrNoFailures = errors.New("no evaluation of the job failed to place anything")
 
 // FailedPlacement is the newest evaluation of the job that failed to place
-// something, which says why what waits is not placed, as the nomad command
-// reads it. A newer one that placed everything else says nothing about what
-// still waits.
+// something. The nomad command explains unplaced allocations with it too. A
+// newer evaluation that placed everything else explains nothing about the
+// allocations that still wait.
 func (c *Client) FailedPlacement(ctx context.Context, namespace, jobID string) (EvaluationDetail, error) {
 	evals, _, err := c.api.Jobs().Evaluations(jobID, c.query(ctx, namespace))
 	if err != nil {

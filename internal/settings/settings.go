@@ -147,7 +147,8 @@ func (c Cluster) fromHome() Cluster {
 }
 
 // ReadToken is the token of the cluster, from where the file says it is.
-// None is no token: the one of the environment belongs to another cluster.
+// With no source in the file there is no token: the one in the environment
+// is for another cluster.
 func (c Cluster) ReadToken() (string, error) {
 	switch {
 	case c.TokenEnv != "":

@@ -25,7 +25,7 @@ func aliasIndex() map[string]*view {
 // commandNames are the words the prompt offers: the first alias of every
 // resource, which is the one that reads as the thing it opens. Short forms
 // stay out of it, and so does leaving urga: that is a command, not a
-// resource to walk into.
+// resource to open.
 var commandNames = nameIndex()
 
 func nameIndex() []string {

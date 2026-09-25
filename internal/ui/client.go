@@ -22,7 +22,7 @@ const (
 	hostChartRest   = 4
 
 	// hostPanelRest is the panel around the charts: the details of the
-	// machine, a line under them and a line of air above the allocations.
+	// machine, a line under them and an empty line above the allocations.
 	hostPanelRest = 3
 
 	// hostPanelRows is the panel without a chart, which is what a screen
@@ -31,7 +31,7 @@ const (
 
 	// rowsKept are the rows a table under a panel shows whatever else is on
 	// the screen: the allocations of a client, the tasks of an allocation.
-	// The panel gives way to them, not the other way around.
+	// The panel shrinks to leave them room.
 	rowsKept = 3
 
 	// hostTrailMax is how many readings a chart keeps. At one reading every
@@ -44,8 +44,8 @@ const (
 )
 
 // Messages of the machine a client screen is open on. Both carry the id of
-// the machine they were asked of: an answer that arrives after the screen
-// moved on belongs to another client.
+// the machine they were requested for: an answer that arrives after the
+// screen switched to another client is about the wrong machine.
 type (
 	hostUseMsg struct {
 		nodeID string
@@ -65,9 +65,9 @@ type hostModel struct {
 	node  nomad.Node
 	trail []nomad.ResourceUse
 
-	// due says the next reading or its timer is on its way. The list is
-	// answered on every poll, and none of those answers may start a second
-	// chain of readings next to the first.
+	// due is true while the next reading or its timer is pending. The list
+	// arrives again on every poll, and none of those answers may start a
+	// second chain of readings next to the first.
 	due bool
 }
 
@@ -148,9 +148,9 @@ func (p clientPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 			return p, outcome{}, false
 		}
 
-		// What the panel says about the machine keeps up with it. The
-		// machine is not the list: its answer leaves what went wrong with
-		// the list on the status line, and the poll where it is.
+		// The panel shows the machine as last read. This answer is not the
+		// list: it does not clear an error of the list from the status line,
+		// and it does not reschedule the poll.
 		p.host.node = nomad.Node(msg)
 
 		return p, outcome{reading: true}, true
@@ -184,9 +184,9 @@ func (p clientPage) hostOnce(e env) (page, outcome, bool) {
 	return p, outcome{cmd: fetchHostUse(e.client, p.nodeID)}, true
 }
 
-// keepHostUse puts a reading on the chart. A machine that does not answer
-// says so and keeps what it said before: a chart that empties on one timeout
-// reads as a machine that stopped working.
+// keepHostUse adds a reading to the chart. When the machine does not answer,
+// the error is shown and the chart keeps its readings: a chart that empties
+// on one timeout looks like a machine that stopped working.
 func (p clientPage) keepHostUse(msg hostUseMsg) (page, outcome, bool) {
 	// The next reading is due whatever came of this one: a machine that did
 	// not answer once is asked again.
@@ -201,8 +201,8 @@ func (p clientPage) keepHostUse(msg hostUseMsg) (page, outcome, bool) {
 	return p, outcome{now: []tea.Msg{forgetMsg{}}, cmd: next, reading: true}, true
 }
 
-// restart lets go of the reading of the chart the page thinks is on its
-// way: it belonged to an ask that is over.
+// restart clears the flag of a chart reading the page thinks is pending:
+// that reading was for a request that is over.
 func (p clientPage) restart() page {
 	p.host.due = false
 
@@ -227,11 +227,11 @@ func (p clientPage) logsOf(env) logScope {
 }
 
 // clientKeys are the keys of the machine, and after them the keys of the
-// allocations on it, which answer here as on any other list of allocations.
+// allocations on it, which work here as on any other list of allocations.
 var clientKeys = append([]pageKey[clientPage]{
 	{press: "e", label: "Events", do: nodeScreen(func(d machine) page { return nodeEventsPage{machine: d} })},
 	// Draining is a key of the list of clients; on the screen of one client
-	// the same key opens what it can run.
+	// the same key opens its drivers.
 	{press: "ctrl+d", label: "Drivers", do: nodeScreen(func(d machine) page { return nodeDriversPage{machine: d} })},
 	{press: "ctrl+h", label: "Host Volumes", do: nodeScreen(func(d machine) page { return nodeVolumesPage{machine: d} })},
 	{press: "a", label: "Attributes", do: nodeScreen(func(d machine) page { return nodeAttributesPage{machine: d} })},
@@ -311,8 +311,8 @@ func (m Model) panel(width int) []string {
 
 // panel is what the machine is doing, above its allocations.
 func (p clientPage) panel(_ env, width, room int) []string {
-	// A box with no room for even the machine leaves it to the
-	// allocations.
+	// A box with no room even for the details of the machine gives all its
+	// rows to the allocations.
 	if room < hostPanelRows {
 		return nil
 	}

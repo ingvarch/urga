@@ -58,7 +58,7 @@ func TestServices_EnterOpensTheInstances(t *testing.T) {
 
 	r.Contains(plain(m.render()), "Service served (default) [3]")
 
-	// The stream watches the services where this one lives.
+	// The stream watches the services in the namespace of this one.
 	r.Equal("default", client.watchedNamespace)
 	r.Equal([]string{nomad.TopicService}, client.watchedTopics)
 
@@ -72,7 +72,7 @@ func TestServices_EnterOpensTheInstances(t *testing.T) {
 	r.Contains(fileRow(t, m, 1), "stale: alloc lost")
 	r.Contains(fileRow(t, m, 2), "stale: alloc gone")
 
-	// A client the cluster no longer names is named by its id.
+	// A client with no name in the answer is shown by its id.
 	r.Contains(fileRow(t, m, 2), "n4abcdef")
 }
 
@@ -98,7 +98,7 @@ func TestServiceInstances_OnlyAStaleOneIsDeleted(t *testing.T) {
 	r.Equal("default", client.askedNamespace)
 	r.Contains(plain(m.render()), "Registration of served at 10.0.0.7:24011 deleted.")
 
-	// One the cluster no longer holds says so.
+	// For one whose allocation is gone, the question states it.
 	m, _ = m.update(key('j'))
 	m, _ = m.update(ctrl('d'))
 	r.Contains(plain(m.render()), "Its allocation is gone.")
@@ -138,8 +138,8 @@ func TestServiceInstances_TheirChecks(t *testing.T) {
 	m, cmd := m.update(pollInstanceChecksMsg{})
 	m = drain(m, cmd)
 
-	// Read only for what runs, and only the checks of this service: the
-	// worst of them first.
+	// Read only for allocations that run, and only the checks of this
+	// service: the worst of them first.
 	r.Equal(1, client.checksCalls)
 	r.Equal(servedRunning, client.checksAllocID)
 	r.Contains(fileRow(t, m, 0), "1 failing")
@@ -188,7 +188,7 @@ func TestServices_DescribeTheOneUnderTheCursor(t *testing.T) {
 	m, cmd := m.update(key('d'))
 	m = drain(m, cmd)
 
-	// Asked where the service lives, under a title that names it.
+	// Asked in the namespace of the service, under a title that names it.
 	r.Equal("default", client.askedNamespace)
 	r.Equal("web", client.askedID)
 	r.IsType(describePage{}, m.screen.page)
@@ -223,7 +223,7 @@ func TestServices_AListThatAnswersLateIsDropped(t *testing.T) {
 	m, _ = m.update(servicesMsg{{Name: "billing", Namespace: "default"}})
 	r.Contains(fileRow(t, m, 0), "10.0.0.5:23133")
 
-	// Back on the list, it shows what it held.
+	// Back on the list, it shows the rows it had before.
 	m, _ = m.update(escape())
 
 	out := plain(m.render())
@@ -240,12 +240,12 @@ func TestServices_OfTheRegionLeftAreLetGo(t *testing.T) {
 	m = typeCommand(m, "services")
 	r.Contains(fileRow(t, m, 0), "served")
 
-	// From the instances of one of them: the region is left for the list.
+	// From the instances of one of them, a region switch returns to the list.
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 	r.Contains(plain(m.render()), "Service served (default) [3]")
 
-	// The services of eu must not stand under the name of us before us
+	// The services of eu must not show under the name of us before us
 	// answers.
 	client.services = nil
 	m, _ = runLine(m, "region us")
@@ -364,11 +364,11 @@ func TestServiceInstances_AReadingOfTheLastVisitIsDropped(t *testing.T) {
 	m := onServed(t, &fakeClient{checks: []nomad.Check{{Service: "served", Name: "ready", Status: "failure"}}})
 	_, read := m.update(pollInstanceChecksMsg{})
 
-	// The instances are left and come back before the reading answers.
+	// The session leaves the instances and returns before the reading answers.
 	m, _ = m.update(enter())
 	m, _ = m.update(escape())
 
-	// It answers for the visit that asked, and starts no second timer.
+	// The answer is for the earlier visit: it is dropped, and starts no timer.
 	m, cmd := m.update(read())
 	r.Nil(cmd)
 	r.NotContains(fileRow(t, m, 0), "failing")
@@ -380,8 +380,8 @@ func TestServiceInstances_AReadingOfTheChecksLeavesTheErrorUp(t *testing.T) {
 	m := onServed(t, &fakeClient{})
 	m, _ = m.update(errMsg{err: errTest})
 
-	// A reading is no answer of the cluster about the instances: what went
-	// wrong with them still stands.
+	// A reading of the checks is not an answer about the instances: the
+	// error about them stays on the screen.
 	m, _ = m.update(pollInstanceChecksMsg{})
 	m, _ = m.update(instanceChecksMsg{service: "served", byAlloc: map[string][]nomad.Check{}})
 

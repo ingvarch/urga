@@ -9,8 +9,8 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// blockedEvaluation is what the cluster says of an evaluation that could not
-// place everything: two groups, each short of something else.
+// blockedEvaluation is what the cluster returns for an evaluation that could
+// not place everything: two groups, each short of something else.
 const blockedEvaluation = `{
 	"ID": "1ad88fd0-6b1c-da67-5e8f-482b5a15af1f",
 	"Namespace": "production",
@@ -79,7 +79,7 @@ func TestEvaluation_SaysWhyEachGroupWasNotPlaced(t *testing.T) {
 
 	web := eval.Failures[1]
 
-	// The failures that were folded into this one are allocations too.
+	// The failures Nomad coalesced into this one are unplaced allocations too.
 	r.Equal(3, web.Unplaced)
 	r.Equal(3, web.NodesEvaluated)
 	r.Equal(map[string]int{"dc1": 3, "dc2": 0}, web.NodesAvailable)
@@ -107,9 +107,9 @@ func TestFailedPlacement_TheNewestEvaluationWithFailures(t *testing.T) {
 	r.Equal("/v1/job/web/evaluations", asked.URL.Path)
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 
-	// The newest decision that failed to place something is what says why
-	// the job waits now, as the nomad command reads it. A newer one that
-	// placed everything else says nothing about what still waits.
+	// The newest evaluation that failed to place something explains why the
+	// job waits now; the nomad command picks the same one. A newer one that
+	// placed everything else does not explain what still waits.
 	r.Equal("blocked", eval.ID)
 	r.Equal(3, eval.Failures[0].NodesExhausted)
 }

@@ -100,7 +100,7 @@ func TestModal_ButtonsAreChosenWithTheCursor(t *testing.T) {
 	r.Contains(raw, styleButtonOn.Render(" cancel "))
 	r.Contains(raw, styleButton.Render(" confirm "))
 
-	// Right, tab or l walks to the other one, left walks back.
+	// Right, tab or l moves to the other one, left moves back.
 	for _, key := range []tea.KeyPressMsg{
 		{Code: tea.KeyRight},
 		{Code: tea.KeyTab},
@@ -132,7 +132,7 @@ func TestModal_EnterTakesTheButtonUnderTheCursor(t *testing.T) {
 	r.Nil(cmd)
 	r.Zero(client.stopped)
 
-	// Enter on confirm does the thing.
+	// Enter on confirm runs the action.
 	m, _ = m.update(ctrlKey('s'))
 	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyRight})
 

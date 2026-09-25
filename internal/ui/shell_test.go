@@ -109,7 +109,7 @@ func TestShellRunner_AsksInTheRegionOfTheTask(t *testing.T) {
 
 	session := shellRunner{client: client}.session(shellCommand{Region: "us", Task: "server"})
 
-	// The shell was handed the client urga started with; the task is where
-	// the session looks now.
+	// The runner has the client urga started with, in eu; the shell opens in
+	// the region the session uses now.
 	r.Equal("us", session.client.Region())
 }

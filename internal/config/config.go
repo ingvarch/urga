@@ -11,10 +11,10 @@ import (
 // MaxNamespaces is how many namespaces the number keys reach.
 const MaxNamespaces = 9
 
-// Config is what the sessions were left looking at, one for each cluster.
+// Config holds the saved session of each cluster.
 type Config struct {
-	// Session is the one of the cluster of the environment. It is written
-	// at the top of the file, where an earlier urga wrote the only one.
+	// Session is the one of the cluster the environment names. It sits at
+	// the top level of the file, where older versions kept their only one.
 	Session
 
 	// Clusters are the sessions of the clusters the settings name.
@@ -23,21 +23,21 @@ type Config struct {
 	path string
 }
 
-// Session is where one cluster was looking and what it had open.
+// Session is the namespace and the screen one cluster had open.
 type Session struct {
-	// Namespace is the one in use. A pointer, because every namespace at
-	// once is a choice of its own and must not read as "never chose".
+	// Namespace is the one in use. A pointer, because all namespaces at once
+	// is a choice too, and must not look like no choice at all.
 	Namespace *string `json:"namespace"`
 
 	// Screen is the resource that was open.
 	Screen string `json:"screen"`
 
-	// Namespaces is which namespace each number key stands for.
+	// Namespaces is which namespace each number key selects.
 	Namespaces []string `json:"namespaces"`
 }
 
-// Of is the session of a cluster, the empty name for the one of the
-// environment. A cluster seen for the first time starts fresh.
+// Of is the session of a cluster; the empty name gives the one the
+// environment names. A cluster seen for the first time gets an empty one.
 func (c *Config) Of(cluster string) *Session {
 	if cluster == "" {
 		return &c.Session
@@ -54,8 +54,8 @@ func (c *Config) Of(cluster string) *Session {
 	return c.Clusters[cluster]
 }
 
-// Load reads what the last session left. A first run, or a file that cannot
-// be read, starts fresh instead of stopping urga.
+// Load reads the saved sessions. A first run, or a file that cannot be
+// read, gives an empty config instead of an error that would stop urga.
 func Load() (*Config, error) {
 	path, err := configPath()
 	if err != nil {
@@ -104,8 +104,8 @@ func (c *Session) Remember(namespaces []string) {
 }
 
 // Ordered is the rule the number keys follow: first seen keeps its number, a
-// namespace already known stays where it is, and there are only so many keys
-// to give away.
+// namespace already known stays where it is, and no more than MaxNamespaces
+// get a key.
 func Ordered(known, seen []string) []string {
 	order := slices.Clone(known)
 

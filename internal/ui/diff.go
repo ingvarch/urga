@@ -7,9 +7,9 @@ import (
 )
 
 // diffLines lay a job diff out as a unified diff shows a change to a file: a
-// column for what happened to the line, then the line as deep in the job as
-// it sits. Added lines are green, deleted ones red, and the blocks that lead
-// to them step back.
+// column with + or -, then the line indented as deep as it sits in the job.
+// Added lines are green, deleted ones red, and the blocks around them are
+// muted.
 func diffLines(diff []nomad.DiffLine) []paintedLine {
 	lines := make([]paintedLine, 0, len(diff))
 
@@ -38,7 +38,7 @@ func diffLines(diff []nomad.DiffLine) []paintedLine {
 	return lines
 }
 
-// plainLines are lines of text in the colour of text.
+// plainLines are the lines of a text, in the default text colour.
 func plainLines(text string) []paintedLine {
 	lines := []paintedLine{}
 	for _, line := range strings.Split(text, "\n") {

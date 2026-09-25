@@ -47,8 +47,8 @@ func (c *Client) jobOf(ctx context.Context, namespace, source string, vars JobVa
 	return job, kept, nil
 }
 
-// parseJob reads a job file the way the cluster does, and says what of it to
-// keep with the version.
+// parseJob reads a job file the way the cluster does, and returns what of it
+// to keep with the version.
 func (c *Client) parseJob(ctx context.Context, namespace, source string, vars JobVariables) (*api.Job, *api.JobSubmission, error) {
 	if strings.HasPrefix(strings.TrimSpace(source), "{") {
 		// The file holds the job or wraps it in a Job key. The cluster takes

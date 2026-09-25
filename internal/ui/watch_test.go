@@ -56,8 +56,8 @@ func TestWatch_ArrivingAtAScreenOpensItsStream(t *testing.T) {
 	r.Equal([]string{nomad.TopicAllocation}, client.watchedTopics)
 }
 
-// watching is a model whose screen the cluster says changes about. The
-// stream itself is read by hand: a test must not wait on it.
+// watching is a model whose screen watches the event stream. The stream
+// itself is read by hand: a test must not wait on it.
 func watching(t *testing.T, client *fakeClient) Model {
 	t.Helper()
 
@@ -112,12 +112,12 @@ func TestWatch_TheScreenPollsSlowlyWhileTheStreamIsUp(t *testing.T) {
 
 	m := watching(t, client)
 
-	// Watching is the reason a screen may take its time asking again.
+	// While it watches, a screen may poll slowly.
 	r.Equal(slowPoll, m.pollEvery())
 
 	m, _ = m.update(watchEndedMsg{})
 
-	// Without the stream, the screen goes back to asking on its own.
+	// Without the stream, the screen polls at its usual pace again.
 	r.False(m.watch.live())
 	r.Equal(time.Millisecond, m.pollEvery())
 }
@@ -132,8 +132,8 @@ func TestWatch_AStreamTheClusterRefusesIsNotAnError(t *testing.T) {
 
 	m, _ = m.update(m.watchScreen()())
 
-	// A cluster that will not stream is a cluster urga polls, and says
-	// nothing about it over the rows.
+	// A cluster that will not stream is a cluster urga polls, and the rows
+	// stay on the screen with no error over them.
 	r.False(m.watch.live())
 	r.NotEqual(flashErr, m.flash.level)
 	r.Contains(plain(m.render()), "web")
@@ -167,8 +167,8 @@ func TestWatch_AScreenWithNothingToWatchAsksOnItsOwn(t *testing.T) {
 	m = typeIn(m, "namespaces")
 	m, _ = m.update(enter())
 
-	// The cluster says nothing about namespaces, so there is nothing to
-	// ask it for.
+	// The cluster sends no events about namespaces, so there is nothing
+	// to watch.
 	r.Nil(m.watchScreen())
 	r.False(m.watch.live())
 }
@@ -242,7 +242,7 @@ func TestWatch_ASettledBurstStartsNoTimerOfItsOwn(t *testing.T) {
 	next, cmd := m.update(settleMsg{})
 	r.NotNil(cmd)
 
-	// Asking because the cluster said so is still one chain: the answer to
+	// A request made because of an event is still one chain: the answer to
 	// it must not add another timer.
 	_, cmd = next.update(jobsMsg(twoJobs()))
 	r.Nil(cmd)
@@ -264,8 +264,8 @@ func TestWatch_TheEndOfAStreamThatWasLeftIsNotThisOne(t *testing.T) {
 
 	m, _ = m.update(watchEndedMsg{})
 
-	// The end of a stream that was let go of says nothing about the one
-	// that is up.
+	// The end of a stream that was closed does not affect the one that is
+	// open now.
 	r.True(m.watch.live())
 	r.False(second.closed)
 }
@@ -281,8 +281,8 @@ func TestWatch_AStreamThatArrivesTooLateIsLetGoOf(t *testing.T) {
 	m, _ = m.update(enter())
 	m, _ = m.update(m.watchScreen()())
 
-	// The stream the jobs screen asked for comes up after the screen is
-	// gone: it is closed rather than left running.
+	// The stream the jobs screen asked for arrives after the screen was
+	// left: it is closed rather than left running.
 	m.update(watchingMsg{changes: late.stream()})
 
 	r.True(late.closed)
@@ -323,7 +323,7 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 		nodePoolsView:   {nomad.TopicNodePool},
 	}
 
-	// Each is asked the way the program opens it, page and all.
+	// Each is checked the way the program opens it, page and all.
 	for v, topics := range watched {
 		r.Equal(topics, v.open().topics(), nameOf(v))
 	}
@@ -400,8 +400,8 @@ func TestWatch_AClusterThatWillNotStreamIsSaidOnce(t *testing.T) {
 	m, _ = m.update(m.watchScreen()())
 	r.Contains(m.flash.text, "Permission denied")
 
-	// Walking around a cluster that will not stream must not put the same
-	// line up again on every screen: nothing has changed since it was said.
+	// Walking around a cluster that will not stream must not show the same
+	// line again on every screen: nothing has changed since it was shown.
 	m = m.quiet()
 
 	m, _ = m.update(enter())
@@ -432,7 +432,7 @@ func TestWatch_ASecondStreamForTheSameScreenClosesTheFirst(t *testing.T) {
 
 	m := watching(t, client)
 
-	// Two asks of the same screen both came up: one stream is kept, the
+	// Two asks of the same screen both returned a stream: one is kept, the
 	// other must not run for the rest of the session.
 	m, _ = m.update(watchingMsg{id: m.watch.id, changes: second.stream()})
 
@@ -451,7 +451,7 @@ func TestWatch_AChangeOfAStreamThatWasLeftAsksNothing(t *testing.T) {
 
 	m, _ = m.update(enter())
 
-	// The reader of the jobs stream was waiting when the screen moved on.
+	// The reader of the jobs stream was waiting when the screen was left.
 	m, cmd := m.update(changeMsg{id: left})
 
 	r.Nil(cmd)

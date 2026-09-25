@@ -14,7 +14,7 @@ const infoRows = 7
 // unknown is what a value reads as before the cluster has answered.
 const unknown = "n/a"
 
-// everyDatacenter is what no datacenter chosen reads as.
+// everyDatacenter is what shows when no datacenter is chosen.
 const everyDatacenter = "all"
 
 // headerHeight is fixed so that the list below never moves, whatever the
@@ -72,15 +72,15 @@ func renderHeader(h header, width int) string {
 	keys := namespaceColumn(h.namespaces)
 
 	// Every column is a block of the same width from top to bottom, so the
-	// one next to it starts where it says it does.
+	// one next to it starts at the same place on every line.
 	infoWide, keysWide := blockWidth(info), blockWidth(keys)
 
 	// One more gap so the keys never touch the art in the corner.
 	taken := infoWide + keysWide + 3*columnGap
 
-	// The keys come before the art: when they do not all fit beside it, it
-	// gives its place up to them. The info column keeps the width it had,
-	// or it would take that place instead.
+	// The keys come before the art: when they do not all fit beside it, the
+	// art is dropped and the keys get its place. The info column keeps the
+	// width it had, or it would take that place instead.
 	if art != "" && hintsWidth(h.hints) > rest-taken {
 		art, rest = "", width
 	}
@@ -128,8 +128,8 @@ type infoRow struct {
 	value string
 
 	// mark follows the value, which is cut at the width of the column
-	// as ever: the column grows by the mark instead of the value
-	// giving way to it. It comes styled.
+	// as usual: the column grows by the mark, and the value is not cut
+	// shorter for it. It comes styled.
 	mark string
 
 	// paint is the colour of the value, nil for the colour of values.
@@ -256,7 +256,6 @@ func hintCells(hints []hint, describe lipgloss.Style) []string {
 	return cells
 }
 
-// hintColumns lays the keys of the screen out for the header.
 // hintsWidth is what the keys take laid out whole.
 func hintsWidth(hints []hint) int {
 	if len(hints) == 0 {
@@ -266,6 +265,7 @@ func hintsWidth(hints []hint) int {
 	return blockWidth(grid(hintCells(hints, styleValue), headerHeight))
 }
 
+// hintColumns lays the keys of the screen out for the header.
 func hintColumns(hints []hint, width int) string {
 	if len(hints) == 0 || width <= 0 {
 		return ""

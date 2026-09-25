@@ -64,8 +64,7 @@ func TestReadOnly_AWriteKeyChangesNothing(t *testing.T) {
 			r.Empty(fake.writes, "%s on the %s screen", k.press, name)
 			r.Equal(shellCommand{}, shell.opened, "%s on the %s screen", k.press, name)
 
-			// A key that does nothing with no word said reads as a broken
-			// key.
+			// A key that does nothing and shows no message looks broken.
 			r.Contains(plain(m.render()), "read-only", "%s on the %s screen", k.press, name)
 		}
 	}
@@ -90,8 +89,8 @@ func TestReadOnly_TheHeaderSaysSo(t *testing.T) {
 	r.Contains(out, "https://nomad.example.com")
 	r.Contains(out, "read-only")
 
-	// It sits next to the cluster it is about, and a long address that is
-	// cut short does not take it along.
+	// It is shown next to the address, and stays when a long address is cut
+	// short.
 	long := "https://nomad-servers-of-the-production-cluster.internal.example.com:4646"
 	out = ansi.Strip(renderHeader(header{address: long, readOnly: true}, 120))
 	r.Contains(out, "read-only")

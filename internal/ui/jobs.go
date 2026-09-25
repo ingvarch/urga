@@ -105,9 +105,9 @@ func jobRows(jobs []nomad.Job) []tableRow {
 	return rows
 }
 
-// jobColor says what a job is up to without reading the row: a service short
-// of allocations stands out, a dead one is red, a batch job that ended is
-// spent rather than broken.
+// jobColor shows the state of a job without reading the row: a service short
+// of allocations gets the attention color, a dead one is red, a batch job
+// that ended gets the spent color, not the dead one.
 func jobColor(job nomad.Job) color.Color {
 	switch job.Status {
 	case statusRunning:

@@ -24,7 +24,7 @@ var clientRoles = []reflect.Type{
 }
 
 // Every method of Client belongs to one role and only one: a method added to
-// Client alone could not be asked for on its own, and one in two roles would
+// Client alone could not be required on its own, and one in two roles would
 // blur what each is for.
 func TestClient_EveryMethodHasOneRole(t *testing.T) {
 	owner := map[string]string{}

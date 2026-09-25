@@ -33,8 +33,7 @@ func (m Model) scroll(by int) Model {
 	if m.readsAsText() {
 		m.text.move(by)
 
-		// Scrolling by hand means the end of the output is no longer being
-		// watched.
+		// Scrolling by hand stops following the end of the output.
 		m.text.following = false
 
 		return m

@@ -55,7 +55,7 @@ func TestNewer(t *testing.T) {
 	}
 }
 
-// published answers as the releases of the repository do, and keeps the
+// published answers as the releases of the repository do, and records the
 // request.
 func published(t *testing.T, status int, body string) (string, *http.Request) {
 	t.Helper()

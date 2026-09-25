@@ -22,10 +22,10 @@ type tasksPage struct {
 	alloc nomad.Alloc
 	read  bool
 
-	// checks are what the checks of the allocation last said.
+	// checks are the last results of the checks of the allocation.
 	checks []nomad.Check
 
-	// due says the next reading of the checks or its timer is on its way.
+	// due says a read of the checks, or its timer, is pending.
 	// The allocation is read again on every change the cluster reports, and
 	// none of those may start a second chain of readings next to the first.
 	due bool
@@ -76,8 +76,8 @@ func (p tasksPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 	return p, outcome{}, false
 }
 
-// restart lets go of the reading of the checks the page thinks is on its
-// way: it belonged to an ask that is over.
+// restart forgets the read of the checks the page is waiting for: it was
+// for a request that is over.
 func (p tasksPage) restart() page {
 	p.due = false
 

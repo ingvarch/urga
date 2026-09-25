@@ -10,21 +10,21 @@ import (
 )
 
 // taskRef is a task of an allocation, and the namespace the allocation
-// lives in, which is where it is asked.
+// lives in, which every request about the task names.
 type taskRef struct {
 	namespace, allocID, name string
 }
 
 // taskRuns says the task under the cursor runs: its client restarts or
-// signals nothing else.
+// signals only a running task.
 func taskRuns(p tasksPage, e env) bool {
 	task, ok := p.picked(e)
 
 	return ok && task.State == statusRunning
 }
 
-// restartTask restarts the task under the cursor in place, once it is asked
-// about. The rest of the allocation keeps running.
+// restartTask restarts the task under the cursor in place, once the
+// question is answered yes. The rest of the allocation keeps running.
 func restartTask(p tasksPage, e env) (tasksPage, outcome) {
 	task, ok := p.picked(e)
 	if !ok {
@@ -51,8 +51,8 @@ func askSignal(p tasksPage, e env) (tasksPage, outcome) {
 	return p, then(signalMsg{namespace: p.namespace, allocID: p.allocID, name: task.Name})
 }
 
-// askForSignal puts up the line that asks which signal to send to a task. It
-// offers the one a task most often reloads on.
+// askForSignal opens the line that asks which signal to send to a task. It
+// is filled with the one a task most often reloads on.
 func (m Model) askForSignal(task taskRef) (Model, tea.Cmd) {
 	m.overlay = overlaySignal
 	m.prompt = promptModel{

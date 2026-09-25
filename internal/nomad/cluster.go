@@ -71,7 +71,7 @@ func (c *Client) Usage(ctx context.Context, datacenter string) (Usage, error) {
 	}, nil
 }
 
-// AllocationUsage is what one allocation takes of what it asked for.
+// AllocationUsage is how much one allocation uses of what it asked for.
 func (c *Client) AllocationUsage(ctx context.Context, namespace, allocID string) (ResourceUse, error) {
 	alloc, _, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))
 	if err != nil {
@@ -120,7 +120,7 @@ func (c *Client) AllocationUsage(ctx context.Context, namespace, allocID string)
 	return use, nil
 }
 
-// NodeUsage is what a machine of the cluster is busy with.
+// NodeUsage is how much CPU and memory a node of the cluster uses.
 func (c *Client) NodeUsage(ctx context.Context, nodeID string) (ResourceUse, error) {
 	stats, err := c.api.Nodes().Stats(nodeID, c.query(ctx, ""))
 	if err != nil {
@@ -151,8 +151,9 @@ func (c *Client) NodeUsage(ctx context.Context, nodeID string) (ResourceUse, err
 	return use, nil
 }
 
-// readUsage takes what a report says, whichever field the driver filled. On
-// cgroups v2 the memory of a task is in Usage and RSS stays at zero.
+// readUsage reads ticks and memory from a report, whichever field the
+// driver filled. On cgroups v2 the memory of a task is in Usage and RSS
+// stays at zero.
 func readUsage(usage *api.ResourceUsage) (ticks int, memoryBytes uint64) {
 	if usage == nil {
 		return 0, 0

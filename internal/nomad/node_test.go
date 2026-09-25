@@ -94,8 +94,8 @@ func TestNode_ReadsTheMachineItself(t *testing.T) {
 	node, err := client.Node(context.Background(), "node-1")
 	r.NoError(err)
 
-	// What the list says about one machine, asked of the machine itself, so
-	// that a screen open on it does not freeze at what it was.
+	// The list fields of one client are read from that client, so a screen
+	// open on it does not keep showing old values.
 	r.Equal("/v1/node/node-1", asked.URL.Path)
 	r.Equal("nomad-server-01", node.Name)
 	r.Equal("down", node.Status)
@@ -103,9 +103,8 @@ func TestNode_ReadsTheMachineItself(t *testing.T) {
 	r.Equal(4000, node.CPUShares)
 }
 
-// metaServer answers with the given body and keeps what was sent to it, as
-// well as the request it was asked: some of what a call says travels in the
-// body and some of it in the query.
+// metaServer answers with the given body and records the request and its
+// body: a call sends some of its data in the body and some in the query.
 func metaServer(t *testing.T, body string) (*nomad.Client, *[]byte, *http.Request) {
 	t.Helper()
 

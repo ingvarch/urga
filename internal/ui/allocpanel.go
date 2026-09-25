@@ -11,8 +11,8 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// panel is the panel of the allocation the page read, as much of it as
-// leaves the tasks their rows. Until it has read one, there is none.
+// panel is the panel of the allocation the page read, cut to room rows so
+// the tasks keep theirs. Before the allocation is read there is no panel.
 func (p tasksPage) panel(_ env, width, room int) []string {
 	if !p.read {
 		return nil
@@ -27,8 +27,8 @@ func (p tasksPage) panel(_ env, width, room int) []string {
 	return allocPanel(p.alloc, checks, width, room)
 }
 
-// allocHas offers a key when the allocation on the screen has somewhere for
-// it to go.
+// allocHas offers a key when the allocation on the screen has the ID the key
+// opens.
 func allocHas(where func(nomad.Alloc) string) func(p tasksPage, e env) bool {
 	return func(p tasksPage, _ env) bool {
 		return p.read && where(p.alloc) != ""
@@ -64,11 +64,11 @@ func openFollowUp(p tasksPage, e env) (tasksPage, outcome) {
 // field is a label and its value on a line of a panel.
 type field struct{ label, value string }
 
-// allocPanel is what the tasks of an allocation show above them: what it is
-// to its job and its deployment, where it listens, what came before and
-// after it, and its checks. A line with nothing to say is left out, and the
-// panel takes no more than room rows, the line of air before the tasks
-// included.
+// allocPanel is what the tasks of an allocation show above them: its status,
+// client, job version and deployment health, its ports, the allocations
+// before and after it, and its checks. A line with no values is left out,
+// and the panel takes no more than room rows, the blank line before the
+// tasks included.
 func allocPanel(alloc nomad.Alloc, checks []nomad.Check, width, room int) []string {
 	deployment := alloc.Health
 	if deployment != "" && alloc.Canary {
@@ -136,9 +136,9 @@ type panelBlock struct {
 }
 
 // fitPanel lays the head of a panel out with a block under it, in no more
-// than room rows, the line of air before the table included. What does not
-// fit of the head is cut. The block keeps whole entries and counts the rest,
-// and with room for none of them it is left out.
+// than room rows, the blank line before the table included. Head rows that
+// do not fit are cut. The block keeps whole entries and counts the rest, and
+// with room for none of them it is left out.
 func fitPanel(head []string, block panelBlock, room int) []string {
 	if len(head) >= room {
 		if room < 2 {
@@ -151,8 +151,8 @@ func fitPanel(head []string, block panelBlock, room int) []string {
 	return slices.Concat(head, blockRows(block, room-len(head)-1), []string{""})
 }
 
-// blockRows are the rows of a block in no more than room rows: a line apart
-// from what is above it, its title, and the entries that fit.
+// blockRows are the rows of a block in no more than room rows: a blank line
+// above it, its title, and the entries that fit.
 func blockRows(block panelBlock, room int) []string {
 	if len(block.entries) == 0 {
 		return nil
@@ -193,8 +193,8 @@ func blockRows(block panelBlock, room int) []string {
 	return append(rows, styleMuted.Render(block.more(len(block.entries)-shown)))
 }
 
-// checkBlock is the checks of an allocation. One that fails says why under
-// it.
+// checkBlock is the checks of an allocation. A failed check shows its output
+// on the row under it.
 func checkBlock(checks []nomad.Check, width int) panelBlock {
 
 	named := 0

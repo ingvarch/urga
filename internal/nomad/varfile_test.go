@@ -51,8 +51,8 @@ func TestVariableSpec_WritesTheItemsAsTOML(t *testing.T) {
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 	r.Equal(uint64(769), spec.Index)
 
-	// By key, a value of several lines as the lines it has, and quotes in a
-	// value as they are.
+	// Sorted by key; a value of several lines is written as those lines, and
+	// quotes in a value stay as they are.
 	r.Equal(`# Variable nomad/jobs/web in namespace production.
 CERT = """
 -----BEGIN CERTIFICATE-----
@@ -152,8 +152,8 @@ func conflicted(t *testing.T, now string) *nomad.Client {
 
 		switch {
 		case req.Method == http.MethodPut:
-			// Only a variable changed since carries itself; one deleted or
-			// locked comes back empty.
+			// The answer holds the variable only when it changed since; one
+			// deleted or locked comes back empty.
 			w.WriteHeader(http.StatusConflict)
 			_, _ = w.Write([]byte(`{"Namespace": "production", "Path": "nomad/jobs/web", "ModifyIndex": 0, "Items": null}`))
 		case now == "":
@@ -170,8 +170,8 @@ func conflicted(t *testing.T, now string) *nomad.Client {
 	return client
 }
 
-// conflictOf saves over a variable read at 769 and is what the cluster
-// said about it.
+// conflictOf saves over a variable read at index 769 and returns the
+// conflict the cluster reported.
 func conflictOf(t *testing.T, client *nomad.Client) *nomad.VariableConflict {
 	t.Helper()
 
@@ -190,7 +190,7 @@ func TestSubmitVariable_SaysTheVariableChanged(t *testing.T) {
 
 	conflict := conflictOf(t, client)
 
-	// The index it is at now, which a save that replaces the change gives.
+	// The index it is at now, which a save must send to replace the change.
 	r.Equal(uint64(800), conflict.Index)
 	r.False(conflict.Deleted)
 	r.Nil(conflict.Lock)
@@ -239,7 +239,7 @@ func TestSubmitVariable_AConflictItCannotReadAgain(t *testing.T) {
 	client, err := nomad.New(nomad.Config{Address: server.URL})
 	r.NoError(err)
 
-	// The save was refused either way; what the read says comes after.
+	// The save was refused either way; the error of the read comes after.
 	err = client.SubmitVariable(context.Background(), "production", "nomad/jobs/web", "DB_HOST = \"10.0.0.6\"\n", 769)
 	r.ErrorContains(err, "variable nomad/jobs/web changed since it was read, and reading it again failed")
 	r.ErrorContains(err, "no leader")

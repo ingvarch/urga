@@ -17,7 +17,7 @@ func TestWatchSize_StopsWithTheSession(t *testing.T) {
 
 	cancel()
 
-	// The watcher lets go of the channel when the shell ends, whatever the
+	// The watcher closes the channel when the shell ends, whatever the
 	// platform tells it about the terminal. Anything it managed to send
 	// first is drained on the way.
 	done := make(chan struct{})
@@ -25,8 +25,8 @@ func TestWatchSize_StopsWithTheSession(t *testing.T) {
 	go func() {
 		defer close(done)
 
-		// Whatever it managed to send before the end is read off, the test
-		// waits for the channel to close.
+		// Whatever it managed to send before the end is read and dropped,
+		// the test waits for the channel to close.
 		for range sizes { //nolint:revive // draining is the point
 			continue
 		}

@@ -50,8 +50,8 @@ func TestFlash_GoesAwayOnItsOwn(t *testing.T) {
 	m = m.fail(errors.New("connection refused"))
 	r.Contains(plain(m.render()), "connection refused")
 
-	// A message from a minute ago is not news. It clears itself, the way
-	// k9s clears its own.
+	// A message from a minute ago is out of date, so it clears itself
+	// after flashFor.
 	m.flash.at = time.Now().Add(-flashFor - time.Second)
 
 	out := plain(m.render())
@@ -66,8 +66,8 @@ func TestFlash_ATimerComesWithEveryMessage(t *testing.T) {
 
 	_, cmd := m.Update(errMsg{err: errors.New("connection refused")})
 
-	// Nothing else would redraw the screen in time for the message to go
-	// away, so setting one asks for the redraw that clears it.
+	// Nothing else would redraw the screen in time to clear the message,
+	// so setting one also schedules the redraw that clears it.
 	r.NotNil(cmd)
 }
 
@@ -81,7 +81,7 @@ func TestFlash_TheOneThatClearsItLeavesANewerOneAlone(t *testing.T) {
 
 	m, _ = m.update(flashOverMsg{at: m.flash.at.Add(-time.Minute)})
 
-	// The timer of a message that was replaced must not take the one that
-	// replaced it off the screen.
+	// The timer of a message that was replaced must not clear the message
+	// that replaced it.
 	r.Contains(plain(m.render()), "second")
 }

@@ -101,8 +101,8 @@ func TestWorkflows_PinGoreleaser(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", ".tool-versions"))
 	r.NoError(err)
 
-	// The tool that builds the release changes when this repository says
-	// so, the same as the runner.
+	// The tool that builds the release changes only when this repository
+	// changes its pinned version, the same as the runner.
 	r.Regexp(`(?m)^goreleaser \d+\.\d+\.\d+$`, string(data))
 
 	for name, content := range workflows(t) {

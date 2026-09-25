@@ -77,7 +77,7 @@ func TestScale_AsksForACount(t *testing.T) {
 
 	m, _ = m.update(key('s'))
 
-	// The line comes up with the count that runs now, ready to be changed.
+	// The prompt opens with the count that runs now, ready to be changed.
 	r.Equal(overlayScale, m.overlay)
 	r.True(m.overlay.asksForALine())
 	r.Contains(plain(m.render()), "scale frontend to:")
@@ -89,7 +89,7 @@ func TestScale_AsksForACount(t *testing.T) {
 	m, _ = m.update(enter())
 
 	// A count starts or stops allocations like any other action, and is
-	// asked about like one: the question says what runs and what will.
+	// confirmed like one: the question shows the count now and the new one.
 	r.Equal(overlayConfirm, m.overlay)
 	r.Contains(plain(m.render()), "Really scale frontend of web from 3 to 5?")
 	r.Zero(client.scaled)
@@ -172,7 +172,8 @@ func TestTaskGroups_TheKeysOfAGroup(t *testing.T) {
 	}
 	r.Equal(keys, m.hints())
 
-	// A group with an allocation that waits for a place has a why to ask.
+	// A group with an allocation that waits for a place gets a key that
+	// shows why.
 	m, _ = m.update(key('j'))
 	r.Equal([]hint{keys[0], keys[1], {Key: "<p>", Description: "Placement"}, keys[2]}, m.hints())
 }
@@ -259,7 +260,7 @@ func TestTaskGroups_AnAnswerAfterLeavingIsDropped(t *testing.T) {
 	m, _ = m.update(key('t'))
 	m, _ = m.update(escape())
 
-	// The groups answer on the jobs they were asked from.
+	// The answer for the groups arrives while the jobs are on screen.
 	m, _ = m.update(taskGroupsMsg(twoGroups()))
 
 	out := plain(m.render())

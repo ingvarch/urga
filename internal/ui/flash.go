@@ -6,9 +6,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// flashFor is how long a message stands before it clears itself. A message
-// from a minute ago is not news, and a screen that keeps one reads as if it
-// just happened. k9s does the same with its own.
+// flashFor is how long a message stays before it clears itself. A message
+// from a minute ago is not news, and a screen that keeps one looks as if it
+// just happened.
 const flashFor = 6 * time.Second
 
 // What a message is: what came of an action, something worth knowing, or
@@ -21,10 +21,10 @@ const (
 	flashErr
 )
 
-// flashOverMsg is the end of the time a message stands for.
+// flashOverMsg arrives when the time of a message is up.
 type flashOverMsg struct{ at time.Time }
 
-// flash is the one thing the status line has to say.
+// flash is the one message the status line shows.
 type flash struct {
 	text  string
 	level flashLevel
@@ -36,14 +36,14 @@ func (m Model) say(text string) Model {
 	return m.flashed(text, flashInfo)
 }
 
-// warn says something worth knowing that nobody asked about, like the
-// cluster refusing to stream what it is doing.
+// warn shows something worth knowing that nobody asked about, like the
+// cluster refusing the event stream.
 func (m Model) warn(text string) Model {
 	return m.flashed(text, flashWarn)
 }
 
-// fail says what went wrong. Nothing is swallowed: a request that did not
-// go through is on the screen, in the words of the cluster.
+// fail shows what went wrong. No error is dropped: a request that failed
+// shows on the screen with the error text of the cluster.
 func (m Model) fail(err error) Model {
 	if err == nil {
 		return m
@@ -65,9 +65,9 @@ func (m Model) flashed(text string, level flashLevel) Model {
 	return m
 }
 
-// forget takes an error off the screen once the cluster has answered: what
-// went wrong is no longer what is happening. What came of an action stands
-// its time, so that it is not swallowed by the next poll.
+// forget clears an error once the cluster has answered: the error is out of
+// date. A message about an action stays for its full time, so the next poll
+// does not clear it.
 func (m Model) forget() Model {
 	if m.flash.level == flashErr {
 		return m.quiet()

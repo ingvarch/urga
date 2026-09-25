@@ -51,13 +51,13 @@ func TestTasks_SendASignal(t *testing.T) {
 
 	m, _ = m.update(key('x'))
 
-	// The line comes up with the signal a task most often reloads on.
+	// The line opens filled with the signal a task most often reloads on.
 	r.Equal(overlaySignal, m.overlay)
 	r.True(m.overlay.asksForALine())
 	r.Contains(plain(m.render()), "signal server with:")
 	r.Equal("SIGHUP", m.prompt.text)
 
-	// Named the short way and in small letters, it is still the signal.
+	// A short name in lower case still names the signal.
 	m, _ = m.update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
 	m = typeIn(m, "usr1")
 	m, _ = m.update(enter())

@@ -22,7 +22,7 @@ func age(since time.Duration) string {
 	}
 }
 
-// ageOf is the age of a moment, empty when there is none.
+// ageOf is the age of a moment, a dash when there is none.
 func ageOf(moment time.Time) string {
 	if moment.IsZero() {
 		return "-"
@@ -31,8 +31,8 @@ func ageOf(moment time.Time) string {
 	return age(time.Since(moment))
 }
 
-// truncate cuts a value to the width of its column. The tail is eaten, a
-// value that wraps pushes the whole row out of shape.
+// truncate cuts a value to the width of its column. The tail is cut off: a
+// value that wraps breaks the layout of the whole row.
 func truncate(value string, width int) string {
 	if width <= 0 {
 		return ""

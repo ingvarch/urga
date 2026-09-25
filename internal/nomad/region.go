@@ -6,15 +6,15 @@ import (
 	"strings"
 )
 
-// Regions are the regions the cluster knows. The context is here for the
-// shape of the API, the endpoint of Nomad takes none: it is answered by the
-// agent, which knows every region it gossips with.
+// Regions are the regions the cluster knows. The context is unused and only
+// keeps the signature like the other calls: the endpoint of Nomad takes none.
+// The agent answers it, and it knows every region it gossips with.
 func (c *Client) Regions(_ context.Context) ([]string, error) {
 	return c.api.Regions().List()
 }
 
-// Datacenters are the datacenters of the region the client asks in, the
-// ones its clients stand in.
+// Datacenters are the datacenters of the region the client requests in: the
+// ones its nodes are in.
 func (c *Client) Datacenters(ctx context.Context) ([]string, error) {
 	nodes, _, err := c.api.Nodes().List(c.query(ctx, ""))
 	if err != nil {
@@ -47,8 +47,8 @@ func (j Job) RunsIn(datacenter string) bool {
 	return false
 }
 
-// matches reads a datacenter of a job the way Nomad does: a star is any run
-// of letters, everything else stands for itself.
+// matches compares a datacenter of a job the way Nomad does: a star matches
+// any run of characters, everything else matches only itself.
 func matches(pattern, name string) bool {
 	parts := strings.Split(pattern, "*")
 	if len(parts) == 1 {

@@ -104,7 +104,7 @@ func (p allocationsPage) press(k string, e env) (page, outcome, bool) {
 }
 
 // allocLister is a page that lists allocations: of a job, of a client, of a
-// deployment. The keys of an allocation answer on every one of them.
+// deployment. The keys of an allocation work on every one of them.
 type allocLister interface {
 	page
 
@@ -140,8 +140,8 @@ func openAllocTasks[P allocLister](p P, e env) (P, outcome) {
 	return p, then(openMsg{listedTasks(alloc)})
 }
 
-// describeAlloc asks for the allocation under the cursor, in the words of
-// the cluster.
+// describeAlloc requests the allocation under the cursor, as the cluster
+// describes it.
 func describeAlloc[P allocLister](p P, e env) (P, outcome) {
 	alloc, ok := pickedFrom(e, p.visible(e))
 	if !ok {
@@ -151,26 +151,26 @@ func describeAlloc[P allocLister](p P, e env) (P, outcome) {
 	return p, outcome{cmd: allocDescription(e.client, alloc)}
 }
 
-// allocDescription is an allocation in the words of the cluster.
+// allocDescription is an allocation as the cluster describes it.
 func allocDescription(client allocsClient, alloc nomad.Alloc) tea.Cmd {
 	return describe(fmt.Sprintf("Allocation: %s", shortID(alloc.ID)), func(ctx context.Context) (string, error) {
 		return client.DescribeAllocation(ctx, alloc.Namespace, alloc.ID)
 	})
 }
 
-// restartAllocs restarts every task of the allocations the key takes.
+// restartAllocs restarts every task of the allocations the key acts on.
 func restartAllocs[P allocLister](p P, e env) (P, outcome) {
 	return p, eachAllocAsked(e, p.visible(e), restarting(e.client))
 }
 
-// stopAllocs stops the allocations the key takes. The scheduler places new
+// stopAllocs stops the allocations the key acts on. The scheduler places new
 // ones where the job still asks for them.
 func stopAllocs[P allocLister](p P, e env) (P, outcome) {
 	return p, eachAllocAsked(e, p.visible(e), stopping(e.client))
 }
 
-// eachAllocAsked asks about the allocations the key takes: the marked ones,
-// or the one under the cursor.
+// eachAllocAsked asks to confirm the action on the allocations the key acts
+// on: the marked ones, or the one under the cursor.
 func eachAllocAsked(e env, allocs []nomad.Alloc, action allocAction) outcome {
 	taken := markedFrom(e, allocs, allocMark)
 	if len(taken) == 0 {

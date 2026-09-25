@@ -16,15 +16,15 @@ import (
 // rather than as a list of resources.
 var fieldTitles = []string{"Field", "Value"}
 
-// serverTags are the tags a field of the detail already stands for. The rest
-// of them are shown as they come: they say how the cluster was built.
+// serverTags are the tags a field of the detail already shows. The rest of
+// them are shown as they are: they tell how the cluster was set up.
 var serverTags = map[string]bool{
 	"dc": true, "region": true, "build": true, "port": true, "rpc_addr": true, "id": true,
 }
 
-// fetchRaft asks what the raft of the cluster makes of its servers. An ACL
-// may hold the answer back, which is not an error of the screen: the reason
-// takes the place of the answer.
+// fetchRaft requests the raft configuration of the cluster. An ACL may
+// refuse it, which is not an error of the screen: the Raft field shows the
+// reason instead.
 func fetchRaft(client serversClient) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -37,8 +37,8 @@ func fetchRaft(client serversClient) tea.Cmd {
 }
 
 // serverDetailRows are everything the cluster says about one server: what
-// the Nomad interface shows, what the raft adds, and every tag the agent
-// carries that no field above stands for.
+// the Nomad interface shows, what the raft adds, and every tag of the agent
+// that no field above shows.
 func serverDetailRows(server nomad.Server, peers []nomad.RaftPeer, failed error) []tableRow {
 	peer, known := peerOf(server, peers)
 
@@ -82,8 +82,8 @@ type fieldRow struct {
 	color color.Color
 }
 
-// peerOf is the server as the raft knows it, by the name it goes by there,
-// or by the address it talks on.
+// peerOf is the raft peer of the server, found by its node name or its RPC
+// address.
 func peerOf(server nomad.Server, peers []nomad.RaftPeer) (nomad.RaftPeer, bool) {
 	for _, peer := range peers {
 		if peer.Node == server.Name || peer.Address == server.RPCAddress {
@@ -94,7 +94,7 @@ func peerOf(server nomad.Server, peers []nomad.RaftPeer) (nomad.RaftPeer, bool) 
 	return nomad.RaftPeer{}, false
 }
 
-// raftStanding is what the raft makes of the server: whether it votes, or
+// raftStanding is the role of the server in the raft: whether it votes, or
 // why that is not known.
 func raftStanding(peer nomad.RaftPeer, known bool, failed error) string {
 	if failed != nil {
@@ -141,8 +141,8 @@ func gossip(server nomad.Server) string {
 	return fmt.Sprintf("%d (%d to %d)", server.Protocol, server.ProtocolMin, server.ProtocolMax)
 }
 
-// otherTags are the tags no field of the detail stands for, in a settled
-// order: a map hands them over differently every time.
+// otherTags are the tags no field of the detail shows, sorted: a map
+// returns them in a different order every time.
 func otherTags(tags map[string]string) []string {
 	names := make([]string, 0, len(tags))
 
@@ -215,8 +215,8 @@ func (p serversPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, serversKeys, k)
 }
 
-// openServer opens what the agent of the server under the cursor says about
-// itself.
+// openServer opens the detail the agent of the server under the cursor
+// reports.
 func openServer(p serversPage, e env) (serversPage, outcome) {
 	server, ok := pickedFrom(e, p.visible(e))
 	if !ok {
@@ -226,8 +226,8 @@ func openServer(p serversPage, e env) (serversPage, outcome) {
 	return p, then(openMsg{serverPage{server: server}})
 }
 
-// serverPage is what the agent of one server says about itself, and what
-// the raft of the cluster makes of it.
+// serverPage is what the agent of one server reports, and its role in the
+// raft of the cluster.
 type serverPage struct {
 	server  nomad.Server
 	peers   []nomad.RaftPeer
@@ -241,8 +241,8 @@ func (serverPage) topics() []string        { return nil }
 func (p serverPage) fetch(e env) tea.Cmd {
 	client, name := e.client, p.server.Name
 
-	// The agent answers for itself, the raft says whether the rest of the
-	// cluster still counts it.
+	// The agent reports its own state, the raft shows whether the rest of
+	// the cluster still counts it as a peer.
 	return tea.Batch(
 		request(func(ctx context.Context) (nomad.Server, error) {
 			return client.Server(ctx, name)

@@ -63,8 +63,8 @@ func TestResources_AskTheRightEndpoint(t *testing.T) {
 	}
 }
 
-// errOf is the error of a call, without what it read: what was asked is
-// what the test looks at.
+// errOf drops the result of a call and returns its error: the test checks
+// only the request.
 func errOf[T any](_ T, err error) error { return err }
 
 func TestDeployments_Read(t *testing.T) {
@@ -158,7 +158,7 @@ func TestNodes_ReadTheCapacity(t *testing.T) {
 	r.Len(nodes, 1)
 
 	// Nomad leaves the resources out of the list unless it is asked for them,
-	// and what a machine has is what its readings are measured against.
+	// and the usage of a client is shown against them.
 	r.Equal("true", asked.URL.Query().Get("resources"))
 	r.Equal(4000, nodes[0].CPUShares)
 	r.Equal(3820, nodes[0].MemoryMB)

@@ -14,8 +14,8 @@ import (
 func serversServer(t *testing.T, members, leader string) *nomad.Client {
 	t.Helper()
 
-	// The servers are those of the region asked in; one left in the
-	// environment of whoever runs the tests is not that region.
+	// The servers are those of the requested region; a region left in the
+	// environment of whoever runs the tests must not replace it.
 	t.Setenv("NOMAD_REGION", "")
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -80,7 +80,7 @@ func TestServers_Read(t *testing.T) {
 	r.Equal("1.11.1", first.Version)
 	r.Equal("alive", first.Status)
 
-	// The cluster has one leader, and the list says which one it is.
+	// The cluster has one leader, and the list marks which one it is.
 	r.False(first.Leader)
 	r.True(servers[1].Leader)
 }
@@ -155,7 +155,7 @@ func TestServer_ReadsOneByName(t *testing.T) {
 	r.Equal("3", server.Tags["raft_vsn"])
 	r.Equal("nomad", server.Tags["role"])
 
-	// What the members speak to each other.
+	// The protocol versions the members use with each other.
 	r.Equal(2, server.Protocol)
 	r.Equal(1, server.ProtocolMin)
 	r.Equal(5, server.ProtocolMax)

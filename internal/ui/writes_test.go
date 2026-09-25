@@ -83,7 +83,7 @@ func playOut(m Model, cmd tea.Cmd) Model {
 	queue := []tea.Cmd{cmd}
 
 	// A plan is answered when the key opened it. One that was on the screen
-	// before the key is not the key's to send.
+	// before the key is not sent.
 	_, planned := m.screen.page.(planPage)
 
 	for range 300 {

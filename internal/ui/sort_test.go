@@ -11,8 +11,8 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// sortTable orders the rows of a table the way the model does: one sort, one
-// hand-over.
+// sortTable orders the rows of a table the way the model does: one sort,
+// then one call to show.
 func sortTable(tbl *tableModel, column int) {
 	order := tbl.sort.by(column)
 
@@ -41,7 +41,7 @@ func TestSort_ByAColumn(t *testing.T) {
 	sortTable(&tbl, 0)
 	r.Equal([]string{"web", "cron", "api"}, cellsOf(tbl, 0))
 
-	// Another column starts over, the right way up.
+	// Another column starts over, in ascending order.
 	sortTable(&tbl, 1)
 	r.Equal([]string{"a", "b", "c"}, cellsOf(tbl, 1))
 }
@@ -198,7 +198,7 @@ func TestSort_ByTheFirstLetterOfAColumn(t *testing.T) {
 
 	m := loadedModel(t)
 
-	// Shift and the letter a column starts with, the way k9s does it.
+	// Shift and the letter a column starts with sorts by that column.
 	m, _ = m.update(key('S'))
 	r.Equal(4, m.list.sort.column, "Status")
 

@@ -13,8 +13,8 @@ import (
 )
 
 // Messages of a log stream. Each carries the stream it is about: a screen
-// that switched or was left lets its stream go, and what that stream still
-// says must not reach the one that is open.
+// that switched or was left closes its stream, and what that stream still
+// sends must not reach the one that is open.
 type (
 	// logStreamMsg also carries the source it was opened for: the log may
 	// have switched to the other one while it was on its way.
@@ -31,8 +31,8 @@ type (
 	logEndMsg struct{ stream *nomad.LogStream }
 )
 
-// logState is what a stream is read through: the stream, what it said so
-// far, and what it said of itself when it was opened.
+// logState is what a stream is read through: the stream, the lines it sent
+// so far, and what it reported about itself when it was opened.
 type logState struct {
 	stream  *nomad.LogStream
 	content textContent
@@ -123,8 +123,8 @@ func (p logsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 		took bool
 	)
 
-	// A stream opened for a log that is no longer up never gets here: it
-	// belongs to an ask that is over.
+	// A stream opened for a log that is no longer on the screen never gets
+	// here: it was for a request that is over.
 	if opened, ok := msg.(logStreamMsg); ok {
 		p.read, out, took = p.read.keep(opened.stream, opened.source == p.source)
 	} else {
@@ -139,7 +139,7 @@ func (p logsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 var logsKeys = []pageKey[logsPage]{
 	followKey[logsPage](),
 	// The key that opens stderr from the tasks switches to the other of
-	// the two here, and says which one it goes to.
+	// the two here, and its label names the one it goes to.
 	{press: "ctrl+e", label: "Stderr", do: switchSource, offered: readsSource(nomad.LogStdout)},
 	{press: "ctrl+e", label: "Stdout", do: switchSource, offered: readsSource(nomad.LogStderr)},
 	{press: "p", label: "Previous Alloc", do: openPrevious, offered: hasPrevious},
@@ -184,7 +184,7 @@ func (l logState) waitForLog() tea.Cmd {
 	return waitForStream(l.stream)
 }
 
-// waitForStream waits for the next thing a stream says.
+// waitForStream waits for the next thing a stream sends.
 func waitForStream(stream *nomad.LogStream) tea.Cmd {
 	if stream == nil {
 		return nil
@@ -221,7 +221,7 @@ func (l logState) opened(stream *nomad.LogStream) (logState, tea.Cmd) {
 
 // keep reads a stream that was opened for the page, when ours says it was.
 // One opened for something else, or next to a stream the page already
-// reads, is not the page's to keep: the session lets go of it.
+// reads, is not the page's to keep: the session closes it.
 func (l logState) keep(stream *nomad.LogStream, ours bool) (logState, outcome, bool) {
 	if !ours || l.stream != nil {
 		return l, outcome{}, false
@@ -232,8 +232,8 @@ func (l logState) keep(stream *nomad.LogStream, ours bool) (logState, outcome, b
 	return l, outcome{cmd: cmd, reading: true}, true
 }
 
-// take keeps what the stream says: a line, after which it waits for the
-// next, or its end. None of it is an answer to what the page asked.
+// take keeps what the stream sends: a line, after which it waits for the
+// next, or its end. None of it counts as the answer to the page's request.
 func (l logState) take(msg tea.Msg) (logState, outcome, bool) {
 	switch msg := msg.(type) {
 	case logLineMsg:
@@ -264,7 +264,7 @@ func linesOf(chunk string) []string {
 	return strings.Split(strings.TrimSuffix(chunk, "\n"), "\n")
 }
 
-// ended lets go of a stream that has ended on its own.
+// ended drops a stream that has ended on its own.
 func (l logState) ended() logState {
 	l.stream = nil
 
@@ -289,7 +289,7 @@ func otherSource(source string) string {
 }
 
 // toggleAutoscroll follows the end of the log, or stops following it where
-// it stands. Turned on, it goes to the end at once.
+// it is. Turned on, it goes to the end at once.
 func toggleAutoscroll(m Model) (Model, tea.Cmd) {
 	m.text.following = !m.text.following
 
@@ -317,7 +317,7 @@ func (m Model) logToggles(width int) string {
 
 	cells := make([]string, 0, len(toggles))
 	for _, toggle := range toggles {
-		// A toggle the screen has no key for is nothing to it.
+		// A toggle the screen has no key for is not shown.
 		if _, ok := m.offeredKey(toggle.press); !ok {
 			continue
 		}
@@ -363,8 +363,8 @@ func showTimes(m Model) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// wrapLines folds the long lines of anything that reads as text: the logs of
-// a task, a description, a job file. Again lets them run on.
+// wrapLines wraps the long lines of anything that reads as text: the logs of
+// a task, a description, a job file. Pressed again, it unwraps them.
 func wrapLines(m Model) (Model, tea.Cmd) {
 	m.text.wrap = !m.text.wrap
 	m.text.follow()

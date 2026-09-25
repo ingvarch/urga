@@ -38,8 +38,8 @@ func (p nodesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 }
 
 // visible are the clients of the datacenter the session is narrowed to. They
-// are narrowed as they are drawn: until the cluster answers, and when it
-// does not, nothing of another datacenter stands under the new name. The
+// are filtered as they are drawn: until the cluster answers, and when it
+// does not, no client of another datacenter shows under the new name. The
 // rows, the marks and the keys that find a row by its place read the same
 // list, so a key finds the client on the screen.
 func (p nodesPage) visible(e env) []nomad.Node { return nodesIn(e.datacenter, p.nodes) }
@@ -48,7 +48,7 @@ func (p nodesPage) rows(e env) []tableRow { return nodeRows(p.visible(e), e.usag
 
 func (p nodesPage) ids(e env) []string { return names(p.visible(e), nodeMark) }
 
-// readings are the clients on the screen: what each of them is busy with.
+// readings are the clients on the screen, whose CPU and memory use is read.
 func (p nodesPage) readings(e env) []rowRef {
 	nodes := p.visible(e)
 
@@ -81,7 +81,7 @@ func (p nodesPage) press(k string, e env) (page, outcome, bool) {
 }
 
 // openClient drills into the client under the cursor: what it runs, under
-// what the machine itself is doing.
+// the usage of the host itself.
 func openClient(p nodesPage, e env) (nodesPage, outcome) {
 	node, ok := pickedFrom(e, p.visible(e))
 	if !ok {
@@ -100,9 +100,9 @@ func drainNode(p nodesPage, e env) (nodesPage, outcome) {
 
 	client := e.client
 
-	// Each machine is asked to do what it is not doing, so a question about
-	// several of them says what they have in common, or both things when
-	// they have nothing.
+	// Each client is switched to the opposite state, so a question about
+	// several of them names the action they share, or both actions when
+	// they differ.
 	draining := func(node nomad.Node) bool { return node.Drain }
 
 	verb := bothWays(nodes, draining, "stop draining", "drain", "change the draining of")
@@ -128,7 +128,7 @@ func nodeLabel(nodes []nomad.Node) string {
 	return many(len(nodes), "the client "+nodes[0].Name, "clients")
 }
 
-// toggleEligibility says whether the client may be given new work.
+// toggleEligibility switches whether the client may be given new work.
 func toggleEligibility(p nodesPage, e env) (nodesPage, outcome) {
 	nodes := markedFrom(e, p.visible(e), nodeMark)
 	if len(nodes) == 0 {
@@ -152,7 +152,7 @@ func toggleEligibility(p nodesPage, e env) (nodesPage, outcome) {
 	})
 }
 
-// allOf says every one of them answers the same way.
+// allOf says yes holds for every item.
 func allOf[T any](items []T, yes func(T) bool) bool {
 	for _, item := range items {
 		if !yes(item) {
@@ -163,10 +163,9 @@ func allOf[T any](items []T, yes func(T) bool) bool {
 	return true
 }
 
-// bothWays is how a question or a report names an action that reads one way
-// for some of what it is about and the other way for the rest. Rows that
-// disagree get a phrase of their own: two stuck together with an "or" is not
-// a sentence.
+// bothWays picks the words a question or a report uses for an action that
+// is yes for some items and no for the rest. A mixed selection gets a phrase
+// of its own: two phrases joined with an "or" do not make a sentence.
 func bothWays[T any](items []T, yes func(T) bool, whenYes, whenNo, whenBoth string) string {
 	some, rest := false, false
 
@@ -217,7 +216,7 @@ func nodeRows(nodes []nomad.Node, usage map[string]nomad.ResourceUse) []tableRow
 	return rows
 }
 
-// nodeColor marks a node that takes no work: down, draining or held back.
+// nodeColor marks a node that takes no work: down, draining or ineligible.
 func nodeColor(n nomad.Node) color.Color {
 	switch {
 	case n.Status != "ready":

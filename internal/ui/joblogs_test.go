@@ -37,7 +37,7 @@ func webAllocs(tasks ...string) []nomad.Alloc {
 	}
 }
 
-// writing is a log that has said what it holds and goes on.
+// writing is a log that has sent the given lines and stays open.
 func writing(lines ...string) *nomad.LogStream {
 	out := make(chan string, len(lines))
 	for _, line := range lines {
@@ -76,7 +76,7 @@ func TestJobLogs_OfATaskGroupWithOneTask(t *testing.T) {
 	m = playOut(m, cmd)
 
 	// One task in the group: its log in every allocation that runs, the
-	// newest first, each line saying where it came from.
+	// newest first, each line tagged with the allocation it came from.
 	r.IsType(jobLogsPage{}, m.screen.page)
 	r.Equal([]string{newer, older}, client.logsOpened)
 	r.Equal("server", client.askedTask)
@@ -121,7 +121,7 @@ func TestJobLogs_AskWhichTask(t *testing.T) {
 	m, cmd := m.update(enter())
 	m = playOut(m, cmd)
 
-	// The allocations the question was asked with are the ones read.
+	// The logs are read from the allocations the question already fetched.
 	r.IsType(jobLogsPage{}, m.screen.page)
 	r.Equal("sidecar", client.askedTask)
 	r.Equal([]string{newer, older}, client.logsOpened)
@@ -216,7 +216,7 @@ func TestJobLogs_EveryLineOfAChunkIsTagged(t *testing.T) {
 
 	m, _ = m.update(logLineMsg{stream: client.logsByAlloc[newer], text: "ready\nserving on 8080\n"})
 
-	// A chunk is as many lines as it holds, each behind the tag of the
+	// A chunk is as many lines as it holds, each after the tag of the
 	// allocation, and the newline it ends with starts no line of its own.
 	out := plain(m.render())
 	r.Contains(out, "aaaa1111 │ ready")
@@ -233,8 +233,8 @@ func TestJobLogs_SayWhenALineArrived(t *testing.T) {
 	m, _ = m.update(logEndMsg{stream: client.logsByAlloc[older]})
 	m, _ = m.update(key('t'))
 
-	// The time comes before the tag, on what a task wrote and on what urga
-	// says about the allocation alike.
+	// The time comes before the tag, on what a task wrote and on the notes
+	// urga writes about the allocation alike.
 	out := plain(m.render())
 	r.Regexp(`\d\d:\d\d:\d\d  aaaa1111 │ ready`, out)
 	r.Regexp(`\d\d:\d\d:\d\d  bbbb2222 │ stopped`, out)
@@ -252,7 +252,7 @@ func TestJobLogs_FollowTheEndUntilStopped(t *testing.T) {
 	r.Contains(out, "bbbb2222 │ stopped")
 	r.NotContains(out, "line-000")
 
-	// Stopped, the window stays where it is while lines go on arriving.
+	// With autoscroll off, the window stays where it is as lines arrive.
 	m, _ = m.update(key('s'))
 	m, _ = m.update(logLineMsg{stream: client.logsByAlloc[newer], text: "written later\n"})
 
@@ -334,7 +334,7 @@ func TestJobLogs_AStreamThatEnds(t *testing.T) {
 
 	m, _ = m.update(logEndMsg{stream: client.logsByAlloc[older]})
 
-	// The others go on; that one says it stopped.
+	// The others keep going; that one ends with a "stopped" line.
 	r.Contains(plain(m.render()), "bbbb2222 │ stopped")
 }
 
@@ -349,7 +349,7 @@ func TestJobLogs_AStreamOpenedAfterLeavingIsLetGo(t *testing.T) {
 	m = drain(m, cmd)
 	reading := m.screen.page.(jobLogsPage).logs.reading
 
-	// Gone back before the log answered: nothing would ever close it.
+	// Gone back before the log answered: nothing else would close it.
 	m, _ = m.update(escape())
 
 	closed := false
@@ -365,7 +365,7 @@ func TestJobLogs_AStreamOfLogsLeftIsNotReadByOthers(t *testing.T) {
 
 	m, client := oneTask(t)
 
-	// Stderr is asked for, and the logs are left before it arrives.
+	// Stderr is requested, and the session leaves the logs before it arrives.
 	m, stderr := m.update(ctrlKey('e'))
 	m, _ = m.update(escape())
 
@@ -380,7 +380,7 @@ func TestJobLogs_AStreamOfLogsLeftIsNotReadByOthers(t *testing.T) {
 
 	m = drain(m, stderr)
 
-	// What was opened for the logs left is theirs, and they are gone.
+	// A stream opened for the logs that were left is closed with them.
 	r.True(closed)
 	r.NotContains(plain(m.render()), "could not read")
 }
@@ -423,8 +423,8 @@ func TestJobLogs_ReadAgain(t *testing.T) {
 	m, cmd := m.update(key('r'))
 	m = playOut(m, cmd)
 
-	// Read from the start: what the cluster still holds of each log is in
-	// there again.
+	// Read from the start: the screen is cleared and refilled with what the
+	// cluster still keeps of each log.
 	r.Equal([]string{placed.ID, newer, older}, client.logsOpened)
 	r.Contains(plain(m.render()), "eeee5555 │ from the new one")
 	r.Contains(plain(m.render()), "[stdout, 3 allocations]")
@@ -471,7 +471,7 @@ func TestJobLogs_ALineWhileAwayStaysOut(t *testing.T) {
 	m, client := oneTask(t)
 	client.describe = "Job web, as the cluster describes it"
 
-	// The logs stay behind, let go of, while a description is read on top.
+	// The logs stay behind, their streams closed, while a description is open.
 	m, _ = m.show(jobsView)
 	m, _ = m.update(jobsMsg(twoJobs()))
 	m, cmd := m.update(key('d'))
@@ -541,8 +541,8 @@ func TestJobLogs_AnAnswerAfterLeavingOpensNothing(t *testing.T) {
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
 
-	// The allocations are asked about, and the session moves on before
-	// they answer.
+	// The allocations are requested, and the session opens another screen
+	// before they answer.
 	m, asked := m.update(key('l'))
 	m, _ = m.show(deploymentsView)
 	m = playOut(m, asked)
@@ -596,7 +596,7 @@ func TestJobLogs_DoNotPoll(t *testing.T) {
 
 	m, _ := oneTask(t)
 
-	// What a task writes arrives on its own: a poll would open it again.
+	// What a task writes arrives over its stream: a poll would open it again.
 	_, cmd := m.update(pollMsg{})
 	r.Nil(cmd)
 }
@@ -629,8 +629,8 @@ func TestJobLogs_ASwitchOfTheSessionLeavesTheLogsAsTheyAre(t *testing.T) {
 func TestJobLogs_AStreamOfTheReadingIsKeptWhateverTheOrder(t *testing.T) {
 	r := require.New(t)
 
-	// A page that holds no streams yet, and the stream of its reading: it
-	// is kept, and read from, not a crash.
+	// A page with no streams yet gets the stream of its reading: it keeps
+	// the stream and reads from it, without a crash.
 	stream := &nomad.LogStream{Lines: make(chan string)}
 	p := jobLogsPage{}
 

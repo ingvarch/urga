@@ -14,8 +14,8 @@ type TerminalSize struct {
 	Height int
 }
 
-// Exec runs a command inside a task and wires the terminal to it. It returns
-// what the command exited with.
+// Exec runs a command inside a task and connects the terminal to it. It
+// returns the exit code of the command.
 func (c *Client) Exec(
 	ctx context.Context,
 	namespace, allocID, task string,
@@ -29,8 +29,8 @@ func (c *Client) Exec(
 		return 0, err
 	}
 
-	// The api takes its own size type, so the sizes are handed over as they
-	// arrive.
+	// The api takes its own size type, so each size is converted and passed
+	// on as it arrives.
 	apiSizes := make(chan api.TerminalSize)
 
 	go func() {

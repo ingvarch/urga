@@ -1,8 +1,8 @@
 package ui
 
-// list is how the rows of a screen are read: the table they are drawn in,
-// the filter and the order they are read in, which resource each row shows,
-// and which of them are marked.
+// list is the rows of a screen: the table they are drawn in, their filter
+// and sort order, which resource each row shows, and which of them are
+// marked.
 type list struct {
 	table tableModel
 
@@ -16,7 +16,7 @@ type list struct {
 	// sort is the column the list is ordered by.
 	sort sortState
 
-	// marks are the resources of the open screen that an action is to take,
+	// marks are the resources of the open screen that an action applies to,
 	// by the ids the screen names them with.
 	marks map[string]bool
 
@@ -31,10 +31,10 @@ func newList(titles []string) list {
 	return list{table: newTableModel(titles), sort: newSortState()}
 }
 
-// read puts rows on the table the way the list is read: narrowed by the
-// filter, and by trouble when only that is wanted, in its order, with the
-// marks on the rows of the resources that carry one. ids name the resource
-// of each row, nil for a list without marks.
+// read puts rows on the table: narrowed by the filter, and to the rows in
+// trouble when troubled is set, in the sort order, with the marks on the
+// rows of the resources that carry one. ids name the resource of each row,
+// nil for a list without marks.
 func (l list) read(all []tableRow, titles, ids []string, troubled bool) list {
 	l.held = len(all)
 
@@ -72,7 +72,7 @@ func (l list) selected() (int, bool) {
 	return l.index[l.table.cursor], true
 }
 
-// toggle takes a resource, or lets it go. A list is a value: the marks are
+// toggle marks a resource, or unmarks it. A list is a value: the marks are
 // copied, so a list kept elsewhere keeps its own.
 func (l list) toggle(id string) list {
 	marks := make(map[string]bool, len(l.marks)+1)
@@ -91,8 +91,8 @@ func (l list) toggle(id string) list {
 	return l
 }
 
-// toggleAll takes every resource on the screen, or lets them all go when
-// they are already taken. ids name the resource of each row.
+// toggleAll marks every resource on the screen, or unmarks them all when
+// they are already marked. ids name the resource of each row.
 func (l list) toggleAll(ids []string) list {
 	shown := make([]string, 0, len(l.index))
 	for _, at := range l.index {
@@ -105,7 +105,7 @@ func (l list) toggleAll(ids []string) list {
 		return l
 	}
 
-	// All of them already taken means let them go; otherwise take the rest.
+	// All of them already marked means unmark; otherwise mark the rest.
 	// Counting would clear a mark the filter is hiding.
 	all := true
 	for _, id := range shown {

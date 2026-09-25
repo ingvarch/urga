@@ -10,7 +10,7 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// opened is what a key opens from the row under the cursor. A list is up the
+// opened is what a key opens from the row under the cursor. A list opens the
 // moment the key is pressed; a description, a job file or the diff of a
 // version arrives as an answer, so its request is run.
 func opened(m Model, press tea.KeyPressMsg) Model {
@@ -203,8 +203,7 @@ func TestBack_ComesBackToTheRowOfEveryScreenOfAClient(t *testing.T) {
 	m, _ = m.update(down())
 	left := cursorName(m)
 
-	// What the machine happened to do, what it can run, what it lends out,
-	// what it is built from and what it carries.
+	// Its events, drivers, host volumes, attributes and metadata.
 	for _, press := range []tea.KeyPressMsg{key('e'), ctrlKey('d'), ctrlKey('h'), key('a'), key('m')} {
 		back := openAndBack(t, m, press)
 

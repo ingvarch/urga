@@ -6,7 +6,7 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-// The palette. Green carries the cluster: borders, values, the header of a
+// The palette. Green is the main color: borders, values, the header of a
 // table. Cyan marks what is named or in use. Lime labels a field.
 var (
 	colorAccent = lipgloss.Color("#00b57c")
@@ -24,12 +24,12 @@ var (
 	// as one block against the screen.
 	colorPanel = lipgloss.Color("#262b31")
 
-	// colorMark is a row an action is to take. It outranks the color the
+	// colorMark is a row an action applies to. It outranks the color the
 	// row carries for its state: a mark is what the eye is looking for.
 	colorMark = lipgloss.Color("#d7a13b")
 
-	// chartLine is the scale drawn across a chart: quiet enough to read as
-	// a hairline, whether it crosses the air or a reading.
+	// chartLine is the scale drawn across a chart: dim enough to look like
+	// a hairline, whether it crosses empty space or a bar.
 	chartLine = lipgloss.Color("#525a63")
 )
 
@@ -77,14 +77,14 @@ var (
 	// styleMatch lights up what a filter matched inside a line of text.
 	styleMatch = lipgloss.NewStyle().Foreground(lipgloss.Color("#1c1f24")).Background(colorLabel)
 
-	// The row under the cursor is painted end to end, so it reads whatever
-	// color the resource itself has.
+	// The row under the cursor is painted end to end, so it stays readable
+	// whatever color the resource itself has.
 	styleSelected = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#1c1f24")).
 			Background(colorActive)
 
 	// A marked row under the cursor is painted in the color of the mark:
-	// standing on a mark must not hide it.
+	// moving the cursor onto a mark must not hide it.
 	styleSelectedMark = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#1c1f24")).
 				Background(colorMark)
@@ -100,7 +100,7 @@ var (
 			Background(colorActive).
 			Bold(true)
 
-	// styleButtonOff is a button that does nothing, and says why.
+	// styleButtonOff is a button that does nothing, and shows why.
 	styleButtonOff = lipgloss.NewStyle().
 			Foreground(colorMuted).
 			Background(colorPanel)

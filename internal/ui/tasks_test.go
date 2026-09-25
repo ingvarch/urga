@@ -10,8 +10,8 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// restarted is the first allocation of twoAllocs a while later: its server
-// restarted and said why.
+// restarted is the first allocation of twoAllocs a while later: its task
+// server restarted, and an event says why.
 func restarted() nomad.Alloc {
 	alloc := twoAllocs()[0]
 	alloc.Tasks = []nomad.Task{
@@ -57,8 +57,8 @@ func TestTasks_AskForTheirAllocation(t *testing.T) {
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
-	// The tasks are what the cluster says now, not what the list said when
-	// the allocation was opened: a task that keeps restarting shows it.
+	// The tasks are read from the cluster again, not taken from the list the
+	// allocation was opened from: the restarts of a task show.
 	r.Equal("af1f37df-7b19-6b1c-da67-5e8f482b5a15", client.askedID)
 	r.Equal("production", client.askedNamespace)
 	r.Contains(taskLine(t, m, "server"), "7")
@@ -127,7 +127,7 @@ func TestTasks_AnswerForAnotherAllocationIsDropped(t *testing.T) {
 	m := openTasks(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()})
 	m, _ = m.update(allocMsg(other))
 
-	// What belongs to another allocation does not change this one.
+	// An answer for another allocation does not change this one.
 	r.NotContains(taskLine(t, m, "server"), "7")
 }
 
@@ -173,8 +173,8 @@ func TestTasks_ThePanelWaitsForTheAllocationToBeRead(t *testing.T) {
 
 	m := openTasks(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()})
 
-	// The tasks are those the list held; what the allocation is to its job
-	// is not known until it is read.
+	// The tasks are those the list held; the panel about the allocation
+	// waits until the allocation is read.
 	out := plain(m.render())
 	r.Contains(out, "sidecar")
 	r.NotContains(out, "Status running")

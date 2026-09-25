@@ -171,7 +171,7 @@ func TestTable_RowKeepsItsColor(t *testing.T) {
 	tbl := testTable(row("api", "api", "running"), row("cron", "cron", "dead"))
 	tbl.rows[1].color = colorDead
 
-	// A row that is not under the cursor says what state it is in.
+	// A row that is not under the cursor keeps the color of its state.
 	out := strings.Split(tbl.view(), "\n")[2]
 	r.Contains(out, colorCode(colorDead))
 }
@@ -193,8 +193,7 @@ func TestTable_CursorStaysInTheRows(t *testing.T) {
 func TestTable_AMarkedRowOnAScreenWithNoRoom(t *testing.T) {
 	r := require.New(t)
 
-	// A window dragged narrower than the margin must not take the program
-	// down with it.
+	// A window dragged narrower than the margin must not crash the program.
 	table := tableModel{
 		titles: []string{"ID"},
 		rows:   []tableRow{{cells: []string{"af1f37df"}, marked: true}},
@@ -212,8 +211,8 @@ func TestTableRow_AnAgeStaysWithItsCell(t *testing.T) {
 
 	started, changed := time.Now().Add(-time.Hour), time.Now().Add(-48*time.Hour)
 
-	// The moment is kept where its cell is, so a cell moved among the
-	// others takes its moment along.
+	// The moment is stored under the index of its cell, so a cell moved
+	// among the others takes its moment with it.
 	var row tableRow
 	row.addAge(started)
 	row.add("web", "running")

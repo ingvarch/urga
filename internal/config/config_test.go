@@ -42,8 +42,8 @@ func TestConfig_AllNamespacesSurvives(t *testing.T) {
 	cfg, err := config.Load()
 	r.NoError(err)
 
-	// Every namespace at once is a choice, not the absence of one. A session
-	// that ends there comes back there.
+	// Every namespace at once ("*") is saved like any other namespace. A
+	// session that ends on it starts on it again.
 	cfg.UseNamespace("*")
 	r.NoError(cfg.Save())
 
@@ -115,8 +115,8 @@ func TestConfig_ASessionForEachCluster(t *testing.T) {
 	again, err := config.Load()
 	r.NoError(err)
 
-	// Each cluster comes back to what it was looking at, and the one of the
-	// environment to its own.
+	// Each cluster starts again on the namespace and screen it was left on,
+	// and so does the cluster of the environment.
 	r.Equal("batch", *again.Of("prod").Namespace)
 	r.Equal("nodes", again.Of("prod").Screen)
 	r.Equal("default", *again.Of("").Namespace)
@@ -136,7 +136,7 @@ func TestConfig_TheFileOfAnEarlierUrga(t *testing.T) {
 	cfg, err := config.Load()
 	r.NoError(err)
 
-	// What it wrote is the session of the environment, as it was.
+	// What an earlier urga wrote is read as the session of the environment.
 	session := cfg.Of("")
 	r.Equal("staging", *session.Namespace)
 	r.Equal("jobs", session.Screen)

@@ -49,7 +49,7 @@ func TestTokenStatus(t *testing.T) {
 		})
 	}
 
-	// A cluster without ACLs has no token to speak of.
+	// A cluster without ACLs has no token to show.
 	_, _, ok := tokenStatus(nomad.Token{ACLsOff: true}, now)
 	require.False(t, ok)
 }

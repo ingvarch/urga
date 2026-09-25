@@ -156,8 +156,8 @@ func TestDescribe_TheNextOneOpensAtTheTop(t *testing.T) {
 	m, _ = m.update(key('G'))
 	r.NotContains(plain(m.render()), long[0])
 
-	// Read to the end, left, and another one asked: it starts where it
-	// starts, not where the last one was left.
+	// Scrolled to the end, left, and another one asked for: it opens at the
+	// top, not where the last one was left.
 	m, _ = m.update(escape())
 	described, cmd = m.update(key('d'))
 	m = drain(described, cmd)

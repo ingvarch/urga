@@ -15,7 +15,7 @@ type sortState struct {
 	desc   bool
 }
 
-// none is the order the cluster answered in.
+// noColumn keeps the order the cluster answered in.
 const noColumn = -1
 
 func newSortState() sortState { return sortState{column: noColumn} }

@@ -14,7 +14,7 @@ import (
 // versionTitles are the columns of the versions of a job.
 var versionTitles = []string{"Version", "State", "Tag", "Changes", "Age"}
 
-// versionsPage is what one job was before.
+// versionsPage lists the versions of one job.
 type versionsPage struct {
 	namespace, jobID string
 
@@ -67,8 +67,8 @@ func (p versionsPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, versionKeys, k)
 }
 
-// openVersions opens what the job under the cursor was before, on a page
-// that holds nothing until this job is answered for.
+// openVersions opens the versions of the job under the cursor, on a page
+// that stays empty until the versions of this job arrive.
 func openVersions(p jobsPage, e env) (jobsPage, outcome) {
 	job, ok := p.picked(e)
 	if !ok {
@@ -92,8 +92,8 @@ func versionRows(versions []nomad.JobVersion) []tableRow {
 	return rows
 }
 
-// versionState is what the cluster makes of a version: the one that runs,
-// one it was happy with, or one it was not.
+// versionState is how the cluster marks a version: the one that runs, a
+// stable one, or neither.
 func versionState(version nomad.JobVersion) string {
 	switch {
 	case version.Current:
@@ -150,8 +150,8 @@ func openVersionDiff(p versionsPage, e env) (versionsPage, outcome) {
 		})}
 }
 
-// revertToVersion puts the version under the cursor back in place, after its
-// plan.
+// revertToVersion reverts the job to the version under the cursor, after
+// showing its plan.
 func revertToVersion(p versionsPage, e env) (versionsPage, outcome) {
 	version, ok := p.picked(e)
 	if !ok {

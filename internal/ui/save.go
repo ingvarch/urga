@@ -11,7 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// savedMsg is where what was on the screen went.
+// savedMsg is the file the screen was saved to.
 type savedMsg struct{ path string }
 
 // saveText writes what the screen shows to a file next to where urga runs,
@@ -23,7 +23,7 @@ func (m Model) saveText() tea.Cmd {
 
 	name := saveName(m.screen.page)
 
-	// What is kept is what is read: the filter, the wrapping and the times
+	// What is saved is what is shown: the filter, the wrapping and the times
 	// are how the screen was narrowed down to what matters.
 	rows := m.text.rows()
 
@@ -43,8 +43,8 @@ func (m Model) saveText() tea.Cmd {
 	}, func(msg savedMsg) tea.Msg { return msg })
 }
 
-// saveName says what the file is of and when it was taken, and keeps out
-// everything a file name cannot hold.
+// saveName names the file by what it is of and when it was saved, and
+// leaves out everything a file name cannot hold.
 func saveName(p page) string {
 	what, extension := "", "txt"
 	if s, ok := p.(saving); ok {

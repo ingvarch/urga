@@ -54,8 +54,8 @@ func run() error {
 	return err
 }
 
-// open is urga as the command line and the settings start it, before
-// anything is asked of the cluster.
+// open builds urga from the command line and the settings, before any
+// request goes to the cluster.
 func open(cl cmdline) (ui.Model, error) {
 	dir, err := config.Dir()
 	if err != nil {
@@ -136,8 +136,8 @@ func parseFlags(args []string) (cmdline, error) {
 	return cl, err
 }
 
-// start is where urga starts: the cluster, how to reach it, how careful to
-// be with it, and the namespace to look at.
+// start is what urga starts with: the cluster, how to reach it, whether it
+// is read-only, and the namespace to look at.
 type start struct {
 	cluster        string
 	color          string
@@ -176,7 +176,7 @@ func startOn(cl cmdline, s settings.Settings) (start, error) {
 	st.nomad.Address = cmp.Or(cl.address, cfg.Address)
 	st.nomad.Region = cmp.Or(cl.region, cfg.Region)
 
-	// The environment is for the cluster urga runs without settings.
+	// NOMAD_NAMESPACE is only for a run without settings.
 	if !st.namespaceGiven {
 		st.namespace = cluster.Namespace
 	}
@@ -217,8 +217,8 @@ func clusterOf(s settings.Settings, name string) (settings.Cluster, nomad.Config
 }
 
 // connectWith is how the session switches to a cluster of the settings.
-// Read-only on the command line holds for every one of them; the address and
-// the region were for the cluster urga started on.
+// -readonly applies to every one of them; -address and -region only to the
+// cluster urga started on.
 func connectWith(cl cmdline, s settings.Settings) func(name string) (ui.Connection, error) {
 	return func(name string) (ui.Connection, error) {
 		cluster, cfg, err := clusterOf(s, name)
@@ -252,8 +252,8 @@ func given(flags *flag.FlagSet, name string) bool {
 	return found
 }
 
-// noUpdateCheck set to anything keeps urga from asking whether a newer one
-// is out, for a network that cannot reach it or should not.
+// noUpdateCheck set to any value stops urga from checking for a newer
+// release, for a network that cannot or should not reach it.
 const noUpdateCheck = "URGA_NO_UPDATE_CHECK"
 
 // newerRelease asks whether a release newer than current is out. It is nil

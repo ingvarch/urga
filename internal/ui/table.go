@@ -19,8 +19,8 @@ const (
 	maxColumnWidth = 48
 )
 
-// tableRow is one resource. The color says what state it is in, and marked
-// that an action is to take it along with the others.
+// tableRow is one resource. The color shows what state it is in, and marked
+// means an action applies to it along with the others.
 type tableRow struct {
 	cells  []string
 	ages   moments
@@ -29,8 +29,8 @@ type tableRow struct {
 }
 
 // moments are what the age cells of a row count from, by column. The list is
-// ordered by them: the text of an age lies about the order, "2d" reads before
-// "5h" and is older.
+// sorted by them: the text of an age sorts wrong, "2d" comes before "5h" as
+// text and is older.
 type moments map[int]time.Time
 
 // add puts cells at the end of a row, as they read.
@@ -39,8 +39,8 @@ func (r *tableRow) add(cells ...string) {
 }
 
 // addAge puts at the end of a row how long ago a moment was, and keeps the
-// moment under the same column. Written apart, a column number that is not
-// the column of the cell sorts some other column by time.
+// moment under the same column. Set apart from the cell, the moment could
+// get the wrong column number and make another column sort by time.
 func (r *tableRow) addAge(moment time.Time) {
 	if r.ages == nil {
 		r.ages = moments{}
@@ -163,7 +163,7 @@ func (t tableModel) line(cells []string, widths []int) string {
 }
 
 // columnWidths gives every column the width of the widest thing in it, then
-// takes width away from the greediest ones until the row fits.
+// takes width away from the widest ones until the row fits.
 func columnWidths(titles []string, rows []tableRow, width int) []int {
 	widths := make([]int, len(titles))
 	for i, title := range titles {
@@ -182,8 +182,8 @@ func columnWidths(titles []string, rows []tableRow, width int) []int {
 		widths[i] = max(minColumnWidth, min(widths[i], maxColumnWidth))
 	}
 
-	// The same space is left on both sides, so the last column does not lean
-	// on the border.
+	// The same space is left on both sides, so the last column does not touch
+	// the border.
 	available := width - 2*tableIndent - gapsWidth(len(widths))
 
 	shrinkToFit(widths, available)
@@ -193,7 +193,7 @@ func columnWidths(titles []string, rows []tableRow, width int) []int {
 }
 
 // spread shares what is left over between the columns, so the row reaches the
-// right edge instead of huddling on the left. A column that holds more gets
+// right edge instead of stopping short of it. A column that holds more gets
 // more of it, which keeps a name column wide and a count column narrow.
 func spread(widths []int, available int) {
 	left := available - total(widths)

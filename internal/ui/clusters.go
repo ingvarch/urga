@@ -8,7 +8,7 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// Connection is a cluster of the settings, connected to.
+// Connection is an open connection to a cluster of the settings.
 type Connection struct {
 	Name      string
 	Color     string
@@ -51,8 +51,8 @@ func (m Model) clusterCommand(name string) (Model, tea.Cmd) {
 }
 
 // switchCluster connects to another cluster of the settings. Its token may
-// take a while to read, a password manager may ask first, so it is read off
-// the path that answers keys.
+// take a while to read, a password manager may ask first, so it is read in
+// a command, outside the code that handles keys.
 func (m Model) switchCluster(name string) (Model, tea.Cmd) {
 	if name == m.opts.Cluster {
 		return m, nil
@@ -70,9 +70,9 @@ func (m Model) switchCluster(name string) (Model, tea.Cmd) {
 	}
 }
 
-// connected puts the session on the cluster it connected to. What it knew
-// belongs to the cluster it left: it starts over where the new one was
-// left, and what was still asked of the old one is answered for no one.
+// connected switches the session to the cluster it connected to. What it
+// knew belongs to the cluster it left: it starts where the new one was left,
+// and answers still due from the old one are dropped.
 func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 	m = m.closeStream()
 
@@ -97,7 +97,7 @@ func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 
 // askAboutTheCluster is what the header and the command line need whatever
 // is open: what the agent is, the namespaces, regions and datacenters, and
-// what the cluster is busy with.
+// how much of the cluster is in use.
 func (m Model) askAboutTheCluster() tea.Cmd {
 	client := m.client
 
@@ -121,8 +121,8 @@ func (m Model) onConnection(cmd tea.Cmd) tea.Cmd {
 	return labelled(cmd, func(msg tea.Msg) tea.Msg { return connectionMsg{connection: connection, msg: msg} })
 }
 
-// takeConnection hands on what a cluster the session is still connected to
-// said.
+// takeConnection passes on an answer from the cluster the session is still
+// connected to, and drops one from a cluster it left.
 func (m Model) takeConnection(msg connectionMsg) (Model, tea.Cmd) {
 	if msg.connection != m.connection {
 		return m, nil

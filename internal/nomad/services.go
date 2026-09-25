@@ -101,8 +101,8 @@ func (c *Client) ServiceInstances(ctx context.Context, namespace, name string) (
 }
 
 // compareAddresses orders two addresses the way they read: 10.0.0.9 before
-// 10.0.0.10. What is not an IP address, like a host name, goes by its
-// letters.
+// 10.0.0.10. What is not an IP address, like a host name, is compared as
+// text.
 func compareAddresses(a, b string) int {
 	ipA, errA := netip.ParseAddr(a)
 	ipB, errB := netip.ParseAddr(b)

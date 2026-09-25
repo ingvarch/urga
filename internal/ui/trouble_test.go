@@ -35,7 +35,7 @@ func TestTrouble_KeepsWhatIsNotRight(t *testing.T) {
 	r.NotContains(out, "nightly")
 	r.NotContains(out, " api ")
 
-	// The line at the bottom says the list is narrowed and by how much.
+	// The line at the bottom shows the list is narrowed and by how much.
 	r.Contains(out, "2 of 4")
 
 	m, _ = m.update(key('!'))
@@ -66,7 +66,7 @@ func TestTrouble_NothingWrong(t *testing.T) {
 
 	m, _ = m.update(key('!'))
 
-	// An empty list with the toggle on reads as good news, not as an empty
+	// An empty list with the toggle on means nothing is wrong, not an empty
 	// cluster.
 	out := plain(m.render())
 	r.Contains(out, "0 of 1")

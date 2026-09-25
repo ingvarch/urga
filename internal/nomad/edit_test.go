@@ -22,8 +22,8 @@ type sent struct {
 }
 
 // jobServer answers each path with a body of its own and keeps every request
-// in the order it came. A path it has no answer for is not found, the way
-// the cluster says a job has no submission.
+// in the order it came. A path it has no answer for returns 404, which is
+// how the cluster reports that a job has no submission.
 func jobServer(t *testing.T, answers map[string]string) (*nomad.Client, *[]sent) {
 	t.Helper()
 
@@ -54,7 +54,7 @@ func jobServer(t *testing.T, answers map[string]string) (*nomad.Client, *[]sent)
 	return client, &asked
 }
 
-// submission is what a register request says the job was written as.
+// submission is the source a register request sends along with the job.
 func submission(t *testing.T, register sent) map[string]any {
 	t.Helper()
 
@@ -74,8 +74,8 @@ func TestSubmitJob_JSON(t *testing.T) {
 	source := `{"ID": "web", "Name": "web"}`
 	r.NoError(client.SubmitJob(context.Background(), "production", source, nomad.JobVariables{}, 0))
 
-	// A file that is already JSON goes straight to the cluster, and is kept
-	// with the version it makes: the next edit opens it again.
+	// A file that is already JSON goes straight to the cluster, and is saved
+	// with the new version: the next edit opens it again.
 	r.Len(*asked, 1)
 
 	kept := submission(t, (*asked)[0])
@@ -154,7 +154,7 @@ func TestSubmitJob_HCLKeepsTheSourceAndVariables(t *testing.T) {
 	r.Contains(parsed, `image = "nginx:1.27"`)
 	r.Contains(parsed, "count = 3")
 
-	// The version keeps what it was made of, the way it was given.
+	// The version keeps its source and variables exactly as given.
 	kept := submission(t, (*asked)[1])
 	r.Equal(source, kept["Source"])
 	r.Equal("hcl2", kept["Format"])

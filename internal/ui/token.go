@@ -29,9 +29,9 @@ func fetchToken(client clusterClient) tea.Cmd {
 	return request(client.Token, func(token nomad.Token) tea.Msg { return tokenMsg(token) })
 }
 
-// keepToken keeps what the cluster said about the token. A refusal still on
-// the status line is said again with what the token explains of it; a
-// message said since is left alone.
+// keepToken stores what the cluster reported about the token. A refusal
+// still on the status line is shown again with the reason the token gives;
+// a message shown since is left alone.
 func (m Model) keepToken(msg tokenMsg) Model {
 	token := nomad.Token(msg)
 	m.token = &token
@@ -52,8 +52,8 @@ func (m Model) keepToken(msg tokenMsg) Model {
 
 // tokenStatus is what the status line says about the token after its
 // label: its name, in a colour that warns as it gets close to expiring, and
-// under five days how long it has left. A cluster without ACLs has no token
-// to speak of.
+// under five days how long it has left. A cluster without ACLs shows no
+// token.
 func tokenStatus(token nomad.Token, now time.Time) (string, lipgloss.Style, bool) {
 	switch {
 	case token.ACLsOff:
@@ -95,10 +95,10 @@ func timeLeft(left time.Duration) string {
 	return plural(max(int(left/time.Minute), 1), "minute")
 }
 
-// tokenHint is what an empty list says about the token: it may be why the
-// list is empty. A token that reads only some namespaces is answered an
-// empty list for the others, and no error. Until the list is answered, or
-// when the filter hid what it holds, there is nothing to say.
+// tokenHint is the note an empty list shows about the token: it may be why
+// the list is empty. A token that can read only some namespaces gets an
+// empty list for the others, and no error. Before the list is answered, or
+// when the filter hid all its rows, there is no note.
 func (m Model) tokenHint() string {
 	if !m.answered || m.list.held > 0 || m.token == nil || m.readsAsText() {
 		return ""
@@ -131,8 +131,8 @@ func (m Model) withHint(table string, width int) string {
 const managementToken = "management"
 
 // refusedBecause says why the cluster refused a request, when the token is
-// the likely reason. What a management token is refused, the cluster says
-// best itself.
+// the likely reason. For a management token, the error of the cluster
+// explains it best.
 func (m Model) refusedBecause(err error) (string, bool) {
 	if !nomad.Forbidden(err) || m.token == nil {
 		return "", false

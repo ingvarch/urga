@@ -185,8 +185,8 @@ func TestEdit_ANamespace(t *testing.T) {
 func TestEdit_WithoutAnEditor(t *testing.T) {
 	r := require.New(t)
 
-	// urga runs where EDITOR is not set, and says so instead of doing
-	// nothing.
+	// urga runs where EDITOR is not set, and shows an error instead of
+	// doing nothing.
 	m := newTestModel(&fakeClient{jobs: twoJobs()})
 	m, _ = m.update(jobsMsg(twoJobs()))
 
@@ -233,7 +233,7 @@ func TestDescribe_JobSpecWhenTheClusterKeptNone(t *testing.T) {
 	m, cmd := m.update(key('h'))
 	m = follow(m, cmd, 3)
 
-	// Asking for the job file says plainly that there is none.
+	// Asking for the job file shows a message that there is none.
 	out := plain(m.render())
 	r.Contains(out, "kept no source")
 	r.Zero(client.submitted)

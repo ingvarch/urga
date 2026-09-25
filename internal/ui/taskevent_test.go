@@ -24,7 +24,7 @@ func allocsWithEvents() []nomad.Alloc {
 	return allocs
 }
 
-// onTasks walks to the tasks of an allocation that has something to tell.
+// onTasks opens the first job, then the tasks of its first allocation.
 func onTasks(t *testing.T, allocs []nomad.Alloc) Model {
 	t.Helper()
 
@@ -48,8 +48,8 @@ func TestTaskEvents_OpenOnATask(t *testing.T) {
 	out := plain(m.render())
 	r.Contains(out, "Events (Task: server) [2]")
 
-	// What happened to the task, newest first, in the words of the client
-	// that ran it.
+	// What happened to the task, newest first, as the client that ran it
+	// wrote it.
 	r.Contains(out, "Terminated")
 	r.Contains(out, "Exit Code: 1")
 	r.Contains(out, "Started")
@@ -71,8 +71,8 @@ func TestTaskEvents_ATaskThatNothingHappenedTo(t *testing.T) {
 	m := onTasks(t, twoAllocs())
 	m, _ = m.update(key('e'))
 
-	// The screen opens anyway and says it holds nothing, rather than the
-	// key doing nothing at all.
+	// The screen opens anyway and shows zero events, rather than the key
+	// doing nothing at all.
 	r.IsType(taskEventsPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "[0]")
 }

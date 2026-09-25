@@ -11,7 +11,7 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// The columns of what a client says about itself.
+// The columns of the detail screens of a client.
 var (
 	nodeEventTitles = []string{"Age", "Subsystem", "Message"}
 	driverTitles    = []string{"Driver", "Detected", "Healthy", "Updated", "Description"}
@@ -19,19 +19,18 @@ var (
 	metaTitles      = []string{"Field", "Value", "Set by"}
 )
 
-// machine is the client a screen of it was opened for, and what the machine
-// last said about itself: the screens of a client are different readings of
-// one answer.
+// machine is the client a screen was opened for, and the detail last read
+// from it: each screen of a client shows a part of the same answer.
 type machine struct {
 	nodeID, name string
 	detail       nomad.NodeDetail
 }
 
-// topics: the cluster says nothing of a machine on its stream, so a screen
-// of one is asked on a timer.
+// topics: the event stream carries nothing for these screens, so they are
+// polled on a timer.
 func (machine) topics() []string { return nil }
 
-// fetch asks the machine for everything it says about itself.
+// fetch requests the full detail of the client.
 func (d machine) fetch(e env) tea.Cmd {
 	client, nodeID := e.client, d.nodeID
 
@@ -40,9 +39,9 @@ func (d machine) fetch(e env) tea.Cmd {
 	}, func(detail nomad.NodeDetail) tea.Msg { return nodeDetailMsg(detail) })
 }
 
-// took keeps what the machine said. The answer belongs to the machine it was
-// asked of: leaving one client for another must not show the first one under
-// the second.
+// took keeps the detail read from the client. An answer for another client
+// is ignored, so moving from one client to the next never shows the first
+// one's data under the second's name.
 func (d machine) took(msg tea.Msg) (machine, bool) {
 	detail, ok := msg.(nodeDetailMsg)
 	if !ok || detail.ID != d.nodeID {
@@ -54,8 +53,8 @@ func (d machine) took(msg tea.Msg) (machine, bool) {
 	return d, true
 }
 
-// nodeScreen is a key that opens one of the screens of the client, on the
-// machine before it has said anything.
+// nodeScreen is a key that opens one of the screens of the client, empty
+// until its detail arrives.
 func nodeScreen(open func(machine) page) func(clientPage, env) (clientPage, outcome) {
 	return func(p clientPage, _ env) (clientPage, outcome) {
 		return p, then(openMsg{open(machine{nodeID: p.nodeID, name: p.name})})
@@ -111,8 +110,8 @@ func (p nodeDriversPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, nodeDriversKeys, k)
 }
 
-// openDriver opens what one driver says about itself. It shows what the
-// drivers were read with until the machine answers again.
+// openDriver opens the attributes of one driver. Until the client answers
+// again, it shows the detail the driver list was read with.
 func openDriver(p nodeDriversPage, e env) (nodeDriversPage, outcome) {
 	driver, ok := pickedFrom(e, p.detail.Drivers)
 	if !ok {
@@ -122,7 +121,7 @@ func openDriver(p nodeDriversPage, e env) (nodeDriversPage, outcome) {
 	return p, then(openMsg{nodeDriverPage{machine: p.machine, driver: driver.Name}})
 }
 
-// nodeDriverPage is what one driver of the machine says about itself.
+// nodeDriverPage is the attributes one driver of the client reports.
 type nodeDriverPage struct {
 	machine
 	driver string
@@ -143,7 +142,7 @@ func (p nodeDriverPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 func (p nodeDriverPage) rows(env) []tableRow { return fieldRows(p.attributes()) }
 
-// attributes are what the driver of the page says about itself.
+// attributes are the attributes the driver of the page reports.
 func (p nodeDriverPage) attributes() map[string]string {
 	for _, driver := range p.detail.Drivers {
 		if driver.Name == p.driver {
@@ -154,7 +153,7 @@ func (p nodeDriverPage) attributes() map[string]string {
 	return nil
 }
 
-// What a driver says about itself is worth copying, like any field.
+// A driver attribute is worth copying, like any field.
 var nodeDriverKeys = []pageKey[nodeDriverPage]{copyKey[nodeDriverPage]()}
 
 func (p nodeDriverPage) keys(e env) []keyHint { return hintsOf(p, e, nodeDriverKeys) }
@@ -163,7 +162,7 @@ func (p nodeDriverPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, nodeDriverKeys, k)
 }
 
-// nodeVolumesPage is what the machine lends out to the work on it.
+// nodeVolumesPage is the host volumes the client offers to jobs.
 type nodeVolumesPage struct {
 	noKeys
 	machine
@@ -184,7 +183,7 @@ func (p nodeVolumesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 func (p nodeVolumesPage) rows(env) []tableRow { return volumeRows(p.detail.Volumes) }
 
-// nodeAttributesPage is how the machine is built.
+// nodeAttributesPage is the attributes of the client: CPU, OS, versions.
 type nodeAttributesPage struct {
 	machine
 }
@@ -279,7 +278,7 @@ func nodeEventRows(events []nomad.NodeEvent) []tableRow {
 	return rows
 }
 
-// eventColor marks what a client complains about.
+// eventColor marks an event that reports a failure.
 func eventColor(event nomad.NodeEvent) color.Color {
 	if event.Details["failed"] == "true" {
 		return colorDead

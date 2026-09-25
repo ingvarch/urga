@@ -77,7 +77,7 @@ func TestDeployment_PauseAndResume(t *testing.T) {
 	client := &fakeClient{}
 	m := onDeployment(t, client)
 
-	// The key says what it does to the deployment as it is.
+	// The label of the key follows the state of the deployment.
 	r.True(offersLabel(m, "ctrl-s", "Pause"))
 
 	m, _ = m.update(ctrl('s'))
@@ -124,7 +124,7 @@ func TestDeployment_NothingToDoWhenItIsOver(t *testing.T) {
 		r.False(offers(m, press), press)
 	}
 
-	// What an allocation can do stays.
+	// The keys of the allocation are still offered.
 	r.True(offers(m, "r"))
 }
 

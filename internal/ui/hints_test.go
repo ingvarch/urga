@@ -18,8 +18,8 @@ import (
 )
 
 // everyScreen is one model per screen, each with rows on it: a key that acts
-// on a row says nothing about itself when there is no row. The screens are
-// kept by name, which is what a failure reports.
+// on a row does nothing without one, and the tests could not check it. The
+// screens are kept by name, which is what a failure reports.
 func everyScreen(t *testing.T) map[string]Model {
 	t.Helper()
 
@@ -240,18 +240,18 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 	r := require.New(t)
 
 	for name, m := range everyScreen(t) {
-		// Whatever the screen was left holding says nothing about the key
-		// that is about to be pressed.
+		// The message left on the status line is cleared first, or a key
+		// that clears it would count as doing something.
 		m = m.quiet()
 
 		for _, h := range m.hints() {
-			// A key in the header is a promise: pressing it opens something,
-			// asks the cluster something or puts a question up. A key that
-			// is drawn and does nothing is worse than no key.
+			// A key in the header must do something: open a screen, ask the
+			// cluster something or show a question. A key that is drawn and
+			// does nothing is worse than no key.
 			next, cmd := m.handleKey(keyOf(h.Key))
 
-			// Anything at all: another screen, a question, a mark, a way
-			// of reading the text, or a request to the cluster.
+			// Anything at all: another screen, a question, a mark, a change
+			// to how the text shows, or a request to the cluster.
 			did := cmd != nil || changed(m, next)
 
 			r.True(did, "the %s screen offers %s and nothing happens", name, h.Key)
@@ -259,9 +259,9 @@ func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
 	}
 }
 
-// keyOf reads a key the way the header writes it: <enter>, <ctrl-s>, <d>. A
-// key it cannot spell would be pressed as its first letter, which is why
-// every control key is read as one, whichever letter it takes.
+// keyOf turns a key as the header writes it into a key press: <enter>,
+// <ctrl-s>, <d>. A key it does not know is pressed as its first letter, so
+// every control key is parsed as one, whatever its letter.
 func keyOf(shown string) tea.KeyPressMsg {
 	name := shown[1 : len(shown)-1]
 
@@ -359,9 +359,9 @@ func TestEveryScreen_CoversEveryPage(t *testing.T) {
 		covered[reflect.TypeOf(m.screen.page).Name()] = true
 	}
 
-	// A screen left out of the tests of the keys is a screen whose keys
-	// read-only is never checked against. Every page counts: they are read
-	// out of the source, not out of a list someone has to keep.
+	// A screen left out of the tests of the keys never has its keys checked
+	// against read-only. Every page counts: the pages are found in the
+	// source, not in a list someone has to keep up to date.
 	pages := pageTypes(t)
 	r.NotEmpty(pages)
 
@@ -406,9 +406,9 @@ func pageTypes(t *testing.T) []string {
 	return names
 }
 
-// changed says a key did something to the model. What a model is given to
-// connect and switch with is a function, and two functions are never equal:
-// they are left out of the comparison.
+// changed says a key did something to the model. Connect and InRegion are
+// functions, and two functions are never equal: they are left out of the
+// comparison.
 func changed(before, after Model) bool {
 	before.opts.Connect, after.opts.Connect = nil, nil
 	before.opts.InRegion, after.opts.InRegion = nil, nil

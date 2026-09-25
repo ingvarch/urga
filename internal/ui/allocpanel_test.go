@@ -10,9 +10,9 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// replacedCanary is the first allocation of twoAllocs as a full reading
-// says it: a canary of version 7 that replaced one that failed, and was in
-// turn replaced.
+// replacedCanary is the first allocation of twoAllocs as a full read
+// returns it: a canary of version 7 that replaced one that failed, and was
+// in turn replaced.
 func replacedCanary() nomad.Alloc {
 	alloc := restarted()
 	alloc.NodeID = "a3e23694-4528-6395-3a51-1ffcbf3c2ba4"
@@ -42,7 +42,7 @@ func TestAllocPanel(t *testing.T) {
 	}
 
 	// What it is, where it listens, and what came before and after it; a
-	// line of air before the tasks.
+	// blank line before the tasks.
 	r.Equal([]string{
 		" Status running   Desired run   Client node-01   Version 7   Deployment checking, canary",
 		" Ports http 10.0.0.5:21659->8080, admin 10.0.0.5:22689",
@@ -125,7 +125,7 @@ func TestTasks_OpenTheAllocationItReplaced(t *testing.T) {
 	r.True(offers(m, "p"))
 
 	// The one it replaced is not in the list the tasks were opened from:
-	// its tasks are what the cluster says of it.
+	// its tasks are read from the cluster.
 	replaced := nomad.Alloc{
 		ID: "4f2a1c9e-0000-0000-0000-000000000000", Namespace: "production", JobID: "web",
 		Tasks: []nomad.Task{{Name: "old-server", State: "dead", Failed: true}},
@@ -228,12 +228,12 @@ func TestTasks_ThePanelKeepsWhatFits(t *testing.T) {
 func TestFitPanel_LeavesTheHeadItWasGiven(t *testing.T) {
 	r := require.New(t)
 
-	// A head with room behind it: what the panel adds must not land in the
-	// slice of whoever built the head.
+	// A head with spare capacity: what the panel appends must not be written
+	// into the backing array of whoever built the head.
 	backing := []string{"status", "kept"}
 	head := backing[:1]
 
-	// An empty block adds no rows, only the line of air under the head.
+	// An empty block adds no rows, only the blank line under the head.
 	rows := fitPanel(head, panelBlock{}, 10)
 
 	r.Equal([]string{"status", "kept"}, backing)

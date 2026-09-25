@@ -25,7 +25,7 @@ type planState struct {
 	index  uint64
 
 	// revert goes back to the version to, from the version the job had when
-	// it was planned. No version to is the one before the version that runs.
+	// it was planned. A nil to means the version before the one that runs.
 	revert bool
 	to     *uint64
 	from   uint64
@@ -39,7 +39,7 @@ type planState struct {
 	choice int
 }
 
-// planDoneMsg says a plan of the job went through: it is spent.
+// planDoneMsg says a plan of the job was submitted: it cannot be sent again.
 type planDoneMsg struct{ jobID string }
 
 // planPage is what the cluster would do with a job, before anything is
@@ -81,10 +81,9 @@ func (planPage) fetch(env) tea.Cmd      { return nil }
 func (planPage) rows(env) []tableRow    { return nil }
 func (p planPage) text(env) textContent { return p.content }
 
-// take keeps the same job planned again in place of this plan, rather than
-// on top of it: escape still goes back to where the plan was asked from. A
-// plan that went through is spent, and the screen goes back to where the
-// edit started.
+// take puts a new plan of the same job in place of this one, not on top of
+// it: escape still goes back to where the plan was asked from. After a plan
+// is submitted, the screen goes back to where the edit started.
 func (p planPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	switch msg := msg.(type) {
 	case openMsg:
@@ -155,7 +154,7 @@ func (p planPage) button(key string, e env) (page, outcome, bool) {
 }
 
 // bar is the question at the foot of a plan, with its buttons: cancel,
-// and the one that sends it, or says why nothing can be sent.
+// and the one that sends it, or one that shows why nothing can be sent.
 func (p planPage) bar(_ env, width int) []string {
 	verb := planVerb(p.revert)
 
@@ -179,7 +178,7 @@ func (p planPage) bar(_ env, width int) []string {
 }
 
 // planFor asks the cluster what submitting the file, or going back to the
-// version, would do, and puts the plan up.
+// version, would do, and opens the plan.
 func planFor(client jobsClient, state planState) tea.Cmd {
 	return request(func(ctx context.Context) (nomad.Plan, error) {
 		if state.revert {
@@ -191,9 +190,9 @@ func planFor(client jobsClient, state planState) tea.Cmd {
 }
 
 // submitPlan sends what was planned: the file at the index it was planned
-// at, or the revert from the version it was planned from. What came of it
-// is said whether or not the plan is still up; a plan the job changed under
-// stays, with its file, to be planned again.
+// at, or the revert from the version it was planned from. The result shows
+// whether or not the plan is still open; when the job changed since the
+// plan, the plan stays open with its file, to be planned again.
 func submitPlan(p planPage, e env) (planPage, outcome) {
 	client, state := e.client, p.planState
 
@@ -231,9 +230,9 @@ func replan(p planPage, e env) (planPage, outcome) {
 	return p, outcome{cmd: planFor(e.client, p.planState)}
 }
 
-// planText is a plan as a page: first what keeps it from the cluster and
-// what the cluster warns of, then what the scheduler would do to each group,
-// then what would change, line by line.
+// planText is a plan as a page: first the placement failures and the
+// warnings, then what the scheduler would do to each group, then what would
+// change, line by line.
 func planText(plan nomad.Plan, revert bool) []paintedLine {
 	lines := []paintedLine{}
 

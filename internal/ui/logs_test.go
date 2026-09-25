@@ -55,7 +55,7 @@ func TestLogs_OpenOnATask(t *testing.T) {
 	r.Equal("af1f37df-7b19-6b1c-da67-5e8f482b5a15", client.askedID)
 	r.Equal("production", client.askedNamespace)
 
-	// What the task writes lands on the screen as it comes.
+	// What the task writes shows on the screen as it arrives.
 	m = drain(m, logOf(m).waitForLog())
 	m = drain(m, logOf(m).waitForLog())
 
@@ -77,7 +77,7 @@ func TestLogs_LeavingClosesTheStream(t *testing.T) {
 
 	m, _ = m.update(escape())
 
-	// The request behind the stream is not left hanging.
+	// Leaving closes the stream and cancels the request behind it.
 	r.IsType(tasksPage{}, m.screen.page)
 	r.True(client.logsClosed)
 }
@@ -171,7 +171,7 @@ func TestLogs_FilterNarrowsTheLines(t *testing.T) {
 	r.Contains(out, "error: cannot connect")
 	r.NotContains(out, "starting up")
 
-	// Escape puts the rest of the output back.
+	// Escape clears the filter and shows all the output again.
 	m, _ = m.update(escape())
 	r.Contains(plain(m.render()), "starting up")
 }
@@ -190,8 +190,8 @@ func TestLogs_ScrollingByHandStopsFollowing(t *testing.T) {
 	m = drain(m, logOf(m).waitForLog())
 	r.Contains(plain(m.render()), "Autoscroll:On")
 
-	// Reading back through the output must not be pulled to the end by the
-	// next line.
+	// Scrolling back through the output stops autoscroll, so the next line
+	// does not move the window to the end.
 	m, _ = m.update(key('k'))
 
 	r.Contains(plain(m.render()), "Autoscroll:Off")
@@ -226,8 +226,8 @@ func TestLogs_OneKeyTogglesAutoscroll(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
 	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
 
-	// One key turns following the end on and off, and the line under the
-	// title says which it is: two keys for one switch say it twice.
+	// One key turns autoscroll on and off, and the line under the title
+	// shows its state: two keys for one switch would show it twice.
 	out := plain(m.render())
 	r.Contains(out, "Toggle Autoscroll")
 	r.Contains(out, "Autoscroll:On")
@@ -258,7 +258,7 @@ func TestLogs_SayWhatIsOnAndWhatIsOff(t *testing.T) {
 	r.Contains(out, "Timestamps:On")
 	r.Contains(out, "Wrap:On")
 
-	// On is what the eye looks for, off steps back.
+	// On is highlighted, since the eye looks for it; Off is muted.
 	raw := m.render()
 	r.Contains(raw, styleTitle.Render("On"))
 
@@ -276,8 +276,8 @@ func TestLogs_TheLineOfTogglesTakesNoLineOfTheLog(t *testing.T) {
 		m, _ = m.update(lineOf(m, fmt.Sprintf("line-%03d\n", i)))
 	}
 
-	// Followed, the last line of the log is the last line in the box,
-	// under the line of toggles, not pushed out by it.
+	// With autoscroll on, the last line of the log is the last line in the
+	// box: the line of toggles does not push it out.
 	out := plain(m.render())
 	r.Contains(out, "line-099")
 	r.Contains(out, "Autoscroll:On")
@@ -328,8 +328,8 @@ func TestLogs_TheNextLogStartsAfresh(t *testing.T) {
 
 	m, cmd = m.update(ctrlKey('e'))
 
-	// What was said of one log is not said of the next, not even while its
-	// stream is on its way.
+	// The "task finished" of one log does not carry over to the next, not
+	// even while the next stream is being opened.
 	r.NotContains(plain(m.render()), "task finished")
 
 	m = drain(m, cmd)
@@ -358,7 +358,7 @@ func TestLogs_SwitchBetweenStdoutAndStderr(t *testing.T) {
 	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
 	m, _ = m.update(key('w'))
 
-	// The header says where the key goes: the other of the two.
+	// The header names the output the key switches to.
 	r.Contains(plain(m.render()), "Stderr")
 
 	client.logs = &nomad.LogStream{Lines: make(chan string)}
@@ -374,7 +374,7 @@ func TestLogs_SwitchBetweenStdoutAndStderr(t *testing.T) {
 	r.Contains(out, "Logs (Task: server, Allocation: af1f37df) [stderr]")
 	r.Contains(out, "Stdout")
 
-	// It is the same screen read another way: wrapped as it was, and
+	// It is the same screen showing the other output: wrap stays on, and
 	// escape goes back to the tasks, not to stdout.
 	r.Contains(out, "Wrap:On")
 
@@ -391,7 +391,7 @@ func TestLogs_TheOtherSourceIsFollowed(t *testing.T) {
 	m, _ = m.update(key('s'))
 	r.Contains(plain(m.render()), "Autoscroll:Off")
 
-	// Read from its end again: what stood still was the other one.
+	// The new output starts with autoscroll on: it was off for the other one.
 	client.logs = &nomad.LogStream{Lines: make(chan string)}
 	m, cmd := m.update(ctrlKey('e'))
 	m = drain(m, cmd)
@@ -409,7 +409,7 @@ func TestLogs_ALineOfTheStreamLeftIsDropped(t *testing.T) {
 	m := openLog(t, client, &nomad.LogStream{Lines: stdout})
 	left := logOf(m).stream
 
-	// A read of stdout is on its way when the screen switches.
+	// A read of stdout is still pending when the screen switches.
 	late := logOf(m).waitForLog()
 
 	stderr := &nomad.LogStream{Lines: make(chan string)}
@@ -421,7 +421,7 @@ func TestLogs_ALineOfTheStreamLeftIsDropped(t *testing.T) {
 	m, _ = m.update(late())
 	r.NotContains(plain(m.render()), "from stdout")
 
-	// Nor does the end of the stream left end the one that is open.
+	// The end of the old stream does not end the open one either.
 	close(stdout)
 
 	m, _ = m.update(logState{stream: left}.waitForLog()())
@@ -448,8 +448,8 @@ func TestLogs_AStreamOpenedForAnotherLogIsLetGo(t *testing.T) {
 
 	m = drain(m, openStdout)
 
-	// The stream of stdout belongs to no screen: kept, it would feed stdout
-	// into stderr, and nothing would ever close it.
+	// No screen owns the stream of stdout: kept, it would mix stdout into
+	// stderr, and nothing would ever close it.
 	r.True(client.logsClosed)
 	r.Same(stderr, logOf(m).stream)
 }
@@ -509,8 +509,8 @@ func TestLogs_ALineLeavesTheErrorUp(t *testing.T) {
 
 	m, _ = m.update(errMsg{err: errors.New("disk full")})
 
-	// What the task writes is no answer of the cluster: what went wrong
-	// stays on the status line.
+	// A line the task writes is not an answer from the cluster, so the
+	// error stays on the status line.
 	m, _ = m.update(lineOf(m, "ready\n"))
 
 	r.Contains(plain(m.render()), "disk full")
@@ -522,8 +522,8 @@ func TestLogs_OneStreamPerLog(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
 	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
 
-	// Over to stderr, back and over again before any answer arrives: two
-	// answers are stderr, and one of them is read.
+	// Stderr, stdout, stderr again, all before any answer arrives: the
+	// first stream of stderr is kept, the other two are closed.
 	m, toStderr := m.update(ctrlKey('e'))
 	m, toStdout := m.update(ctrlKey('e'))
 	m, again := m.update(ctrlKey('e'))
@@ -545,8 +545,8 @@ func TestLogs_OneStreamPerLog(t *testing.T) {
 	r.Same(kept, logOf(m).stream)
 }
 
-// replaced is an allocation of twoAllocs placed again: the one it replaced
-// is named on its stream.
+// replaced is the allocation the first of twoAllocs replaced: its stream
+// names it as the previous one.
 const replaced = "0ld0a11c-0000-0000-0000-000000000000"
 
 func TestLogs_OpenTheAllocationBefore(t *testing.T) {
@@ -571,8 +571,8 @@ func TestLogs_OpenTheAllocationBefore(t *testing.T) {
 	r.Equal(nomad.LogStdout, client.askedSource)
 	r.Contains(plain(m.render()), "Logs (Task: server, Allocation: 0ld0a11c) [stdout]")
 
-	// Escape comes back to the newer log, read again: the text on the
-	// screen is not the log of the older one.
+	// Escape goes back to the newer log and opens it again: the screen
+	// does not keep the text of the older one.
 	client.logs = &nomad.LogStream{Lines: make(chan string)}
 
 	m, cmd = m.update(escape())
@@ -607,8 +607,8 @@ func TestLogs_BackOnALogReadsItAgain(t *testing.T) {
 	m, cmd := m.update(key('p'))
 	m = drain(m, cmd)
 
-	// The line is read the way the program reads it, and a stream that
-	// holds none is not waited on for good.
+	// The line is read the way the program reads it, with a deadline so an
+	// empty stream does not block the test forever.
 	if line := within(logOf(m).waitForLog(), time.Second); line != nil {
 		m, _ = m.update(line)
 	}
@@ -656,7 +656,7 @@ func TestLogs_DoNotPoll(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
 	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
 
-	// What a task writes arrives on its own: a poll would open it again.
+	// What a task writes arrives on the stream: a poll would open it again.
 	_, cmd := m.update(pollMsg{})
 	r.Nil(cmd)
 }
@@ -720,10 +720,10 @@ func TestLogs_ASwitchOfTheSessionLeavesTheLogAsItIs(t *testing.T) {
 	m, _ = m.update(key('w'))
 	r.True(m.text.wrap)
 
-	// The log belongs to its allocation: a namespace or a datacenter for
-	// the lists changes nothing about it, and it is not read again.
-	// Played out with a deadline per command: a log opened again waits on
-	// its stream for good.
+	// The log is for one allocation: switching the namespace or the
+	// datacenter of the lists does not change it or open it again.
+	// Each command runs with a deadline: a log opened again would wait on
+	// its stream forever.
 	m, cmd := m.update(key('2'))
 	m = playOut(m, cmd)
 	m, cmd = runLine(m, "dc dc2")

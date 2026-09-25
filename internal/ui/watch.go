@@ -11,63 +11,63 @@ import (
 )
 
 const (
-	// settle is how long a burst of changes is let run before the screen
-	// asks the cluster. A deploy fires events by the dozen, and one answer
-	// is enough for all of them.
+	// settle is how long the screen waits for a burst of changes to end
+	// before it asks the cluster. A deploy fires dozens of events, and one
+	// answer is enough for all of them.
 	settle = 300 * time.Millisecond
 
-	// slowPoll is how often a watched screen asks on its own. The stream
-	// says when something changed; this is only there in case it does not.
+	// slowPoll is how often a watched screen polls anyway. The stream
+	// reports changes; this poll only catches one the stream missed.
 	slowPoll = 30 * time.Second
 )
 
-// Messages of the stream. Each carries the stream it came from: a screen
-// that was left closes its stream, and the answers that were in flight when
-// it did must not touch the one that is up.
+// Messages of the stream. Each carries the id of its stream: a screen that
+// was left closes its stream, and messages still in flight from it must
+// not change the screen that is open.
 type (
-	// watchingMsg is the cluster agreeing to say when things change.
+	// watchingMsg means the cluster opened the event stream.
 	watchingMsg struct {
 		id      int
 		changes *nomad.Changes
 	}
 
-	// watchEndedMsg is the stream stopping. A stream urga closed itself
-	// carries no reason; one the cluster refused or dropped carries why,
-	// because the screen is no longer live and nothing else would say so.
+	// watchEndedMsg means the stream stopped. A stream urga closed itself
+	// carries no error; one the cluster refused or dropped carries the error,
+	// because the screen is no longer live and nothing else would report it.
 	watchEndedMsg struct {
 		id  int
 		err error
 	}
 
-	// changeMsg is the cluster saying that the screen is no longer what it
-	// shows. What it now holds is read the usual way, so what exactly
-	// changed is not carried here.
+	// changeMsg reports that something the screen shows changed in the
+	// cluster. The screen reads the new state with its usual request, so
+	// what exactly changed is not carried here.
 	changeMsg struct{ id int }
 
 	// settleMsg is the end of a burst of changes.
 	settleMsg struct{}
 )
 
-// watchState is the stream the open screen watches, and what came of the
-// ones before it.
+// watchState is the stream the open screen watches, and what is known
+// from the ones before it.
 type watchState struct {
-	// changes is the cluster saying when what the screen shows changed, and
-	// settling a burst of them waiting to be asked about.
+	// changes reports when what the screen shows changed; settling is true
+	// while a burst of them waits for the request.
 	changes  *nomad.Changes
 	settling bool
 
-	// id counts the streams this session has opened, so that an answer from
-	// one that was let go of does not touch the one that is up.
+	// id counts the streams this session has opened, so that a message from
+	// a closed one does not change the open one.
 	id int
 
-	// refused says the cluster has already turned the stream down and been
-	// said so about: every screen asks again, and every screen is refused.
+	// refused says the cluster has already refused the stream and the warning
+	// was shown: every screen asks again, and every screen is refused.
 	refused bool
 }
 
-// watchScreen asks the cluster to say when what the screen shows changes. A
-// screen that watches nothing, or a cluster that will not stream, is polled
-// the way it always was.
+// watchScreen opens an event stream for what the screen shows. A screen
+// that watches nothing, or a cluster that does not stream, is polled the
+// way it always was.
 func (m Model) watchScreen() tea.Cmd {
 	topics := m.screen.page.topics()
 	if len(topics) == 0 {
@@ -86,7 +86,7 @@ func (m Model) watchScreen() tea.Cmd {
 	}
 }
 
-// waitForChange takes the next thing the cluster says.
+// waitForChange waits for the next message on the stream.
 func (w watchState) waitForChange() tea.Cmd {
 	changes := w.changes
 	if changes == nil {
@@ -99,9 +99,9 @@ func (w watchState) waitForChange() tea.Cmd {
 		select {
 		case _, ok := <-changes.C:
 			if !ok {
-				// A stream that dropped says why before it closes, and
-				// both are then ready at once: reading the close first
-				// must not lose the reason.
+				// A stream that dropped sends its error before it
+				// closes, and both are then ready at once: reading the
+				// close first must not lose the error.
 				return watchEndedMsg{id: id, err: reasonOf(changes)}
 			}
 
@@ -113,7 +113,7 @@ func (w watchState) waitForChange() tea.Cmd {
 	}
 }
 
-// reasonOf is why a stream ended, when it said.
+// reasonOf is the error a stream ended with, if it sent one.
 func reasonOf(changes *nomad.Changes) error {
 	select {
 	case err := <-changes.Err:
@@ -123,9 +123,9 @@ func reasonOf(changes *nomad.Changes) error {
 	}
 }
 
-// start keeps the stream and starts reading it. A stream that comes up after
-// the screen that asked for it is gone is closed instead. A cluster that
-// talks again is a cluster whose going quiet is news again.
+// start keeps the stream and starts reading it. A stream that opens after
+// the screen that asked for it is gone is closed instead. Once a stream
+// opens, a later refusal is worth a warning again.
 func (w watchState) start(msg watchingMsg) (watchState, tea.Cmd) {
 	if msg.id != w.id {
 		msg.changes.Close()
@@ -141,8 +141,9 @@ func (w watchState) start(msg watchingMsg) (watchState, tea.Cmd) {
 	return w, w.waitForChange()
 }
 
-// keepChange writes down that something changed and lets the burst settle
-// before asking the cluster: the stream says when, one request says what.
+// keepChange notes that something changed and waits for the burst to end
+// before it asks the cluster: the stream only signals a change, and one
+// request reads the new state.
 func (w watchState) keepChange(msg changeMsg) (watchState, tea.Cmd) {
 	if !w.current(msg.id) {
 		return w, nil
@@ -159,18 +160,18 @@ func (w watchState) keepChange(msg changeMsg) (watchState, tea.Cmd) {
 	return w, tea.Batch(next, tea.Tick(settle, func(time.Time) tea.Msg { return settleMsg{} }))
 }
 
-// settled asks the cluster what a burst of changes left behind.
+// settled asks the cluster for the rows once a burst of changes is over.
 func (m Model) settled() (Model, tea.Cmd) {
 	m.watch.settling = false
 
 	return m, m.fetch()
 }
 
-// watchEnded lets go of the stream that stopped.
+// watchEnded drops the stream that stopped.
 func (m Model) watchEnded(msg watchEndedMsg) Model {
-	// A cluster that will not stream is one urga asks on its own, which
-	// is what it did before. Nothing about that belongs over the rows,
-	// and the timer it already has goes on without help.
+	// A cluster that does not stream is polled, as it was before. No
+	// error is shown over the rows, and the poll timer it already has
+	// keeps running.
 	if !m.watch.current(msg.id) {
 		return m
 	}
@@ -180,13 +181,13 @@ func (m Model) watchEnded(msg watchEndedMsg) Model {
 	return m.noteWatchEnded(msg.err)
 }
 
-// noteWatchEnded says the screen is no longer live, when it is not urga that
-// stopped it. The rows are still there and still asked for, so this is worth
-// knowing rather than something gone wrong.
+// noteWatchEnded warns that the screen is no longer live, when urga did not
+// stop the stream itself. The rows are still there and still polled, so it
+// shows as a warning.
 //
-// It is said once. Walking around a cluster that will not stream asks it on
-// every screen and is refused every time; saying so every time would leave
-// the status line with nothing else on it.
+// It is shown once. Moving between screens of a cluster that does not
+// stream asks for a stream on every screen and is refused every time; a
+// warning each time would leave the status line with nothing else on it.
 func (m Model) noteWatchEnded(err error) Model {
 	if err == nil || m.watch.refused {
 		return m
@@ -198,9 +199,10 @@ func (m Model) noteWatchEnded(err error) Model {
 		err, m.opts.PollEvery))
 }
 
-// end lets the stream go. What it was watching is polled again, and a
-// cluster that will not stream is not an error of the screen. The count goes
-// up so that whatever was in flight for that stream is known to be stale.
+// end closes the stream. What it was watching is polled again, and a
+// cluster that does not stream is not an error of the screen. The id goes
+// up so that any message still in flight for that stream is known to be
+// stale.
 func (w watchState) end() watchState {
 	w.stop()
 	w.id++
@@ -208,12 +210,12 @@ func (w watchState) end() watchState {
 	return w
 }
 
-// current says the answer belongs to the stream the model is holding.
+// current says the message comes from the stream the model has now.
 func (w watchState) current(id int) bool {
 	return id == w.id
 }
 
-// live says the cluster agreed to say when what the screen shows changes.
+// live says the screen has an open event stream.
 func (w watchState) live() bool {
 	return w.changes != nil
 }
@@ -227,7 +229,7 @@ func (w *watchState) stop() {
 }
 
 // pollEvery is how long the screen waits before asking again: rarely while
-// the cluster says when things change, often when it does not.
+// the event stream is open, often when it is not.
 func (m Model) pollEvery() time.Duration {
 	if m.watch.live() {
 		return slowPoll
@@ -244,7 +246,7 @@ func (m Model) startWatch(msg watchingMsg) (Model, tea.Cmd) {
 	return m, cmd
 }
 
-// keepChange takes what the cluster said changed.
+// keepChange handles a change the stream reported.
 func (m Model) keepChange(msg changeMsg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.watch, cmd = m.watch.keepChange(msg)

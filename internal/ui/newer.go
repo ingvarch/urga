@@ -7,8 +7,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// A session that stays open for days asks again once a day. A network that
-// cannot reach the releases waits no longer than it takes to say so.
+// A session that stays open for days checks again once a day. When the
+// releases cannot be reached, the check gives up after a few seconds.
 const (
 	releaseEvery   = 24 * time.Hour
 	releaseTimeout = 3 * time.Second
@@ -21,11 +21,11 @@ type (
 		err     error
 	}
 
-	// checkReleaseMsg is the timer of the next ask going off.
+	// checkReleaseMsg fires when the next check is due.
 	checkReleaseMsg struct{}
 )
 
-// checkRelease asks whether a newer urga is out, when the session may.
+// checkRelease asks whether a newer urga is out, if the session can ask.
 func (m Model) checkRelease() tea.Cmd {
 	ask := m.opts.NewerRelease
 	if ask == nil {
@@ -42,9 +42,9 @@ func (m Model) checkRelease() tea.Cmd {
 	}
 }
 
-// keepRelease stores what the ask found and sets off the next one. A failed
-// ask says nothing and keeps what an earlier one found: a network that
-// cannot reach the releases is not the cluster's trouble.
+// keepRelease stores what the check found and schedules the next one. A
+// failed check shows no error and keeps what an earlier one found: a network
+// that cannot reach the releases is not the cluster's trouble.
 func (m Model) keepRelease(msg newerReleaseMsg) (Model, tea.Cmd) {
 	if msg.err == nil {
 		m.newer = msg.version

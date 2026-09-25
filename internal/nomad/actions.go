@@ -148,7 +148,7 @@ func (c *Client) DrainNode(ctx context.Context, nodeID string, drain bool) error
 // stop on their own.
 const drainDeadline = time.Hour
 
-// SetNodeEligible says whether a node may be given new work.
+// SetNodeEligible sets whether a node may be given new work.
 func (c *Client) SetNodeEligible(ctx context.Context, nodeID string, eligible bool) error {
 	_, err := c.api.Nodes().ToggleEligibility(nodeID, eligible, c.write(ctx, ""))
 
@@ -170,7 +170,7 @@ func (c *Client) PromoteGroups(ctx context.Context, namespace, deploymentID stri
 	return err
 }
 
-// PauseDeployment stops a deployment where it is, or lets it go on.
+// PauseDeployment pauses a deployment where it is, or resumes it.
 func (c *Client) PauseDeployment(ctx context.Context, namespace, deploymentID string, pause bool) error {
 	_, _, err := c.api.Deployments().Pause(deploymentID, pause, c.write(ctx, namespace))
 

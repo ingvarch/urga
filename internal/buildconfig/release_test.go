@@ -64,7 +64,7 @@ type releaseConfig struct {
 	}
 }
 
-// release reads the file that says how a tag becomes a release.
+// release reads the config that turns a tag into a release.
 func release(t *testing.T) releaseConfig {
 	t.Helper()
 
@@ -112,8 +112,8 @@ func TestRelease_StampsTheVersion(t *testing.T) {
 
 	ldflags := strings.Join(cfg.Builds[0].Ldflags, " ")
 
-	// A release says which tag, commit and date it was built from. The tag
-	// keeps its v, the way the header shows it.
+	// The linker stamps the tag, commit and date of the build into a release.
+	// The tag keeps its v, the way the header shows it.
 	const pkg = "-X github.com/ingvarch/urga/internal/version."
 	r.Contains(ldflags, pkg+"Version=v{{ .Version }}")
 	r.Contains(ldflags, pkg+"Commit=")

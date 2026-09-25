@@ -16,7 +16,7 @@ func TestRegion_TheAgentSaysWhichOneIsInUse(t *testing.T) {
 	m := newTestModel(&fakeClient{})
 	r.Contains(headerOf(m), "Region:    n/a")
 
-	// A session that names no region is answered in the one of the agent.
+	// A session that names no region uses the region of the agent.
 	m, _ = m.update(agentMsg(nomad.Agent{Version: "1.11.1", Region: "global"}))
 
 	r.Contains(headerOf(m), "Region:    global")
@@ -256,7 +256,7 @@ func TestUsage_AReadingOfAnotherPlaceIsDropped(t *testing.T) {
 	m := newTestModel(&fakeClient{region: "eu"})
 	m.datacenter = "dc1"
 
-	// Read before the session moved on.
+	// Both were read before the session switched to eu and dc1.
 	m, _ = m.update(usageMsg{region: "eu", datacenter: "dc2", usage: nomad.Usage{CPUPercent: 50}})
 	m, _ = m.update(usageMsg{region: "us", datacenter: "dc1", usage: nomad.Usage{CPUPercent: 60}})
 
@@ -271,8 +271,9 @@ func TestUsage_KeepsOneTimer(t *testing.T) {
 	m, first := m.update(usageMsg{})
 	r.NotNil(first, "the next reading is due")
 
-	// A reading asked out of turn, after a switch, lands while the timer is
-	// still on its way; a second timer would double the asking for good.
+	// A reading requested out of turn, after a switch, arrives while the
+	// timer is still pending; a second timer would double the requests from
+	// then on.
 	_, second := m.update(usageMsg{})
 	r.Nil(second)
 }
@@ -320,7 +321,7 @@ func TestRegionCommand_SwitchesTheSession(t *testing.T) {
 	client.calls = 0
 	m = drain(m, cmd)
 
-	// What is on the screen and what the next region holds are asked again.
+	// The screen and the datacenters of the new region are requested again.
 	r.Equal(1, client.calls)
 	r.Equal([]string{"us-east"}, m.datacenters)
 }
@@ -371,7 +372,8 @@ func TestRegionCommand_ClosesTheLogsOfEveryAllocation(t *testing.T) {
 	closed := countClosed(client.logsByAlloc)
 	m, _ = runLine(m, "region us")
 
-	// Each one is a request held open to a client of the region left.
+	// Each one is an open request to a client of the region the session
+	// left.
 	r.Equal(2, *closed)
 	r.IsType(jobsPage{}, m.screen.page)
 }
@@ -529,8 +531,8 @@ func TestDatacenterCommand_OpensTheDatacenters(t *testing.T) {
 
 	r.IsType(datacentersPage{}, m.screen.page)
 
-	// Every one of them is a choice of its own, and the one in use while
-	// none was chosen.
+	// Each datacenter is a choice, and so is all, which is in use while none
+	// is chosen.
 	out := plain(m.render())
 	r.Contains(out, "Datacenters [3]")
 	r.Regexp(`all\s+in use`, out)
@@ -608,7 +610,7 @@ func TestRegionCommand_LetsGoOfWhatTheRegionItLeftSaid(t *testing.T) {
 	m, cmd := runLine(m, "region us")
 	m = drain(m, cmd)
 
-	// The jobs of eu must not stand under the name of us, and keys on them
+	// The jobs of eu must not be shown as those of us, and keys on them
 	// would act in us.
 	out := plain(m.render())
 	r.Contains(out, "Jobs (production) [0]")
@@ -622,7 +624,7 @@ func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
 	m := regionalModel(t, &fakeClient{jobs: twoJobs(), allocs: webAllocs("server", "sidecar")})
 	m, _ = m.update(jobsMsg(twoJobs()))
 
-	// What the screens of eu held when they were left: the tasks of web
+	// A screen of eu that is open when the session leaves: the tasks of web
 	// that run there.
 	m, cmd := m.update(key('l'))
 	m = drain(m, cmd)
@@ -630,8 +632,8 @@ func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
 
 	m, _ = runLine(m, "region us")
 
-	// A screen of us opened before us answers must not show eu under its
-	// name, nor go back to one that does.
+	// Before us answers, no screen may show what eu returned as if it were
+	// us, and there is no screen of eu left to go back to.
 	r.IsType(jobsPage{}, m.screen.page)
 	r.Empty(m.history)
 	r.NotContains(plain(m.render()), "frontend/sidecar")
@@ -680,7 +682,7 @@ func TestDatacenterCommand_NarrowsWhatIsOnTheScreenAtOnce(t *testing.T) {
 	m, cmd := runLine(m, "dc dc2")
 	m = drain(m, cmd)
 
-	// Nothing of dc1 stands under the name of dc2, whether or not the
+	// Nothing of dc1 is shown under the name of dc2, whether or not the
 	// cluster answers.
 	out := plain(m.render())
 	r.Contains(out, "Jobs (production) [1]")

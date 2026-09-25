@@ -67,7 +67,7 @@ func TestMarks_SpaceMarksTheRowUnderTheCursor(t *testing.T) {
 	r.Len(marked, 1)
 	r.Contains(marked[0], "b2222222")
 
-	// The same key lets it go again.
+	// The same key unmarks it.
 	m, _ = m.update(key('j'))
 	m, _ = m.update(space())
 	m, _ = m.update(key('k'))
@@ -134,7 +134,7 @@ func TestMarks_SurviveTheListBeingAskedAgain(t *testing.T) {
 	// to the allocation, not to the row it happened to be on.
 	m, _ = m.update(allocsMsg(twoAllocs()))
 
-	// The cursor has a color of its own and stands over a mark, so step
+	// The cursor has a color of its own and is drawn over a mark, so step
 	// off the row to see it.
 	m, _ = m.update(key('j'))
 
@@ -164,7 +164,7 @@ func TestMarks_MarkEveryRowAndNoneAgain(t *testing.T) {
 
 	m, _ = m.update(ctrlKey('a'))
 
-	// Both are taken; the one under the cursor is drawn as the cursor.
+	// Both are marked; the one under the cursor is drawn as the cursor.
 	r.Len(m.list.marks, 2)
 	r.Len(markedRows(m), 1)
 
@@ -187,7 +187,7 @@ func TestMarks_AScreenWithoutThemTakesTheKeyQuietly(t *testing.T) {
 	before := plain(m.render())
 	m, _ = m.update(space())
 
-	// Nothing acts on a marked namespace, so the screen does not take one.
+	// Nothing acts on a marked namespace, so the screen does not mark one.
 	r.Equal(before, plain(m.render()))
 }
 
@@ -220,8 +220,8 @@ func TestMarks_AreLetGoOfWhenTheActionIsDone(t *testing.T) {
 	m, cmd := answerYes(m)
 	m = drain(m, cmd)
 
-	// What was marked has been acted on; leaving the marks up would take
-	// them along into the next action by surprise.
+	// What was marked has been acted on; keeping the marks would apply the
+	// next action to them by surprise.
 	r.Empty(m.list.marks)
 	r.Empty(markedRows(m))
 }
@@ -261,7 +261,7 @@ func TestMarks_AnActionThatFailsPartWaySaysHowFar(t *testing.T) {
 	m = drain(m, cmd)
 
 	// Every marked row is tried, not only the ones before the first
-	// failure, and the screen says what came of it.
+	// failure, and the screen shows the result.
 	r.Equal(2, client.restarted)
 
 	out := plain(m.render())
@@ -464,8 +464,8 @@ func TestMarks_EveryClientOfABatchIsTried(t *testing.T) {
 	m, cmd := answerYes(m)
 	m = drain(m, cmd)
 
-	// The one that would not answer does not stop the other, and the
-	// screen says how far it got.
+	// The one that fails does not stop the other, and the screen shows
+	// how many went through.
 	r.Equal([]string{"drain node-2 true"}, client.acted)
 	r.Contains(plain(m.render()), "1 of 2")
 }
@@ -496,7 +496,7 @@ func TestMarks_AQuestionAboutRowsThatDisagreeReadsAsOne(t *testing.T) {
 		m, cmd := answerYes(m)
 		m = drain(m, cmd)
 
-		// What came of it reads as a sentence too.
+		// The result is one sentence too.
 		r.Regexp(`Changed (the (draining|work) of )?2 clients\.`, plain(m.render()))
 	}
 }
@@ -532,8 +532,8 @@ func TestMarks_TheCursorTakesTheColorOfAMark(t *testing.T) {
 
 	m, _ = m.update(space())
 
-	// Standing on a marked row must not hide the mark: the cursor is drawn
-	// in the color of the mark, the whole row over.
+	// The cursor on a marked row must not hide the mark: the cursor is
+	// drawn in the color of the mark, across the whole row.
 	r.True(cursorOnMark(m))
 
 	m, _ = m.update(space())

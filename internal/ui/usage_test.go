@@ -10,8 +10,8 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// allocationsOf walks down to the allocation list of the first job, which is
-// where the readings show up.
+// allocationsOf opens the allocation list of the first job, which is where
+// the readings show up.
 func allocationsOf(t *testing.T, client *fakeClient) Model {
 	t.Helper()
 
@@ -47,7 +47,7 @@ func TestUsage_ShownOnTheAllocations(t *testing.T) {
 	r.Contains(out, "25%")
 	r.Contains(out, "50%")
 
-	// The allocation that said nothing shows nothing rather than zero.
+	// The allocation with no reading shows a dash rather than zero.
 	r.Contains(out, "-")
 }
 
@@ -60,8 +60,8 @@ func TestUsage_AskedForWhatIsOnTheScreen(t *testing.T) {
 
 	drain(m, m.fetchUsage())
 
-	// Of the two rows on the screen one runs, and it is the only one asked
-	// about. A cluster is not walked allocation by allocation for rows
+	// Of the two rows on the screen one runs, and it is the only one
+	// requested. No request goes out, allocation by allocation, for rows
 	// nobody is looking at.
 	r.Equal(1, client.usageCalls)
 }
@@ -107,7 +107,7 @@ func TestUsage_Cells(t *testing.T) {
 	r.Equal("25%", cpuCell(nomad.ResourceUse{CPUTicks: 125, CPUTicksAllowed: 500, CPUPercent: 25}, true))
 	r.Equal("50%", memoryCell(nomad.ResourceUse{MemoryMB: 128, MemoryMBAllowed: 256, MemoryPercent: 50}, true))
 
-	// Nothing was asked for, so the number itself is what there is to say.
+	// Nothing was asked for, so the cell shows the number itself.
 	r.Equal("125", cpuCell(nomad.ResourceUse{CPUTicks: 125}, true))
 	r.Equal("128M", memoryCell(nomad.ResourceUse{MemoryMB: 128}, true))
 
@@ -130,13 +130,13 @@ func TestUsage_OnlyRunningAllocationsAreAsked(t *testing.T) {
 
 	drain(m, m.fetchUsage())
 
-	// An allocation that has ended reports nothing, so it is not asked. The
-	// answer would be an error, and the row would say nothing either way.
+	// An allocation that has ended has no usage, so it is not requested. The
+	// answer would be an error, and the row would be empty either way.
 	r.Equal(1, client.usageCalls)
 }
 
-// allocationsAnswered opens the allocations of the first job and hands the
-// list over, with what the answer asked for next.
+// allocationsAnswered opens the allocations of the first job and delivers
+// the list, returning the command its answer produced.
 func allocationsAnswered(t *testing.T, client *fakeClient) (Model, tea.Cmd) {
 	t.Helper()
 
@@ -193,8 +193,8 @@ func TestUsage_FailedReadingsStartNoSecondTimer(t *testing.T) {
 	m = drain(m, cmd)
 	r.Equal(1, client.usageCalls)
 
-	// Every poll answers the list again. Readings that all failed still have
-	// their timer on its way, and no answer starts another next to it.
+	// Every poll returns the list again. Readings that all failed still have
+	// their timer pending, and no answer starts another next to it.
 	for range 3 {
 		m, cmd = m.update(allocsMsg(client.allocs))
 		m = drain(m, cmd)
@@ -208,7 +208,7 @@ func TestUsage_ReadingsOnTheirWayAreNotAskedAgain(t *testing.T) {
 
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
 
-	// The first reading is still out when the list is answered again.
+	// The first reading is still pending when the list arrives again.
 	m, _ := allocationsAnswered(t, client)
 
 	m, cmd := m.update(allocsMsg(client.allocs))
@@ -244,7 +244,7 @@ func TestUsage_AReadingOfAScreenThatWasLeftIsDropped(t *testing.T) {
 	m, _ = m.update(escape())
 	m, _ = m.update(jobsMsg(client.jobs))
 
-	// The answer of the allocations comes back after they were left.
+	// The readings of the allocations arrive after the screen was left.
 	m = drain(m, late)
 
 	r.NotContains(plain(m.render()), "no readings")
@@ -259,8 +259,8 @@ func TestUsage_SaysWhyThereAreNoReadings(t *testing.T) {
 
 	m = drain(m, m.fetchUsage())
 
-	// A dash in the column is not an explanation. What the cluster said is
-	// on the screen.
+	// A dash in the column is not an explanation. The error of the cluster
+	// is on the screen.
 	out := plain(m.render())
 	r.Contains(out, "no readings")
 	r.Contains(out, "No path to node")

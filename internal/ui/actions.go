@@ -10,18 +10,18 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// doneMsg is what came of an action.
+// doneMsg is the result of an action.
 type doneMsg struct {
 	said string
 	err  error
 
-	// kept are the marks that outlive the action: what did not happen is
+	// kept are the marks that stay after the action: what did not happen is
 	// still marked, so the same key tries it again, and what did happen is
-	// let go of, so the key does not undo it.
+	// unmarked, so the key does not undo it.
 	kept map[string]bool
 }
 
-// The buttons of a question, in the order they are walked.
+// The buttons of a question, in the order tab moves through them.
 const (
 	buttonCancel = iota
 	buttonConfirm
@@ -56,7 +56,7 @@ func button(label string, on bool) string {
 	return styleButton.Render(" " + label + " ")
 }
 
-// ask puts a question up. Nothing is asked of the cluster until it is
+// ask shows a question. Nothing is sent to the cluster until it is
 // answered.
 func (m Model) ask(question string, apply tea.Cmd) (Model, tea.Cmd) {
 	m.overlay = overlayConfirm
@@ -66,7 +66,7 @@ func (m Model) ask(question string, apply tea.Cmd) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// confirmKey answers the question, and nothing else while it is up.
+// confirmKey answers the question. No other key works while it is open.
 func (m Model) confirmKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "left", "shift+tab", "h":
@@ -92,7 +92,7 @@ func (m Model) confirmKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// applyConfirm does what was asked about. The marks stay until it is known
+// applyConfirm runs the confirmed action. The marks stay until it is known
 // to have worked: what did not happen is still marked, and the same key
 // tries it again.
 func (m Model) applyConfirm() (Model, tea.Cmd) {
@@ -110,7 +110,7 @@ func (m Model) closeConfirm() Model {
 	return m
 }
 
-// act runs one change against the cluster and says what came of it.
+// act runs one change against the cluster and reports the result.
 func act(said string, do func(ctx context.Context) error) tea.Cmd {
 	return request(
 		func(ctx context.Context) (string, error) { return said, do(ctx) },
@@ -127,9 +127,9 @@ func startStopJob(p jobsPage, e env) (jobsPage, outcome) {
 
 	client := e.client
 
-	// Each job is asked to do what it is not doing, so a question about
-	// several of them says what they have in common, or both things when
-	// they have nothing.
+	// Each job is switched to the opposite of what it is doing, so a
+	// question about several of them names the verb they share, or both
+	// verbs when they differ.
 	dead := func(job nomad.Job) bool { return job.Status == statusDead }
 
 	verb := bothWays(jobs, dead, "start", "stop", "start or stop")
@@ -163,8 +163,8 @@ func revertJob(p jobsPage, e env) (jobsPage, outcome) {
 	return p, outcome{cmd: planFor(e.client, planState{revert: true, namespace: job.Namespace, jobID: job.ID})}
 }
 
-// allocAction is what a key does to each allocation it takes, and how the
-// question and the report name it.
+// allocAction is what a key does to each allocation, and how the question
+// and the report name it.
 type allocAction struct {
 	verb, done string
 	do         func(context.Context, nomad.Alloc) error
@@ -185,9 +185,9 @@ func stopping(client allocsClient) allocAction {
 	}}
 }
 
-// asked asks about the allocations an action is to take, and then takes each
-// of them on its own: one that will not answer must not stop the rest, and a
-// screenful of them must not share one timeout.
+// asked builds the question for the allocations of an action, and then runs
+// it on each of them on its own: one that will not answer must not stop the
+// rest, and a screenful of them must not share one timeout.
 func (a allocAction) asked(allocs []nomad.Alloc) askMsg {
 	label := allocLabel(allocs)
 
@@ -231,10 +231,10 @@ func each[T any](done, label string, items []T, mark func(T) string, do func(con
 	}
 }
 
-// done says what came of an action on the marked rows.
+// done shows the result of an action on the marked rows.
 func (m Model) done(msg doneMsg) (Model, tea.Cmd) {
 	// What did not happen stays marked, so the same key tries it again;
-	// what did happen is let go of, so the key does not undo it.
+	// what did happen is unmarked, so the key does not undo it.
 	m.list.marks = msg.kept
 
 	if msg.err != nil {
