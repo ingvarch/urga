@@ -203,10 +203,10 @@ func metaFile(client Client, nodeID, name string) load {
 	return func(ctx context.Context) (file, error) {
 		content, err := client.NodeMetaSpec(ctx, nodeID)
 
-		return file{extension: "json", content: content, submit: func(source string) tea.Cmd {
+		return file{extension: "json", content: content, submit: reopening("json", func(source string) tea.Cmd {
 			return act(fmt.Sprintf("Metadata of %s submitted.", name), func(ctx context.Context) error {
 				return client.SubmitNodeMeta(ctx, nodeID, source)
 			})
-		}}, err
+		})}, err
 	}
 }

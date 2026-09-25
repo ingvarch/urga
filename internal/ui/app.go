@@ -619,8 +619,8 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case variableMsg:
 		return m.keepVariable(msg)
 
-	case variableRefusedMsg:
-		return m, m.reopenVariable(msg)
+	case refusedEditMsg:
+		return m, m.reopenEdit(msg)
 
 	case instancesMsg:
 		return instanceChecksOnce(m.applyList(screenServiceInstances, func(m *Model) { m.instances = msg }))

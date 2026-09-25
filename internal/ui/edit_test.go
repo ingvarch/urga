@@ -151,12 +151,12 @@ func TestEdit_UnchangedFileChangesNothing(t *testing.T) {
 	r.Contains(plain(m.render()), "unchanged")
 }
 
-func TestEdit_ANamespace(t *testing.T) {
-	r := require.New(t)
+// onNamespaces is the list of namespaces, with the editor at hand.
+func onNamespaces(t *testing.T, client *fakeClient, editor *fakeEditor) Model {
+	t.Helper()
 
-	client := &fakeClient{namespaces: twoNamespaces(), namespaceSpec: `{"Name": "production"}`}
+	client.namespaces, client.namespaceSpec = twoNamespaces(), `{"Name": "production"}`
 
-	editor := &fakeEditor{replace: `{"Name": "production", "Description": "live"}`}
 	m := New(client, Options{Namespace: "production", Version: "v-test", Editor: editor, PollEvery: time.Millisecond})
 	m, _ = m.update(sizeMsg())
 
@@ -164,6 +164,16 @@ func TestEdit_ANamespace(t *testing.T) {
 	m = typeIn(m, "ns")
 	m, _ = m.update(enter())
 	m, _ = m.update(namespacesMsg(twoNamespaces()))
+
+	return m
+}
+
+func TestEdit_ANamespace(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	editor := &fakeEditor{replace: `{"Name": "production", "Description": "live"}`}
+	m := onNamespaces(t, client, editor)
 
 	m, cmd := m.update(key('e'))
 	m = follow(m, cmd, 5)

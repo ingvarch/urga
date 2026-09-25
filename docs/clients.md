@@ -124,7 +124,8 @@ check-and-set: the cluster takes it only if the variable is still the version
 you opened. If you close the editor without a change, nothing is saved.
 
 If the cluster refuses the save, urga opens the editor again with your edit
-and the reason at the top:
+and the reason at the top, see [Editor](configuration.md#editor). For a
+variable, the reason may be:
 
 - The file is not valid TOML, or a value is not text: fix it and save.
 - The variable changed since you opened it: saving again replaces that
@@ -132,9 +133,6 @@ and the reason at the top:
 - The variable was deleted since you opened it: saving again creates it.
 - The variable is locked: only the holder of the lock can change it.
 - The token may not write the variable.
-
-To save again, change the file, at least by deleting the lines of the
-reason. To drop your edit, close the editor without saving.
 
 `e` is not offered on a variable held as a lock.
 

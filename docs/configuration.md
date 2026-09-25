@@ -91,6 +91,24 @@ close the editor, urga sends the change to the cluster. A job is planned
 first, see [Editing a job](jobs.md#editing-a-job). A variable is saved with
 check-and-set, see [Editing a variable](clients.md#editing-a-variable).
 
+If you close the editor without a change, nothing is sent.
+
+If the cluster refuses the change, for example because of a syntax error or
+because the token may not make it, urga opens the editor again with your
+edit and the reason at the top, as comment lines:
+
+```
+# Not saved: the namespace is not valid JSON: unexpected end of JSON input.
+# To save, change the file: delete these lines at least.
+# To drop your edit, quit without saving.
+```
+
+Fix the file and save it to send it again. urga takes these lines off before
+it sends the file, so they do not break JSON and do not end up in a job.
+Because a file that comes back unchanged is not sent, saving it again takes a
+change: at least delete these lines. To drop your edit, close the editor
+without saving.
+
 ## How urga stays up to date
 
 Most screens, such as jobs, allocations and clients, follow the Nomad event

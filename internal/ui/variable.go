@@ -28,15 +28,6 @@ type variableState struct {
 	shown  bool
 }
 
-// variableRefusedMsg is an edit of a variable the cluster refused, and what
-// the edit was made from.
-type variableRefusedMsg struct {
-	namespace, path string
-	index           uint64
-	source          string
-	err             error
-}
-
 var variableBindings = []binding{
 	{press: "v", label: "Toggle Values", do: toggleValues},
 	{press: "c", label: "Copy", do: copyValue},
@@ -179,75 +170,34 @@ func variableFile(client Client, namespace, path string) load {
 }
 
 // saveVariable sends an edit of a variable read at index. What the cluster
-// refuses goes back to the editor instead of being lost.
+// refuses goes back to the editor instead of being lost. A variable changed
+// or deleted since it was read is saved over the next time, and the file
+// says so; a locked one is asked at the old version again.
 func saveVariable(client Client, namespace, path string, index uint64) func(source string) tea.Cmd {
 	return func(source string) tea.Cmd {
 		return func() tea.Msg {
 			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 			defer cancel()
 
-			if err := client.SubmitVariable(ctx, namespace, path, source, index); err != nil {
-				return variableRefusedMsg{namespace: namespace, path: path, index: index, source: source, err: err}
+			err := client.SubmitVariable(ctx, namespace, path, source, index)
+			if err == nil {
+				return doneMsg{said: fmt.Sprintf("Variable %s saved.", path)}
 			}
 
-			return doneMsg{said: fmt.Sprintf("Variable %s saved.", path)}
+			next, advice := index, ""
+
+			var conflict *nomad.VariableConflict
+			if errors.As(err, &conflict) && conflict.Lock == nil {
+				next, advice = conflict.Index, "Saving again replaces that change."
+
+				if conflict.Deleted {
+					advice = "Saving again creates it."
+				}
+			}
+
+			again := file{extension: "toml", content: source, submit: saveVariable(client, namespace, path, next)}
+
+			return refusedEditMsg{err: err, advice: advice, again: again}
 		}
 	}
-}
-
-// reopenVariable opens a refused edit again, with why at the top. A variable
-// changed or deleted since it was read is saved over next time, and the file
-// says so; a locked one is asked at the old version again.
-func (m Model) reopenVariable(msg variableRefusedMsg) tea.Cmd {
-	reason, ok := m.refusedBecause(msg.err)
-	if !ok {
-		reason = msg.err.Error()
-	}
-
-	index, advice := msg.index, ""
-
-	var conflict *nomad.VariableConflict
-	if errors.As(msg.err, &conflict) && conflict.Lock == nil {
-		index, advice = conflict.Index, "Saving again replaces that change."
-
-		if conflict.Deleted {
-			advice = "Saving again creates it."
-		}
-	}
-
-	content := refusal(reason, advice) + withoutLeadingComments(msg.source)
-	client := m.client
-
-	return openEditor(func(context.Context) (file, error) {
-		return file{extension: "toml", content: content, submit: saveVariable(client, msg.namespace, msg.path, index)}, nil
-	})
-}
-
-// refusal is why a save was refused, as comment lines. A file that comes
-// back as it went out changes nothing, so saving it again takes a change.
-func refusal(reason, advice string) string {
-	lines := strings.Split("Not saved: "+reason+".", "\n")
-	if advice != "" {
-		lines = append(lines, advice)
-	}
-
-	lines = append(lines, "To save, change the file: delete these lines at least.", "To drop your edit, quit without saving.")
-
-	var b strings.Builder
-	for _, line := range lines {
-		b.WriteString("# " + line + "\n")
-	}
-
-	return b.String()
-}
-
-// withoutLeadingComments drops the comments at the top of a file: the
-// refusal of the save before, or the name of the variable, which the
-// refusal takes the place of.
-func withoutLeadingComments(source string) string {
-	for strings.HasPrefix(source, "#") {
-		_, source, _ = strings.Cut(source, "\n")
-	}
-
-	return source
 }
