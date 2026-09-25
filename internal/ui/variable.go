@@ -21,78 +21,178 @@ const hiddenValue = "••••••••"
 // variableMsg is a variable read with its values.
 type variableMsg nomad.VariableDetail
 
-// variableState is the variable the screen is open on, and whether its
-// values are shown.
-type variableState struct {
-	detail nomad.VariableDetail
-	shown  bool
+// variablesPage is the variables of the namespace the session looks at.
+type variablesPage struct {
+	variables []nomad.Variable
 }
 
-var variableBindings = []binding{
-	{press: "v", label: "Toggle Values", do: toggleValues},
-	{press: "c", label: "Copy", do: copyValue},
-	{press: "e", label: "Edit", do: editVariable, writes: true, offered: variableUnlocked},
+var variableTitles = []string{"Path", "Namespace", "Lock", "Age", "Modified"}
+
+func (variablesPage) title(e env, count int) string {
+	return sprintf("Variables (%s) [%d]", namespaceLabel(e.namespace), count)
+}
+
+func (variablesPage) titles() []string { return variableTitles }
+func (variablesPage) topics() []string { return nil }
+
+func (variablesPage) fetch(e env) tea.Cmd {
+	client, namespace := e.client, e.namespace
+
+	return fetchList(func(ctx context.Context) ([]nomad.Variable, error) {
+		return client.Variables(ctx, namespace)
+	}, func(items []nomad.Variable) tea.Msg { return variablesMsg(items) })
+}
+
+func (p variablesPage) take(msg tea.Msg) (page, bool) {
+	variables, ok := msg.(variablesMsg)
+	if !ok {
+		return p, false
+	}
+
+	p.variables = variables
+
+	return p, true
+}
+
+func (p variablesPage) rows(env) []tableRow { return variableRows(p.variables) }
+
+func variableRows(variables []nomad.Variable) []tableRow {
+	rows := make([]tableRow, 0, len(variables))
+
+	for _, v := range variables {
+		rows = append(rows, tableRow{
+			cells: []string{v.Path, v.Namespace, lockOf(v), ageOf(v.Created), ageOf(v.Modified)},
+			ages:  moments{3: v.Created, 4: v.Modified},
+		})
+	}
+
+	return rows
+}
+
+// lockOf names who holds a variable as a lock, by the ID of the lock: Nomad
+// knows the holder by nothing else.
+func lockOf(v nomad.Variable) string {
+	if v.Lock == nil {
+		return ""
+	}
+
+	return shortID(v.Lock.ID)
+}
+
+// picked is the variable under the cursor.
+func (p variablesPage) picked(e env) (nomad.Variable, bool) { return pickedFrom(e, p.variables) }
+
+var variablesKeys = []pageKey[variablesPage]{
+	{press: "enter", label: "Values", do: openVariable},
+	editVariableKey(variablesPage.picked),
+}
+
+func (p variablesPage) keys(e env) []keyHint { return hintsOf(p, e, variablesKeys) }
+
+func (p variablesPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, variablesKeys, k)
 }
 
 // openVariable opens the variable under the cursor with its values hidden:
 // a screen someone else can see is no place for a password until asked.
-func openVariable(m Model) (Model, tea.Cmd) {
-	variable, ok := selectedOf(m, screenVariables, m.variables)
+func openVariable(p variablesPage, e env) (variablesPage, outcome) {
+	v, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	m.variable = variableState{}
-
-	return m.push(screen{kind: screenVariable, namespace: variable.Namespace, label: variable.Path})
+	return p, then(openMsg(screen{kind: screenVariable, page: variablePage{namespace: v.Namespace, path: v.Path}}))
 }
 
-// fetchVariable reads the variable the screen is open on.
-func fetchVariable(m Model) tea.Cmd {
-	client, s := m.client, m.screen
+// variablePage is the variable the page is open on, and whether its values
+// are shown.
+type variablePage struct {
+	namespace, path string
+
+	detail nomad.VariableDetail
+	shown  bool
+}
+
+func (p variablePage) title(_ env, count int) string {
+	return sprintf("Variable %s (%s) [%d]", p.path, namespaceLabel(p.namespace), count)
+}
+
+func (variablePage) titles() []string { return variableItemTitles }
+func (variablePage) topics() []string { return nil }
+
+// fetch reads the variable the page is open on.
+func (p variablePage) fetch(e env) tea.Cmd {
+	client, namespace, path := e.client, p.namespace, p.path
 
 	return request(func(ctx context.Context) (nomad.VariableDetail, error) {
-		return client.Variable(ctx, s.namespace, s.label)
+		return client.Variable(ctx, namespace, path)
 	}, func(v nomad.VariableDetail) tea.Msg { return variableMsg(v) })
 }
 
-// keepVariable stores a variable that is the one the screen is open on.
-func (m Model) keepVariable(msg variableMsg) (Model, tea.Cmd) {
-	ours := m.screen.kind == screenVariable && msg.Path == m.screen.label && msg.Namespace == m.screen.namespace
+// take keeps a variable that is the one the page is open on.
+func (p variablePage) take(msg tea.Msg) (page, bool) {
+	v, ok := msg.(variableMsg)
+	if !ok || v.Path != p.path || v.Namespace != p.namespace {
+		return p, false
+	}
 
-	return m.applyWhen(ours, func(m *Model) { m.variable.detail = nomad.VariableDetail(msg) })
+	p.detail = nomad.VariableDetail(v)
+
+	return p, true
 }
 
-func toggleValues(m Model) (Model, tea.Cmd) {
-	m.variable.shown = !m.variable.shown
-	m.layout()
+func (p variablePage) rows(env) []tableRow { return variableItemRows(p.detail.Items, p.shown) }
 
-	return m, nil
+// variable is the one the page is open on, with the lock it last said it
+// has.
+func (p variablePage) variable(env) (nomad.Variable, bool) {
+	v := p.detail.Variable
+	v.Namespace, v.Path = p.namespace, p.path
+
+	return v, true
+}
+
+var variableKeys = []pageKey[variablePage]{
+	{press: "v", label: "Toggle Values", do: toggleValues},
+	{press: "c", label: "Copy", do: copyValue},
+	editVariableKey(variablePage.variable),
+}
+
+func (p variablePage) keys(e env) []keyHint { return hintsOf(p, e, variableKeys) }
+
+func (p variablePage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, variableKeys, k)
+}
+
+func toggleValues(p variablePage, _ env) (variablePage, outcome) {
+	p.shown = !p.shown
+
+	return p, outcome{}
 }
 
 // copyValue copies the value under the cursor as the variable holds it: the
 // row may show it hidden or cut to one line.
-func copyValue(m Model) (Model, tea.Cmd) {
-	row, ok := m.list.table.selected()
+func copyValue(p variablePage, e env) (variablePage, outcome) {
+	row, ok := pickedFrom(e, p.rows(e))
 	if !ok || len(row.cells) == 0 {
-		return m, nil
+		return p, outcome{}
 	}
 
 	key := row.cells[0]
 
-	value, ok := m.variable.detail.Items[key]
+	value, ok := p.detail.Items[key]
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	return copied(m, key, value)
+	return p, copying(key, value)
 }
 
 // variableItemRows are the values of the variable, one line each.
-func variableItemRows(v variableState) []tableRow {
-	cells := make(map[string]string, len(v.detail.Items))
-	for key, value := range v.detail.Items {
-		cells[key] = valueCell(value, v.shown)
+func variableItemRows(items map[string]string, shown bool) []tableRow {
+	cells := make(map[string]string, len(items))
+	for key, value := range items {
+		cells[key] = valueCell(value, shown)
 	}
 
 	return fieldRows(cells)
@@ -113,10 +213,10 @@ func valueCell(value string, shown bool) string {
 	return first
 }
 
-// variablePanel says who holds the variable as a lock, when someone does,
-// and why it has no Edit then.
-func (m Model) variablePanel(width int) []string {
-	lock := m.variable.detail.Lock
+// panel says who holds the variable as a lock, when someone does, and why
+// it has no Edit then.
+func (p variablePage) panel(_ env, width, room int) []string {
+	lock := p.detail.Lock
 	if lock == nil {
 		return nil
 	}
@@ -126,37 +226,28 @@ func (m Model) variablePanel(width int) []string {
 		" " + styleMuted.Render(truncate("Only the holder of the lock can change it.", width-1)),
 	}
 
-	return fitPanel(head, panelBlock{}, m.rowsForPanel())
+	return fitPanel(head, panelBlock{}, room)
 }
 
-// actedVariable is the variable a key acts on: the one under the cursor of
-// the list, or the one the screen is open on.
-func (m Model) actedVariable() (nomad.Variable, bool) {
-	if m.screen.kind == screenVariables {
-		return selectedOf(m, screenVariables, m.variables)
+// editVariableKey edits the variable a key acts on, which acted names: the
+// one under the cursor of the list, or the one the page is open on.
+func editVariableKey[P any](acted func(p P, e env) (nomad.Variable, bool)) pageKey[P] {
+	return pageKey[P]{
+		press: "e", label: "Edit", writes: true,
+		do: func(p P, e env) (P, outcome) {
+			v, _ := acted(p, e)
+
+			return p, outcome{cmd: openEditor(variableFile(e.client, v.Namespace, v.Path))}
+		},
+
+		// The variable can be changed from here: Nomad refuses a change of
+		// a locked one to anyone but the holder.
+		offered: func(p P, e env) bool {
+			v, ok := acted(p, e)
+
+			return ok && v.Lock == nil
+		},
 	}
-
-	v := m.variable.detail.Variable
-	v.Namespace, v.Path = m.screen.namespace, m.screen.label
-
-	return v, true
-}
-
-// variableUnlocked says the variable can be changed from here: Nomad
-// refuses a change of a locked one to anyone but the holder.
-func variableUnlocked(m Model) bool {
-	v, ok := m.actedVariable()
-
-	return ok && v.Lock == nil
-}
-
-func editVariable(m Model) (Model, tea.Cmd) {
-	v, ok := m.actedVariable()
-	if !ok {
-		return m, nil
-	}
-
-	return m, openEditor(variableFile(m.client, v.Namespace, v.Path))
 }
 
 // variableFile is a variable as a file, saved over the version it was read
