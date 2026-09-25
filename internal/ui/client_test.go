@@ -347,6 +347,21 @@ func TestClient_APollOfTheListReadsNoHost(t *testing.T) {
 	r.Equal(calls, client.usageCalls)
 }
 
+func TestClient_APollOfTheListReadsTheMachine(t *testing.T) {
+	r := require.New(t)
+
+	m, client := clientScreen(t)
+	client.nodes[0].Status, client.nodes[0].Drain = "down", true
+
+	// The machine is asked with its allocations, or the panel goes on
+	// saying what it was when the screen opened.
+	m = drain(m, m.fetch())
+
+	out := plain(m.render())
+	r.Contains(out, "down")
+	r.Contains(out, "draining")
+}
+
 func TestClient_EveryReadingSetsTheTimerForTheNext(t *testing.T) {
 	r := require.New(t)
 

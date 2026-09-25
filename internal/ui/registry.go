@@ -250,26 +250,20 @@ func init() {
 			},
 			fetch: func(m Model) tea.Cmd {
 				client, screen := m.client, m.screen
+				allocs := fetchList(allocsOf(client, screen), func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
 
 				if screen.isDeployment() {
-					return fetchDeployment(m)
+					return tea.Batch(allocs, fetchDeployment(client, screen))
 				}
 
 				if screen.nodeID != "" {
 					// The machine answers for its allocations and for itself:
 					// the chart above them is what the host is doing. That is
 					// read on the timer of the chart, not with the list.
-					return tea.Batch(
-						fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
-							return client.NodeAllocations(ctx, screen.nodeID)
-						}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
-						fetchHost(client, screen.nodeID),
-					)
+					return tea.Batch(allocs, fetchHost(client, screen.nodeID))
 				}
 
-				return fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
-					return client.Allocations(ctx, screen.namespace, screen.jobID)
-				}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
+				return allocs
 			},
 			rows: func(m Model) []tableRow {
 				if m.screen.isDeployment() {

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -201,6 +202,77 @@ func oneTask(t *testing.T) (Model, *fakeClient) {
 	}
 
 	return fromJobs(t, client), client
+}
+
+func TestJobLogs_EveryLineOfAChunkIsTagged(t *testing.T) {
+	r := require.New(t)
+
+	m, client := oneTask(t)
+
+	m, _ = m.update(logLineMsg{stream: client.logsByAlloc[newer], text: "ready\nserving on 8080\n"})
+
+	// A chunk is as many lines as it holds, each behind the tag of the
+	// allocation, and the newline it ends with starts no line of its own.
+	out := plain(m.render())
+	r.Contains(out, "aaaa1111 │ ready")
+	r.Contains(out, "aaaa1111 │ serving on 8080")
+	r.Equal(2, rowsWith(m, "aaaa1111 │"))
+}
+
+func TestJobLogs_SayWhenALineArrived(t *testing.T) {
+	r := require.New(t)
+
+	m, client := oneTask(t)
+
+	m, _ = m.update(logLineMsg{stream: client.logsByAlloc[newer], text: "ready\n"})
+	m, _ = m.update(logEndMsg{stream: client.logsByAlloc[older]})
+	m, _ = m.update(key('t'))
+
+	// The time comes before the tag, on what a task wrote and on what urga
+	// says about the allocation alike.
+	out := plain(m.render())
+	r.Regexp(`\d\d:\d\d:\d\d  aaaa1111 │ ready`, out)
+	r.Regexp(`\d\d:\d\d:\d\d  bbbb2222 │ stopped`, out)
+}
+
+func TestJobLogs_FollowTheEndUntilStopped(t *testing.T) {
+	r := require.New(t)
+
+	m, client := oneTask(t)
+
+	m, _ = m.update(logLineMsg{stream: client.logsByAlloc[newer], text: strings.Join(longLines(40), "\n") + "\n"})
+	m, _ = m.update(logEndMsg{stream: client.logsByAlloc[older]})
+
+	out := plain(m.render())
+	r.Contains(out, "bbbb2222 │ stopped")
+	r.NotContains(out, "line-000")
+
+	// Stopped, the window stays where it is while lines go on arriving.
+	m, _ = m.update(key('s'))
+	m, _ = m.update(logLineMsg{stream: client.logsByAlloc[newer], text: "written later\n"})
+
+	out = plain(m.render())
+	r.Contains(out, "bbbb2222 │ stopped")
+	r.NotContains(out, "written later")
+}
+
+func TestJobLogs_WhatUrgaSaysIsPaintedApart(t *testing.T) {
+	r := require.New(t)
+
+	// The older allocation has no log to open.
+	client := &fakeClient{
+		jobs:        twoJobs(),
+		allocs:      webAllocs("server")[:2],
+		logsByAlloc: map[string]*nomad.LogStream{newer: writing("ready\n")},
+	}
+
+	m := fromJobs(t, client)
+	m, _ = m.update(logEndMsg{stream: client.logsByAlloc[newer]})
+
+	out := m.render()
+	r.Contains(out, styleText.Render("ready"))
+	r.Contains(out, styleMuted.Render("stopped"))
+	r.Contains(out, styleError.Render("could not read: no log for "+older))
 }
 
 func TestJobLogs_ALineOfAStreamNotReadHereIsDropped(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -169,6 +170,17 @@ func TestLogs_SayWhenALineArrived(t *testing.T) {
 	// What a task writes carries no time of its own, so the time is when
 	// urga read it, and only for the lines it watched arrive.
 	r.Regexp(`\d\d:\d\d:\d\d  ready to serve`, out)
+}
+
+func TestLogs_AChunkIsTheLinesItHolds(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onLogs(t, "ready to serve\nserving on 8080\n")
+	m, _ = m.update(key('t'))
+
+	// The newline a chunk ends with starts no line: an empty one would
+	// still show the time it arrived.
+	r.Len(regexp.MustCompile(`\d\d:\d\d:\d\d`).FindAllString(plain(m.render()), -1), 2)
 }
 
 func TestLogs_SaveWhatIsOnTheScreen(t *testing.T) {

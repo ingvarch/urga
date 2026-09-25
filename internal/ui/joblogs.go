@@ -6,7 +6,6 @@ import (
 	"image/color"
 	"slices"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -326,7 +325,7 @@ func (m Model) openedJobLog(msg jobLogOpenedMsg) (Model, tea.Cmd) {
 	}
 
 	if msg.err != nil {
-		return m.jobLogLine(msg.allocID, "could not read: "+msg.err.Error(), &styleError), nil
+		return m.jobLogLines(msg.allocID, &styleError, "could not read: "+msg.err.Error()), nil
 	}
 
 	m.jobLogs.streams[msg.stream] = msg.allocID
@@ -337,50 +336,22 @@ func (m Model) openedJobLog(msg jobLogOpenedMsg) (Model, tea.Cmd) {
 // appendJobLog puts what an allocation wrote at the end, behind the tag of
 // the allocation.
 func (m Model) appendJobLog(stream *nomad.LogStream, allocID, chunk string) (Model, tea.Cmd) {
-	for _, line := range strings.Split(strings.TrimSuffix(chunk, "\n"), "\n") {
-		m = m.jobLogLine(allocID, line, nil)
-	}
-
-	return m, waitForStream(stream)
+	return m.jobLogLines(allocID, nil, linesOf(chunk)...), waitForStream(stream)
 }
 
 // endJobLog lets go of a stream that ended, and says so: the others go on.
 func (m Model) endJobLog(stream *nomad.LogStream, allocID string) Model {
 	delete(m.jobLogs.streams, stream)
 
-	return m.jobLogLine(allocID, "stopped", &styleMuted)
+	return m.jobLogLines(allocID, &styleMuted, "stopped")
 }
 
-// jobLogLine adds one line of an allocation, in a style of its own when it
-// is not something the task wrote.
-func (m Model) jobLogLine(allocID, line string, style *lipgloss.Style) Model {
-	at := len(m.text.lines)
+// jobLogLines adds lines of an allocation, in a style of their own when
+// they are not something the task wrote.
+func (m Model) jobLogLines(allocID string, style *lipgloss.Style, lines ...string) Model {
+	label := m.jobLogs.tags[allocID]
 
-	if m.text.stamps == nil {
-		m.text.stamps = map[int]time.Time{}
-	}
-
-	if m.text.tags == nil {
-		m.text.tags = map[int]tag{}
-	}
-
-	m.text.lines = append(m.text.lines, line)
-	m.text.stamps[at] = time.Now()
-	m.text.tags[at] = m.jobLogs.tags[allocID]
-
-	if style != nil {
-		if m.text.paint == nil {
-			m.text.paint = map[int]lipgloss.Style{}
-		}
-
-		m.text.paint[at] = *style
-	}
-
-	if m.logs.following {
-		m.text.toEnd()
-	}
-
-	return m
+	return m.readLines(lines, &label, style)
 }
 
 // jobLogsTitle says which task of which job, which of its outputs, and how
