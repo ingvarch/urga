@@ -50,7 +50,7 @@ type promptModel struct {
 	// group is the task group a count belongs to, as it was when the count
 	// was asked for; task is the task a signal is for.
 	group nomad.TaskGroup
-	task  string
+	task  taskRef
 
 	// suggest says whether the rest of a word is offered, which only the
 	// command line does.

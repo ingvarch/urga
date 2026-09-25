@@ -112,8 +112,7 @@ func TestServiceInstances_EnterOpensTheAllocation(t *testing.T) {
 	m, _ = m.update(enter())
 
 	r.Equal(screenTasks, m.screen.kind)
-	r.Equal(servedRunning, m.screen.allocID)
-	r.Equal("served", m.screen.jobID)
+	r.Contains(plain(m.render()), "Tasks (Allocation: "+shortID(servedRunning)+")")
 }
 
 func TestServiceInstances_NoTasksOfAnAllocationThatIsGone(t *testing.T) {

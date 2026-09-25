@@ -53,7 +53,7 @@ func TestTrouble_CursorFollowsTheRowsThatAreLeft(t *testing.T) {
 
 	// Enter opens the first row that is left, not the first row of the whole
 	// list.
-	r.Equal("web", m.screen.jobID)
+	r.Contains(plain(m.render()), "Allocations (Job: web)")
 }
 
 func TestTrouble_NothingWrong(t *testing.T) {

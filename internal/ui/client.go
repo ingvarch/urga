@@ -213,8 +213,6 @@ func (m Model) panel(width int) []string {
 	}
 
 	switch m.screen.kind {
-	case screenTasks:
-		return m.tasksPanel(width)
 	case screenDeployment:
 		return m.deploymentScreenPanel(width)
 	case screenNode:

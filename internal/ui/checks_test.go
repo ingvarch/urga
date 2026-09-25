@@ -181,3 +181,66 @@ func TestTasks_ChecksGoWhenTheAllocationStops(t *testing.T) {
 
 	r.NotContains(plain(m.render()), "Checks")
 }
+
+func TestTasks_AReadingOfTheChecksThatFailsSaysSo(t *testing.T) {
+	r := require.New(t)
+
+	m := openTasks(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()})
+	m, _ = m.update(allocMsg(running()))
+
+	m, _ = m.update(checksMsg{allocID: running().ID, err: errTest})
+
+	r.Contains(plain(m.render()), errTest.Error())
+}
+
+func TestTasks_AReadingOfTheChecksTakesAnErrorDown(t *testing.T) {
+	r := require.New(t)
+
+	m := openTasks(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()})
+	m, _ = m.update(allocMsg(running()))
+	m, _ = m.update(errMsg{err: errTest})
+	r.Contains(plain(m.render()), errTest.Error())
+
+	// The client that runs the checks answered: what went wrong is over.
+	m, _ = m.update(checksMsg{allocID: running().ID, checks: servedChecks()})
+
+	r.NotContains(plain(m.render()), errTest.Error())
+}
+
+func TestTasks_ChecksOfTasksThatWereLeftAreDropped(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), checks: servedChecks()}
+	m := openTasks(t, client)
+	m, _ = m.update(allocMsg(running()))
+	m, _ = m.update(escape())
+
+	// The reading and the timer of the tasks answer on the allocations.
+	m, cmd := m.update(checksMsg{allocID: running().ID, checks: servedChecks()})
+	r.Nil(cmd)
+
+	_, cmd = m.update(pollChecksMsg{})
+	r.Nil(cmd)
+	r.Zero(client.checksCalls)
+}
+
+func TestTasks_TheChecksAreReadAgainOnEveryVisit(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), checks: servedChecks()}
+	m := openTasks(t, client)
+
+	m, cmd := m.update(allocMsg(running()))
+	m = drain(m, cmd)
+	r.Equal(1, client.checksCalls)
+
+	// The timer of the checks ended with the visit; coming back starts
+	// another one.
+	m, _ = m.update(key('e'))
+	m, _ = m.update(escape())
+
+	m, cmd = m.update(allocMsg(running()))
+	drain(m, cmd)
+
+	r.Equal(2, client.checksCalls)
+}

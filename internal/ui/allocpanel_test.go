@@ -135,13 +135,13 @@ func TestTasks_OpenTheAllocationItReplaced(t *testing.T) {
 	m = drain(m, cmd)
 
 	r.Equal(screenTasks, m.screen.kind)
-	r.Equal(replaced.ID, m.screen.allocID)
+	r.Contains(plain(m.render()), "Tasks (Allocation: 4f2a1c9e)")
 	r.Equal("production", client.askedNamespace)
 	r.Contains(taskLine(t, m, "old-server"), "dead")
 
 	// Escape comes back to the one it was opened from.
 	m, _ = m.update(escape())
-	r.Equal("af1f37df-7b19-6b1c-da67-5e8f482b5a15", m.screen.allocID)
+	r.Contains(plain(m.render()), "Tasks (Allocation: af1f37df)")
 }
 
 func TestTasks_OpenTheAllocationThatReplacedIt(t *testing.T) {

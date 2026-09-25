@@ -54,7 +54,7 @@ func (m Model) deploymentInView() (nomad.Deployment, bool) {
 // waitingGroup is the group of the allocation under the cursor, when its
 // canaries wait to be promoted.
 func (m Model) waitingGroup() (string, bool) {
-	alloc, ok := selectedOf(m, screenDeployment, m.visibleAllocs())
+	alloc, ok := selectedOf(m, screenDeployment, m.allocs)
 	if !ok || !deploymentActive(m) {
 		return "", false
 	}

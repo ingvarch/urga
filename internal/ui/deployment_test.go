@@ -158,7 +158,7 @@ func TestDeployment_TheKeysOfAllocations(t *testing.T) {
 	m, _ = m.update(enter())
 
 	r.Equal(screenTasks, m.screen.kind)
-	r.Equal("9a1b2c3d-0000-0000-0000-000000000000", m.screen.allocID)
+	r.Contains(plain(m.render()), "Tasks (Allocation: 9a1b2c3d)")
 }
 
 func TestDeployment_AnAnswerForAnotherDeploymentIsDropped(t *testing.T) {

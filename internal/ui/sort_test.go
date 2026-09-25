@@ -186,7 +186,7 @@ func TestSort_KeepsTheCursorOnItsRow(t *testing.T) {
 	m, _ = m.update(enter())
 
 	// Enter opens what the cursor is on now, not what was there before.
-	r.Equal("cron", m.screen.jobID)
+	r.Contains(plain(m.render()), "Allocations (Job: cron)")
 }
 
 func TestSort_ByTheFirstLetterOfAColumn(t *testing.T) {

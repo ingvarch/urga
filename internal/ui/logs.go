@@ -54,18 +54,25 @@ type logState struct {
 	from int64
 }
 
-// openLogs follows what the task under the cursor writes.
-func openLogs(m Model, source string) (Model, tea.Cmd) {
-	task, ok := selectedOf(m, screenTasks, m.tasks())
+// followLogs follows what the task under the cursor writes to a source.
+func followLogs(p tasksPage, e env, source string) (tasksPage, outcome) {
+	task, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	next := m.screen
-	next.kind = screenLogs
-	next.task = task.Name
-	next.source = source
+	return p, then(logsMsg(screen{
+		kind:      screenLogs,
+		namespace: p.namespace,
+		jobID:     p.jobID,
+		allocID:   p.allocID,
+		task:      task.Name,
+		source:    source,
+	}))
+}
 
+// followLog opens a log on top of what is open and follows it.
+func (m Model) followLog(next screen) (Model, tea.Cmd) {
 	m = m.stackText(next, textModel{})
 	m.logs = logState{following: true}
 
@@ -222,23 +229,6 @@ var logBindings = []binding{
 	{press: "ctrl+s", label: "Save", do: saveScreen},
 }
 
-var taskBindings = []binding{
-	{press: "enter", label: "Logs", do: openStdout},
-	// The same key opens the events of a task here and edits elsewhere,
-	// because a screen never offers both.
-	{press: "e", label: "Events", do: openTaskEvents},
-	{press: "ctrl+e", label: "Stderr", do: openStderr},
-	// The same key opens a shell here and scales a task group elsewhere.
-	{press: "s", label: "Shell", do: shell, writes: true},
-	{press: "r", label: "Restart", do: restartTask, writes: true, offered: taskRuns},
-	{press: "x", label: "Signal", do: askSignal, writes: true, offered: taskRuns},
-	{press: "b", label: "Browse", do: browse},
-	{press: "c", label: "Client", do: openAllocNode, offered: allocHas(func(a nomad.Alloc) string { return a.NodeID })},
-	{press: "p", label: "Previous", do: openReplaced, offered: allocHas(func(a nomad.Alloc) string { return a.Previous })},
-	{press: "n", label: "Next", do: openReplacement, offered: allocHas(func(a nomad.Alloc) string { return a.Next })},
-	{press: "f", label: "Follow-up", do: openFollowUp, offered: allocHas(func(a nomad.Alloc) string { return a.FollowUp })},
-}
-
 // onSource says the log screen reads the source.
 func onSource(source string) func(m Model) bool {
 	return func(m Model) bool { return m.screen.source == source }
@@ -268,10 +258,8 @@ func openPrevious(m Model) (Model, tea.Cmd) {
 	next.allocID = m.logs.previous
 
 	m.logs.stop()
-	m = m.stackText(next, textModel{})
-	m.logs = logState{following: true}
 
-	return m, m.startLogs()
+	return m.followLog(next)
 }
 
 // readAgain opens the stream of a log screen that is come back to. What the
@@ -379,12 +367,12 @@ func saveScreen(m Model) (Model, tea.Cmd) {
 	return m, m.saveText()
 }
 
-// openStdout follows what the task under the cursor writes to stdout.
-func openStdout(m Model) (Model, tea.Cmd) {
-	return openLogs(m, nomad.LogStdout)
+// followStdout follows what the task under the cursor writes to stdout.
+func followStdout(p tasksPage, e env) (tasksPage, outcome) {
+	return followLogs(p, e, nomad.LogStdout)
 }
 
-// openStderr follows what the task under the cursor writes to stderr.
-func openStderr(m Model) (Model, tea.Cmd) {
-	return openLogs(m, nomad.LogStderr)
+// followStderr follows what the task under the cursor writes to stderr.
+func followStderr(p tasksPage, e env) (tasksPage, outcome) {
+	return followLogs(p, e, nomad.LogStderr)
 }

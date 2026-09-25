@@ -33,22 +33,27 @@ type shellDoneMsg struct {
 }
 
 // shell opens a shell in the task under the cursor.
-func shell(m Model) (Model, tea.Cmd) {
-	task, ok := selectedOf(m, screenTasks, m.tasks())
+func shell(p tasksPage, e env) (tasksPage, outcome) {
+	task, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
+	return p, then(shellMsg{
+		Region:    e.client.Region(),
+		Namespace: p.namespace,
+		AllocID:   p.allocID,
+		Task:      task.Name,
+	})
+}
+
+// openShell hands the terminal to a shell, when urga has one to hand it to.
+func (m Model) openShell(cmd shellCommand) (Model, tea.Cmd) {
 	if m.opts.Shell == nil {
 		return m.fail(fmt.Errorf("no shell: urga was started without a terminal")), nil
 	}
 
-	return m, m.opts.Shell.Open(shellCommand{
-		Region:    m.client.Region(),
-		Namespace: m.screen.namespace,
-		AllocID:   m.screen.allocID,
-		Task:      task.Name,
-	})
+	return m, m.opts.Shell.Open(cmd)
 }
 
 // shellRunner opens the session against the cluster and gives it the

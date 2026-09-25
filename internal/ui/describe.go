@@ -42,11 +42,7 @@ func describeAllocation(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	client := m.client
-
-	return m, describe(fmt.Sprintf("Allocation: %s", shortID(alloc.ID)), func(ctx context.Context) (string, error) {
-		return client.DescribeAllocation(ctx, alloc.Namespace, alloc.ID)
-	})
+	return m, allocDescription(m.client, alloc)
 }
 
 func describeDeployment(m Model) (Model, tea.Cmd) {

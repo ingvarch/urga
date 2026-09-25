@@ -76,3 +76,28 @@ func TestTaskEvents_ATaskThatNothingHappenedTo(t *testing.T) {
 	r.Equal(screenTaskEvents, m.screen.kind)
 	r.Contains(plain(m.render()), "[0]")
 }
+
+func TestTaskEvents_HaveNoKeysOfTheirOwn(t *testing.T) {
+	r := require.New(t)
+
+	m := onTasks(t, allocsWithEvents())
+	m, _ = m.update(key('e'))
+
+	r.Empty(m.hints())
+}
+
+func TestTaskEvents_AnAnswerForAnotherAllocationIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	other := allocsWithEvents()[0]
+	other.ID = "b2222222-0000-0000-0000-000000000000"
+	other.Tasks[0].Events = []nomad.TaskEvent{{Time: time.Now(), Type: "Killed", Message: "Sent interrupt"}}
+
+	m := onTasks(t, allocsWithEvents())
+	m, _ = m.update(key('e'))
+	m, _ = m.update(allocMsg(other))
+
+	out := plain(m.render())
+	r.Contains(out, "Exit Code: 1")
+	r.NotContains(out, "Sent interrupt")
+}

@@ -265,3 +265,26 @@ func TestUsage_SaysWhyThereAreNoReadings(t *testing.T) {
 	r.Contains(out, "no readings")
 	r.Contains(out, "No path to node")
 }
+
+func TestUsage_OnlyWhatTheFilterLeavesIsAsked(t *testing.T) {
+	r := require.New(t)
+
+	allocs := twoAllocs()
+	allocs[1].Status = "running"
+
+	client := &fakeClient{jobs: twoJobs(), allocs: allocs}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(client.jobs))
+	m, _ = m.update(enter())
+	m, _ = m.update(allocsMsg(allocs))
+
+	// Both run, and the filter leaves one of them on the screen.
+	m, _ = m.update(key('/'))
+	m = typeIn(m, "backend")
+	m, _ = m.update(enter())
+
+	drain(m, m.fetchUsage())
+
+	r.Equal(1, client.usageCalls)
+}

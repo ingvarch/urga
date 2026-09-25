@@ -128,29 +128,8 @@ func init() {
 		},
 
 		screenAllocations: {
-			aliases:  []string{"allocations", "allocation", "allocs", "alloc"},
-			titles:   allocTitles,
-			keys:     allocBindings,
-			ids:      allocIDs,
-			topics:   []string{nomad.TopicAllocation},
-			readings: allocReadings,
-			reading:  allocReading,
-
-			title: func(m Model, count int) string {
-				if m.screen.taskGroup != "" {
-					return sprintf("Allocations (Group: %s) [%d]", m.screen.taskGroup, count)
-				}
-
-				// The command line opens the allocations of the namespace, with
-				// no job to name.
-				if m.screen.jobID == "" {
-					return sprintf("Allocations (%s) [%d]", namespaceLabel(m.screen.namespace), count)
-				}
-
-				return sprintf("Allocations (Job: %s) [%d]", m.screen.jobID, count)
-			},
-			fetch: fetchAllocs,
-			rows:  allocListRows,
+			aliases: []string{"allocations", "allocation", "allocs", "alloc"},
+			open:    func() page { return allocationsPage{} },
 		},
 
 		// The allocations of a client sit on the screen of that client,
@@ -191,19 +170,7 @@ func init() {
 			fetch: func(m Model) tea.Cmd {
 				return tea.Batch(fetchAllocs(m), fetchDeployment(m.client, m.screen))
 			},
-			rows: func(m Model) []tableRow { return deploymentAllocRows(m.visibleAllocs(), m.usage.rows) },
-		},
-
-		screenTasks: {
-			titles: taskTitles,
-			keys:   taskBindings,
-			topics: []string{nomad.TopicAllocation},
-			fetch:  fetchAllocation,
-
-			title: func(m Model, count int) string {
-				return sprintf("Tasks (Allocation: %s) [%d]", shortID(m.screen.allocID), count)
-			},
-			rows: func(m Model) []tableRow { return taskRows(m.tasks()) },
+			rows: func(m Model) []tableRow { return deploymentAllocRows(m.allocs, m.usage.rows) },
 		},
 
 		screenLogTasks: {
@@ -388,17 +355,6 @@ func init() {
 			},
 			fetch: fetchNodeMeta,
 			rows:  func(m Model) []tableRow { return metaRows(m.nodeMeta) },
-		},
-
-		screenTaskEvents: {
-			titles: taskEventTitles,
-			topics: []string{nomad.TopicAllocation},
-			fetch:  fetchAllocation,
-
-			title: func(m Model, count int) string {
-				return sprintf("Events (Task: %s) [%d]", m.screen.task, count)
-			},
-			rows: func(m Model) []tableRow { return taskEventRows(m.taskEvents()) },
 		},
 
 		// The lists a region and a datacenter are picked from. The words that
