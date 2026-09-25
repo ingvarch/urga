@@ -12,61 +12,41 @@ import (
 // Every list call names the namespace it asks in, and asks the endpoint that
 // holds the resource.
 func TestResources_AskTheRightEndpoint(t *testing.T) {
+	ctx := context.Background()
+
 	tests := []struct {
 		name      string
-		body      string
 		path      string
 		namespace string
 		call      func(*nomad.Client) error
 	}{
 		{
-			name: "deployments", body: `[]`, path: "/v1/deployments", namespace: "production",
-			call: func(c *nomad.Client) error {
-				_, err := c.Deployments(context.Background(), "production")
-				return err
-			},
+			name: "deployments", path: "/v1/deployments", namespace: "production",
+			call: func(c *nomad.Client) error { return errOf(c.Deployments(ctx, "production")) },
 		},
 		{
-			name: "namespaces", body: `[]`, path: "/v1/namespaces",
-			call: func(c *nomad.Client) error {
-				_, err := c.Namespaces(context.Background())
-				return err
-			},
+			name: "namespaces", path: "/v1/namespaces",
+			call: func(c *nomad.Client) error { return errOf(c.Namespaces(ctx)) },
 		},
 		{
-			name: "services", body: `[]`, path: "/v1/services", namespace: "*",
-			call: func(c *nomad.Client) error {
-				_, err := c.Services(context.Background(), nomad.AllNamespaces)
-				return err
-			},
+			name: "services", path: "/v1/services", namespace: "*",
+			call: func(c *nomad.Client) error { return errOf(c.Services(ctx, nomad.AllNamespaces)) },
 		},
 		{
-			name: "evaluations", body: `[]`, path: "/v1/evaluations", namespace: "production",
-			call: func(c *nomad.Client) error {
-				_, err := c.Evaluations(context.Background(), "production")
-				return err
-			},
+			name: "evaluations", path: "/v1/evaluations", namespace: "production",
+			call: func(c *nomad.Client) error { return errOf(c.Evaluations(ctx, "production")) },
 		},
 		{
-			name: "nodes", body: `[]`, path: "/v1/nodes",
-			call: func(c *nomad.Client) error {
-				_, err := c.Nodes(context.Background())
-				return err
-			},
+			name: "nodes", path: "/v1/nodes",
+			call: func(c *nomad.Client) error { return errOf(c.Nodes(ctx)) },
 		},
 		{
-			name: "variables", body: `[]`, path: "/v1/vars", namespace: "production",
-			call: func(c *nomad.Client) error {
-				_, err := c.Variables(context.Background(), "production")
-				return err
-			},
+			name: "variables", path: "/v1/vars", namespace: "production",
+			call: func(c *nomad.Client) error { return errOf(c.Variables(ctx, "production")) },
 		},
 		{
-			name: "node pools", body: `[]`, path: "/v1/node/pools",
-			call: func(c *nomad.Client) error {
-				_, err := c.NodePools(context.Background())
-				return err
-			},
+			name: "node pools", path: "/v1/node/pools",
+			call: func(c *nomad.Client) error { return errOf(c.NodePools(ctx)) },
 		},
 	}
 
@@ -74,7 +54,7 @@ func TestResources_AskTheRightEndpoint(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			r := require.New(t)
 
-			client, asked := recorder(t, test.body)
+			client, asked := recorder(t, `[]`)
 
 			r.NoError(test.call(client))
 			r.Equal(test.path, asked.URL.Path)
@@ -82,6 +62,10 @@ func TestResources_AskTheRightEndpoint(t *testing.T) {
 		})
 	}
 }
+
+// errOf is the error of a call, without what it read: what was asked is
+// what the test looks at.
+func errOf[T any](_ T, err error) error { return err }
 
 func TestDeployments_Read(t *testing.T) {
 	r := require.New(t)
