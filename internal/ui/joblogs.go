@@ -99,23 +99,23 @@ func (m Model) stopLogs() Model {
 }
 
 // jobLogs reads the logs of the job under the cursor.
-func jobLogs(m Model) (Model, tea.Cmd) {
-	job, ok := selectedOf(m, screenJobs, m.jobs)
+func jobLogs(p jobsPage, e env) (jobsPage, outcome) {
+	job, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	return m.askLogScope(screen{kind: screenAllocations, namespace: job.Namespace, jobID: job.ID})
+	return p, then(jobLogsMsg(screen{kind: screenAllocations, namespace: job.Namespace, jobID: job.ID}))
 }
 
 // groupLogs reads the logs of the task group under the cursor.
-func groupLogs(m Model) (Model, tea.Cmd) {
-	group, ok := selectedOf(m, screenTaskGroups, m.groups)
+func groupLogs(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
+	group, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	return m.askLogScope(screen{kind: screenAllocations, namespace: m.screen.namespace, jobID: m.screen.jobID, taskGroup: group.Name})
+	return p, then(jobLogsMsg(screen{kind: screenAllocations, namespace: p.namespace, jobID: p.jobID, taskGroup: group.Name}))
 }
 
 // listLogs reads the logs of the allocations of the list on the screen.

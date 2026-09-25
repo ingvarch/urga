@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -65,4 +66,66 @@ func TestJobColor(t *testing.T) {
 
 	// A batch job that ended did its work, it is not a failure.
 	r.Equal(colorSpent, jobColor(nomad.Job{Type: "batch", Status: "dead"}))
+}
+
+func TestJobs_TheKeysOfAJob(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{jobs: twoJobs()})
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	keys := []hint{
+		{Key: "<enter>", Description: "Allocations"},
+		{Key: "<space>", Description: "Mark"},
+		{Key: "<ctrl-a>", Description: "Mark All"},
+		{Key: "<t>", Description: "Task Groups"},
+		{Key: "<d>", Description: "Describe"},
+		{Key: "<h>", Description: "Job Spec"},
+		{Key: "<ctrl-s>", Description: "Start/Stop"},
+		{Key: "<u>", Description: "Revert"},
+		{Key: "<v>", Description: "Versions"},
+		{Key: "<l>", Description: "Logs"},
+		{Key: "<e>", Description: "Edit"},
+	}
+	r.Equal(keys, m.hints())
+
+	// A job with an allocation that waits for a place has a why to ask.
+	m, _ = m.update(jobsMsg(waiting()))
+	r.Equal(append(keys, hint{Key: "<p>", Description: "Placement"}), m.hints())
+}
+
+func TestJobs_WhatIsMarkedIsWhatAnActionTakes(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{jobs: twoJobs()})
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	// web is marked, and the cursor moves on to cron.
+	m, _ = m.update(space())
+	m, _ = m.update(key('j'))
+
+	marked := markedRows(m)
+	r.Len(marked, 1)
+	r.Contains(marked[0], "web")
+
+	// The mark is on the job, whatever order the cluster answers in next.
+	m, _ = m.update(jobsMsg([]nomad.Job{twoJobs()[1], twoJobs()[0]}))
+
+	m, _ = m.update(ctrlKey('s'))
+	r.Contains(plain(m.render()), "Really stop the job web?")
+}
+
+func TestJobs_TheListOfTheRegionLeftIsNotShown(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+	r.Contains(plain(m.render()), "cron")
+
+	// prod does not answer: what dev said must not stand under its name.
+	clusters.prod.err = errors.New("connection refused")
+	m = typeCommand(m, "ctx prod")
+
+	out := plain(m.render())
+	r.Contains(out, "Jobs (payments) [0]")
+	r.NotContains(out, "cron")
 }

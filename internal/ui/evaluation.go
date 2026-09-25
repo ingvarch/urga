@@ -115,14 +115,14 @@ func describeEvaluation(client evaluationsClient, namespace, id string) tea.Cmd 
 
 // jobWaits and groupWaits say the row under the cursor has allocations that
 // wait for a place: there is a why to ask only then.
-func jobWaits(m Model) bool {
-	job, ok := selectedOf(m, screenJobs, m.jobs)
+func jobWaits(p jobsPage, e env) bool {
+	job, ok := p.picked(e)
 
 	return ok && job.Queued > 0
 }
 
-func groupWaits(m Model) bool {
-	group, ok := selectedOf(m, screenTaskGroups, m.groups)
+func groupWaits(p taskGroupsPage, e env) bool {
+	group, ok := p.picked(e)
 
 	return ok && group.Queued > 0
 }
@@ -130,21 +130,21 @@ func groupWaits(m Model) bool {
 // jobPlacement and groupPlacement say why what waits of the job is not
 // placed. A group has no evaluation of its own: the one of its job holds
 // every group.
-func jobPlacement(m Model) (Model, tea.Cmd) {
-	job, ok := selectedOf(m, screenJobs, m.jobs)
+func jobPlacement(p jobsPage, e env) (jobsPage, outcome) {
+	job, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	return m, placementOf(m.client, job.Namespace, job.ID)
+	return p, outcome{cmd: placementOf(e.client, job.Namespace, job.ID)}
 }
 
-func groupPlacement(m Model) (Model, tea.Cmd) {
-	if _, ok := selectedOf(m, screenTaskGroups, m.groups); !ok {
-		return m, nil
+func groupPlacement(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
+	if _, ok := p.picked(e); !ok {
+		return p, outcome{}
 	}
 
-	return m, placementOf(m.client, m.screen.namespace, m.screen.jobID)
+	return p, outcome{cmd: placementOf(e.client, p.namespace, p.jobID)}
 }
 
 // placementOf opens the newest evaluation of the job that failed to place

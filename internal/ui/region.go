@@ -156,7 +156,7 @@ func (m Model) narrow(datacenter string, show func(Model) (Model, tea.Cmd)) (Mod
 
 	// What is held is narrowed at once: until the cluster answers, and when
 	// it does not, nothing of another datacenter stands under the new name.
-	m.jobs, m.nodes = m.jobsInView(m.jobs), m.nodesInView(m.nodes)
+	m.nodes = m.nodesInView(m.nodes)
 
 	next, cmd := show(m)
 
@@ -176,7 +176,7 @@ func (m Model) listScreen() screen {
 		}
 	}
 
-	return screen{kind: screenJobs, namespace: m.namespace}
+	return m.screenOf(screenJobs)
 }
 
 // fresh is a list as it was opened, without what its page read of the
@@ -208,11 +208,14 @@ func (m Model) regionInUse() string {
 	return m.agentRegion
 }
 
-// The lists that have a datacenter are narrowed to it as they are stored:
-// every key that finds a row by its place then finds the one on the screen.
+// The lists that have a datacenter are narrowed to it, as they are stored or
+// as they are drawn: every key that finds a row by its place reads the same
+// list and finds the one on the screen.
 
-func (s regionState) jobsInView(jobs []nomad.Job) []nomad.Job {
-	return keep(jobs, func(job nomad.Job) bool { return job.RunsIn(s.datacenter) })
+// jobsIn are the jobs that may be placed in a datacenter, every one of them
+// for none.
+func jobsIn(datacenter string, jobs []nomad.Job) []nomad.Job {
+	return keep(jobs, func(job nomad.Job) bool { return job.RunsIn(datacenter) })
 }
 
 func (s regionState) nodesInView(nodes []nomad.Node) []nomad.Node {

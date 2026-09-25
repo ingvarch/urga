@@ -35,23 +35,6 @@ func (b binding) hint() hint {
 // The keys each screen answers. What works everywhere is not here, it lives
 // in help.
 var (
-	jobBindings = []binding{
-		{press: "enter", label: "Allocations", do: openJobAllocations},
-		{press: "space", label: "Mark", do: mark},
-		{press: "ctrl+a", label: "Mark All", do: markAll},
-		{press: "t", label: "Task Groups", do: openJobGroups},
-		{press: "d", label: "Describe", do: describeJob},
-		{press: "h", label: "Job Spec", do: showJobSpec},
-		{press: "ctrl+s", label: "Start/Stop", do: startStopJob, writes: true},
-		// The list of jobs reverts to the version before the one that runs;
-		// the list of versions reverts to the one under the cursor.
-		{press: "u", label: "Revert", do: revertJob, writes: true},
-		{press: "v", label: "Versions", do: openVersions},
-		{press: "l", label: "Logs", do: jobLogs},
-		{press: "e", label: "Edit", do: editJob, writes: true},
-		{press: "p", label: "Placement", do: jobPlacement, offered: jobWaits},
-	}
-
 	allocBindings = []binding{
 		{press: "enter", label: "Tasks", do: openAllocation},
 		{press: "d", label: "Describe", do: describeAllocation},
@@ -139,21 +122,9 @@ var resources map[screenKind]resource
 func init() {
 	resources = map[screenKind]resource{
 		screenJobs: {
-			name:    "Jobs",
 			stored:  "jobs",
 			aliases: []string{"jobs", "job", "jb"},
-			titles:  jobTitles,
-			keys:    jobBindings,
-			ids:     jobIDs,
-			topics:  []string{nomad.TopicJob},
-			fetch: func(m Model) tea.Cmd {
-				client, namespace := m.client, m.namespace
-
-				return fetchList(func(ctx context.Context) ([]nomad.Job, error) {
-					return client.Jobs(ctx, namespace)
-				}, func(items []nomad.Job) tea.Msg { return jobsMsg(items) })
-			},
-			rows: func(m Model) []tableRow { return jobRows(m.jobs) },
+			open:    func() page { return jobsPage{} },
 		},
 
 		screenAllocations: {
@@ -256,23 +227,6 @@ func init() {
 				return sprintf("Files (Allocation: %s, %s) [%d]", shortID(m.screen.allocID), m.screen.path, count)
 			},
 			rows: func(m Model) []tableRow { return fileRows(m.entries()) },
-		},
-
-		screenTaskGroups: {
-			titles: taskGroupTitles,
-			keys:   taskGroupBindings,
-
-			title: func(m Model, count int) string {
-				return sprintf("Task Groups (Job: %s) [%d]", m.screen.jobID, count)
-			},
-			fetch: func(m Model) tea.Cmd {
-				client, screen := m.client, m.screen
-
-				return fetchList(func(ctx context.Context) ([]nomad.TaskGroup, error) {
-					return client.TaskGroups(ctx, screen.namespace, screen.jobID)
-				}, func(items []nomad.TaskGroup) tea.Msg { return taskGroupsMsg(items) })
-			},
-			rows: func(m Model) []tableRow { return taskGroupRows(m.groups) },
 		},
 
 		screenDeployments: {
@@ -445,25 +399,6 @@ func init() {
 				return sprintf("Events (Task: %s) [%d]", m.screen.task, count)
 			},
 			rows: func(m Model) []tableRow { return taskEventRows(m.taskEvents()) },
-		},
-
-		screenJobVersions: {
-			titles: versionTitles,
-			keys:   versionBindings,
-
-			title: func(m Model, count int) string {
-				return sprintf("Versions (Job: %s) [%d]", m.screen.jobID, count)
-			},
-			fetch: func(m Model) tea.Cmd {
-				client, screen := m.client, m.screen
-
-				return fetchList(func(ctx context.Context) ([]nomad.JobVersion, error) {
-					return client.JobVersions(ctx, screen.namespace, screen.jobID)
-				}, func(items []nomad.JobVersion) tea.Msg {
-					return versionsMsg{jobID: screen.jobID, versions: items}
-				})
-			},
-			rows: func(m Model) []tableRow { return versionRows(m.versions) },
 		},
 
 		// The lists a region and a datacenter are picked from. The words that

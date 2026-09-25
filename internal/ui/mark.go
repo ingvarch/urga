@@ -10,18 +10,10 @@ import (
 // it is: a mark is a toggle, and taking one back must not need the cursor
 // walked back to it.
 func mark(m Model) (Model, tea.Cmd) {
-	ids := m.screen.of().ids
-	if ids == nil {
-		return m, nil
-	}
+	all := m.ids()
 
 	at, ok := m.selectedIndex()
-	if !ok {
-		return m, nil
-	}
-
-	all := ids(m)
-	if at >= len(all) {
+	if !ok || at >= len(all) {
 		return m, nil
 	}
 
@@ -34,15 +26,29 @@ func mark(m Model) (Model, tea.Cmd) {
 // markAll takes every row of the screen, or lets them all go when they are
 // already taken.
 func markAll(m Model) (Model, tea.Cmd) {
-	ids := m.screen.of().ids
+	ids := m.ids()
 	if ids == nil {
 		return m, nil
 	}
 
-	m.list = m.list.toggleAll(ids(m))
+	m.list = m.list.toggleAll(ids)
 	m.layout()
 
 	return m, nil
+}
+
+// ids name the rows of the open screen, nil for a screen whose rows take no
+// mark.
+func (m Model) ids() []string {
+	if p, ok := m.screen.page.(marking); ok {
+		return p.ids(m.env())
+	}
+
+	if res := m.screen.of(); res.ids != nil {
+		return res.ids(m)
+	}
+
+	return nil
 }
 
 // marked are the resources that carry a mark. A mark is on the resource, not
@@ -98,10 +104,6 @@ func jobMark(job nomad.Job) string { return job.Namespace + "/" + job.ID }
 func allocMark(alloc nomad.Alloc) string { return alloc.ID }
 
 func nodeMark(node nomad.Node) string { return node.ID }
-
-func jobIDs(m Model) []string {
-	return names(m.jobs, jobMark)
-}
 
 func nodeIDs(m Model) []string {
 	return names(m.nodes, nodeMark)

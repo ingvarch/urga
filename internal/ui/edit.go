@@ -69,13 +69,13 @@ func editorCommand() string {
 // The screens that can be edited each open what the cursor is on in the
 // editor of the user.
 
-func editJob(m Model) (Model, tea.Cmd) {
-	job, ok := selectedOf(m, screenJobs, m.jobs)
+func editJob(p jobsPage, e env) (jobsPage, outcome) {
+	job, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	return m, openEditor(jobFile(m.client, job))
+	return p, outcome{cmd: openEditor(jobFile(e.client, job))}
 }
 
 func editMeta(m Model) (Model, tea.Cmd) {

@@ -154,3 +154,43 @@ func TestVersions_TheFirstVersionIsNotAnError(t *testing.T) {
 	r.NotEqual(flashErr, m.flash.level)
 	r.Contains(plain(m.render()), "nothing before it")
 }
+
+func TestVersions_TheKeysOfAVersion(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onVersions(t)
+
+	r.Equal([]hint{{Key: "<enter>", Description: "Diff"}, {Key: "<u>", Description: "Revert"}}, m.hints())
+}
+
+func TestVersions_AreAskedWhereTheJobLives(t *testing.T) {
+	r := require.New(t)
+
+	jobs := []nomad.Job{{ID: "web", Name: "web", Namespace: "default", Type: "service", Status: "running"}}
+	client := &fakeClient{jobs: jobs, versions: threeVersions(), plan: nomad.Plan{To: 2, Version: 3}}
+
+	m := New(client, Options{Namespace: nomad.AllNamespaces, Version: "v-test", PollEvery: time.Millisecond})
+	m, _ = m.update(sizeMsg())
+	m, _ = m.update(jobsMsg(jobs))
+
+	m, cmd := m.update(key('v'))
+	m = drain(m, cmd)
+
+	r.Equal("default", client.askedNamespace)
+	r.Contains(plain(m.render()), "Versions (Job: web) [3]")
+
+	// What a version changed, and going back to it.
+	client.askedNamespace = ""
+
+	next, cmd := m.update(enter())
+	drain(next, cmd)
+	r.Equal("default", client.askedNamespace)
+
+	client.askedNamespace = ""
+
+	m, _ = m.update(key('j'))
+	next, cmd = m.update(key('u'))
+	drain(next, cmd)
+	r.Equal("default", client.askedNamespace)
+	r.Equal(uint64(2), *client.plannedTo)
+}

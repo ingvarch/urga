@@ -86,7 +86,7 @@ func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 	m.regionState, m.nomadVersion, m.token = regionState{}, "", nil
 
 	m.namespace, m.namespaceOrder = NamespaceOrAll(conn.Namespace), nil
-	m.screen, m.history = screen{kind: screenJobs, namespace: m.namespace}, nil
+	m.screen, m.history = m.screenOf(screenJobs), nil
 	m = m.restore()
 
 	next, cmd := m.arrive()

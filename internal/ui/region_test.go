@@ -70,8 +70,56 @@ func TestDatacenter_NarrowsTheJobs(t *testing.T) {
 	}))
 
 	// A job that may be placed in the datacenter stays, star or not.
-	r.Equal([]string{"web", "agent"}, idsOf(m.jobs, func(j nomad.Job) string { return j.ID }))
-	r.NotContains(plain(m.render()), "api")
+	out := plain(m.render())
+	r.Contains(out, "Jobs (production) [2]")
+	r.Contains(fileRow(t, m, 0), "web")
+	r.Contains(fileRow(t, m, 1), "agent")
+	r.NotContains(out, "api")
+}
+
+func TestDatacenter_TheKeysOfTheJobsFindTheOneOnTheScreen(t *testing.T) {
+	r := require.New(t)
+
+	jobs := []nomad.Job{
+		{ID: "web", Namespace: "production", Datacenters: []string{"dc1"}},
+		{ID: "api", Namespace: "production", Datacenters: []string{"dc2"}},
+	}
+	client := &fakeClient{jobs: jobs}
+	m := newTestModel(client)
+	m.datacenter = "dc2"
+	m, _ = m.update(jobsMsg(jobs))
+
+	// Every job on the screen is one of dc2, and so is every mark.
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(ctrlKey('s'))
+	r.Contains(plain(m.render()), "Really stop the job api?")
+
+	m, _ = m.update(escape())
+	m, cmd := m.update(enter())
+	drain(m, cmd)
+
+	r.Equal("api", client.askedJobID)
+}
+
+func TestDatacenter_AMarkIsOnTheJobOnTheScreen(t *testing.T) {
+	r := require.New(t)
+
+	jobs := []nomad.Job{
+		{ID: "web", Namespace: "production", Datacenters: []string{"dc1"}},
+		{ID: "api", Namespace: "production", Datacenters: []string{"dc2"}},
+		{ID: "db", Namespace: "production", Datacenters: []string{"dc2"}},
+	}
+	m := newTestModel(&fakeClient{jobs: jobs})
+	m.datacenter = "dc2"
+	m, _ = m.update(jobsMsg(jobs))
+
+	// api is marked, the cursor moves on to db: the mark is on api, not on
+	// a job left out of the screen.
+	m, _ = m.update(space())
+	m, _ = m.update(key('j'))
+	m, _ = m.update(ctrlKey('s'))
+
+	r.Contains(plain(m.render()), "Really stop the job api?")
 }
 
 func TestDatacenter_NarrowsTheClients(t *testing.T) {
@@ -420,7 +468,8 @@ func TestDatacenterCommand_NarrowsTheSession(t *testing.T) {
 	m = drain(m, cmd)
 
 	// The lists and the numbers of the header are about that datacenter.
-	r.Equal([]string{"api"}, idsOf(m.jobs, func(j nomad.Job) string { return j.ID }))
+	r.Contains(plain(m.render()), "Jobs (production) [1]")
+	r.Contains(fileRow(t, m, 0), "api")
 	r.Equal("dc2", client.usageDatacenter)
 
 	// And all of them again.
@@ -428,7 +477,7 @@ func TestDatacenterCommand_NarrowsTheSession(t *testing.T) {
 	m = drain(m, cmd)
 
 	r.Contains(headerOf(m), "DC:        all")
-	r.Len(m.jobs, 2)
+	r.Contains(plain(m.render()), "Jobs (production) [2]")
 }
 
 func TestDatacenterCommand_ADatacenterTheRegionDoesNotHave(t *testing.T) {
@@ -486,7 +535,8 @@ func TestDatacenters_EnterNarrowsTheScreenItCameFrom(t *testing.T) {
 
 	m = drain(m, cmd)
 
-	r.Equal([]string{"web"}, idsOf(m.jobs, func(j nomad.Job) string { return j.ID }))
+	r.Contains(plain(m.render()), "Jobs (production) [1]")
+	r.Contains(fileRow(t, m, 0), "web")
 	r.Equal("dc1", client.usageDatacenter)
 }
 
@@ -533,9 +583,8 @@ func TestRegionCommand_LetsGoOfWhatTheRegionItLeftSaid(t *testing.T) {
 
 	// The jobs of eu must not stand under the name of us, and keys on them
 	// would act in us.
-	r.Empty(m.jobs)
-
 	out := plain(m.render())
+	r.Contains(out, "Jobs (production) [0]")
 	r.NotContains(out, "cron")
 	r.Contains(out, "ACL token not found")
 }
@@ -546,8 +595,7 @@ func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
 	m := regionalModel(t, &fakeClient{})
 
 	// What the screens of eu held when they were left.
-	m.jobs, m.allocs, m.versions = twoJobs(), twoAllocs(), []nomad.JobVersion{{Version: 3}}
-	m.groups = []nomad.TaskGroup{{Name: "web", JobID: "web"}}
+	m.allocs = twoAllocs()
 	m.deployments = []nomad.Deployment{{ID: "d1"}}
 	m.nodes = []nomad.Node{{ID: "n1"}}
 	m.host = hostModel{node: nomad.Node{ID: "n1"}, trail: []nomad.ResourceUse{{CPUPercent: 40}}}
@@ -609,7 +657,10 @@ func TestDatacenterCommand_NarrowsWhatIsOnTheScreenAtOnce(t *testing.T) {
 
 	// Nothing of dc1 stands under the name of dc2, whether or not the
 	// cluster answers.
-	r.Equal([]string{"api"}, idsOf(m.jobs, func(j nomad.Job) string { return j.ID }))
+	out := plain(m.render())
+	r.Contains(out, "Jobs (production) [1]")
+	r.Contains(out, "api")
+	r.NotContains(out, "web")
 	r.Equal([]string{"n2"}, idsOf(m.nodes, func(n nomad.Node) string { return n.ID }))
 }
 
@@ -633,11 +684,12 @@ func TestRegionState_NarrowsToItsDatacenter(t *testing.T) {
 
 	r.Equal([]string{"all", "dc1", "dc2"}, s.datacenterChoices())
 
-	jobs := s.jobsInView([]nomad.Job{
+	jobs := jobsIn("dc2", []nomad.Job{
 		{ID: "web", Datacenters: []string{"dc1"}},
 		{ID: "api", Datacenters: []string{"dc2"}},
 	})
 	r.Equal([]string{"api"}, names(jobs, func(j nomad.Job) string { return j.ID }))
+	r.Len(jobsIn("", jobs), 1)
 
 	nodes := s.nodesInView([]nomad.Node{{ID: "n1", Datacenter: "dc1"}, {ID: "n2", Datacenter: "dc2"}})
 	r.Equal([]string{"n2"}, names(nodes, nodeMark))

@@ -23,17 +23,17 @@ type describeMsg struct {
 // The screens that can be described each ask for what the cursor is on, in
 // the words of the cluster. Nothing to describe answers with nothing.
 
-func describeJob(m Model) (Model, tea.Cmd) {
-	job, ok := selectedOf(m, screenJobs, m.jobs)
+func describeJob(p jobsPage, e env) (jobsPage, outcome) {
+	job, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	client := m.client
+	client := e.client
 
-	return m, describe(fmt.Sprintf("Job: %s", job.ID), func(ctx context.Context) (string, error) {
+	return p, outcome{cmd: describe(fmt.Sprintf("Job: %s", job.ID), func(ctx context.Context) (string, error) {
 		return client.DescribeJob(ctx, job.Namespace, job.ID)
-	})
+	})}
 }
 
 func describeAllocation(m Model) (Model, tea.Cmd) {
@@ -63,15 +63,15 @@ func describeDeployment(m Model) (Model, tea.Cmd) {
 }
 
 // showJobSpec asks for the file the job under the cursor was submitted with.
-func showJobSpec(m Model) (Model, tea.Cmd) {
-	job, ok := selectedOf(m, screenJobs, m.jobs)
+func showJobSpec(p jobsPage, e env) (jobsPage, outcome) {
+	job, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	client := m.client
+	client := e.client
 
-	return m, describe(fmt.Sprintf("Job spec: %s", job.ID), func(ctx context.Context) (string, error) {
+	return p, outcome{cmd: describe(fmt.Sprintf("Job spec: %s", job.ID), func(ctx context.Context) (string, error) {
 		spec, err := client.JobSpec(ctx, job.Namespace, job.ID)
 
 		// The cluster has no file to show. Saying so is the job of the
@@ -84,7 +84,7 @@ func showJobSpec(m Model) (Model, tea.Cmd) {
 		}
 
 		return spec.Source, err
-	})
+	})}
 }
 
 func describe(label string, load func(ctx context.Context) (string, error)) tea.Cmd {

@@ -14,23 +14,72 @@ import (
 // versionTitles are the columns of the versions of a job.
 var versionTitles = []string{"Version", "State", "Tag", "Changes", "Age"}
 
-var versionBindings = []binding{
+// versionsPage is what one job was before.
+type versionsPage struct {
+	namespace, jobID string
+
+	versions []nomad.JobVersion
+}
+
+func (p versionsPage) title(_ env, count int) string {
+	return sprintf("Versions (Job: %s) [%d]", p.jobID, count)
+}
+
+func (versionsPage) titles() []string { return versionTitles }
+func (versionsPage) topics() []string { return nil }
+
+// fetch reads the versions of the job the page is open on.
+func (p versionsPage) fetch(e env) tea.Cmd {
+	client, namespace, jobID := e.client, p.namespace, p.jobID
+
+	return fetchList(func(ctx context.Context) ([]nomad.JobVersion, error) {
+		return client.JobVersions(ctx, namespace, jobID)
+	}, func(items []nomad.JobVersion) tea.Msg {
+		return versionsMsg{jobID: jobID, versions: items}
+	})
+}
+
+// take keeps the versions of the job the page is open on.
+func (p versionsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	versions, ok := msg.(versionsMsg)
+	if !ok || versions.jobID != p.jobID {
+		return p, outcome{}, false
+	}
+
+	p.versions = versions.versions
+
+	return p, outcome{}, true
+}
+
+func (p versionsPage) rows(env) []tableRow { return versionRows(p.versions) }
+
+// picked is the version under the cursor.
+func (p versionsPage) picked(e env) (nomad.JobVersion, bool) { return pickedFrom(e, p.versions) }
+
+var versionKeys = []pageKey[versionsPage]{
 	{press: "enter", label: "Diff", do: openVersionDiff},
 	{press: "u", label: "Revert", do: revertToVersion, writes: true},
 }
 
-// openVersions opens what the job under the cursor was before.
-func openVersions(m Model) (Model, tea.Cmd) {
-	job, ok := selectedOf(m, screenJobs, m.jobs)
+func (p versionsPage) keys(e env) []keyHint { return hintsOf(p, e, versionKeys) }
+
+func (p versionsPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, versionKeys, k)
+}
+
+// openVersions opens what the job under the cursor was before, on a page
+// that holds nothing until this job is answered for.
+func openVersions(p jobsPage, e env) (jobsPage, outcome) {
+	job, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	// What was read of another job is let go of: the screen holds nothing
-	// until this one is answered for.
-	m.versions = nil
-
-	return m.push(screen{kind: screenJobVersions, namespace: job.Namespace, jobID: job.ID})
+	return p, then(openMsg(screen{
+		kind:      screenJobVersions,
+		namespace: job.Namespace,
+		page:      versionsPage{namespace: job.Namespace, jobID: job.ID},
+	}))
 }
 
 func versionRows(versions []nomad.JobVersion) []tableRow {
@@ -87,39 +136,39 @@ func changes(count int) string {
 }
 
 // openVersionDiff shows what the version under the cursor changed.
-func openVersionDiff(m Model) (Model, tea.Cmd) {
-	version, ok := selectedOf(m, screenJobVersions, m.versions)
+func openVersionDiff(p versionsPage, e env) (versionsPage, outcome) {
+	version, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	client, screen := m.client, m.screen
+	client, namespace, jobID := e.client, p.namespace, p.jobID
 
-	return m, describeLines(fmt.Sprintf("%s version %d", screen.jobID, version.Version),
+	return p, outcome{cmd: describeLines(fmt.Sprintf("%s version %d", jobID, version.Version),
 		func(ctx context.Context) ([]paintedLine, error) {
-			diff, err := client.JobVersionDiff(ctx, screen.namespace, screen.jobID, version.Version)
+			diff, err := client.JobVersionDiff(ctx, namespace, jobID, version.Version)
 
 			// The first version of a job changed nothing: there is nothing
 			// before it to compare it with.
 			if errors.Is(err, nomad.ErrNoDiff) {
 				return plainLines(fmt.Sprintf(
 					"Version %d of %s is the first one the cluster kept.\n\n"+
-						"There is nothing before it to compare it with.", version.Version, screen.jobID)), nil
+						"There is nothing before it to compare it with.", version.Version, jobID)), nil
 			}
 
 			return diffLines(diff), err
-		})
+		})}
 }
 
 // revertToVersion puts the version under the cursor back in place, after its
 // plan.
-func revertToVersion(m Model) (Model, tea.Cmd) {
-	version, ok := selectedOf(m, screenJobVersions, m.versions)
+func revertToVersion(p versionsPage, e env) (versionsPage, outcome) {
+	version, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
 	to := version.Version
 
-	return m, planFor(m.client, planState{revert: true, to: &to, namespace: m.screen.namespace, jobID: m.screen.jobID})
+	return p, outcome{cmd: planFor(e.client, planState{revert: true, to: &to, namespace: p.namespace, jobID: p.jobID})}
 }

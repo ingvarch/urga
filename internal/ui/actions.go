@@ -119,13 +119,13 @@ func act(said string, do func(ctx context.Context) error) tea.Cmd {
 }
 
 // startStopJob stops a job that runs, starts one that is dead.
-func startStopJob(m Model) (Model, tea.Cmd) {
-	jobs := marked(m, screenJobs, m.jobs)
+func startStopJob(p jobsPage, e env) (jobsPage, outcome) {
+	jobs := markedFrom(e, p.visible(e), jobMark)
 	if len(jobs) == 0 {
-		return m, nil
+		return p, outcome{}
 	}
 
-	client := m.client
+	client := e.client
 
 	// Each job is asked to do what it is not doing, so a question about
 	// several of them says what they have in common, or both things when
@@ -135,16 +135,16 @@ func startStopJob(m Model) (Model, tea.Cmd) {
 	verb := bothWays(jobs, dead, "start", "stop", "start or stop")
 	done := bothWays(jobs, dead, "Started", "Stopped", "Changed")
 
-	return m.ask(
-		fmt.Sprintf("Really %s %s?", verb, jobLabel(jobs)),
-		each(done, jobLabel(jobs), jobs, jobMark, func(ctx context.Context, job nomad.Job) error {
+	return p, then(askMsg{
+		question: fmt.Sprintf("Really %s %s?", verb, jobLabel(jobs)),
+		apply: each(done, jobLabel(jobs), jobs, jobMark, func(ctx context.Context, job nomad.Job) error {
 			if job.Status == statusDead {
 				return client.StartJob(ctx, job.Namespace, job.ID)
 			}
 
 			return client.StopJob(ctx, job.Namespace, job.ID)
 		}),
-	)
+	})
 }
 
 // jobLabel is what a question about jobs says.
@@ -154,13 +154,13 @@ func jobLabel(jobs []nomad.Job) string {
 
 // revertJob puts the version before the one that runs back in place, which
 // is submitting it again: it is planned first, like any submit.
-func revertJob(m Model) (Model, tea.Cmd) {
-	job, ok := selectedOf(m, screenJobs, m.jobs)
+func revertJob(p jobsPage, e env) (jobsPage, outcome) {
+	job, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	return m, planFor(m.client, planState{revert: true, namespace: job.Namespace, jobID: job.ID})
+	return p, outcome{cmd: planFor(e.client, planState{revert: true, namespace: job.Namespace, jobID: job.ID})}
 }
 
 // restartAllocation restarts every task of an allocation.
