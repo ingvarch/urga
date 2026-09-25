@@ -8,8 +8,6 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
-
-	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // overlay is what took the keyboard from the screen. The root model decides
@@ -49,7 +47,7 @@ type promptModel struct {
 
 	// group is the task group a count belongs to, as it was when the count
 	// was asked for; task is the task a signal is for.
-	group nomad.TaskGroup
+	group groupRef
 	task  taskRef
 
 	// suggest says whether the rest of a word is offered, which only the
@@ -345,7 +343,6 @@ func (m Model) commit() (Model, tea.Cmd) {
 		}
 
 		m.namespace = cmd.namespace
-		m.screen.namespace = cmd.namespace
 	}
 
 	return m.show(cmd.kind)

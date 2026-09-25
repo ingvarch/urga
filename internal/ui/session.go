@@ -32,7 +32,6 @@ func (m Model) restore() Model {
 
 	if cfg.Namespace != nil && !m.opts.NamespaceGiven {
 		m.namespace = *cfg.Namespace
-		m.screen.namespace = m.namespace
 	}
 
 	m.namespaceOrder = cfg.Namespaces

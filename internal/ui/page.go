@@ -261,7 +261,7 @@ type (
 // its own.
 type (
 	// scaleMsg asks for the count of a group, and then whether to set it.
-	scaleMsg nomad.TaskGroup
+	scaleMsg groupRef
 
 	// signalMsg asks which signal to send to a task, and then whether to.
 	signalMsg taskRef
@@ -387,6 +387,23 @@ type restarter interface {
 // thing: it follows the session to another namespace or datacenter.
 type follower interface {
 	followsSession() bool
+}
+
+// placed is a page of one thing that lives in a namespace of its own. Its
+// rows and what the cluster says about them are asked there, whatever the
+// session looks at, so the two agree.
+type placed interface {
+	where(e env) string
+}
+
+// namespaceOf is where what a page shows lives: the namespace of the page,
+// or the session's.
+func namespaceOf(p page, e env) string {
+	if pl, ok := p.(placed); ok {
+		return pl.where(e)
+	}
+
+	return e.namespace
 }
 
 // ofTheSession is a list the session opens by name, of what it looks at.

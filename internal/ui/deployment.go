@@ -218,9 +218,8 @@ type deploymentPage struct {
 // stream watches.
 func deploymentScreen(d nomad.Deployment) screen {
 	return screen{
-		kind:      screenDeployment,
-		namespace: d.Namespace,
-		page:      deploymentPage{namespace: d.Namespace, jobID: d.JobID, deploymentID: d.ID},
+		kind: screenDeployment,
+		page: deploymentPage{namespace: d.Namespace, jobID: d.JobID, deploymentID: d.ID},
 	}
 }
 
@@ -231,6 +230,8 @@ func (p deploymentPage) title(_ env, count int) string {
 func (deploymentPage) titles() []string { return deploymentAllocTitles }
 
 // topics: what it placed changes, and so does the deployment itself.
+func (p deploymentPage) where(env) string { return p.namespace }
+
 func (deploymentPage) topics() []string {
 	return []string{nomad.TopicAllocation, nomad.TopicDeployment}
 }

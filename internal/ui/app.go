@@ -325,7 +325,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return markAll(m)
 
 	case scaleMsg:
-		return m.askScale(nomad.TaskGroup(msg))
+		return m.askScale(groupRef(msg))
 
 	case signalMsg:
 		return m.askForSignal(taskRef(msg))

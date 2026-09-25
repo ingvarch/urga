@@ -70,9 +70,11 @@ func TestTasks_WatchAllocations(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), alloc: restarted(), changes: newChanges()}
 
 	m := openTasks(t, client)
+	m = elsewhere(m)
 	fire(t, m.watchScreen())
 
-	// A change to an allocation is a change to its tasks.
+	// A change to an allocation is a change to its tasks, in the namespace
+	// the allocation lives in.
 	r.Equal([]string{nomad.TopicAllocation}, client.watchedTopics)
 	r.Equal("production", client.watchedNamespace)
 }
@@ -92,6 +94,28 @@ func TestTaskEvents_ShowWhatHappensNext(t *testing.T) {
 	// happened after the screen was opened is on it.
 	r.Contains(plain(m.render()), "Task restarting in 15s")
 	r.Equal([]string{nomad.TopicAllocation}, m.screen.topics())
+}
+
+func TestTaskEvents_WatchTheAllocationWhereItLives(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), alloc: restarted(), changes: newChanges()}
+
+	m := openTasks(t, client)
+	m, _ = m.update(key('e'))
+	m = elsewhere(m)
+	fire(t, m.watchScreen())
+
+	r.Equal("production", client.watchedNamespace)
+}
+
+// elsewhere moves the session from production, where the jobs of the tests
+// live, to staging.
+func elsewhere(m Model) Model {
+	m.namespaceOrder = []string{"production", "staging"}
+	m, _ = m.update(key('2'))
+
+	return m
 }
 
 func TestTasks_AnswerForAnotherAllocationIsDropped(t *testing.T) {

@@ -76,9 +76,8 @@ func openVersions(p jobsPage, e env) (jobsPage, outcome) {
 	}
 
 	return p, then(openMsg(screen{
-		kind:      screenJobVersions,
-		namespace: job.Namespace,
-		page:      versionsPage{namespace: job.Namespace, jobID: job.ID},
+		kind: screenJobVersions,
+		page: versionsPage{namespace: job.Namespace, jobID: job.ID},
 	}))
 }
 

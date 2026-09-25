@@ -304,8 +304,6 @@ func TestWatch_TheStreamFollowsTheNamespaceTheRowsComeFrom(t *testing.T) {
 
 	// The jobs screen reads the namespace of the session, so the stream
 	// has to watch that one and not the one the screen was opened in.
-	r.Equal("staging", m.screen.namespace)
-
 	m.update(m.watchScreen()())
 	r.Equal("staging", client.watchedNamespace)
 }

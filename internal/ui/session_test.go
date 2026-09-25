@@ -97,7 +97,8 @@ func TestSession_ANamespaceGivenOnTheCommandLineWins(t *testing.T) {
 	cfg.UseNamespace("staging")
 	cfg.Screen = "nodes"
 
-	m := New(&fakeClient{}, Options{
+	client := &fakeClient{changes: newChanges()}
+	m := New(client, Options{
 		Namespace:      "production",
 		NamespaceGiven: true,
 		Version:        "v-test",
@@ -109,8 +110,10 @@ func TestSession_ANamespaceGivenOnTheCommandLineWins(t *testing.T) {
 	// Typing a namespace on the command line is asking for it now. The
 	// rest of the session still comes back.
 	r.Equal("production", m.namespace)
-	r.Equal("production", m.screen.namespace)
 	r.Equal(screenNodes, m.screen.kind)
+
+	fire(t, m.watchScreen())
+	r.Equal("production", client.watchedNamespace)
 }
 
 func TestSession_WithoutAConfig(t *testing.T) {

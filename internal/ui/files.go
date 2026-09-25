@@ -34,7 +34,7 @@ type filesPage struct {
 // filesScreen opens a directory of an allocation where the allocation
 // lives.
 func filesScreen(p filesPage) screen {
-	return screen{kind: screenFiles, namespace: p.namespace, page: p}
+	return screen{kind: screenFiles, page: p}
 }
 
 // browse opens the directory of the task under the cursor: what its
@@ -181,7 +181,7 @@ type filePage struct {
 
 // fileScreen opens a file where its allocation lives.
 func fileScreen(p filePage) screen {
-	return screen{kind: screenFile, namespace: p.namespace, page: p}
+	return screen{kind: screenFile, page: p}
 }
 
 // title says which file of which allocation it is, and when only its end
