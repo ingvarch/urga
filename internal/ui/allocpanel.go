@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -154,9 +155,7 @@ func fitPanel(head []string, block panelBlock, room int) []string {
 		return append(head[:room-1:room-1], "")
 	}
 
-	rows := append(head, blockRows(block, room-len(head)-1)...)
-
-	return append(rows, "")
+	return slices.Concat(head, blockRows(block, room-len(head)-1), []string{""})
 }
 
 // blockRows are the rows of a block in no more than room rows: a line apart
