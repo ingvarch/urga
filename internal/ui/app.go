@@ -224,7 +224,6 @@ type clusterData struct {
 	nodes       []nomad.Node
 	variables   []nomad.Variable
 	versions    []nomad.JobVersion
-	servers     []nomad.Server
 
 	// host is the machine a client screen is open on, and the readings
 	// taken of it since it was opened.
@@ -234,12 +233,6 @@ type clusterData struct {
 	// nodeMeta the metadata it carries.
 	nodeDetail nomad.NodeDetail
 	nodeMeta   []nomad.MetaEntry
-
-	// server is the one a server screen is open on, raft what the raft of
-	// the cluster makes of the servers.
-	server  nomad.Server
-	raft    []nomad.RaftPeer
-	raftErr error
 
 	// alloc is the allocation the tasks screen read. It need not be in the
 	// list it was opened from: the one it replaced may be on another client.
@@ -347,6 +340,12 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case backMsg:
 		return m.back()
 
+	case openMsg:
+		return m.push(screen(msg))
+
+	case sayMsg:
+		return m.say(string(msg)), nil
+
 	case switchRegionMsg:
 		return m.switchRegion(string(msg))
 
@@ -395,9 +394,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case variablesMsg:
 		return m.applyList(screenVariables, func(m *Model) { m.variables = msg })
-
-	case serversMsg:
-		return m.applyList(screenServers, func(m *Model) { m.servers = m.serversInView(msg) })
 
 	case agentMsg:
 		return m.keepAgent(msg), nil
@@ -525,15 +521,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case nodeMetaMsg:
 		return m.applyWhen(m.screen.kind == screenNodeMeta && m.screen.nodeID == msg.nodeID,
 			func(m *Model) { m.nodeMeta = msg.meta })
-
-	case serverMsg:
-		return m.applyList(screenServer, func(m *Model) { m.server = nomad.Server(msg) })
-
-	case raftMsg:
-		m.raft, m.raftErr = msg.peers, msg.err
-		m.layout()
-
-		return m, nil
 
 	case hostMsg:
 		return m.keepHost(msg), nil

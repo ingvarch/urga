@@ -249,9 +249,10 @@ func TestServer_AnAnswerAfterTheServerWasLeftIsDropped(t *testing.T) {
 
 	m, _ = m.update(escape())
 	m, _ = m.update(pollMsg{})
+	before := plain(m.render())
 
 	m, cmd := m.update(serverMsg(nomad.Server{Name: "server-09.global"}))
 
 	r.Nil(cmd)
-	r.Equal("server-02.global", m.server.Name)
+	r.Equal(before, plain(m.render()))
 }

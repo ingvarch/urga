@@ -156,12 +156,33 @@ type (
 	// backMsg goes back to the screen the page was opened from.
 	backMsg struct{}
 
+	// openMsg opens a screen on top of the page.
+	openMsg screen
+
+	// sayMsg puts what came of a key on the status line.
+	sayMsg string
+
 	// switchRegionMsg, narrowMsg and switchClusterMsg move the session to
 	// another region, datacenter (empty is every one) or cluster.
 	switchRegionMsg  string
 	narrowMsg        string
 	switchClusterMsg string
 )
+
+// copyKey copies the value of the field under the cursor, on a page that
+// reads as a list of fields. It goes over OSC52, so it works through ssh.
+func copyKey[P page]() pageKey[P] {
+	return pageKey[P]{press: "c", label: "Copy", do: func(p P, e env) (P, outcome) {
+		// The value is the second column on every page of fields; a page
+		// may carry more after it, like where the value came from.
+		row, ok := pickedFrom(e, p.rows(e))
+		if !ok || len(row.cells) < 2 {
+			return p, outcome{}
+		}
+
+		return p, outcome{now: []tea.Msg{sayMsg(sprintf("Copied %s.", row.cells[0]))}, cmd: tea.SetClipboard(row.cells[1])}
+	}}
+}
 
 // noKeys is a page without keys of its own.
 type noKeys struct{}
