@@ -44,18 +44,6 @@ func deploymentColor(d nomad.Deployment) color.Color {
 	return nil
 }
 
-var namespaceTitles = []string{"Name", "Quota", "Description"}
-
-func namespaceRows(namespaces []nomad.Namespace) []tableRow {
-	rows := make([]tableRow, 0, len(namespaces))
-
-	for _, n := range namespaces {
-		rows = append(rows, tableRow{cells: []string{n.Name, n.Quota, n.Description}})
-	}
-
-	return rows
-}
-
 var serviceTitles = []string{"Name", "Namespace", "Tags"}
 
 func serviceRows(services []nomad.Service) []tableRow {

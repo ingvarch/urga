@@ -82,15 +82,6 @@ func editMeta(m Model) (Model, tea.Cmd) {
 	return m, openEditor(metaFile(m.client, m.screen.nodeID, m.screen.label))
 }
 
-func editNamespace(m Model) (Model, tea.Cmd) {
-	namespace, ok := selectedOf(m, screenNamespaces, m.namespaces)
-	if !ok {
-		return m, nil
-	}
-
-	return m, openEditor(namespaceFile(m.client, namespace.Name))
-}
-
 // file is what the editor is given: the name to save it under and what is in
 // it, and how what comes back goes to the cluster. How it goes back is decided
 // when it is read: a job goes back with the values its variables had.
