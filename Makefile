@@ -19,12 +19,21 @@ fmt:
 vet:
 	go vet ./...
 
+# The version CI lints with: another one finds other things. A test keeps
+# the two the same.
+GOLANGCI_LINT_VERSION := 2.13.2
+
 lint:
-	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run ./...; \
-	else \
-		echo "golangci-lint not installed, skipping"; \
+	@command -v golangci-lint >/dev/null 2>&1 || { \
+		echo "golangci-lint is not installed: CI lints with v$(GOLANGCI_LINT_VERSION)"; \
+		exit 1; \
+	}
+	@installed=$$(golangci-lint version --short); \
+	if [ "$$installed" != "$(GOLANGCI_LINT_VERSION)" ]; then \
+		echo "golangci-lint $$installed is installed: CI lints with v$(GOLANGCI_LINT_VERSION)"; \
+		exit 1; \
 	fi
+	golangci-lint run ./...
 
 test:
 	go test ./...
