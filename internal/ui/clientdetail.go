@@ -93,6 +93,7 @@ func nodeEventRows(events []nomad.NodeEvent) []tableRow {
 	for _, event := range events {
 		rows = append(rows, tableRow{
 			cells: []string{ageOf(event.Time), event.Subsystem, event.Message},
+			ages:  moments{0: event.Time},
 			color: eventColor(event),
 		})
 	}
@@ -121,6 +122,7 @@ func driverRows(drivers []nomad.Driver) []tableRow {
 				ageOf(driver.Updated),
 				driver.Description,
 			},
+			ages:  moments{3: driver.Updated},
 			color: driverColor(driver),
 		})
 	}

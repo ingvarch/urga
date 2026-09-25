@@ -1,10 +1,14 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // sortTable orders the rows of a table the way the model does: one sort, one
@@ -55,18 +59,105 @@ func TestSort_ShowsWhichColumn(t *testing.T) {
 	r.Contains(lines(tbl.view())[0], "ID ↓")
 }
 
+// agedRow is a row whose second cell says how long ago it was, the way the
+// screens build one.
+func agedRow(id string, ago time.Duration) tableRow {
+	moment := time.Now().Add(-ago)
+
+	return tableRow{cells: []string{id, ageOf(moment)}, ages: moments{1: moment}}
+}
+
 func TestSort_AgeGoesByTime(t *testing.T) {
 	r := require.New(t)
 
 	tbl := newTableModel([]string{"ID", "Age"})
 	tbl.setSize(60, 5)
-	tbl.show([]tableRow{row("a", "5h"), row("b", "2d"), row("c", "45s"), row("d", "10m")}, newSortState())
+	tbl.show([]tableRow{
+		agedRow("a", 5*time.Hour), agedRow("b", 48*time.Hour), agedRow("c", 45*time.Second), agedRow("d", 10*time.Minute),
+	}, newSortState())
 
 	sortTable(&tbl, 1)
 
 	// The youngest first: seconds, minutes, hours, days. Read as text, "2d"
 	// would come before "5h".
 	r.Equal([]string{"45s", "10m", "5h", "2d"}, cellsOf(tbl, 1))
+}
+
+// Every list that shows how long ago something was orders that column by
+// time, whatever the column is called.
+func TestSort_EveryAgeColumnGoesByTime(t *testing.T) {
+	newer, older := time.Now().Add(-30*time.Minute), time.Now().Add(-time.Hour)
+
+	lists := []struct {
+		name   string
+		titles []string
+		column string
+		rows   func(at time.Time) []tableRow
+	}{
+		{"jobs", jobTitles, "Age", func(at time.Time) []tableRow {
+			return jobRows([]nomad.Job{{SubmitTime: at}})
+		}},
+		{"allocations", allocTitles, "Age", func(at time.Time) []tableRow {
+			return allocRows([]nomad.Alloc{{Created: at}}, nil)
+		}},
+		{"allocations of a deployment", deploymentAllocTitles, "Age", func(at time.Time) []tableRow {
+			return deploymentAllocRows([]nomad.Alloc{{Created: at}}, nil)
+		}},
+		{"tasks", taskTitles, "Started", func(at time.Time) []tableRow {
+			return taskRows([]nomad.Task{{Started: at}})
+		}},
+		{"task events", taskEventTitles, "Age", func(at time.Time) []tableRow {
+			return taskEventRows([]nomad.TaskEvent{{Time: at}})
+		}},
+		{"client events", nodeEventTitles, "Age", func(at time.Time) []tableRow {
+			return nodeEventRows([]nomad.NodeEvent{{Time: at}})
+		}},
+		{"drivers", driverTitles, "Updated", func(at time.Time) []tableRow {
+			return driverRows([]nomad.Driver{{Updated: at}})
+		}},
+		{"files", fileTitles, "Modified", func(at time.Time) []tableRow {
+			return fileRows([]nomad.File{{Name: "stdout", Modified: at}})
+		}},
+		{"evaluations", evaluationTitles, "Age", func(at time.Time) []tableRow {
+			return evaluationRows([]nomad.Evaluation{{Created: at}})
+		}},
+		{"variables by age", variableTitles, "Age", func(at time.Time) []tableRow {
+			return variableRows([]nomad.Variable{{Created: at}})
+		}},
+		{"variables by change", variableTitles, "Modified", func(at time.Time) []tableRow {
+			return variableRows([]nomad.Variable{{Modified: at}})
+		}},
+		{"versions", versionTitles, "Age", func(at time.Time) []tableRow {
+			return versionRows([]nomad.JobVersion{{Submitted: at}})
+		}},
+	}
+
+	for _, list := range lists {
+		t.Run(list.name, func(t *testing.T) {
+			column := slices.Index(list.titles, list.column)
+			require.GreaterOrEqual(t, column, 0)
+
+			tbl := newTableModel(list.titles)
+			tbl.show(append(list.rows(newer), list.rows(older)...), newSortState())
+
+			sortTable(&tbl, column)
+
+			// Read as text, "1h" comes before "30m" and is older.
+			require.Equal(t, []string{"30m", "1h"}, cellsOf(tbl, column))
+		})
+	}
+}
+
+// What has not happened yet reads "-" and goes first, with the youngest.
+func TestSort_AnAgeThatIsNotThereCountsAsNew(t *testing.T) {
+	r := require.New(t)
+
+	tbl := newTableModel(taskTitles)
+	tbl.show(taskRows([]nomad.Task{{Name: "web", Started: time.Now().Add(-time.Hour)}, {Name: "sidecar"}}), newSortState())
+
+	sortTable(&tbl, slices.Index(taskTitles, "Started"))
+
+	r.Equal([]string{"-", "1h"}, cellsOf(tbl, slices.Index(taskTitles, "Started")))
 }
 
 func TestSort_NumbersGoByValue(t *testing.T) {

@@ -118,6 +118,24 @@ func TestClient_ADriverOpensItsOwnDetails(t *testing.T) {
 	r.Equal("27.1.1", clipboardOf(cmd))
 }
 
+func TestClient_DriversGoByWhenTheyWereUpdated(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onAClient(t)
+	client.nodeDetail.Drivers = []nomad.Driver{
+		{Name: "exec", Updated: time.Now().Add(-30 * time.Minute)},
+		{Name: "docker", Updated: time.Now().Add(-time.Hour)},
+	}
+
+	m, cmd := m.update(ctrlKey('d'))
+	m = drain(m, cmd)
+
+	m, _ = m.update(key('U'))
+
+	// Read as text, "1h" comes before "30m" and is older.
+	r.Equal([]string{"30m", "1h"}, cellsOf(m.table, 3))
+}
+
 func TestClient_ShowsWhatItLendsOut(t *testing.T) {
 	r := require.New(t)
 

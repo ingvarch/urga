@@ -33,6 +33,7 @@ func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []table
 				memoryCell(use, known),
 				ageOf(alloc.Created),
 			},
+			ages:  moments{9: alloc.Created},
 			color: allocColor(alloc),
 		})
 	}
@@ -74,6 +75,7 @@ func taskRows(tasks []nomad.Task) []tableRow {
 				fmt.Sprintf("%d", task.Restarts),
 				ageOf(task.Started),
 			},
+			ages:  moments{4: task.Started},
 			color: taskColor(task),
 		})
 	}
@@ -101,7 +103,7 @@ func taskEventRows(events []nomad.TaskEvent) []tableRow {
 	rows := make([]tableRow, 0, len(events))
 
 	for _, event := range events {
-		row := tableRow{cells: []string{ageOf(event.Time), event.Type, event.Message}}
+		row := tableRow{cells: []string{ageOf(event.Time), event.Type, event.Message}, ages: moments{0: event.Time}}
 		if event.Failed {
 			row.color = colorDead
 		}

@@ -84,6 +84,7 @@ func evaluationRows(evals []nomad.Evaluation) []tableRow {
 				e.Status,
 				ageOf(e.Created),
 			},
+			ages:  moments{6: e.Created},
 			color: evaluationColor(e),
 		})
 	}
@@ -193,6 +194,7 @@ func variableRows(variables []nomad.Variable) []tableRow {
 	for _, v := range variables {
 		rows = append(rows, tableRow{
 			cells: []string{v.Path, v.Namespace, lockOf(v), ageOf(v.Created), ageOf(v.Modified)},
+			ages:  moments{3: v.Created, 4: v.Modified},
 		})
 	}
 

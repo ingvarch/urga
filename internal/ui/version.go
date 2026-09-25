@@ -45,6 +45,7 @@ func versionRows(versions []nomad.JobVersion) []tableRow {
 				changes(version.Changes),
 				ageOf(version.Submitted),
 			},
+			ages:  moments{4: version.Submitted},
 			color: versionColor(version),
 		})
 	}

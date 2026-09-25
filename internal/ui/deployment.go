@@ -301,6 +301,7 @@ func deploymentAllocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUs
 				memoryCell(use, known),
 				ageOf(alloc.Created),
 			},
+			ages:  moments{8: alloc.Created},
 			color: allocColor(alloc),
 		})
 	}
