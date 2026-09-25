@@ -354,7 +354,7 @@ func (h hostModel) last() (nomad.ResourceUse, bool) {
 func shares(trail []nomad.ResourceUse, of func(nomad.ResourceUse) int) []float64 {
 	out := make([]float64, 0, len(trail))
 	for _, use := range trail {
-		out = append(out, float64(clamp(of(use), 0, 100))/100)
+		out = append(out, float64(max(0, min(of(use), 100)))/100)
 	}
 
 	return out

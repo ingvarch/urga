@@ -56,7 +56,7 @@ func placeBelow(near, height, screen int) int {
 		top = near - height
 	}
 
-	return clamp(top, first, last)
+	return max(first, min(top, last))
 }
 
 // spliceLine puts a piece of one line inside another, keeping both sides of

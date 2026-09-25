@@ -232,7 +232,7 @@ func (t *textModel) setSize(width, height int) {
 }
 
 func (t *textModel) move(delta int) {
-	t.top = clamp(t.top+delta, 0, max(t.length()-t.height, 0))
+	t.top = max(0, min(t.top+delta, t.length()-t.height))
 }
 
 // length is how many rows the window moves over: wrapped lines take more
