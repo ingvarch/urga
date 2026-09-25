@@ -364,7 +364,7 @@ func openInstanceAlloc(p serviceInstancesPage, e env) (serviceInstancesPage, out
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{kind: screenTasks, namespace: instance.Namespace, jobID: instance.JobID, allocID: instance.AllocID}))
+	return p, then(openMsg(tasksScreen(tasksPage{namespace: instance.Namespace, jobID: instance.JobID, allocID: instance.AllocID})))
 }
 
 // deleteRegistration takes a registration that outlived its allocation out

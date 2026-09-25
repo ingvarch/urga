@@ -284,7 +284,7 @@ func TestFilter_CursorFollowsTheFilteredRow(t *testing.T) {
 
 	// The allocations of the job that was filtered to, not of the first row
 	// of the unfiltered list.
-	r.Equal("cron", m.screen.jobID)
+	r.Contains(plain(m.render()), "Allocations (Job: cron)")
 }
 
 func TestHelp_OpensAndCloses(t *testing.T) {

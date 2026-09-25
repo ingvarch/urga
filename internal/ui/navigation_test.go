@@ -54,7 +54,7 @@ func TestNavigation_EnterOpensTheAllocationsOfAJob(t *testing.T) {
 
 	m, cmd := m.update(enter())
 	r.Equal(screenAllocations, m.screen.kind)
-	r.Equal("web", m.screen.jobID)
+	r.Contains(plain(m.render()), "Allocations (Job: web)")
 
 	// The allocations are asked for in the namespace of that job, not in the
 	// one the session happens to look at.
@@ -323,4 +323,88 @@ func TestAllocations_TheCommandLineOpensThoseOfTheNamespaceFromAClientOrADeploym
 		r.Equal(screenAllocations, m.screen.kind, name)
 		r.Contains(plain(m.render()), "Allocations (production)", name)
 	}
+}
+
+func TestAllocations_OfTheNamespaceFollowTheSession(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{allocs: twoAllocs(), namespaces: twoNamespaces()}
+
+	m := newTestModel(client)
+	m, _ = m.update(namespacesMsg(twoNamespaces()))
+	m, cmd := runLine(m, "allocations")
+	m = drain(m, cmd)
+
+	// Opened by name, they are those of the namespace the session looks at,
+	// of no job.
+	r.Equal("production", client.askedNamespace)
+	r.Empty(client.askedJobID)
+
+	// A switch of namespace takes them along.
+	m, cmd = m.update(key('2'))
+	m = drain(m, cmd)
+
+	r.Equal("staging", client.askedNamespace)
+	r.Contains(plain(m.render()), "Allocations (staging) [2]")
+}
+
+func TestAllocations_OfAGroupReadTheLogsOfThatGroup(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs:        twoJobs(),
+		groups:      twoGroups(),
+		allocs:      webAllocs("server"),
+		logsByAlloc: map[string]*nomad.LogStream{newer: writing(), older: writing(), backend: writing()},
+	}
+
+	m := openTaskGroups(t, client)
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	// The group has one task, so its logs open without a question: the
+	// backend of the same job is not asked about.
+	m, cmd = m.update(key('l'))
+	m = playOut(m, cmd)
+
+	r.Equal(screenJobLogs, m.screen.kind)
+	r.Equal([]string{newer, older}, client.logsOpened)
+}
+
+func TestAllocations_AnAnswerAfterLeavingIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{jobs: twoJobs(), allocs: twoAllocs()})
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(enter())
+	m, _ = m.update(escape())
+
+	// The allocations answer on the jobs they were asked from.
+	m, _ = m.update(allocsMsg(twoAllocs()))
+
+	out := plain(m.render())
+	r.Contains(out, "Jobs (production) [2]")
+	r.NotContains(out, "frontend")
+}
+
+func TestAllocations_AreAskedWhereTheJobLives(t *testing.T) {
+	r := require.New(t)
+
+	jobs := twoJobs()
+	jobs[0].Namespace = "default"
+
+	client := &fakeClient{jobs: jobs, allocs: twoAllocs(), changes: newChanges()}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(jobs))
+	m, cmd := m.update(enter())
+	drain(m, cmd)
+
+	// The session looks at production, the job lives in default: its
+	// allocations are asked for and watched there.
+	r.Equal("default", client.askedNamespace)
+	r.Equal("web", client.askedJobID)
+
+	m.update(m.watchScreen()())
+	r.Equal("default", client.watchedNamespace)
 }

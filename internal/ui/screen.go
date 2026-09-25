@@ -4,8 +4,6 @@ import (
 	"context"
 
 	tea "charm.land/bubbletea/v2"
-
-	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // screenKind is the resource the body shows.
@@ -101,10 +99,10 @@ type place struct {
 	sort   sortState
 }
 
-// listsAllocs says the screen is a list of allocations, which answers the
-// keys of an allocation whatever it was opened for.
+// listsAllocs says the screen is a list of allocations that is not a page
+// yet, which answers the keys of an allocation whatever it was opened for.
 func (s screen) listsAllocs() bool {
-	return s.kind == screenAllocations || s.kind == screenNode || s.kind == screenDeployment
+	return s.kind == screenNode || s.kind == screenDeployment
 }
 
 // titles are the columns of a screen.
@@ -183,7 +181,8 @@ func (m Model) took(next page, out outcome) (Model, tea.Cmd) {
 	m, poll := m.applyWhen(true, func(m *Model) { m.screen.page = next })
 	m, cmd := m.apply(out)
 
-	return m, tea.Batch(poll, cmd)
+	// Rows that show what they take are read once they are filled.
+	return usageOnce(m, tea.Batch(poll, cmd))
 }
 
 // apply takes what a page asked for: its messages at once, in order, and its
@@ -508,7 +507,6 @@ func (m Model) enter() (Model, tea.Cmd) {
 	// So were the readings, and their chain ends with that ask.
 	m.usage = m.usage.forgetRows()
 	m.host.due = false
-	m.checks.due = false
 
 	if p, ok := m.screen.page.(restarter); ok {
 		m.screen.page = p.restart()
@@ -540,38 +538,6 @@ func (m Model) stackText(next screen, text textModel) Model {
 	m.layout()
 
 	return m
-}
-
-// visibleAllocs are the allocations the screen was opened for: all of a job,
-// or only those of one task group.
-func (m Model) visibleAllocs() []nomad.Alloc {
-	if m.screen.taskGroup == "" {
-		return m.allocs
-	}
-
-	kept := make([]nomad.Alloc, 0, len(m.allocs))
-	for _, alloc := range m.allocs {
-		if alloc.TaskGroup == m.screen.taskGroup {
-			kept = append(kept, alloc)
-		}
-	}
-
-	return kept
-}
-
-// tasks are the tasks of the allocation the tasks screen was opened for.
-func (m Model) tasks() []nomad.Task {
-	if alloc, ok := m.shownAlloc(); ok {
-		return alloc.Tasks
-	}
-
-	for _, alloc := range m.allocs {
-		if alloc.ID == m.screen.allocID {
-			return alloc.Tasks
-		}
-	}
-
-	return nil
 }
 
 // shortID keeps a UUID readable in a title.

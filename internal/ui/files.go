@@ -32,13 +32,19 @@ var fileBindings = []binding{{press: "enter", label: "Open", do: openEntry}}
 
 // browse opens the directory of the task under the cursor: what its
 // templates rendered is in local/ there.
-func browse(m Model) (Model, tea.Cmd) {
-	task, ok := selectedOf(m, screenTasks, m.tasks())
+func browse(p tasksPage, e env) (tasksPage, outcome) {
+	task, ok := p.picked(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	return m.openDir(path.Join("/", task.Name))
+	return p, then(openMsg(screen{
+		kind:      screenFiles,
+		namespace: p.namespace,
+		jobID:     p.jobID,
+		allocID:   p.allocID,
+		path:      path.Join("/", task.Name),
+	}))
 }
 
 // openDir lists a directory of the same allocation, on top of what is open:

@@ -86,7 +86,7 @@ func marked[T any](m Model, kind screenKind, items []T) []T {
 
 // allocIDs name the allocations of the screen.
 func allocIDs(m Model) []string {
-	return names(m.visibleAllocs(), allocMark)
+	return names(m.allocs, allocMark)
 }
 
 // allocLabel is what a question about allocations says: the one under the

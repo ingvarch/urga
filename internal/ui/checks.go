@@ -27,81 +27,61 @@ type (
 	pollChecksMsg struct{}
 )
 
-// checkState is what the checks of the allocation on the tasks screen last
-// said.
-type checkState struct {
-	allocID string
-	list    []nomad.Check
-
-	// due says the next reading or its timer is on its way. The allocation
-	// is read again on every change the cluster reports, and none of those
-	// may start a second chain of readings next to the first.
-	due bool
-}
-
 // checksOnce takes the first reading of the checks when the allocation of a
 // tasks screen is read, and only then: the timer keeps them coming after
 // that.
-func checksOnce(m Model, read tea.Cmd) (Model, tea.Cmd) {
-	if m.screen.kind != screenTasks || m.checks.due || !m.runs() {
-		return m, read
+func (p tasksPage) checksOnce(e env) (page, outcome, bool) {
+	if p.due || !p.runs() {
+		return p, outcome{}, true
 	}
 
-	m.checks.due = true
+	p.due = true
 
-	return m, tea.Batch(read, m.readChecks())
+	return p, outcome{cmd: p.readChecks(e)}, true
 }
 
 // runs says the allocation on the screen runs: only then are its checks run.
-func (m Model) runs() bool {
-	alloc, ok := m.shownAlloc()
-
-	return ok && alloc.Status == statusRunning
+func (p tasksPage) runs() bool {
+	return p.read && p.alloc.Status == statusRunning
 }
 
-// readChecks reads the checks of the allocation on the screen. Like the
-// screen, it belongs to the ask it was made for.
-func (m Model) readChecks() tea.Cmd {
-	client, namespace, allocID := m.client, m.alloc.Namespace, m.alloc.ID
+// readChecks reads the checks of the allocation on the screen.
+func (p tasksPage) readChecks(e env) tea.Cmd {
+	client, namespace, allocID := e.client, p.alloc.Namespace, p.alloc.ID
 
-	return askedFor(m.asked, func() tea.Msg {
+	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
 		checks, err := client.AllocationChecks(ctx, namespace, allocID)
 
 		return checksMsg{allocID: allocID, checks: checks, err: err}
-	})
+	}
 }
 
 // pollChecks reads the checks again when their timer goes off, while the
 // allocation still runs.
-func (m Model) pollChecks() (Model, tea.Cmd) {
-	if m.screen.kind != screenTasks || !m.runs() {
-		m.checks.due = false
+func (p tasksPage) pollChecks(e env) (page, outcome, bool) {
+	if !p.runs() {
+		p.due = false
 
-		return m, nil
+		return p, outcome{reading: true}, true
 	}
 
-	return m, m.readChecks()
+	return p, outcome{cmd: p.readChecks(e), reading: true}, true
 }
 
 // keepChecks puts what the checks said on the panel, and sets the timer for
-// the next reading. A client that did not answer says so and is asked again.
-func (m Model) keepChecks(msg checksMsg) (Model, tea.Cmd) {
-	if m.screen.kind != screenTasks || msg.allocID != m.screen.allocID {
-		return m, nil
-	}
-
-	next := askedFor(m.asked, tea.Tick(checksEvery, func(time.Time) tea.Msg { return pollChecksMsg{} }))
+// the next reading. A client that did not answer says so and is asked again;
+// one that did takes what went wrong before off the status line.
+func (p tasksPage) keepChecks(msg checksMsg) (page, outcome, bool) {
+	next := tea.Tick(checksEvery, func(time.Time) tea.Msg { return pollChecksMsg{} })
 
 	if msg.err != nil {
-		return m.fail(msg.err), next
+		return p, outcome{now: []tea.Msg{failMsg{err: msg.err}}, cmd: next, reading: true}, true
 	}
 
-	m = m.forget()
-	m.checks.allocID, m.checks.list = msg.allocID, msg.checks
-	m.layout()
+	p.checks = msg.checks
 
-	return m, next
+	return p, outcome{now: []tea.Msg{forgetMsg{}}, cmd: next, reading: true}, true
 }

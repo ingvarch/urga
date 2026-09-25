@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"context"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -51,6 +53,12 @@ type env struct {
 	// names its rows with.
 	marks map[string]bool
 
+	// index are the rows the filter and the order leave on the screen, by
+	// their place among the rows the page built. usage is what the resource
+	// of each row takes, by its id, as far as it was read.
+	index []int
+	usage map[string]nomad.ResourceUse
+
 	// Where the session looks and what it can switch to: the region in use
 	// and the others, the datacenter the lists are narrowed to (empty is
 	// every one) and the choices, the cluster and those of the settings.
@@ -74,6 +82,8 @@ func (m Model) env() env {
 		row:         row,
 		onRow:       onRow,
 		marks:       m.list.marks,
+		index:       m.list.index,
+		usage:       m.usage.rows,
 		region:      m.regionInUse(),
 		regions:     m.regions,
 		datacenter:  m.datacenter,
@@ -216,6 +226,11 @@ type (
 	// markAllMsg every row on the screen.
 	markMsg    struct{}
 	markAllMsg struct{}
+
+	// failMsg puts what went wrong on the status line; forgetMsg takes an
+	// error off it, once what went wrong is over.
+	failMsg   struct{ err error }
+	forgetMsg struct{}
 )
 
 // What a page asks of the session that the session still does with code of
@@ -227,6 +242,18 @@ type (
 
 	// scaleMsg asks for the count of a group, and then whether to set it.
 	scaleMsg nomad.TaskGroup
+
+	// signalMsg asks which signal to send to a task, and then whether to.
+	signalMsg taskRef
+
+	// shellMsg opens a shell in a task, with the terminal handed over.
+	shellMsg shellCommand
+
+	// logsMsg follows what a task writes: the screen of its log.
+	logsMsg screen
+
+	// openNodeMsg opens the screen of a client.
+	openNodeMsg nomad.Node
 )
 
 // copyKey copies the value of the field under the cursor, on a page that
@@ -264,6 +291,13 @@ func markAllKey[P page]() pageKey[P] {
 // not to the line it sits on.
 type marking interface {
 	ids(e env) []string
+}
+
+// measured is a page whose rows show what their resources take: readings
+// are the resources of the rows on the screen, and reading reads one.
+type measured interface {
+	readings(e env) []rowRef
+	reading(ctx context.Context, client Client, ref rowRef) (nomad.ResourceUse, error)
 }
 
 // panelled is a page with something to say above its rows, in no more than

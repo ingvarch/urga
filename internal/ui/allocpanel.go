@@ -5,67 +5,60 @@ import (
 	"slices"
 	"strings"
 
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// shownAlloc is the allocation the tasks screen read, once it has.
-func (m Model) shownAlloc() (nomad.Alloc, bool) {
-	return m.alloc, m.alloc.ID != "" && m.alloc.ID == m.screen.allocID
-}
-
-// tasksPanel is the panel of the allocation the tasks screen read, as much
-// of it as leaves the tasks their rows. Until it has read one, there is none.
-func (m Model) tasksPanel(width int) []string {
-	alloc, ok := m.shownAlloc()
-	if !ok {
+// panel is the panel of the allocation the page read, as much of it as
+// leaves the tasks their rows. Until it has read one, there is none.
+func (p tasksPage) panel(_ env, width, room int) []string {
+	if !p.read {
 		return nil
 	}
 
 	// Only what runs has checks worth reading.
 	var checks []nomad.Check
-	if m.checks.allocID == alloc.ID && alloc.Status == statusRunning {
-		checks = m.checks.list
+	if p.alloc.Status == statusRunning {
+		checks = p.checks
 	}
 
-	return allocPanel(alloc, checks, width, m.rowsForPanel())
+	return allocPanel(p.alloc, checks, width, room)
 }
 
 // allocHas offers a key when the allocation on the screen has somewhere for
 // it to go.
-func allocHas(where func(nomad.Alloc) string) func(m Model) bool {
-	return func(m Model) bool {
-		alloc, ok := m.shownAlloc()
-
-		return ok && where(alloc) != ""
+func allocHas(where func(nomad.Alloc) string) func(p tasksPage, e env) bool {
+	return func(p tasksPage, _ env) bool {
+		return p.read && where(p.alloc) != ""
 	}
 }
 
 // openAllocNode opens the client the allocation runs on.
-func openAllocNode(m Model) (Model, tea.Cmd) {
-	alloc := m.alloc
-
-	return m.openNode(nomad.Node{ID: alloc.NodeID, Name: alloc.NodeName})
+func openAllocNode(p tasksPage, _ env) (tasksPage, outcome) {
+	return p, then(openNodeMsg(nomad.Node{ID: p.alloc.NodeID, Name: p.alloc.NodeName}))
 }
 
 // openReplaced and openReplacement open the tasks of the allocation this one
 // replaced, and of the one that replaced it. Escape comes back here.
-func openReplaced(m Model) (Model, tea.Cmd) { return m.openAllocTasks(m.alloc.Previous) }
+func openReplaced(p tasksPage, _ env) (tasksPage, outcome) {
+	return p, p.openAllocTasks(p.alloc.Previous)
+}
 
-func openReplacement(m Model) (Model, tea.Cmd) { return m.openAllocTasks(m.alloc.Next) }
+func openReplacement(p tasksPage, _ env) (tasksPage, outcome) {
+	return p, p.openAllocTasks(p.alloc.Next)
+}
 
-func (m Model) openAllocTasks(allocID string) (Model, tea.Cmd) {
-	alloc := m.alloc
-
-	return m.push(screen{kind: screenTasks, namespace: alloc.Namespace, jobID: alloc.JobID, allocID: allocID})
+// openAllocTasks opens the tasks of another allocation of the same job. It
+// is not in the list the tasks were opened from: they show once it is read.
+func (p tasksPage) openAllocTasks(allocID string) outcome {
+	return then(openMsg(tasksScreen(tasksPage{namespace: p.alloc.Namespace, jobID: p.alloc.JobID, allocID: allocID})))
 }
 
 // openFollowUp reads the evaluation that will place the allocation again.
-func openFollowUp(m Model) (Model, tea.Cmd) {
-	return m, describeEvaluation(m.client, m.alloc.Namespace, m.alloc.FollowUp)
+func openFollowUp(p tasksPage, e env) (tasksPage, outcome) {
+	return p, outcome{cmd: describeEvaluation(e.client, p.alloc.Namespace, p.alloc.FollowUp)}
 }
 
 // field is a label and its value on a line of a panel.

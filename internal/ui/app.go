@@ -228,12 +228,6 @@ type clusterData struct {
 	nodeDetail nomad.NodeDetail
 	nodeMeta   []nomad.MetaEntry
 
-	// alloc is the allocation the tasks screen read. It need not be in the
-	// list it was opened from: the one it replaced may be on another client.
-	// checks are what its checks last said.
-	alloc  nomad.Alloc
-	checks checkState
-
 	// dir is the directory of an allocation the files screen last listed.
 	dir dirState
 
@@ -347,6 +341,24 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case scaleMsg:
 		return m.askScale(nomad.TaskGroup(msg))
 
+	case signalMsg:
+		return m.askForSignal(taskRef(msg))
+
+	case shellMsg:
+		return m.openShell(shellCommand(msg))
+
+	case logsMsg:
+		return m.followLog(screen(msg))
+
+	case openNodeMsg:
+		return m.openNode(nomad.Node(msg))
+
+	case failMsg:
+		return m.fail(msg.err), nil
+
+	case forgetMsg:
+		return m.forget(), nil
+
 	case switchRegionMsg:
 		return m.switchRegion(string(msg))
 
@@ -361,9 +373,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case allocsMsg:
 		return hostOnce(usageOnce(m.applyWhen(m.screen.listsAllocs(), func(m *Model) { m.allocs = msg })))
-
-	case allocMsg:
-		return m.keepAllocation(nomad.Alloc(msg))
 
 	case deploymentsMsg:
 		return m.applyList(screenDeployments, func(m *Model) { m.deployments = msg })
@@ -513,9 +522,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case pollHostMsg:
 		return m.pollHost()
 
-	case checksMsg:
-		return m.keepChecks(msg)
-
 	case deploymentMsg:
 		return m.keepDeployment(msg)
 
@@ -530,9 +536,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case filesMsg:
 		return m.applyList(screenFiles, func(m *Model) { m.dir = dirState(msg) })
-
-	case pollChecksMsg:
-		return m.pollChecks()
 
 	case watchingMsg:
 		var cmd tea.Cmd

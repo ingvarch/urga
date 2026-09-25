@@ -151,5 +151,9 @@ func openJobAllocations(p jobsPage, e env) (jobsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{kind: screenAllocations, namespace: job.Namespace, jobID: job.ID}))
+	return p, then(openMsg(screen{
+		kind:      screenAllocations,
+		namespace: job.Namespace,
+		page:      allocationsPage{namespace: job.Namespace, jobID: job.ID},
+	}))
 }

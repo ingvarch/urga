@@ -91,7 +91,7 @@ func TestTaskEvents_ShowWhatHappensNext(t *testing.T) {
 	// The events of a task are read again like any list: the one that
 	// happened after the screen was opened is on it.
 	r.Contains(plain(m.render()), "Task restarting in 15s")
-	r.Equal([]string{nomad.TopicAllocation}, m.screen.of().topics)
+	r.Equal([]string{nomad.TopicAllocation}, m.screen.topics())
 }
 
 func TestTasks_AnswerForAnotherAllocationIsDropped(t *testing.T) {
@@ -105,4 +105,53 @@ func TestTasks_AnswerForAnotherAllocationIsDropped(t *testing.T) {
 
 	// What belongs to another allocation does not change this one.
 	r.NotContains(taskLine(t, m, "server"), "7")
+}
+
+func TestTasks_TheKeysOfATask(t *testing.T) {
+	r := require.New(t)
+
+	// The list holds where the allocation runs and what it replaced.
+	allocs := []nomad.Alloc{replacedCanary(), twoAllocs()[1]}
+	client := &fakeClient{jobs: twoJobs(), allocs: allocs}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(enter())
+	m, _ = m.update(allocsMsg(allocs))
+	m, _ = m.update(enter())
+
+	keys := []hint{
+		{Key: "<enter>", Description: "Logs"},
+		{Key: "<e>", Description: "Events"},
+		{Key: "<ctrl-e>", Description: "Stderr"},
+		{Key: "<s>", Description: "Shell"},
+		{Key: "<r>", Description: "Restart"},
+		{Key: "<x>", Description: "Signal"},
+		{Key: "<b>", Description: "Browse"},
+	}
+	r.Equal(keys, m.hints())
+
+	// Where the allocation runs, what it replaced, what replaced it and
+	// what places it again are offered once it is read.
+	client.alloc = replacedCanary()
+	m = drain(m, m.fetch())
+
+	r.Equal(append(keys,
+		hint{Key: "<c>", Description: "Client"},
+		hint{Key: "<p>", Description: "Previous"},
+		hint{Key: "<n>", Description: "Next"},
+		hint{Key: "<f>", Description: "Follow-up"},
+	), m.hints())
+}
+
+func TestTasks_ThePanelWaitsForTheAllocationToBeRead(t *testing.T) {
+	r := require.New(t)
+
+	m := openTasks(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()})
+
+	// The tasks are those the list held; what the allocation is to its job
+	// is not known until it is read.
+	out := plain(m.render())
+	r.Contains(out, "sidecar")
+	r.NotContains(out, "Status running")
 }

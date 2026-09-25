@@ -168,7 +168,6 @@ func openGroupAllocations(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
 	return p, then(openMsg(screen{
 		kind:      screenAllocations,
 		namespace: p.namespace,
-		jobID:     group.JobID,
-		taskGroup: group.Name,
+		page:      allocationsPage{namespace: p.namespace, jobID: group.JobID, group: group.Name},
 	}))
 }

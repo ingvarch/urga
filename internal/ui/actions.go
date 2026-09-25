@@ -163,44 +163,60 @@ func revertJob(p jobsPage, e env) (jobsPage, outcome) {
 	return p, outcome{cmd: planFor(e.client, planState{revert: true, namespace: job.Namespace, jobID: job.ID})}
 }
 
-// restartAllocation restarts every task of an allocation.
-func restartAllocation(m Model) (Model, tea.Cmd) {
-	client := m.client
+// allocAction is what a key does to each allocation it takes, and how the
+// question and the report name it.
+type allocAction struct {
+	verb, done string
+	do         func(context.Context, nomad.Alloc) error
+}
 
-	return m.askEachAlloc("restart", "Restarted", func(ctx context.Context, alloc nomad.Alloc) error {
+// restarting restarts every task of an allocation.
+func restarting(client allocsClient) allocAction {
+	return allocAction{verb: "restart", done: "Restarted", do: func(ctx context.Context, alloc nomad.Alloc) error {
 		return client.RestartAllocation(ctx, alloc.Namespace, alloc.ID)
-	})
+	}}
 }
 
-// stopAllocation stops an allocation. The scheduler places a new one when the
-// job still asks for it.
-func stopAllocation(m Model) (Model, tea.Cmd) {
-	client := m.client
-
-	return m.askEachAlloc("stop", "Stopped", func(ctx context.Context, alloc nomad.Alloc) error {
+// stopping stops an allocation. The scheduler places a new one when the job
+// still asks for it.
+func stopping(client allocsClient) allocAction {
+	return allocAction{verb: "stop", done: "Stopped", do: func(ctx context.Context, alloc nomad.Alloc) error {
 		return client.StopAllocation(ctx, alloc.Namespace, alloc.ID)
-	})
+	}}
 }
 
-// askEachAlloc asks about the allocations an action is to take, and then
-// takes each of them on its own: one that will not answer must not stop the
-// rest, and a screenful of them must not share one timeout.
-func (m Model) askEachAlloc(verb, done string, do func(context.Context, nomad.Alloc) error) (Model, tea.Cmd) {
+// asked asks about the allocations an action is to take, and then takes each
+// of them on its own: one that will not answer must not stop the rest, and a
+// screenful of them must not share one timeout.
+func (a allocAction) asked(allocs []nomad.Alloc) askMsg {
+	label := allocLabel(allocs)
+
+	return askMsg{
+		question: fmt.Sprintf("Really %s %s?", a.verb, label),
+		apply:    each(a.done, label, allocs, allocMark, a.do),
+	}
+}
+
+// restartAllocation and stopAllocation are the keys of a list of
+// allocations that is not a page yet.
+func restartAllocation(m Model) (Model, tea.Cmd) { return m.askEachAlloc(restarting(m.client)) }
+
+func stopAllocation(m Model) (Model, tea.Cmd) { return m.askEachAlloc(stopping(m.client)) }
+
+// askEachAlloc asks about the allocations of a screen that is not a page yet.
+func (m Model) askEachAlloc(action allocAction) (Model, tea.Cmd) {
 	if !m.screen.listsAllocs() {
 		return m, nil
 	}
 
-	allocs := marked(m, m.screen.kind, m.visibleAllocs())
+	allocs := marked(m, m.screen.kind, m.allocs)
 	if len(allocs) == 0 {
 		return m, nil
 	}
 
-	label := allocLabel(allocs)
+	asked := action.asked(allocs)
 
-	return m.ask(
-		fmt.Sprintf("Really %s %s?", verb, label),
-		each(done, label, allocs, allocMark, do),
-	)
+	return m.ask(asked.question, asked.apply)
 }
 
 // each runs the action against every resource on its own: one that will not

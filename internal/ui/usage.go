@@ -117,20 +117,33 @@ type rowRef struct {
 	id        string
 }
 
+// readRow reads what the resource of one row takes.
+type readRow func(ctx context.Context, client Client, ref rowRef) (nomad.ResourceUse, error)
+
+// readings are the resources of the rows on the screen, and how one of them
+// is read. A screen without readings has neither.
+func (m Model) readings() ([]rowRef, readRow) {
+	if p, ok := m.screen.page.(measured); ok {
+		return p.readings(m.env()), p.reading
+	}
+
+	res := m.screen.of()
+	if res.readings == nil || res.reading == nil {
+		return nil, nil
+	}
+
+	return res.readings(m), res.reading
+}
+
 // fetchUsage reads what the rows on the screen take. Rows nobody is looking
 // at are not asked about, and a screen with no readings asks nothing.
 func (m Model) fetchUsage() tea.Cmd {
-	res := m.screen.of()
-	if res.readings == nil || res.reading == nil {
-		return nil
-	}
-
-	refs := res.readings(m)
+	refs, read := m.readings()
 	if len(refs) == 0 {
 		return nil
 	}
 
-	client, read := m.client, res.reading
+	client := m.client
 
 	return askedFor(m.asked, func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
