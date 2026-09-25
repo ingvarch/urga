@@ -318,7 +318,6 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 	watched := map[screenKind][]string{
 		screenJobs:        {nomad.TopicJob},
 		screenAllocations: {nomad.TopicAllocation},
-		screenNode:        {nomad.TopicAllocation},
 		screenDeployments: {nomad.TopicDeployment},
 		screenEvaluations: {nomad.TopicEvaluation},
 		screenNodes:       {nomad.TopicNode},

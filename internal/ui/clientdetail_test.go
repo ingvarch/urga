@@ -222,13 +222,14 @@ func TestClient_EditsTheMetadata(t *testing.T) {
 	m := onMeta(t, client, editor)
 
 	m, cmd := m.update(key('e'))
-	follow(m, cmd, 5)
+	m = follow(m, cmd, 5)
 
 	// What the API can set is what the editor was given, and what comes
 	// back goes to the machine.
 	r.NotEmpty(editor.opened)
 	r.Equal(`{"owner": "ingvar"}`, client.metaSubmitted)
-	r.Equal("node-1", client.askedNodeID)
+	r.Equal("node-1", client.metaNodeID)
+	r.Contains(plain(m.render()), "Metadata of nomad-server-01 submitted.")
 }
 
 func TestClient_TheMetadataOfAnotherMachineIsNotShownHere(t *testing.T) {
@@ -292,4 +293,175 @@ func TestClient_WhatAnotherMachineSaysIsNotShownHere(t *testing.T) {
 
 	r.Nil(cmd)
 	r.NotContains(plain(m.render()), "arm64")
+}
+
+// machineScreens are the screens of a client, each by the key that opens it.
+var machineScreens = []struct {
+	name   string
+	press  tea.KeyPressMsg
+	titles []string
+	keys   []string
+}{
+	{"events", key('e'), []string{"Age", "Subsystem", "Message"}, []string{}},
+	{"drivers", ctrlKey('d'), []string{"Driver", "Detected", "Healthy", "Updated", "Description"}, []string{"enter Details"}},
+	{"volumes", ctrlKey('h'), []string{"Name", "Path", "Read only"}, []string{}},
+	{"attributes", key('a'), []string{"Field", "Value"}, []string{"c Copy"}},
+	{"meta", key('m'), []string{"Field", "Value", "Set by"}, []string{"c Copy", "e Edit"}},
+}
+
+func TestClient_EachOfItsScreensHasItsColumnsAndKeys(t *testing.T) {
+	r := require.New(t)
+
+	for _, s := range machineScreens {
+		m, _ := pressed(t, s.press)
+
+		r.Equal(s.titles, m.screen.titles(), s.name)
+		r.Equal(s.keys, keyNames(m), s.name)
+
+		// The cluster says nothing of a machine on its stream: the screens
+		// of one are asked on a timer.
+		r.Empty(m.screen.topics(), s.name)
+	}
+
+	m, _ := pressed(t, ctrlKey('d'))
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	r.Contains(plain(m.render()), "Driver docker [1]")
+	r.Equal([]string{"Field", "Value"}, m.screen.titles())
+	r.Equal([]string{"c Copy"}, keyNames(m))
+	r.Empty(m.screen.topics())
+}
+
+func TestClient_WhatAnotherMachineSaysIsNotShownOnAnyOfItsScreens(t *testing.T) {
+	r := require.New(t)
+
+	other := nomad.NodeDetail{
+		ID:         "node-9",
+		Events:     []nomad.NodeEvent{{Subsystem: "Cluster", Message: "elsewhere"}},
+		Drivers:    []nomad.Driver{{Name: "docker", Description: "elsewhere", Attributes: map[string]string{"driver.docker.version": "elsewhere"}}},
+		Volumes:    []nomad.HostVolume{{Name: "elsewhere", Path: "/elsewhere"}},
+		Attributes: map[string]string{"cpu.arch": "elsewhere"},
+	}
+
+	for _, s := range machineScreens[:4] {
+		m, _ := pressed(t, s.press)
+
+		m, _ = m.update(nodeDetailMsg(other))
+		r.NotContains(plain(m.render()), "elsewhere", s.name)
+	}
+
+	m, _ := pressed(t, ctrlKey('d'))
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	m, _ = m.update(nodeDetailMsg(other))
+	r.NotContains(plain(m.render()), "elsewhere", "driver")
+}
+
+func TestClient_EachOfItsScreensKeepsUpWithTheMachine(t *testing.T) {
+	r := require.New(t)
+
+	later := clientDetail()
+	later.Events = append(later.Events, nomad.NodeEvent{Subsystem: "Cluster", Message: "later"})
+	later.Drivers[0].Description = "later"
+	later.Drivers[0].Attributes["driver.docker.version"] = "later"
+	later.Volumes = append(later.Volumes, nomad.HostVolume{Name: "later", Path: "/later"})
+	later.Attributes["later"] = "later"
+
+	for _, s := range machineScreens[:4] {
+		m, _ := pressed(t, s.press)
+
+		m, _ = m.update(nodeDetailMsg(later))
+		r.Contains(plain(m.render()), "later", s.name)
+	}
+
+	m, _ := pressed(t, ctrlKey('d'))
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	m, _ = m.update(nodeDetailMsg(later))
+	r.Contains(plain(m.render()), "later", "driver")
+
+	// The metadata is read on its own, from the machine itself.
+	m, client := pressed(t, key('m'))
+	r.Equal("node-1", client.askedNodeID)
+
+	m, _ = m.update(nodeMetaMsg{nodeID: "node-1", meta: []nomad.MetaEntry{{Key: "rack", Value: "later"}}})
+	r.Contains(plain(m.render()), "later")
+}
+
+func TestClient_ADriverShowsWhatItSaysBeforeItIsAskedAgain(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := pressed(t, ctrlKey('d'))
+
+	// What the list of drivers read is what the driver shows until the
+	// machine answers again.
+	m, _ = m.update(enter())
+
+	r.Contains(plain(m.render()), "27.1.1")
+}
+
+func TestClient_WhatReadsAsWrong(t *testing.T) {
+	r := require.New(t)
+
+	// An event the machine marks as failed.
+	events := nodeEventRows([]nomad.NodeEvent{{Details: map[string]string{"failed": "true"}}, {}})
+	r.Equal(colorDead, events[0].color)
+	r.Nil(events[1].color)
+
+	// A driver that works, one found and broken, and one never found.
+	drivers := driverRows([]nomad.Driver{{Detected: true, Healthy: true}, {Detected: true}, {}})
+	r.Nil(drivers[0].color)
+	r.Equal(colorDead, drivers[1].color)
+	r.Equal(colorSpent, drivers[2].color)
+
+	// What the agent set is muted: it cannot be changed from here.
+	meta := metaRows(clientMeta())
+	r.Nil(meta[0].color)
+	r.Equal(colorMuted, meta[1].color)
+}
+
+func TestClient_AScreenOfAnotherClientStartsEmpty(t *testing.T) {
+	r := require.New(t)
+
+	nodes := append(busyClient(), nomad.Node{ID: "node-2", Name: "nomad-client-02", Status: "ready", Eligibility: "eligible"})
+	client := &fakeClient{nodes: nodes, nodeAllocs: clientAllocs(), nodeDetail: clientDetail()}
+
+	m, _ := nodeModelOf(client)
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	m, cmd = m.update(key('a'))
+	m = drain(m, cmd)
+	r.Contains(plain(m.render()), "amd64")
+
+	// Back to the list, and the attributes of the next client.
+	m, _ = m.update(escape())
+	m, _ = m.update(escape())
+	m, _ = m.update(down())
+
+	m, cmd = m.update(enter())
+	m = drain(m, cmd)
+
+	m, _ = m.update(key('a'))
+
+	// Until that machine answers, it has said nothing: what the first one
+	// said is not its.
+	out := plain(m.render())
+	r.Contains(out, "Attributes (Client: nomad-client-02) [0]")
+	r.NotContains(out, "amd64")
+}
+
+func TestClient_TheDriverUnderTheCursorIsTheOneThatOpens(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := pressed(t, ctrlKey('d'))
+	m, _ = m.update(down())
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	r.Contains(plain(m.render()), "Driver exec [0]")
 }

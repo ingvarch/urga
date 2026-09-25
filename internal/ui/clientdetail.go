@@ -19,72 +19,250 @@ var (
 	metaTitles      = []string{"Field", "Value", "Set by"}
 )
 
-// The keys each of those screens answers.
-var (
-	// clientBindings are the keys of the machine, and after them the keys
-	// of the allocations on it, which answer here as on any other list of
-	// allocations.
-	clientBindings = append([]binding{
-		{press: "e", label: "Events", do: nodeScreen(screenNodeEvents)},
-		// Draining is a key of the list of clients; on the screen of one
-		// client the same key opens what it can run.
-		{press: "ctrl+d", label: "Drivers", do: nodeScreen(screenNodeDrivers)},
-		{press: "ctrl+h", label: "Host Volumes", do: nodeScreen(screenNodeVolumes)},
-		{press: "a", label: "Attributes", do: nodeScreen(screenNodeAttributes)},
-		{press: "m", label: "Meta", do: nodeScreen(screenNodeMeta)},
-	}, allocBindings...)
-
-	driverBindings = []binding{{press: "enter", label: "Details", do: openDriver}}
-
-	metaBindings = []binding{
-		{press: "c", label: "Copy", do: copyField},
-		{press: "e", label: "Edit", do: editMeta, writes: true},
-	}
-)
-
-// nodeScreen is a key that opens one of the screens of the client.
-func nodeScreen(kind screenKind) func(Model) (Model, tea.Cmd) {
-	return func(m Model) (Model, tea.Cmd) { return openNodeScreen(m, kind) }
+// machine is the client a screen of it was opened for, and what the machine
+// last said about itself: the screens of a client are different readings of
+// one answer.
+type machine struct {
+	nodeID, name string
+	detail       nomad.NodeDetail
 }
 
-// openNodeScreen opens one of the screens of the client the cursor came
-// from. They all read the same answer from the machine.
-func openNodeScreen(m Model, kind screenKind) (Model, tea.Cmd) {
-	if m.screen.kind != screenNode {
-		return m, nil
-	}
+// topics: the cluster says nothing of a machine on its stream, so a screen
+// of one is asked on a timer.
+func (machine) topics() []string { return nil }
 
-	return m.push(screen{kind: kind, nodeID: m.screen.nodeID, label: m.screen.label})
-}
-
-// openDriver opens what one driver says about itself.
-func openDriver(m Model) (Model, tea.Cmd) {
-	driver, ok := selectedOf(m, screenNodeDrivers, m.nodeDetail.Drivers)
-	if !ok {
-		return m, nil
-	}
-
-	return m.push(screen{kind: screenNodeDriver, nodeID: m.screen.nodeID, label: driver.Name})
-}
-
-// fetchNodeDetail asks the machine for everything it says about itself: the
-// screens of a client are different readings of one answer.
-func fetchNodeDetail(m Model) tea.Cmd {
-	client, nodeID := m.client, m.screen.nodeID
+// fetch asks the machine for everything it says about itself.
+func (d machine) fetch(e env) tea.Cmd {
+	client, nodeID := e.client, d.nodeID
 
 	return request(func(ctx context.Context) (nomad.NodeDetail, error) {
 		return client.NodeDetail(ctx, nodeID)
 	}, func(detail nomad.NodeDetail) tea.Msg { return nodeDetailMsg(detail) })
 }
 
-// fetchNodeMeta asks the machine itself, which is the only place that knows
-// which keys came from the API.
-func fetchNodeMeta(m Model) tea.Cmd {
-	client, nodeID := m.client, m.screen.nodeID
+// took keeps what the machine said. The answer belongs to the machine it was
+// asked of: leaving one client for another must not show the first one under
+// the second.
+func (d machine) took(msg tea.Msg) (machine, bool) {
+	detail, ok := msg.(nodeDetailMsg)
+	if !ok || detail.ID != d.nodeID {
+		return d, false
+	}
+
+	d.detail = nomad.NodeDetail(detail)
+
+	return d, true
+}
+
+// nodeScreen is a key that opens one of the screens of the client, on the
+// machine before it has said anything.
+func nodeScreen(kind screenKind, open func(machine) page) func(clientPage, env) (clientPage, outcome) {
+	return func(p clientPage, _ env) (clientPage, outcome) {
+		return p, then(openMsg(screen{kind: kind, page: open(machine{nodeID: p.nodeID, name: p.name})}))
+	}
+}
+
+// nodeEventsPage is what happened to the machine.
+type nodeEventsPage struct {
+	noKeys
+	machine
+}
+
+func (p nodeEventsPage) title(_ env, count int) string {
+	return sprintf("Events (Client: %s) [%d]", p.name, count)
+}
+
+func (nodeEventsPage) titles() []string { return nodeEventTitles }
+
+func (p nodeEventsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	var ok bool
+	p.machine, ok = p.took(msg)
+
+	return p, outcome{}, ok
+}
+
+func (p nodeEventsPage) rows(env) []tableRow { return nodeEventRows(p.detail.Events) }
+
+// nodeDriversPage is what the machine can run.
+type nodeDriversPage struct {
+	machine
+}
+
+func (p nodeDriversPage) title(_ env, count int) string {
+	return sprintf("Drivers (Client: %s) [%d]", p.name, count)
+}
+
+func (nodeDriversPage) titles() []string { return driverTitles }
+
+func (p nodeDriversPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	var ok bool
+	p.machine, ok = p.took(msg)
+
+	return p, outcome{}, ok
+}
+
+func (p nodeDriversPage) rows(env) []tableRow { return driverRows(p.detail.Drivers) }
+
+var nodeDriversKeys = []pageKey[nodeDriversPage]{{press: "enter", label: "Details", do: openDriver}}
+
+func (p nodeDriversPage) keys(e env) []keyHint { return hintsOf(p, e, nodeDriversKeys) }
+
+func (p nodeDriversPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, nodeDriversKeys, k)
+}
+
+// openDriver opens what one driver says about itself. It shows what the
+// drivers were read with until the machine answers again.
+func openDriver(p nodeDriversPage, e env) (nodeDriversPage, outcome) {
+	driver, ok := pickedFrom(e, p.detail.Drivers)
+	if !ok {
+		return p, outcome{}
+	}
+
+	return p, then(openMsg(screen{kind: screenNodeDriver, page: nodeDriverPage{machine: p.machine, driver: driver.Name}}))
+}
+
+// nodeDriverPage is what one driver of the machine says about itself.
+type nodeDriverPage struct {
+	machine
+	driver string
+}
+
+func (p nodeDriverPage) title(_ env, count int) string {
+	return sprintf("Driver %s [%d]", p.driver, count)
+}
+
+func (nodeDriverPage) titles() []string { return fieldTitles }
+
+func (p nodeDriverPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	var ok bool
+	p.machine, ok = p.took(msg)
+
+	return p, outcome{}, ok
+}
+
+func (p nodeDriverPage) rows(env) []tableRow { return fieldRows(p.attributes()) }
+
+// attributes are what the driver of the page says about itself.
+func (p nodeDriverPage) attributes() map[string]string {
+	for _, driver := range p.detail.Drivers {
+		if driver.Name == p.driver {
+			return driver.Attributes
+		}
+	}
+
+	return nil
+}
+
+// What a driver says about itself is worth copying, like any field.
+var nodeDriverKeys = []pageKey[nodeDriverPage]{copyKey[nodeDriverPage]()}
+
+func (p nodeDriverPage) keys(e env) []keyHint { return hintsOf(p, e, nodeDriverKeys) }
+
+func (p nodeDriverPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, nodeDriverKeys, k)
+}
+
+// nodeVolumesPage is what the machine lends out to the work on it.
+type nodeVolumesPage struct {
+	noKeys
+	machine
+}
+
+func (p nodeVolumesPage) title(_ env, count int) string {
+	return sprintf("Host volumes (Client: %s) [%d]", p.name, count)
+}
+
+func (nodeVolumesPage) titles() []string { return volumeTitles }
+
+func (p nodeVolumesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	var ok bool
+	p.machine, ok = p.took(msg)
+
+	return p, outcome{}, ok
+}
+
+func (p nodeVolumesPage) rows(env) []tableRow { return volumeRows(p.detail.Volumes) }
+
+// nodeAttributesPage is how the machine is built.
+type nodeAttributesPage struct {
+	machine
+}
+
+func (p nodeAttributesPage) title(_ env, count int) string {
+	return sprintf("Attributes (Client: %s) [%d]", p.name, count)
+}
+
+func (nodeAttributesPage) titles() []string { return fieldTitles }
+
+func (p nodeAttributesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	var ok bool
+	p.machine, ok = p.took(msg)
+
+	return p, outcome{}, ok
+}
+
+func (p nodeAttributesPage) rows(env) []tableRow { return fieldRows(p.detail.Attributes) }
+
+// An attribute is the sort of thing that goes into a constraint, so it
+// copies like a field.
+var nodeAttributesKeys = []pageKey[nodeAttributesPage]{copyKey[nodeAttributesPage]()}
+
+func (p nodeAttributesPage) keys(e env) []keyHint { return hintsOf(p, e, nodeAttributesKeys) }
+
+func (p nodeAttributesPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, nodeAttributesKeys, k)
+}
+
+// nodeMetaPage is the metadata the machine carries, and where each key of
+// it came from.
+type nodeMetaPage struct {
+	nodeID, name string
+
+	meta []nomad.MetaEntry
+}
+
+func (p nodeMetaPage) title(_ env, count int) string {
+	return sprintf("Meta (Client: %s) [%d]", p.name, count)
+}
+
+func (nodeMetaPage) titles() []string { return metaTitles }
+func (nodeMetaPage) topics() []string { return nil }
+
+// fetch asks the machine itself, which is the only place that knows which
+// keys came from the API.
+func (p nodeMetaPage) fetch(e env) tea.Cmd {
+	client, nodeID := e.client, p.nodeID
 
 	return fetchList(func(ctx context.Context) ([]nomad.MetaEntry, error) {
 		return client.NodeMeta(ctx, nodeID)
 	}, func(meta []nomad.MetaEntry) tea.Msg { return nodeMetaMsg{nodeID: nodeID, meta: meta} })
+}
+
+// take keeps the metadata of the machine the page is open on.
+func (p nodeMetaPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	meta, ok := msg.(nodeMetaMsg)
+	if !ok || meta.nodeID != p.nodeID {
+		return p, outcome{}, false
+	}
+
+	p.meta = meta.meta
+
+	return p, outcome{}, true
+}
+
+func (p nodeMetaPage) rows(env) []tableRow { return metaRows(p.meta) }
+
+// The value is what copies, not the column that says where it came from.
+var nodeMetaKeys = []pageKey[nodeMetaPage]{
+	copyKey[nodeMetaPage](),
+	{press: "e", label: "Edit", do: editMeta, writes: true},
+}
+
+func (p nodeMetaPage) keys(e env) []keyHint { return hintsOf(p, e, nodeMetaKeys) }
+
+func (p nodeMetaPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, nodeMetaKeys, k)
 }
 
 func nodeEventRows(events []nomad.NodeEvent) []tableRow {
@@ -187,17 +365,6 @@ func metaRows(meta []nomad.MetaEntry) []tableRow {
 	}
 
 	return rows
-}
-
-// driverAttributes are what the open driver says about itself.
-func (m Model) driverAttributes() map[string]string {
-	for _, driver := range m.nodeDetail.Drivers {
-		if driver.Name == m.screen.label {
-			return driver.Attributes
-		}
-	}
-
-	return nil
 }
 
 // metaFile is the metadata of a client as a file.

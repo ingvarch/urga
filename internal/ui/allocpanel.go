@@ -37,7 +37,7 @@ func allocHas(where func(nomad.Alloc) string) func(p tasksPage, e env) bool {
 
 // openAllocNode opens the client the allocation runs on.
 func openAllocNode(p tasksPage, _ env) (tasksPage, outcome) {
-	return p, then(openNodeMsg(nomad.Node{ID: p.alloc.NodeID, Name: p.alloc.NodeName}))
+	return p, then(openMsg(clientScreen(nomad.Node{ID: p.alloc.NodeID, Name: p.alloc.NodeName})))
 }
 
 // openReplaced and openReplacement open the tasks of the allocation this one

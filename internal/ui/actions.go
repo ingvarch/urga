@@ -197,28 +197,6 @@ func (a allocAction) asked(allocs []nomad.Alloc) askMsg {
 	}
 }
 
-// restartAllocation and stopAllocation are the keys of a list of
-// allocations that is not a page yet.
-func restartAllocation(m Model) (Model, tea.Cmd) { return m.askEachAlloc(restarting(m.client)) }
-
-func stopAllocation(m Model) (Model, tea.Cmd) { return m.askEachAlloc(stopping(m.client)) }
-
-// askEachAlloc asks about the allocations of a screen that is not a page yet.
-func (m Model) askEachAlloc(action allocAction) (Model, tea.Cmd) {
-	if !m.screen.listsAllocs() {
-		return m, nil
-	}
-
-	allocs := marked(m, m.screen.kind, m.allocs)
-	if len(allocs) == 0 {
-		return m, nil
-	}
-
-	asked := action.asked(allocs)
-
-	return m.ask(asked.question, asked.apply)
-}
-
 // each runs the action against every resource on its own: one that will not
 // answer must not stop the rest, and a screenful of them must not share one
 // timeout. What went through is reported, and what did not stays marked.

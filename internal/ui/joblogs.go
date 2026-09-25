@@ -118,11 +118,6 @@ func groupLogs(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
 	return p, then(jobLogsMsg(screen{kind: screenAllocations, namespace: p.namespace, jobID: p.jobID, taskGroup: group.Name}))
 }
 
-// listLogs reads the logs of the allocations of the list on the screen.
-func listLogs(m Model) (Model, tea.Cmd) {
-	return m.askLogScope(m.screen)
-}
-
 // askLogScope reads the allocations the logs are to come from: which of
 // them run, and which tasks.
 func (m Model) askLogScope(scope screen) (Model, tea.Cmd) {

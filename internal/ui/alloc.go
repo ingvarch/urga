@@ -250,39 +250,6 @@ const (
 	desiredStop = "stop"
 )
 
-// openAllocation drills into the allocation under the cursor: the tasks it
-// runs.
-func openAllocation(m Model) (Model, tea.Cmd) {
-	alloc, ok := m.selectedAlloc()
-	if !ok {
-		return m, nil
-	}
-
-	return m.push(tasksScreen(listedTasks(alloc)))
-}
-
-// selectedAlloc is the allocation under the cursor of a list of them, of
-// whatever the list was opened for.
-func (m Model) selectedAlloc() (nomad.Alloc, bool) {
-	if !m.screen.listsAllocs() {
-		return nomad.Alloc{}, false
-	}
-
-	return selectedOf(m, m.screen.kind, m.allocs)
-}
-
-// fetchAllocs asks for the allocations of the list on the screen.
-func fetchAllocs(m Model) tea.Cmd {
-	return fetchList(allocsOf(m.client, m.screen), func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
-}
-
-// allocListRows are the rows of a list of allocations that says nothing of
-// its own about them.
-func allocListRows(m Model) []tableRow { return allocRows(m.allocs, m.usage.rows) }
-
-// allocReadings are the allocations of the list whose usage the rows show.
-func allocReadings(m Model) []rowRef { return runningRefs(m.list.index, m.allocs) }
-
 // allocReading reads what one allocation takes.
 func allocReading(ctx context.Context, client Client, ref rowRef) (nomad.ResourceUse, error) {
 	return client.AllocationUsage(ctx, ref.namespace, ref.id)

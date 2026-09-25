@@ -36,15 +36,6 @@ func describeJob(p jobsPage, e env) (jobsPage, outcome) {
 	})}
 }
 
-func describeAllocation(m Model) (Model, tea.Cmd) {
-	alloc, ok := m.selectedAlloc()
-	if !ok {
-		return m, nil
-	}
-
-	return m, allocDescription(m.client, alloc)
-}
-
 func describeDeployment(p deploymentsPage, e env) (deploymentsPage, outcome) {
 	deployment, ok := p.inView(e)
 	if !ok {

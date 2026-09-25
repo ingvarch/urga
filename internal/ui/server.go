@@ -22,29 +22,6 @@ var serverTags = map[string]bool{
 	"dc": true, "region": true, "build": true, "port": true, "rpc_addr": true, "id": true,
 }
 
-// copyField puts the value of the field under the cursor on the clipboard,
-// which is how an address or an id gets out of the screen and into a command
-// somewhere else. It goes over OSC52, so it works through ssh as well.
-func copyField(m Model) (Model, tea.Cmd) {
-	if !m.screen.of().fields {
-		return m, nil
-	}
-
-	row, ok := m.list.table.selected()
-	if !ok || len(row.cells) < 2 {
-		return m, nil
-	}
-
-	// The value is the second column on every screen of fields; a screen
-	// may carry more after it, like where the value came from.
-	return copied(m, row.cells[0], row.cells[1])
-}
-
-// copied puts a value on the clipboard and says whose it is.
-func copied(m Model, field, value string) (Model, tea.Cmd) {
-	return m.say(sprintf("Copied %s.", field)), tea.SetClipboard(value)
-}
-
 // fetchRaft asks what the raft of the cluster makes of its servers. An ACL
 // may hold the answer back, which is not an error of the screen: the reason
 // takes the place of the answer.

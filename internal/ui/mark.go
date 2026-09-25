@@ -44,49 +44,7 @@ func (m Model) ids() []string {
 		return p.ids(m.env())
 	}
 
-	if res := m.screen.of(); res.ids != nil {
-		return res.ids(m)
-	}
-
 	return nil
-}
-
-// marked are the resources that carry a mark. A mark is on the resource, not
-// on the line it sits on, so a filter or a sort does not change what an
-// action takes. Without a mark anywhere, what the cursor is on is the answer,
-// which is how every action reads a list.
-func marked[T any](m Model, kind screenKind, items []T) []T {
-	res := m.screen.of()
-
-	out := []T{}
-
-	if len(m.list.marks) > 0 && res.ids != nil && m.screen.kind == kind {
-		all := res.ids(m)
-
-		for at := range items {
-			if at < len(all) && m.list.marks[all[at]] {
-				out = append(out, items[at])
-			}
-		}
-	}
-
-	// Marks that name nothing on this screen any more leave the cursor to
-	// answer, rather than the key doing nothing at all.
-	if len(out) > 0 {
-		return out
-	}
-
-	one, ok := selectedOf(m, kind, items)
-	if !ok {
-		return nil
-	}
-
-	return []T{one}
-}
-
-// allocIDs name the allocations of the screen.
-func allocIDs(m Model) []string {
-	return names(m.allocs, allocMark)
 }
 
 // allocLabel is what a question about allocations says: the one under the
@@ -104,10 +62,6 @@ func jobMark(job nomad.Job) string { return job.Namespace + "/" + job.ID }
 func allocMark(alloc nomad.Alloc) string { return alloc.ID }
 
 func nodeMark(node nomad.Node) string { return node.ID }
-
-func nodeIDs(m Model) []string {
-	return names(m.nodes, nodeMark)
-}
 
 func names[T any](items []T, mark func(T) string) []string {
 	out := make([]string, 0, len(items))

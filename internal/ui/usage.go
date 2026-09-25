@@ -127,12 +127,7 @@ func (m Model) readings() ([]rowRef, readRow) {
 		return p.readings(m.env()), p.reading
 	}
 
-	res := m.screen.of()
-	if res.readings == nil || res.reading == nil {
-		return nil, nil
-	}
-
-	return res.readings(m), res.reading
+	return nil, nil
 }
 
 // fetchUsage reads what the rows on the screen take. Rows nobody is looking

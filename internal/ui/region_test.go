@@ -134,7 +134,44 @@ func TestDatacenter_NarrowsTheClients(t *testing.T) {
 		{ID: "n2", Name: "node-02", Datacenter: "dc2"},
 	}))
 
-	r.Equal([]string{"n1"}, idsOf(m.nodes, func(n nomad.Node) string { return n.ID }))
+	out := plain(m.render())
+	r.Contains(out, "Clients [1]")
+	r.Contains(out, "node-01")
+	r.NotContains(out, "node-02")
+}
+
+func TestDatacenter_NarrowsTheClientsOnTheScreen(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{datacenters: []string{"dc1", "dc2"}, nodes: []nomad.Node{
+		{ID: "n1", Name: "node-01", Datacenter: "dc1", Status: "ready", Eligibility: "eligible"},
+		{ID: "n2", Name: "node-02", Datacenter: "dc2", Status: "ready", Eligibility: "eligible"},
+	}}
+	m := newTestModel(client)
+	m, _ = m.update(datacentersMsg{names: client.datacenters})
+	m = typeCommand(m, "clients")
+	r.Contains(plain(m.render()), "Clients [2]")
+
+	// What is on the screen is narrowed at once, before the cluster answers.
+	m, _ = runLine(m, "dc dc2")
+
+	out := plain(m.render())
+	r.Contains(out, "Clients [1]")
+	r.Contains(out, "node-02")
+	r.NotContains(out, "node-01")
+
+	// A mark is on the client on the screen, not on the one left out of it:
+	// with every datacenter back, the mark is still on that one.
+	marked, _ := m.update(space())
+	marked, _ = runLine(marked, "dc all")
+
+	rows := markedRows(marked)
+	r.Len(rows, 1)
+	r.Contains(rows[0], "node-02")
+
+	// And so does the key that opens one.
+	m, _ = m.update(enter())
+	r.Contains(plain(m.render()), "Client node-02")
 }
 
 func TestDatacenter_NarrowsTheServers(t *testing.T) {
@@ -194,16 +231,6 @@ func TestDatacenter_EveryOneOfThem(t *testing.T) {
 
 	// No datacenter chosen: nothing is left out.
 	r.Contains(plain(m.render()), "Servers [2]")
-}
-
-// idsOf names what a list holds, in its order.
-func idsOf[T any](items []T, id func(T) string) []string {
-	out := make([]string, 0, len(items))
-	for _, item := range items {
-		out = append(out, id(item))
-	}
-
-	return out
 }
 
 func TestUsage_IsReadForTheDatacenterInUse(t *testing.T) {
@@ -595,11 +622,8 @@ func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
 	m := regionalModel(t, &fakeClient{})
 
 	// What the screens of eu held when they were left.
-	m.allocs = twoAllocs()
-	m.nodes = []nomad.Node{{ID: "n1"}}
-	m.host = hostModel{node: nomad.Node{ID: "n1"}, trail: []nomad.ResourceUse{{CPUPercent: 40}}}
-	m.nodeDetail = nomad.NodeDetail{ID: "n1", Name: "node-01"}
-	m.nodeMeta = []nomad.MetaEntry{{Key: "rack", Value: "r1"}}
+	m.dir = dirState{path: "/local", files: []nomad.File{{Name: "app.env"}}}
+	m.logPick = logPick{title: "Logs of which task?", choices: []logChoice{{task: "server"}}}
 
 	m, _ = runLine(m, "region us")
 
@@ -646,9 +670,6 @@ func TestDatacenterCommand_NarrowsWhatIsOnTheScreenAtOnce(t *testing.T) {
 	m, _ = m.update(datacentersMsg{names: []string{"dc1", "dc2"}})
 	m, _ = m.update(jobsMsg(client.jobs))
 
-	// What the other screens held when they were left.
-	m.nodes = []nomad.Node{{ID: "n1", Datacenter: "dc1"}, {ID: "n2", Datacenter: "dc2"}}
-
 	client.err = errors.New("connection refused")
 
 	m, cmd := runLine(m, "dc dc2")
@@ -660,7 +681,6 @@ func TestDatacenterCommand_NarrowsWhatIsOnTheScreenAtOnce(t *testing.T) {
 	r.Contains(out, "Jobs (production) [1]")
 	r.Contains(out, "api")
 	r.NotContains(out, "web")
-	r.Equal([]string{"n2"}, idsOf(m.nodes, func(n nomad.Node) string { return n.ID }))
 }
 
 func TestDatacenterCommand_TheNumbersOfTheDatacenterLeftAreGone(t *testing.T) {
@@ -690,8 +710,9 @@ func TestRegionState_NarrowsToItsDatacenter(t *testing.T) {
 	r.Equal([]string{"api"}, names(jobs, func(j nomad.Job) string { return j.ID }))
 	r.Len(jobsIn("", jobs), 1)
 
-	nodes := s.nodesInView([]nomad.Node{{ID: "n1", Datacenter: "dc1"}, {ID: "n2", Datacenter: "dc2"}})
+	nodes := nodesIn("dc2", []nomad.Node{{ID: "n1", Datacenter: "dc1"}, {ID: "n2", Datacenter: "dc2"}})
 	r.Equal([]string{"n2"}, names(nodes, nodeMark))
+	r.Len(nodesIn("", nodes), 1)
 
 	servers := serversIn("dc2", []nomad.Server{{Name: "s1", Datacenter: "dc1"}, {Name: "s2", Datacenter: "dc2"}})
 	r.Len(servers, 1)
