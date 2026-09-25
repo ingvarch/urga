@@ -133,7 +133,7 @@ func TestDeployments_PauseFromTheList(t *testing.T) {
 
 	client := &fakeClient{deployments: []nomad.Deployment{waitingCanary().Deployment}}
 	m := newTestModel(client)
-	m, _ = m.show(screenDeployments)
+	m, _ = m.show(deploymentsView)
 	m, _ = m.update(deploymentsMsg(client.deployments))
 
 	r.True(offersLabel(m, "ctrl-s", "Pause"))
@@ -216,7 +216,7 @@ func TestDeployment_DescribeTheAllocationUnderTheCursor(t *testing.T) {
 	m, cmd := m.update(key('d'))
 	m = drain(m, cmd)
 
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 	r.Equal("9a1b2c3d-0000-0000-0000-000000000000", client.askedID)
 	r.Equal("production", client.askedNamespace)
 	r.Contains(plain(m.render()), "Allocation: 9a1b2c3d")

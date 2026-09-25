@@ -56,9 +56,9 @@ func (d machine) took(msg tea.Msg) (machine, bool) {
 
 // nodeScreen is a key that opens one of the screens of the client, on the
 // machine before it has said anything.
-func nodeScreen(kind screenKind, open func(machine) page) func(clientPage, env) (clientPage, outcome) {
+func nodeScreen(open func(machine) page) func(clientPage, env) (clientPage, outcome) {
 	return func(p clientPage, _ env) (clientPage, outcome) {
-		return p, then(openMsg(screen{kind: kind, page: open(machine{nodeID: p.nodeID, name: p.name})}))
+		return p, then(openMsg{open(machine{nodeID: p.nodeID, name: p.name})})
 	}
 }
 
@@ -119,7 +119,7 @@ func openDriver(p nodeDriversPage, e env) (nodeDriversPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{kind: screenNodeDriver, page: nodeDriverPage{machine: p.machine, driver: driver.Name}}))
+	return p, then(openMsg{nodeDriverPage{machine: p.machine, driver: driver.Name}})
 }
 
 // nodeDriverPage is what one driver of the machine says about itself.

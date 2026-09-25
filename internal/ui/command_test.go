@@ -9,31 +9,31 @@ import (
 func TestParseCommand(t *testing.T) {
 	tests := []struct {
 		input     string
-		kind      screenKind
+		view      *view
 		namespace string
 		ok        bool
 	}{
-		{input: "jobs", kind: screenJobs, ok: true},
-		{input: "job", kind: screenJobs, ok: true},
-		{input: "jb", kind: screenJobs, ok: true},
-		{input: "deployments", kind: screenDeployments, ok: true},
-		{input: "dp", kind: screenDeployments, ok: true},
-		{input: "namespaces", kind: screenNamespaces, ok: true},
-		{input: "ns", kind: screenNamespaces, ok: true},
-		{input: "svc", kind: screenServices, ok: true},
-		{input: "ev", kind: screenEvaluations, ok: true},
-		{input: "no", kind: screenNodes, ok: true},
-		{input: "vars", kind: screenVariables, ok: true},
-		{input: "np", kind: screenNodePools, ok: true},
-		{input: "alloc", kind: screenAllocations, ok: true},
+		{input: "jobs", view: jobsView, ok: true},
+		{input: "job", view: jobsView, ok: true},
+		{input: "jb", view: jobsView, ok: true},
+		{input: "deployments", view: deploymentsView, ok: true},
+		{input: "dp", view: deploymentsView, ok: true},
+		{input: "namespaces", view: namespacesView, ok: true},
+		{input: "ns", view: namespacesView, ok: true},
+		{input: "svc", view: servicesView, ok: true},
+		{input: "ev", view: evaluationsView, ok: true},
+		{input: "no", view: nodesView, ok: true},
+		{input: "vars", view: variablesView, ok: true},
+		{input: "np", view: nodePoolsView, ok: true},
+		{input: "alloc", view: allocationsView, ok: true},
 
 		// A namespace as the second word opens the resource there.
-		{input: "jobs production", kind: screenJobs, namespace: "production", ok: true},
-		{input: "  JOBS   Production  ", kind: screenJobs, namespace: "Production", ok: true},
+		{input: "jobs production", view: jobsView, namespace: "production", ok: true},
+		{input: "  JOBS   Production  ", view: jobsView, namespace: "Production", ok: true},
 
 		// A prefix of an alias is enough while it names one resource.
-		{input: "jo", kind: screenJobs, ok: true},
-		{input: "depl", kind: screenDeployments, ok: true},
+		{input: "jo", view: jobsView, ok: true},
+		{input: "depl", view: deploymentsView, ok: true},
 
 		// Nothing, or a word that fits nothing, is no command.
 		{input: "", ok: false},
@@ -48,7 +48,7 @@ func TestParseCommand(t *testing.T) {
 			r.Equal(test.ok, ok)
 
 			if test.ok {
-				r.Equal(test.kind, cmd.kind)
+				r.Same(test.view, cmd.view)
 				r.Equal(test.namespace, cmd.namespace)
 			}
 		})
@@ -125,7 +125,7 @@ func TestParseCommand_AResourceComesBeforeASwitch(t *testing.T) {
 	// must not take it over.
 	cmd, ok := parseCommand("d")
 	r.True(ok)
-	r.Equal(screenDeployments, cmd.kind)
+	r.Same(deploymentsView, cmd.view)
 	r.Equal(scopeNone, cmd.switching)
 }
 

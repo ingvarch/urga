@@ -88,7 +88,7 @@ func openClient(p nodesPage, e env) (nodesPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(clientScreen(node)))
+	return p, then(openMsg{clientOf(node)})
 }
 
 // drainNode starts or stops moving the work off the client under the cursor.

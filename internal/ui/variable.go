@@ -103,7 +103,7 @@ func openVariable(p variablesPage, e env) (variablesPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{kind: screenVariable, page: variablePage{namespace: v.Namespace, path: v.Path}}))
+	return p, then(openMsg{variablePage{namespace: v.Namespace, path: v.Path}})
 }
 
 // variablePage is the variable the page is open on, and whether its values

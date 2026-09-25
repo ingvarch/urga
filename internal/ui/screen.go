@@ -6,61 +6,19 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// screenKind is the resource the body shows.
-type screenKind int
-
-const (
-	screenJobs screenKind = iota
-	screenAllocations
-	screenTasks
-	screenDeployments
-	screenNamespaces
-	screenServices
-	screenEvaluations
-	screenNodes
-	screenVariables
-	screenNodePools
-	screenServers
-	screenServer
-	screenNodeEvents
-	screenNodeDrivers
-	screenNodeDriver
-	screenNodeVolumes
-	screenNodeAttributes
-	screenNodeMeta
-	screenJobVersions
-	screenTaskEvents
-	screenDescribe
-	screenLogs
-	screenTaskGroups
-	screenRegions
-	screenDatacenters
-	screenPlan
-	screenFiles
-	screenFile
-	screenClusters
-	screenLogTasks
-	screenJobLogs
-	screenServiceInstances
-	screenVariable
-
-	// screenNode is one client: the allocations on it, under what the
-	// machine itself is doing. screenDeployment is one deployment: the
-	// allocations it placed, under its groups.
-	screenNode
-	screenDeployment
-)
-
-// screen is what is open: the resource and what it was opened for.
+// screen is a page on the stack.
 type screen struct {
-	kind screenKind
+	page page
+
+	// view is the list the page was opened as by name; nil for a page
+	// opened from another one, which the next run does not come back to: a
+	// session comes back to a list, not to the allocations of a job it no
+	// longer remembers.
+	view *view
 
 	// left is where the screen was when another one was opened on top of
 	// it, which is where escape comes back to.
 	left place
-
-	// page is the screen, for a screen that is a type of its own.
-	page page
 }
 
 // place is where a list was left: the row under the cursor, how far down the
@@ -82,31 +40,9 @@ func (s screen) followsSession() bool {
 	return ok && f.followsSession()
 }
 
-// titles are the columns of a screen.
-func (s screen) titles() []string {
-	if s.page != nil {
-		return s.page.titles()
-	}
-
-	return s.of().titles
-}
-
-// topics are what the cluster is asked to say about while the screen is up.
-func (s screen) topics() []string {
-	if s.page != nil {
-		return s.page.topics()
-	}
-
-	return s.of().topics
-}
-
 // pageKeys are the keys of the open page, in the order the header shows
 // them, whether or not each one does something right now.
 func (m Model) pageKeys() []keyHint {
-	if m.screen.page == nil {
-		return nil
-	}
-
 	return m.screen.page.keys(m.env())
 }
 
@@ -253,46 +189,19 @@ func (m Model) offeredKey(press string) (keyHint, bool) {
 // title labels the box with what it holds and how much of it. The count is
 // what is on the screen, which the filter narrows.
 func (m Model) title() string {
-	count := len(m.list.table.rows)
-	if p := m.screen.page; p != nil {
-		return p.title(m.env(), count)
-	}
-
-	if res := m.screen.of(); res.title != nil {
-		return res.title(m, count)
-	}
-
-	return ""
+	return m.screen.page.title(m.env(), len(m.list.table.rows))
 }
 
 // rows are what the open screen shows.
 func (m Model) rows() []tableRow {
-	if p := m.screen.page; p != nil {
-		return p.rows(m.env())
-	}
-
-	res := m.screen.of()
-	if res.rows == nil {
-		return nil
-	}
-
-	return res.rows(m)
+	return m.screen.page.rows(m.env())
 }
 
 // fetch asks the cluster for what the open screen shows. A screen whose
 // content arrives another way, like a description or a log stream, asks for
 // nothing.
 func (m Model) fetch() tea.Cmd {
-	if p := m.screen.page; p != nil {
-		return askedFor(m.asked, p.fetch(m.env()))
-	}
-
-	res := m.screen.of()
-	if res.fetch == nil {
-		return nil
-	}
-
-	return askedFor(m.asked, res.fetch(m))
+	return askedFor(m.asked, m.screen.page.fetch(m.env()))
 }
 
 // answerMsg is an answer with the ask it belongs to. The session moves on
@@ -367,23 +276,12 @@ func (m Model) selectedIndex() (int, bool) {
 // show switches to a resource, which is what the command prompt does. Either
 // way the session writes down where it is looking, so the next run comes back
 // to the same place.
-func (m Model) show(kind screenKind) (Model, tea.Cmd) {
-	if kind != m.screen.kind {
-		return m.push(m.screenOf(kind))
+func (m Model) show(v *view) (Model, tea.Cmd) {
+	if v != m.screen.view {
+		return m.push(v.opened())
 	}
 
 	return m.arrive()
-}
-
-// screenOf is a screen opened by name, in the namespace of the session, with
-// nothing read into it yet.
-func (m Model) screenOf(kind screenKind) screen {
-	s := screen{kind: kind}
-	if open := resources[kind].open; open != nil {
-		s.page = open()
-	}
-
-	return s
 }
 
 // push opens a list on top of the one that is there, which is where escape
@@ -504,7 +402,7 @@ func (m Model) enter() (Model, tea.Cmd) {
 		m.screen.page = p.restart()
 	}
 
-	m.list.table = newTableModel(m.screen.titles())
+	m.list.table = newTableModel(m.screen.page.titles())
 	m.list.filter = ""
 	m.list.sort = newSortState()
 

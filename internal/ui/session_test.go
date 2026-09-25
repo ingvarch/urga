@@ -82,7 +82,7 @@ func TestSession_StartsWhereItStopped(t *testing.T) {
 
 	// The session comes back where it was left, keys and all.
 	r.Equal(nomad.AllNamespaces, m.namespace)
-	r.Equal(screenNodes, m.screen.kind)
+	r.IsType(nodesPage{}, m.screen.page)
 	r.Equal([]string{"staging", "default"}, m.namespaceOrder)
 }
 
@@ -110,7 +110,7 @@ func TestSession_ANamespaceGivenOnTheCommandLineWins(t *testing.T) {
 	// Typing a namespace on the command line is asking for it now. The
 	// rest of the session still comes back.
 	r.Equal("production", m.namespace)
-	r.Equal(screenNodes, m.screen.kind)
+	r.IsType(nodesPage{}, m.screen.page)
 
 	fire(t, m.watchScreen())
 	r.Equal("production", client.watchedNamespace)
@@ -164,7 +164,7 @@ func TestSession_RemembersTheScreenAfterGoingBack(t *testing.T) {
 	m, cmd = m.update(escape())
 	drain(m, cmd)
 
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Equal("jobs", cfg.Screen)
 }
 
@@ -184,7 +184,7 @@ func TestSession_EachClusterComesBackToItsOwn(t *testing.T) {
 	// prod comes back to prod's namespace, screen and keys.
 	m := New(&fakeClient{}, Options{Cluster: "prod", Version: "v-test", Config: cfg})
 	r.Equal("batch", m.namespace)
-	r.Equal(screenNodes, m.screen.kind)
+	r.IsType(nodesPage{}, m.screen.page)
 	r.Equal([]string{"batch", "web"}, m.namespaceOrder)
 
 	// What prod looks at is written down for prod, and nowhere else.

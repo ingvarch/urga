@@ -115,11 +115,11 @@ func TestDescribe_EscapeGoesBack(t *testing.T) {
 
 	m, cmd := m.update(key('d'))
 	m = drain(m, cmd)
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 
 	m, _ = m.update(escape())
 
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Jobs (production) [2]")
 }
 

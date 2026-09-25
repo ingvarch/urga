@@ -43,7 +43,7 @@ func TestTaskEvents_OpenOnATask(t *testing.T) {
 	m := onTasks(t, allocsWithEvents())
 	m, _ = m.update(key('e'))
 
-	r.Equal(screenTaskEvents, m.screen.kind)
+	r.IsType(taskEventsPage{}, m.screen.page)
 
 	out := plain(m.render())
 	r.Contains(out, "Events (Task: server) [2]")
@@ -73,7 +73,7 @@ func TestTaskEvents_ATaskThatNothingHappenedTo(t *testing.T) {
 
 	// The screen opens anyway and says it holds nothing, rather than the
 	// key doing nothing at all.
-	r.Equal(screenTaskEvents, m.screen.kind)
+	r.IsType(taskEventsPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "[0]")
 }
 

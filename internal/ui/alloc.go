@@ -137,7 +137,7 @@ func openAllocTasks[P allocLister](p P, e env) (P, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(tasksScreen(listedTasks(alloc))))
+	return p, then(openMsg{listedTasks(alloc)})
 }
 
 // describeAlloc asks for the allocation under the cursor, in the words of

@@ -49,8 +49,8 @@ func TestClients_TheList(t *testing.T) {
 	m, _ := nodeModel(t, busyClient())
 
 	r.Contains(plain(m.render()), "Clients [1]")
-	r.Equal([]string{"ID", "Name", "Datacenter", "Pool", "Version", "Status", "Eligibility", "Drain", "CPU", "MEM", "Address"}, m.screen.titles())
-	r.Equal([]string{nomad.TopicNode}, m.screen.topics())
+	r.Equal([]string{"ID", "Name", "Datacenter", "Pool", "Version", "Status", "Eligibility", "Drain", "CPU", "MEM", "Address"}, m.screen.page.titles())
+	r.Equal([]string{nomad.TopicNode}, m.screen.page.topics())
 
 	// What the machine takes is not known until it is read.
 	r.Regexp(`^\s*node-1\s+nomad-server-01\s+dc1\s+default\s+1\.11\.1\s+ready\s+eligible\s+false\s+-\s+-\s+10\.0\.0\.2`, fileRow(t, m, 0))

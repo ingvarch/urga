@@ -58,11 +58,6 @@ type logsPage struct {
 	read logState
 }
 
-// logsScreen opens a log where its allocation lives.
-func logsScreen(p logsPage) screen {
-	return screen{kind: screenLogs, page: p}
-}
-
 // followLogs follows what the task under the cursor writes to a source.
 func followLogs(p tasksPage, e env, source string) (tasksPage, outcome) {
 	task, ok := p.picked(e)
@@ -70,7 +65,7 @@ func followLogs(p tasksPage, e env, source string) (tasksPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(logsScreen(logsPage{namespace: p.namespace, allocID: p.allocID, task: task.Name, source: source})))
+	return p, then(openMsg{logsPage{namespace: p.namespace, allocID: p.allocID, task: task.Name, source: source}})
 }
 
 // title says whose output this is, in which allocation, which of the two
@@ -181,7 +176,7 @@ func hasPrevious(p logsPage, _ env) bool { return p.read.previous != "" }
 func openPrevious(p logsPage, _ env) (logsPage, outcome) {
 	previous := logsPage{namespace: p.namespace, allocID: p.read.previous, task: p.task, source: p.source}
 
-	return p, then(openMsg(logsScreen(previous)))
+	return p, then(openMsg{previous})
 }
 
 // waitForLog waits for the next thing the task writes.

@@ -82,7 +82,7 @@ func TestEdit_OpensTheJobFile(t *testing.T) {
 	r.Equal(".hcl", filepath.Ext(editor.opened))
 
 	// What came back is planned first, and submitted from the plan.
-	r.Equal(screenPlan, m.screen.kind)
+	r.IsType(planPage{}, m.screen.page)
 
 	m, cmd = m.update(key('y'))
 	m = drain(m, cmd)

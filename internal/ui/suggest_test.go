@@ -92,7 +92,7 @@ func TestPrompt_EnterOpensWhatIsOffered(t *testing.T) {
 	m, _ = m.update(down())
 	m, _ = m.update(enter())
 
-	r.Equal(screenServices, m.screen.kind)
+	r.IsType(servicesPage{}, m.screen.page)
 	r.Equal(overlayNone, m.overlay)
 }
 
@@ -114,7 +114,7 @@ func TestPrompt_ANamespaceAfterTheWordIsNotAResource(t *testing.T) {
 	r.Equal(":jobs staging", promptLine(m))
 
 	m, _ = m.update(enter())
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Equal("staging", m.namespace)
 }
 
@@ -138,16 +138,16 @@ func TestPrompt_AShortFormOpensWhatItAlwaysDid(t *testing.T) {
 
 	// `no` is Nomad's own word for a client. A name that merely starts the
 	// same way must not take the line over.
-	for word, kind := range map[string]screenKind{
-		"no":   screenNodes,
-		"node": screenNodes,
-		"np":   screenNodePools,
-		"ns":   screenNamespaces,
+	for word, v := range map[string]*view{
+		"no":   nodesView,
+		"node": nodesView,
+		"np":   nodePoolsView,
+		"ns":   namespacesView,
 	} {
 		m := walked(t, letters(word)...)
 		opened, _ := m.commit()
 
-		r.Equal(kind, opened.screen.kind, "%s reads as %q", word, promptLine(m))
+		r.Same(v, opened.screen.view, "%s reads as %q", word, promptLine(m))
 	}
 }
 
@@ -222,7 +222,7 @@ func TestPrompt_WhatTheLineReadsIsWhatEnterOpens(t *testing.T) {
 			r.Equal(flashErr, opened.flash.level, "%s: the line reads %q and enter opened something anyway", name, line)
 		default:
 			r.NotEqual(flashErr, opened.flash.level, "%s: the line reads %q and enter refused it", name, line)
-			r.Equal(wanted.kind, opened.screen.kind, "%s: the line reads %q", name, line)
+			r.Same(wanted.view, opened.screen.view, "%s: the line reads %q", name, line)
 		}
 	}
 }
@@ -266,7 +266,7 @@ func TestPrompt_TheOfferSurvivesTheNamespaceAfterIt(t *testing.T) {
 	r.Equal(":servers staging", promptLine(m))
 
 	opened, _ := m.commit()
-	r.Equal(screenServers, opened.screen.kind)
+	r.IsType(serversPage{}, opened.screen.page)
 	r.Equal("staging", opened.namespace)
 }
 

@@ -37,7 +37,7 @@ func (m Model) keepRegions(names regionsMsg) (Model, tea.Cmd) {
 	// against them.
 	m.regions = names
 
-	return m.applyList(screenRegions, func(*Model) {})
+	return m.applyList(regionsView, func(*Model) {})
 }
 
 // keepDatacenters keeps the datacenters of the region in use.
@@ -49,14 +49,14 @@ func (m Model) keepDatacenters(msg datacentersMsg) (Model, tea.Cmd) {
 
 	m.datacenters = msg.names
 
-	return m.applyList(screenDatacenters, func(*Model) {})
+	return m.applyList(datacentersView, func(*Model) {})
 }
 
 // regionCommand switches to a region by name, or opens the list of them to
 // pick one from.
 func (m Model) regionCommand(name string) (Model, tea.Cmd) {
 	if name == "" {
-		return m.show(screenRegions)
+		return m.show(regionsView)
 	}
 
 	return m.pick(name, m.regions, "region", Model.switchRegion)
@@ -67,7 +67,7 @@ func (m Model) regionCommand(name string) (Model, tea.Cmd) {
 func (m Model) datacenterCommand(name string) (Model, tea.Cmd) {
 	switch name {
 	case "":
-		return m.show(screenDatacenters)
+		return m.show(datacentersView)
 
 	case everyDatacenter:
 		return m.switchDatacenter("")
@@ -161,27 +161,17 @@ func (m Model) narrow(datacenter string, show func(Model) (Model, tea.Cmd)) (Mod
 // listScreen is the list the open screen was reached from: the last screen
 // on the way here that can be opened by name.
 func (m Model) listScreen() screen {
-	if m.screen.of().stored != "" {
-		return m.fresh(m.screen)
-	}
+	way := append(slices.Clone(m.history), m.screen)
 
-	for i := len(m.history) - 1; i >= 0; i-- {
-		if m.history[i].of().stored != "" {
-			return m.fresh(m.history[i])
+	for i := len(way) - 1; i >= 0; i-- {
+		// A list as it was opened, without what its page read of the
+		// region that was left.
+		if v := way[i].view; v != nil && v.stored != "" {
+			return v.opened()
 		}
 	}
 
-	return m.screenOf(screenJobs)
-}
-
-// fresh is a list as it was opened, without what its page read of the
-// region that was left.
-func (m Model) fresh(s screen) screen {
-	if s.page != nil {
-		s.page = resources[s.kind].open()
-	}
-
-	return s
+	return jobsView.opened()
 }
 
 // listed is a list of names as a message reads it.

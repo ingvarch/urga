@@ -22,9 +22,11 @@ type page interface {
 
 	// topics are what the cluster is asked to say about while the page is
 	// up: a change in one of them is the page no longer being what it shows.
+	// A page with none is asked on its own.
 	topics() []string
 
-	// fetch asks the cluster for what the page shows. Nil asks nothing.
+	// fetch asks the cluster for what the page shows. Nil asks nothing:
+	// what the page shows arrives another way.
 	fetch(e env) tea.Cmd
 
 	// take keeps an answer the page asked for, and says whether it was one.
@@ -217,8 +219,8 @@ type (
 	// backMsg goes back to the screen the page was opened from.
 	backMsg struct{}
 
-	// openMsg opens a screen on top of the page.
-	openMsg screen
+	// openMsg opens a page on top of this one.
+	openMsg struct{ page page }
 
 	// sayMsg puts what came of a key on the status line; warnMsg puts
 	// something worth knowing there.

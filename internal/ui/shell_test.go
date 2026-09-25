@@ -61,7 +61,7 @@ func TestShell_OpensInTheTaskUnderTheCursor(t *testing.T) {
 	r.Equal("production", shell.opened.Namespace)
 
 	// Coming back from the shell, the task list is where it was.
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Shell in server closed")
 }
 

@@ -45,7 +45,7 @@ func TestLogs_OpenOnATask(t *testing.T) {
 	m := openTasks(t, client)
 
 	m, cmd := m.update(enter())
-	r.Equal(screenLogs, m.screen.kind)
+	r.IsType(logsPage{}, m.screen.page)
 	r.NotNil(cmd)
 
 	// The stream is opened for the task the cursor was on, in the namespace
@@ -78,7 +78,7 @@ func TestLogs_LeavingClosesTheStream(t *testing.T) {
 	m, _ = m.update(escape())
 
 	// The request behind the stream is not left hanging.
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 	r.True(client.logsClosed)
 }
 
@@ -141,7 +141,7 @@ func TestLogs_Stderr(t *testing.T) {
 	m, cmd := m.update(tea.KeyPressMsg{Code: 'e', Mod: tea.ModCtrl})
 	m = drain(m, cmd)
 
-	r.Equal(screenLogs, m.screen.kind)
+	r.IsType(logsPage{}, m.screen.page)
 	r.Equal(nomad.LogStderr, client.askedSource)
 	r.Contains(plain(m.render()), "[stderr]")
 }
@@ -216,7 +216,7 @@ func TestLogs_AStreamThatEndedIsLetGoOf(t *testing.T) {
 
 	m, _ = m.update(escape())
 
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 	r.False(client.logsClosed)
 }
 
@@ -379,7 +379,7 @@ func TestLogs_SwitchBetweenStdoutAndStderr(t *testing.T) {
 	r.Contains(out, "Wrap:On")
 
 	m, _ = m.update(escape())
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 }
 
 func TestLogs_TheOtherSourceIsFollowed(t *testing.T) {
@@ -578,7 +578,7 @@ func TestLogs_OpenTheAllocationBefore(t *testing.T) {
 	m, cmd = m.update(escape())
 	m = drain(m, cmd)
 
-	r.Equal(screenLogs, m.screen.kind)
+	r.IsType(logsPage{}, m.screen.page)
 	r.Equal(twoAllocs()[0].ID, client.askedID)
 	r.Same(client.logs, logOf(m).stream)
 	r.Contains(plain(m.render()), "Logs (Task: server, Allocation: af1f37df) [stdout]")

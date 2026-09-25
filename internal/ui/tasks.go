@@ -37,12 +37,6 @@ func listedTasks(alloc nomad.Alloc) tasksPage {
 	return tasksPage{namespace: alloc.Namespace, jobID: alloc.JobID, allocID: alloc.ID, alloc: alloc}
 }
 
-// tasksScreen opens the tasks of an allocation where it lives, which is
-// where its stream watches.
-func tasksScreen(p tasksPage) screen {
-	return screen{kind: screenTasks, page: p}
-}
-
 func (p tasksPage) title(_ env, count int) string {
 	return sprintf("Tasks (Allocation: %s) [%d]", shortID(p.allocID), count)
 }
@@ -161,10 +155,7 @@ func openTaskEvents(p tasksPage, e env) (tasksPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{
-		kind: screenTaskEvents,
-		page: taskEventsPage{namespace: p.namespace, allocID: p.allocID, task: task.Name, alloc: p.alloc},
-	}))
+	return p, then(openMsg{taskEventsPage{namespace: p.namespace, allocID: p.allocID, task: task.Name, alloc: p.alloc}})
 }
 
 // taskEventsPage is what happened to one task of an allocation.

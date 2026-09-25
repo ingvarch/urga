@@ -63,7 +63,7 @@ func TestTasks_BrowseTheDirectoryOfATask(t *testing.T) {
 
 	// The directory of the task under the cursor, asked of its allocation
 	// in its namespace.
-	r.Equal(screenFiles, m.screen.kind)
+	r.IsType(filesPage{}, m.screen.page)
 	r.Equal("/server", client.filesPath)
 	r.Equal("af1f37df-7b19-6b1c-da67-5e8f482b5a15", client.filesAllocID)
 	r.Equal("production", client.filesNamespace)
@@ -90,7 +90,7 @@ func TestFiles_EnterGoesIntoADirectory(t *testing.T) {
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
-	r.Equal(screenFiles, m.screen.kind)
+	r.IsType(filesPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Files (Allocation: af1f37df, /server/local)")
 	r.Equal("/server/local", client.filesPath)
 	r.Equal("production", client.filesNamespace)
@@ -272,7 +272,7 @@ func TestFiles_OpenAFile(t *testing.T) {
 	m := openedEnv(t, client)
 
 	// Asked of its allocation in its namespace, read like a log.
-	r.Equal(screenFile, m.screen.kind)
+	r.IsType(filePage{}, m.screen.page)
 	r.Equal("/server/local/app.env", client.filePath)
 	r.Equal("af1f37df-7b19-6b1c-da67-5e8f482b5a15", client.fileAllocID)
 	r.Equal("production", client.fileNamespace)
@@ -301,11 +301,11 @@ func TestFile_EscapeLetsGoOfIt(t *testing.T) {
 
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
 	m := readingEnv(t, client, stream)
-	r.Equal(screenFile, m.screen.kind)
+	r.IsType(filePage{}, m.screen.page)
 
 	// A file that is still being read is let go of.
 	m, _ = m.update(escape())
-	r.Equal(screenFiles, m.screen.kind)
+	r.IsType(filesPage{}, m.screen.page)
 	r.True(closed)
 }
 
@@ -325,8 +325,8 @@ func TestFile_CoveredLetsGoOfIt(t *testing.T) {
 	m := readingEnv(t, client, stream)
 
 	// Nothing reads it under another screen, and escape reads it again.
-	m, _ = m.show(screenJobs)
-	r.Equal(screenJobs, m.screen.kind)
+	m, _ = m.show(jobsView)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.True(*closed)
 }
 
@@ -348,7 +348,7 @@ func TestFile_OneStreamPerFile(t *testing.T) {
 	client.file = second
 	m = drain(m, twice)
 
-	r.Equal(screenFile, m.screen.kind)
+	r.IsType(filePage{}, m.screen.page)
 	r.True(*closed, "a second stream of the same file is left open")
 
 	m, _ = m.update(logLineMsg{stream: first, text: "DB_HOST=10.0.0.5\n"})
@@ -412,7 +412,7 @@ func TestFile_ReadAgainAfterLeavingIsLetGo(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), file: written("DB_HOST=10.0.0.5\n")}
 	m := openedEnv(t, client)
 
-	m, _ = m.show(screenJobs)
+	m, _ = m.show(jobsView)
 
 	// Back on the file, and gone again before it is read.
 	stream, closed := closing()
@@ -423,7 +423,7 @@ func TestFile_ReadAgainAfterLeavingIsLetGo(t *testing.T) {
 	m = drain(m, read)
 
 	r.True(*closed)
-	r.Equal(screenFiles, m.screen.kind)
+	r.IsType(filesPage{}, m.screen.page)
 }
 
 func TestFile_WhatItGrowsByStaysBelowTheTop(t *testing.T) {
@@ -486,7 +486,7 @@ func TestFiles_APipeIsNotOpened(t *testing.T) {
 	// Asked what it holds, its client would wait on it for as long as the
 	// task writes nothing.
 	r.Zero(client.fileCalls)
-	r.Equal(screenFiles, m.screen.kind)
+	r.IsType(filesPage{}, m.screen.page)
 	r.Contains(plain(m.render()), ".server.stdout.fifo is a pipe")
 }
 
@@ -499,7 +499,7 @@ func TestFiles_WhatIsNotTextIsNotOpened(t *testing.T) {
 	}
 	m := openedEnv(t, client)
 
-	r.Equal(screenFiles, m.screen.kind)
+	r.IsType(filesPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "blob.bin is not text (application/octet-stream)")
 }
 
@@ -524,7 +524,7 @@ func TestFiles_AFileOpenedAfterLeavingIsLetGo(t *testing.T) {
 	m, _ = m.update(escape())
 	m = drain(m, open)
 
-	r.Equal(screenFiles, m.screen.kind)
+	r.IsType(filesPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Files (Allocation: af1f37df, /server)")
 	r.True(closed)
 }
@@ -535,13 +535,13 @@ func TestFile_ComingBackReadsItAgain(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), file: written("DB_HOST=10.0.0.5\n")}
 	m := openedEnv(t, client)
 
-	m, _ = m.show(screenJobs)
+	m, _ = m.show(jobsView)
 	client.file = written("DB_HOST=10.0.0.6\n")
 
 	m, cmd := m.update(escape())
 	m = follow(m, cmd, 6)
 
-	r.Equal(screenFile, m.screen.kind)
+	r.IsType(filePage{}, m.screen.page)
 	r.Equal(2, client.fileCalls)
 	r.Contains(plain(m.render()), "DB_HOST=10.0.0.6")
 	r.NotContains(plain(m.render()), "DB_HOST=10.0.0.5")

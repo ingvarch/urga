@@ -192,10 +192,10 @@ func showLogScope(scope logScope, allocs []nomad.Alloc) tea.Msg {
 	case 0:
 		return warnMsg(fmt.Sprintf("%s has no allocation running", scopeName(scope)))
 	case 1:
-		return openMsg(jobLogsScreen(scope, found[0]))
+		return openMsg{jobLogsOf(scope, found[0])}
 	}
 
-	return openMsg(screen{kind: screenLogTasks, page: logTasksPage{scope: scope, choices: found}})
+	return openMsg{logTasksPage{scope: scope, choices: found}}
 }
 
 // logTasksPage is the question which task to read: what it was asked
@@ -264,7 +264,7 @@ func pickLogTask(p logTasksPage, e env) (logTasksPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(jobLogsScreen(p.scope, choice)))
+	return p, then(openMsg{jobLogsOf(p.scope, choice)})
 }
 
 // jobLogsPage follows what a task writes in every allocation that runs it.
@@ -283,15 +283,13 @@ type jobLogsPage struct {
 	content textContent
 }
 
-// jobLogsScreen follows what the task writes to stdout in every allocation
-// that runs it, on top of the screen it was asked from: escape closes them
-// all and goes back.
-func jobLogsScreen(scope logScope, choice logChoice) screen {
+// jobLogsOf follows what the task writes to stdout in every allocation that
+// runs it, on top of the screen it was asked from: escape closes them all
+// and goes back.
+func jobLogsOf(scope logScope, choice logChoice) jobLogsPage {
 	scope.jobID, scope.group = choice.job, choice.group
 
-	p := jobLogsPage{scope: scope, task: choice.task, source: nomad.LogStdout, first: choice.allocs}
-
-	return screen{kind: screenJobLogs, page: p}
+	return jobLogsPage{scope: scope, task: choice.task, source: nomad.LogStdout, first: choice.allocs}
 }
 
 // title says which task of which job, which of its outputs, and how many of

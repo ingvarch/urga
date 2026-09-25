@@ -127,7 +127,7 @@ func TestDatacenter_NarrowsTheClients(t *testing.T) {
 
 	m := newTestModel(&fakeClient{})
 	m.datacenter = "dc1"
-	m, _ = m.show(screenNodes)
+	m, _ = m.show(nodesView)
 
 	m, _ = m.update(nodesMsg([]nomad.Node{
 		{ID: "n1", Name: "node-01", Datacenter: "dc1"},
@@ -179,7 +179,7 @@ func TestDatacenter_NarrowsTheServers(t *testing.T) {
 
 	m := newTestModel(&fakeClient{region: "eu"})
 	m.datacenter = "dc1"
-	m, _ = m.show(screenServers)
+	m, _ = m.show(serversView)
 
 	// The cluster answers with the servers of the region in use.
 	m, _ = m.update(serversMsg([]nomad.Server{
@@ -222,7 +222,7 @@ func TestDatacenter_EveryOneOfThem(t *testing.T) {
 	r := require.New(t)
 
 	m := newTestModel(&fakeClient{})
-	m, _ = m.show(screenServers)
+	m, _ = m.show(serversView)
 
 	m, _ = m.update(serversMsg([]nomad.Server{
 		{Name: "eu-1", Region: "eu", Datacenter: "dc1"},
@@ -331,12 +331,12 @@ func TestRegionCommand_GoesBackToTheList(t *testing.T) {
 	m := regionalModel(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()})
 	m, _ = m.update(jobsMsg(twoJobs()))
 	m, _ = m.update(enter())
-	r.Equal(screenAllocations, m.screen.kind)
+	r.IsType(allocationsPage{}, m.screen.page)
 
 	m, _ = runLine(m, "region us")
 
 	// The allocations of a job in one region say nothing about another.
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Empty(m.history)
 }
 
@@ -348,7 +348,7 @@ func TestRegionCommand_ClosesTheLogs(t *testing.T) {
 
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
-	r.Equal(screenLogs, m.screen.kind)
+	r.IsType(logsPage{}, m.screen.page)
 
 	m.opts.InRegion = func(string) Client { return client }
 	m, _ = m.update(regionsMsg([]string{"eu", "us"}))
@@ -356,14 +356,14 @@ func TestRegionCommand_ClosesTheLogs(t *testing.T) {
 	m, _ = runLine(m, "region us")
 
 	r.True(client.logsClosed)
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 }
 
 func TestRegionCommand_ClosesTheLogsOfEveryAllocation(t *testing.T) {
 	r := require.New(t)
 
 	m, client := oneTask(t)
-	r.Equal(screenJobLogs, m.screen.kind)
+	r.IsType(jobLogsPage{}, m.screen.page)
 
 	m.opts.InRegion = func(string) Client { return client }
 	m, _ = m.update(regionsMsg([]string{"eu", "us"}))
@@ -373,7 +373,7 @@ func TestRegionCommand_ClosesTheLogsOfEveryAllocation(t *testing.T) {
 
 	// Each one is a request held open to a client of the region left.
 	r.Equal(2, *closed)
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 }
 
 func TestRegionCommand_ReadsTheUsageAtOnce(t *testing.T) {
@@ -408,7 +408,7 @@ func TestRegionCommand_OpensTheRegions(t *testing.T) {
 	m = drain(m, cmd)
 
 	// Every region on a list to pick from, the one in use marked.
-	r.Equal(screenRegions, m.screen.kind)
+	r.IsType(regionsPage{}, m.screen.page)
 
 	out := plain(m.render())
 	r.Contains(out, "Regions [2]")
@@ -431,7 +431,7 @@ func TestRegions_EnterSwitchesToTheRegion(t *testing.T) {
 
 	// The list it was opened from comes back, asked in the new region.
 	r.Equal("us", m.client.Region())
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Empty(m.history)
 }
 
@@ -448,7 +448,7 @@ func TestRegions_TheOneInUseGoesBack(t *testing.T) {
 
 	// Nothing to switch, and nothing to stay on the list for either.
 	r.Equal("eu", m.client.Region())
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 }
 
 func TestRegions_EscapeKeepsTheRegion(t *testing.T) {
@@ -464,7 +464,7 @@ func TestRegions_EscapeKeepsTheRegion(t *testing.T) {
 	m, _ = m.update(escape())
 
 	r.Equal("eu", m.client.Region())
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 }
 
 func TestRegionCommand_WithoutAWayToSwitch(t *testing.T) {
@@ -527,7 +527,7 @@ func TestDatacenterCommand_OpensTheDatacenters(t *testing.T) {
 	m, cmd := runLine(m, "dc")
 	m = drain(m, cmd)
 
-	r.Equal(screenDatacenters, m.screen.kind)
+	r.IsType(datacentersPage{}, m.screen.page)
 
 	// Every one of them is a choice of its own, and the one in use while
 	// none was chosen.
@@ -558,7 +558,7 @@ func TestDatacenters_EnterNarrowsTheScreenItCameFrom(t *testing.T) {
 	m, cmd = m.update(enter())
 
 	r.Equal("dc1", m.datacenter)
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 
 	m = drain(m, cmd)
 
@@ -626,13 +626,13 @@ func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
 	// that run there.
 	m, cmd := m.update(key('l'))
 	m = drain(m, cmd)
-	r.Equal(screenLogTasks, m.screen.kind)
+	r.IsType(logTasksPage{}, m.screen.page)
 
 	m, _ = runLine(m, "region us")
 
 	// A screen of us opened before us answers must not show eu under its
 	// name, nor go back to one that does.
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Empty(m.history)
 	r.NotContains(plain(m.render()), "frontend/sidecar")
 }

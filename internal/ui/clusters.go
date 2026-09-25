@@ -44,7 +44,7 @@ func (m Model) clusterCommand(name string) (Model, tea.Cmd) {
 	}
 
 	if name == "" {
-		return m.show(screenClusters)
+		return m.show(clustersView)
 	}
 
 	return m.pick(name, m.opts.Clusters, "cluster", Model.switchCluster)
@@ -86,7 +86,7 @@ func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 	m.regionState, m.nomadVersion, m.token = regionState{}, "", nil
 
 	m.namespace, m.namespaceOrder = NamespaceOrAll(conn.Namespace), nil
-	m.screen, m.history = m.screenOf(screenJobs), nil
+	m.screen, m.history = jobsView.opened(), nil
 	m = m.restore()
 
 	next, cmd := m.arrive()

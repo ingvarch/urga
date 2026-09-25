@@ -88,10 +88,7 @@ func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
 		text = paintedText(msg.lines)
 	}
 
-	return m.push(screen{
-		kind: screenDescribe,
-		page: describePage{label: msg.label, content: text.textContent},
-	})
+	return m.push(screen{page: describePage{label: msg.label, content: text.textContent}})
 }
 
 // describePage is a description: what the cluster says of a resource, or

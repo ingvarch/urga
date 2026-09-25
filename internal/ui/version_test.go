@@ -39,7 +39,7 @@ func TestVersions_ListWhatTheJobWas(t *testing.T) {
 
 	m, client := onVersions(t)
 
-	r.Equal(screenJobVersions, m.screen.kind)
+	r.IsType(versionsPage{}, m.screen.page)
 	r.Equal("web", client.askedJobID)
 
 	out := plain(m.render())
@@ -61,7 +61,7 @@ func TestVersions_OpenWhatAVersionChanged(t *testing.T) {
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 	r.Equal(uint64(3), client.askedVersion)
 	// As a unified diff reads, in colour.
 	out := m.render()
@@ -150,7 +150,7 @@ func TestVersions_TheFirstVersionIsNotAnError(t *testing.T) {
 
 	// Nothing came before the first version of a job. That is how jobs
 	// begin, not something gone wrong.
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 	r.NotEqual(flashErr, m.flash.level)
 	r.Contains(plain(m.render()), "nothing before it")
 }

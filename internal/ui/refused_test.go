@@ -40,7 +40,7 @@ func TestRefusedEdit_AJobThatCannotBePlannedOpensAgain(t *testing.T) {
 	// The reason is not part of the job: what is planned is the fixed file.
 	r.Equal(2, client.planCalls)
 	r.Equal(fixed, client.plannedSource)
-	r.Equal(screenPlan, m.screen.kind)
+	r.IsType(planPage{}, m.screen.page)
 }
 
 func TestRefusedEdit_ANamespaceOpensAgainUntilDropped(t *testing.T) {

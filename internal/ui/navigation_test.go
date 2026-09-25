@@ -53,7 +53,7 @@ func TestNavigation_EnterOpensTheAllocationsOfAJob(t *testing.T) {
 	m, _ = m.update(jobsMsg(twoJobs()))
 
 	m, cmd := m.update(enter())
-	r.Equal(screenAllocations, m.screen.kind)
+	r.IsType(allocationsPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Allocations (Job: web)")
 
 	// The allocations are asked for in the namespace of that job, not in the
@@ -77,7 +77,7 @@ func TestNavigation_EnterOpensTheTasksOfAnAllocation(t *testing.T) {
 
 	m, _ = m.update(enter())
 
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 
 	out := plain(m.render())
 	r.Contains(out, "Tasks (Allocation: af1f37df) [2]")
@@ -94,17 +94,17 @@ func TestNavigation_EscapeWalksBack(t *testing.T) {
 	m, _ = m.update(allocsMsg(twoAllocs()))
 	m, _ = m.update(enter())
 
-	r.Equal(screenTasks, m.screen.kind)
+	r.IsType(tasksPage{}, m.screen.page)
 
 	m, _ = m.update(escape())
-	r.Equal(screenAllocations, m.screen.kind)
+	r.IsType(allocationsPage{}, m.screen.page)
 
 	m, _ = m.update(escape())
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 
 	// The job list is the floor, escape on it stays there.
 	m, _ = m.update(escape())
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 }
 
 func TestNavigation_AnswerForAScreenThatWasLeftIsDropped(t *testing.T) {
@@ -118,7 +118,7 @@ func TestNavigation_AnswerForAScreenThatWasLeftIsDropped(t *testing.T) {
 	// a screen that is gone, so it does not show up under the wrong title.
 	m, _ = m.update(jobsMsg(twoJobs()))
 
-	r.Equal(screenAllocations, m.screen.kind)
+	r.IsType(allocationsPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Allocations (Job: web) [0]")
 }
 
@@ -129,7 +129,7 @@ func TestNavigation_EnterOnAnEmptyListDoesNothing(t *testing.T) {
 
 	m, cmd := m.update(enter())
 
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Nil(cmd)
 }
 
@@ -245,6 +245,27 @@ func TestAllocations_WithoutAJob(t *testing.T) {
 	r.NotContains(plain(m.render()), "Job: )")
 }
 
+func TestAllocations_TheCommandOpensThemOverTheAllocationsOfAJob(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(client.jobs))
+
+	m, cmd := m.update(enter())
+	m = playOut(m, cmd)
+	r.Contains(plain(m.render()), "Allocations (Job: web)")
+
+	// The allocations of a job are not the list the command line names:
+	// asked for, that one opens, and escape comes back to the job.
+	m = typeCommand(m, "allocations")
+	r.Contains(plain(m.render()), "Allocations (production)")
+
+	m, cmd = m.update(escape())
+	m = playOut(m, cmd)
+	r.Contains(plain(m.render()), "Allocations (Job: web)")
+}
+
 // allocationLists are the lists of allocations, each opened the way a person
 // opens it: of a job, of a client and of a deployment.
 func allocationLists(t *testing.T) map[string]Model {
@@ -300,9 +321,9 @@ func TestAllocations_EachListHasItsOwnColumnsTitleAndTopics(t *testing.T) {
 	}
 
 	for name, m := range allocationLists(t) {
-		r.Equal(want[name].columns, m.screen.titles(), name)
+		r.Equal(want[name].columns, m.screen.page.titles(), name)
 		r.Equal(want[name].title, m.title(), name)
-		r.Equal(want[name].topics, m.screen.topics(), name)
+		r.Equal(want[name].topics, m.screen.page.topics(), name)
 
 		// Every one of them reads what its running allocations take.
 		r.NotNil(m.fetchUsage(), name)
@@ -320,7 +341,7 @@ func TestAllocations_TheCommandLineOpensThoseOfTheNamespaceFromAClientOrADeploym
 
 		// Both screens list allocations, but neither is the list the word
 		// names, so the word opens that list over them.
-		r.Equal(screenAllocations, m.screen.kind, name)
+		r.IsType(allocationsPage{}, m.screen.page, name)
 		r.Contains(plain(m.render()), "Allocations (production)", name)
 	}
 }
@@ -367,7 +388,7 @@ func TestAllocations_OfAGroupReadTheLogsOfThatGroup(t *testing.T) {
 	m, cmd = m.update(key('l'))
 	m = playOut(m, cmd)
 
-	r.Equal(screenJobLogs, m.screen.kind)
+	r.IsType(jobLogsPage{}, m.screen.page)
 	r.Equal([]string{newer, older}, client.logsOpened)
 }
 

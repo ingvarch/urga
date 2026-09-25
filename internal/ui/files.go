@@ -31,12 +31,6 @@ type filesPage struct {
 	listed bool
 }
 
-// filesScreen opens a directory of an allocation where the allocation
-// lives.
-func filesScreen(p filesPage) screen {
-	return screen{kind: screenFiles, page: p}
-}
-
 // browse opens the directory of the task under the cursor: what its
 // templates rendered is in local/ there.
 func browse(p tasksPage, e env) (tasksPage, outcome) {
@@ -45,7 +39,7 @@ func browse(p tasksPage, e env) (tasksPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(filesScreen(filesPage{namespace: p.namespace, allocID: p.allocID, path: path.Join("/", task.Name)})))
+	return p, then(openMsg{filesPage{namespace: p.namespace, allocID: p.allocID, path: path.Join("/", task.Name)}})
 }
 
 func (p filesPage) title(_ env, count int) string {
@@ -80,7 +74,7 @@ func (p filesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 		file := filePage{namespace: p.namespace, allocID: p.allocID, path: msg.path, first: msg.stream}
 
-		return p, outcome{now: []tea.Msg{openMsg(fileScreen(file))}, reading: true}, true
+		return p, outcome{now: []tea.Msg{openMsg{file}}, reading: true}, true
 	}
 
 	return p, outcome{}, false
@@ -131,7 +125,7 @@ func openEntry(p filesPage, e env) (filesPage, outcome) {
 // openDir lists a directory of the same allocation, on top of this one:
 // escape comes back to it.
 func (p filesPage) openDir(dir string) outcome {
-	return then(openMsg(filesScreen(filesPage{namespace: p.namespace, allocID: p.allocID, path: dir})))
+	return then(openMsg{filesPage{namespace: p.namespace, allocID: p.allocID, path: dir}})
 }
 
 // fileMsg is a file of an allocation, opened to be read.
@@ -177,11 +171,6 @@ type filePage struct {
 	first *nomad.LogStream
 
 	read logState
-}
-
-// fileScreen opens a file where its allocation lives.
-func fileScreen(p filePage) screen {
-	return screen{kind: screenFile, page: p}
 }
 
 // title says which file of which allocation it is, and when only its end

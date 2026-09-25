@@ -216,7 +216,7 @@ func New(client Client, opts Options) Model {
 		namespace: opts.Namespace,
 		list:      newList(jobTitles),
 	}
-	m.screen = m.screenOf(screenJobs)
+	m.screen = jobsView.opened()
 
 	return m.restore()
 }
@@ -250,10 +250,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	// An answer the open page asked for is the page's to keep.
-	if p := m.screen.page; p != nil {
-		if next, out, ok := p.take(msg, m.env()); ok {
-			return m.took(next, out)
-		}
+	if next, out, ok := m.screen.page.take(msg, m.env()); ok {
+		return m.took(next, out)
 	}
 
 	switch msg := msg.(type) {
@@ -289,7 +287,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m.back()
 
 	case openMsg:
-		return m.push(screen(msg))
+		return m.push(screen{page: msg.page})
 
 	case sayMsg:
 		return m.say(string(msg)), nil
@@ -357,7 +355,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		m.namespaces = msg
 		m.rememberNamespaces(msg)
 
-		next, cmd := m.applyList(screenNamespaces, func(*Model) {})
+		next, cmd := m.applyList(namespacesView, func(*Model) {})
 
 		return next, tea.Batch(cmd, next.remember())
 
@@ -477,8 +475,8 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 // applyList stores what the cluster sent, unless the screen it belongs to
 // was left: it would show up under the wrong title.
-func (m Model) applyList(kind screenKind, store func(*Model)) (Model, tea.Cmd) {
-	return m.applyWhen(m.screen.kind == kind, store)
+func (m Model) applyList(v *view, store func(*Model)) (Model, tea.Cmd) {
+	return m.applyWhen(m.screen.view == v, store)
 }
 
 // applyWhen stores an answer that belongs to what is open, and asks again
@@ -588,7 +586,7 @@ func (m Model) sortKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	column, ok := columnOfLetter(m.screen.titles(), letter)
+	column, ok := columnOfLetter(m.screen.page.titles(), letter)
 	if !ok {
 		return m, nil
 	}
@@ -810,7 +808,7 @@ func (m *Model) layout() {
 		m.text.toEnd()
 	}
 
-	m.list = m.list.read(m.rows(), m.screen.titles(), m.ids(), m.troubled)
+	m.list = m.list.read(m.rows(), m.screen.page.titles(), m.ids(), m.troubled)
 }
 
 // schedulePoll asks for the next poll, unless one is already on its way.

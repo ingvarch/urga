@@ -131,7 +131,7 @@ func TestAction_RevertAJob(t *testing.T) {
 	m = drain(m, cmd)
 
 	r.Nil(client.plannedTo)
-	r.Equal(screenPlan, m.screen.kind)
+	r.IsType(planPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Revert (Job: web, Version: 3)")
 
 	m, cmd = m.update(key('y'))

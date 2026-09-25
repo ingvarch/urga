@@ -77,7 +77,7 @@ func TestJobLogs_OfATaskGroupWithOneTask(t *testing.T) {
 
 	// One task in the group: its log in every allocation that runs, the
 	// newest first, each line saying where it came from.
-	r.Equal(screenJobLogs, m.screen.kind)
+	r.IsType(jobLogsPage{}, m.screen.page)
 	r.Equal([]string{newer, older}, client.logsOpened)
 	r.Equal("server", client.askedTask)
 	r.Equal(nomad.LogStdout, client.askedSource)
@@ -105,7 +105,7 @@ func TestJobLogs_AskWhichTask(t *testing.T) {
 	m := fromJobs(t, client)
 
 	// Every task of the job that runs somewhere, and where.
-	r.Equal(screenLogTasks, m.screen.kind)
+	r.IsType(logTasksPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Logs of which task? (Job: web)")
 	r.Contains(fileRow(t, m, 0), "backend/db")
 	r.Contains(fileRow(t, m, 0), "1 running")
@@ -122,14 +122,14 @@ func TestJobLogs_AskWhichTask(t *testing.T) {
 	m = playOut(m, cmd)
 
 	// The allocations the question was asked with are the ones read.
-	r.Equal(screenJobLogs, m.screen.kind)
+	r.IsType(jobLogsPage{}, m.screen.page)
 	r.Equal("sidecar", client.askedTask)
 	r.Equal([]string{newer, older}, client.logsOpened)
 	r.Equal(asked, client.allocCalls)
 
 	// Escape goes back to the question, and from there to the jobs.
 	m, _ = m.update(escape())
-	r.Equal(screenLogTasks, m.screen.kind)
+	r.IsType(logTasksPage{}, m.screen.page)
 }
 
 func TestJobLogs_OfTheAllocationsOnTheScreen(t *testing.T) {
@@ -150,7 +150,7 @@ func TestJobLogs_OfTheAllocationsOnTheScreen(t *testing.T) {
 	m = playOut(m, cmd)
 
 	// The allocations of the job, and which task of theirs.
-	r.Equal(screenLogTasks, m.screen.kind)
+	r.IsType(logTasksPage{}, m.screen.page)
 	r.Contains(fileRow(t, m, 1), "frontend/server")
 }
 
@@ -165,7 +165,7 @@ func TestJobLogs_NothingRuns(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: stopped, logsByAlloc: map[string]*nomad.LogStream{}}
 	m := fromJobs(t, client)
 
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "web has no allocation running")
 }
 
@@ -309,9 +309,9 @@ func TestJobLogs_CoveredClosesEveryStream(t *testing.T) {
 
 	// Each one is a request held open to a client: nothing reads it while
 	// another screen is on top, and coming back reads them again.
-	m, _ = m.show(screenDeployments)
+	m, _ = m.show(deploymentsView)
 
-	r.Equal(screenDeployments, m.screen.kind)
+	r.IsType(deploymentsPage{}, m.screen.page)
 	r.Equal(2, *closed)
 }
 
@@ -323,7 +323,7 @@ func TestJobLogs_EscapeClosesEveryStream(t *testing.T) {
 
 	m, _ = m.update(escape())
 
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Equal(2, *closed)
 }
 
@@ -357,7 +357,7 @@ func TestJobLogs_AStreamOpenedAfterLeavingIsLetGo(t *testing.T) {
 	m, _ = m.update(jobLogOpenedMsg{reading: reading, allocID: newer, stream: late})
 
 	r.True(closed)
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 }
 
 func TestJobLogs_AStreamOfLogsLeftIsNotReadByOthers(t *testing.T) {
@@ -403,7 +403,7 @@ func TestJobLogs_AStreamOfAnEarlierReadingIsLetGo(t *testing.T) {
 
 	m = drain(m, opening)
 
-	r.Equal(screenJobLogs, m.screen.kind)
+	r.IsType(jobLogsPage{}, m.screen.page)
 	r.Equal(2, closed)
 }
 
@@ -455,13 +455,13 @@ func TestJobLogs_ComingBackReadsAgain(t *testing.T) {
 
 	m, client := oneTask(t)
 
-	m, _ = m.show(screenDeployments)
+	m, _ = m.show(deploymentsView)
 	client.logsOpened = nil
 
 	m, cmd := m.update(escape())
 	m = playOut(m, cmd)
 
-	r.Equal(screenJobLogs, m.screen.kind)
+	r.IsType(jobLogsPage{}, m.screen.page)
 	r.Equal([]string{newer, older}, client.logsOpened)
 }
 
@@ -472,11 +472,11 @@ func TestJobLogs_ALineWhileAwayStaysOut(t *testing.T) {
 	client.describe = "Job web, as the cluster describes it"
 
 	// The logs stay behind, let go of, while a description is read on top.
-	m, _ = m.show(screenJobs)
+	m, _ = m.show(jobsView)
 	m, _ = m.update(jobsMsg(twoJobs()))
 	m, cmd := m.update(key('d'))
 	m = drain(m, cmd)
-	r.Equal(screenDescribe, m.screen.kind)
+	r.IsType(describePage{}, m.screen.page)
 
 	m, _ = m.update(logLineMsg{stream: client.logsByAlloc[newer], text: "written meanwhile\n"})
 
@@ -489,12 +489,12 @@ func TestJobLogs_TheQuestionOffersToRead(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: webAllocs("server", "sidecar"), logsByAlloc: map[string]*nomad.LogStream{}}
 	m := fromJobs(t, client)
 
-	r.Equal(screenLogTasks, m.screen.kind)
+	r.IsType(logTasksPage{}, m.screen.page)
 	r.Equal([]hint{{Key: "<enter>", Description: "Logs"}}, m.hints())
 
 	// Escape goes back to the jobs, and nothing was read.
 	m, _ = m.update(escape())
-	r.Equal(screenJobs, m.screen.kind)
+	r.IsType(jobsPage{}, m.screen.page)
 	r.Empty(client.logsOpened)
 }
 
@@ -544,10 +544,10 @@ func TestJobLogs_AnAnswerAfterLeavingOpensNothing(t *testing.T) {
 	// The allocations are asked about, and the session moves on before
 	// they answer.
 	m, asked := m.update(key('l'))
-	m, _ = m.show(screenDeployments)
+	m, _ = m.show(deploymentsView)
 	m = playOut(m, asked)
 
-	r.Equal(screenDeployments, m.screen.kind)
+	r.IsType(deploymentsPage{}, m.screen.page)
 	r.Empty(client.logsOpened)
 }
 
