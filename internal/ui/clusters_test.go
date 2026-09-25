@@ -171,6 +171,25 @@ func TestClusters_AClusterThatCannotBeReached(t *testing.T) {
 	r.Contains(plain(m.render()), "cron")
 }
 
+func TestClusters_ClosesTheLogsOfEveryAllocation(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+	clusters.dev.allocs = webAllocs("server")[:2]
+	clusters.dev.logsByAlloc = map[string]*nomad.LogStream{newer: writing(), older: writing()}
+
+	m, cmd := m.update(key('l'))
+	m = playOut(m, cmd)
+	r.Equal(screenJobLogs, m.screen.kind)
+
+	closed := countClosed(clusters.dev.logsByAlloc)
+	m = typeCommand(m, "ctx prod")
+
+	// Each one is a request held open to a client of the cluster left.
+	r.Equal(2, *closed)
+	r.Equal("prod", m.opts.Cluster)
+}
+
 func TestClusters_AnAnswerOfTheClusterLeftIsDropped(t *testing.T) {
 	r := require.New(t)
 

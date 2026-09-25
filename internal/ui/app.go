@@ -263,6 +263,10 @@ type Model struct {
 	logs  logState
 	plan  planState
 
+	// jobLogs are the logs of a task in every allocation that runs it.
+	// Not an answer of the cluster: requests held open, closed on leaving.
+	jobLogs jobLogsState
+
 	// asked counts the screens put up, so that an answer to one that is no
 	// longer up is dropped.
 	asked int
@@ -342,10 +346,8 @@ type clusterData struct {
 	// deployment is the deployment a deployment screen last read.
 	deployment nomad.DeploymentDetail
 
-	// logPick is the question which task to read the logs of, and jobLogs
-	// the logs of that task in every allocation that runs it.
+	// logPick is the question which task to read the logs of.
 	logPick logPick
-	jobLogs jobLogsState
 
 	// instances are the instances of a service, and instanceChecks what
 	// their checks last said.

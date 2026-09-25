@@ -214,20 +214,26 @@ func TestJobLogs_ALineOfAStreamNotReadHereIsDropped(t *testing.T) {
 	r.NotContains(plain(m.render()), "from nowhere")
 }
 
+// countClosed counts the streams closed from now on.
+func countClosed(streams map[string]*nomad.LogStream) *int {
+	closed := 0
+	for _, stream := range streams {
+		stream.OnClose = func() { closed++ }
+	}
+
+	return &closed
+}
+
 func TestJobLogs_EscapeClosesEveryStream(t *testing.T) {
 	r := require.New(t)
 
 	m, client := oneTask(t)
-
-	closed := 0
-	for _, stream := range client.logsByAlloc {
-		stream.OnClose = func() { closed++ }
-	}
+	closed := countClosed(client.logsByAlloc)
 
 	m, _ = m.update(escape())
 
 	r.Equal(screenJobs, m.screen.kind)
-	r.Equal(2, closed)
+	r.Equal(2, *closed)
 }
 
 func TestJobLogs_AStreamThatEnds(t *testing.T) {

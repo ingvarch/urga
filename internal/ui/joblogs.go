@@ -91,6 +91,14 @@ func (l *jobLogsState) stop() {
 	l.reading++
 }
 
+// stopLogs closes every log the session follows, of one task or of a job.
+func (m Model) stopLogs() Model {
+	m.logs.stop()
+	m.jobLogs.stop()
+
+	return m
+}
+
 // jobLogs reads the logs of the job under the cursor.
 func jobLogs(m Model) (Model, tea.Cmd) {
 	job, ok := selectedOf(m, screenJobs, m.jobs)

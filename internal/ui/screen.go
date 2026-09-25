@@ -362,8 +362,7 @@ func (m Model) back() (Model, tea.Cmd) {
 	}
 
 	// What the screen held on to is let go of before leaving it.
-	m.logs.stop()
-	m.jobLogs.stop()
+	m = m.stopLogs()
 
 	m.screen = m.history[len(m.history)-1]
 	m.history = m.history[:len(m.history)-1]

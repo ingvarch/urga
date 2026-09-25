@@ -256,6 +256,23 @@ func TestRegionCommand_ClosesTheLogs(t *testing.T) {
 	r.Equal(screenJobs, m.screen.kind)
 }
 
+func TestRegionCommand_ClosesTheLogsOfEveryAllocation(t *testing.T) {
+	r := require.New(t)
+
+	m, client := oneTask(t)
+	r.Equal(screenJobLogs, m.screen.kind)
+
+	m.opts.InRegion = func(string) Client { return client }
+	m, _ = m.update(regionsMsg([]string{"eu", "us"}))
+
+	closed := countClosed(client.logsByAlloc)
+	m, _ = runLine(m, "region us")
+
+	// Each one is a request held open to a client of the region left.
+	r.Equal(2, *closed)
+	r.Equal(screenJobs, m.screen.kind)
+}
+
 func TestRegionCommand_ReadsTheUsageAtOnce(t *testing.T) {
 	r := require.New(t)
 
