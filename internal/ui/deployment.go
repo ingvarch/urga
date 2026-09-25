@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"slices"
 	"strings"
 	"time"
@@ -25,41 +26,306 @@ var deploymentAllocTitles = []string{"ID", "TaskGroup", "Node", "Status", "Canar
 // groupTitles are the columns of the groups of a deployment.
 var groupTitles = []string{"Group", "Desired", "Placed", "Healthy", "Unhealthy", "Canaries", "Promoted", "Auto Revert", "Deadline", "Progress By"}
 
-// openDeployment opens the deployment under the cursor: how far it got with
-// each group, over the allocations it placed.
-func openDeployment(m Model) (Model, tea.Cmd) {
-	deployment, ok := selectedOf(m, screenDeployments, m.deployments)
+// deploymentTitles are the columns of the deployment list.
+var deploymentTitles = []string{"ID", "JobID", "Namespace", "Version", "Status", "Description"}
+
+// deploymentsPage is the deployments of the namespace the session looks at.
+type deploymentsPage struct {
+	deployments []nomad.Deployment
+}
+
+func (deploymentsPage) title(e env, count int) string {
+	return sprintf("Deployments (%s) [%d]", namespaceLabel(e.namespace), count)
+}
+
+func (deploymentsPage) titles() []string { return deploymentTitles }
+func (deploymentsPage) topics() []string { return []string{nomad.TopicDeployment} }
+
+func (deploymentsPage) fetch(e env) tea.Cmd {
+	client, namespace := e.client, e.namespace
+
+	return fetchList(func(ctx context.Context) ([]nomad.Deployment, error) {
+		return client.Deployments(ctx, namespace)
+	}, func(items []nomad.Deployment) tea.Msg { return deploymentsMsg(items) })
+}
+
+func (p deploymentsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	deployments, ok := msg.(deploymentsMsg)
 	if !ok {
-		return m, nil
+		return p, outcome{}, false
 	}
 
-	return m.push(screen{
-		kind:         screenDeployment,
-		namespace:    deployment.Namespace,
-		jobID:        deployment.JobID,
-		deploymentID: deployment.ID,
+	p.deployments = deployments
+
+	return p, outcome{}, true
+}
+
+func (p deploymentsPage) rows(env) []tableRow { return deploymentRows(p.deployments) }
+
+// inView is the deployment under the cursor.
+func (p deploymentsPage) inView(e env) (nomad.Deployment, bool) { return pickedFrom(e, p.deployments) }
+
+var deploymentsKeys = []pageKey[deploymentsPage]{
+	{press: "enter", label: "Details", do: openDeployment},
+	{press: "d", label: "Describe", do: describeDeployment},
+	{press: "p", label: "Promote", do: promoteDeployment[deploymentsPage], writes: true},
+	{press: "f", label: "Fail", do: failDeployment[deploymentsPage], writes: true},
+	{press: "ctrl+s", label: "Pause", do: pauseDeployment[deploymentsPage], writes: true, offered: deploymentIs[deploymentsPage]("running")},
+	{press: "ctrl+s", label: "Resume", do: pauseDeployment[deploymentsPage], writes: true, offered: deploymentIs[deploymentsPage]("paused")},
+}
+
+func (p deploymentsPage) keys(e env) []keyHint { return hintsOf(p, e, deploymentsKeys) }
+
+func (p deploymentsPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, deploymentsKeys, k)
+}
+
+func deploymentRows(deployments []nomad.Deployment) []tableRow {
+	rows := make([]tableRow, 0, len(deployments))
+
+	for _, d := range deployments {
+		rows = append(rows, tableRow{
+			cells: []string{
+				shortID(d.ID),
+				d.JobID,
+				d.Namespace,
+				fmt.Sprintf("%d", d.JobVersion),
+				d.Status,
+				d.StatusDescription,
+			},
+			color: deploymentColor(d),
+		})
+	}
+
+	return rows
+}
+
+func deploymentColor(d nomad.Deployment) color.Color {
+	switch d.Status {
+	case "running":
+		return colorPending
+	case "failed", "cancelled":
+		return colorDead
+	case "successful":
+		return nil
+	}
+
+	return nil
+}
+
+// openDeployment opens the deployment under the cursor: how far it got with
+// each group, over the allocations it placed.
+func openDeployment(p deploymentsPage, e env) (deploymentsPage, outcome) {
+	deployment, ok := p.inView(e)
+	if !ok {
+		return p, outcome{}
+	}
+
+	return p, then(openMsg(deploymentScreen(deployment)))
+}
+
+// deploymentHolder is a page whose keys act on one deployment: the one
+// under the cursor of the list, or the one a deployment page read.
+type deploymentHolder interface {
+	page
+	inView(e env) (nomad.Deployment, bool)
+}
+
+// deploymentIs offers a key when the deployment in view is in that state.
+func deploymentIs[P deploymentHolder](status string) func(p P, e env) bool {
+	return func(p P, e env) bool {
+		d, ok := p.inView(e)
+
+		return ok && d.Status == status
+	}
+}
+
+// promoteDeployment takes the canaries of every group of the deployment in
+// view into service.
+func promoteDeployment[P deploymentHolder](p P, e env) (P, outcome) {
+	deployment, ok := p.inView(e)
+	if !ok {
+		return p, outcome{}
+	}
+
+	client := e.client
+
+	return p, then(askMsg{
+		question: fmt.Sprintf("Really promote the canaries of every group of %s?", deployment.JobID),
+		apply: act(fmt.Sprintf("Deployment of %s promoted.", deployment.JobID), func(ctx context.Context) error {
+			return client.PromoteDeployment(ctx, deployment.Namespace, deployment.ID)
+		}),
 	})
 }
 
-// deploymentInView is the deployment a key acts on: the one under the
-// cursor on the list, or the one a deployment screen read.
-func (m Model) deploymentInView() (nomad.Deployment, bool) {
-	if m.screen.kind == screenDeployment {
-		return m.deployment.Deployment, m.deployment.ID == m.screen.deploymentID
+// failDeployment stops a deployment where it is.
+func failDeployment[P deploymentHolder](p P, e env) (P, outcome) {
+	deployment, ok := p.inView(e)
+	if !ok {
+		return p, outcome{}
 	}
 
-	return selectedOf(m, screenDeployments, m.deployments)
+	client := e.client
+
+	return p, then(askMsg{
+		question: fmt.Sprintf("Really fail the deployment of %s? It rolls back where the job says to.", deployment.JobID),
+		apply: act(fmt.Sprintf("Deployment of %s failed.", deployment.JobID), func(ctx context.Context) error {
+			return client.FailDeployment(ctx, deployment.Namespace, deployment.ID)
+		}),
+	})
 }
+
+// pauseDeployment stops the deployment in view where it is, or lets a
+// paused one go on.
+func pauseDeployment[P deploymentHolder](p P, e env) (P, outcome) {
+	d, ok := p.inView(e)
+	if !ok {
+		return p, outcome{}
+	}
+
+	pause, verb, done := true, "pause", "paused"
+	if d.Status == "paused" {
+		pause, verb, done = false, "resume", "resumed"
+	}
+
+	client := e.client
+
+	return p, then(askMsg{
+		question: fmt.Sprintf("Really %s the deployment of %s?", verb, d.JobID),
+		apply: act(fmt.Sprintf("Deployment of %s %s.", d.JobID, done), func(ctx context.Context) error {
+			return client.PauseDeployment(ctx, d.Namespace, d.ID, pause)
+		}),
+	})
+}
+
+// deploymentPage is one deployment: how far it got with each group, over
+// the allocations it placed.
+type deploymentPage struct {
+	namespace, jobID, deploymentID string
+
+	// deployment is the deployment as the page last read it, on its own
+	// and apart from its allocations; read says the page has read it. Until
+	// then there is no panel, and no key of the deployment.
+	deployment nomad.DeploymentDetail
+	read       bool
+
+	allocs []nomad.Alloc
+}
+
+// deploymentScreen opens a deployment where it lives, which is where its
+// stream watches.
+func deploymentScreen(d nomad.Deployment) screen {
+	return screen{
+		kind:      screenDeployment,
+		namespace: d.Namespace,
+		page:      deploymentPage{namespace: d.Namespace, jobID: d.JobID, deploymentID: d.ID},
+	}
+}
+
+func (p deploymentPage) title(_ env, count int) string {
+	return sprintf("Deployment %s (Job: %s) [%d]", shortID(p.deploymentID), p.jobID, count)
+}
+
+func (deploymentPage) titles() []string { return deploymentAllocTitles }
+
+// topics: what it placed changes, and so does the deployment itself.
+func (deploymentPage) topics() []string {
+	return []string{nomad.TopicAllocation, nomad.TopicDeployment}
+}
+
+// fetch reads the allocations the deployment placed, and the deployment on
+// its own next to them.
+func (p deploymentPage) fetch(e env) tea.Cmd {
+	client, namespace, id := e.client, p.namespace, p.deploymentID
+
+	return tea.Batch(
+		fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
+			return client.DeploymentAllocations(ctx, namespace, id)
+		}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
+		fetchDeployment(client, namespace, id),
+	)
+}
+
+func (p deploymentPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	switch msg := msg.(type) {
+	case allocsMsg:
+		p.allocs = msg
+
+		return p, outcome{}, true
+
+	case deploymentMsg:
+		// What the deployment of the page says about itself: another
+		// deployment's answer is not the page's.
+		if msg.ID != p.deploymentID {
+			return p, outcome{}, false
+		}
+
+		p.deployment, p.read = nomad.DeploymentDetail(msg), true
+
+		return p, outcome{}, true
+	}
+
+	return p, outcome{}, false
+}
+
+// panel is the panel of the deployment the page read. Until it has, there
+// is none.
+func (p deploymentPage) panel(_ env, width, room int) []string {
+	if !p.read {
+		return nil
+	}
+
+	return deploymentPanel(p.deployment, width, room)
+}
+
+func (p deploymentPage) rows(e env) []tableRow { return deploymentAllocRows(p.allocs, e.usage) }
+
+func (p deploymentPage) visible(env) []nomad.Alloc { return p.allocs }
+
+func (p deploymentPage) ids(env) []string { return names(p.allocs, allocMark) }
+
+func (p deploymentPage) readings(e env) []rowRef { return runningRefs(e.index, p.allocs) }
+
+func (deploymentPage) reading(ctx context.Context, client Client, ref rowRef) (nomad.ResourceUse, error) {
+	return allocReading(ctx, client, ref)
+}
+
+// logScope: the logs are read of what the deployment placed for its job.
+func (p deploymentPage) logScope(env) screen {
+	return screen{kind: screenDeployment, namespace: p.namespace, jobID: p.jobID, deploymentID: p.deploymentID}
+}
+
+// inView is the deployment the page read.
+func (p deploymentPage) inView(env) (nomad.Deployment, bool) { return p.deployment.Deployment, p.read }
+
+// deploymentKeys are what the deployment can do, then what its allocations
+// can, the way a client screen puts the machine first.
+var deploymentKeys = append([]pageKey[deploymentPage]{
+	{press: "p", label: "Promote Group", do: promoteGroup, writes: true, offered: groupWaitsHere},
+	{press: "ctrl+p", label: "Promote All", do: promoteDeployment[deploymentPage], writes: true, offered: someGroupWaits},
+	{press: "f", label: "Fail", do: failDeployment[deploymentPage], writes: true, offered: deploymentActive},
+	{press: "ctrl+s", label: "Pause", do: pauseDeployment[deploymentPage], writes: true, offered: deploymentIs[deploymentPage]("running")},
+	{press: "ctrl+s", label: "Resume", do: pauseDeployment[deploymentPage], writes: true, offered: deploymentIs[deploymentPage]("paused")},
+}, allocKeys[deploymentPage]()...)
+
+func (p deploymentPage) keys(e env) []keyHint { return hintsOf(p, e, deploymentKeys) }
+
+func (p deploymentPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, deploymentKeys, k)
+}
+
+// active says the deployment the page read is not over.
+func (p deploymentPage) active() bool { return p.read && p.deployment.Active() }
 
 // waitingGroup is the group of the allocation under the cursor, when its
 // canaries wait to be promoted.
-func (m Model) waitingGroup() (string, bool) {
-	alloc, ok := selectedOf(m, screenDeployment, m.allocs)
-	if !ok || !deploymentActive(m) {
+func (p deploymentPage) waitingGroup(e env) (string, bool) {
+	alloc, ok := pickedFrom(e, p.allocs)
+	if !ok || !p.active() {
 		return "", false
 	}
 
-	for _, g := range m.deployment.Groups {
+	for _, g := range p.deployment.Groups {
 		if g.Name == alloc.TaskGroup {
 			return g.Name, g.WaitsForPromotion()
 		}
@@ -69,101 +335,44 @@ func (m Model) waitingGroup() (string, bool) {
 }
 
 // deploymentActive says the deployment in view is not over.
-func deploymentActive(m Model) bool {
-	d, ok := m.deploymentInView()
+func deploymentActive(p deploymentPage, _ env) bool { return p.active() }
 
-	return ok && d.Active()
-}
-
-// deploymentIs offers a key when the deployment in view is in that state.
-func deploymentIs(status string) func(m Model) bool {
-	return func(m Model) bool {
-		d, ok := m.deploymentInView()
-
-		return ok && d.Status == status
-	}
-}
-
-func groupWaitsHere(m Model) bool {
-	_, ok := m.waitingGroup()
+func groupWaitsHere(p deploymentPage, e env) bool {
+	_, ok := p.waitingGroup(e)
 
 	return ok
 }
 
 // someGroupWaits says a group of the deployment on the screen has canaries
 // to promote.
-func someGroupWaits(m Model) bool {
-	if m.screen.kind != screenDeployment || !deploymentActive(m) {
-		return false
-	}
-
-	return slices.ContainsFunc(m.deployment.Groups, nomad.DeploymentGroup.WaitsForPromotion)
+func someGroupWaits(p deploymentPage, _ env) bool {
+	return p.active() && slices.ContainsFunc(p.deployment.Groups, nomad.DeploymentGroup.WaitsForPromotion)
 }
 
 // promoteGroup takes the canaries of the group of the allocation under the
 // cursor into service. The other groups keep theirs.
-func promoteGroup(m Model) (Model, tea.Cmd) {
-	group, ok := m.waitingGroup()
+func promoteGroup(p deploymentPage, e env) (deploymentPage, outcome) {
+	group, ok := p.waitingGroup(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	client, d := m.client, m.deployment
+	client, d := e.client, p.deployment
 
-	return m.ask(
-		fmt.Sprintf("Really promote the canaries of group %s of %s?", group, d.JobID),
-		act(fmt.Sprintf("Canaries of %s promoted.", group), func(ctx context.Context) error {
+	return p, then(askMsg{
+		question: fmt.Sprintf("Really promote the canaries of group %s of %s?", group, d.JobID),
+		apply: act(fmt.Sprintf("Canaries of %s promoted.", group), func(ctx context.Context) error {
 			return client.PromoteGroups(ctx, d.Namespace, d.ID, []string{group})
 		}),
-	)
+	})
 }
 
-// pauseDeployment stops the deployment in view where it is, or lets a
-// paused one go on.
-func pauseDeployment(m Model) (Model, tea.Cmd) {
-	d, ok := m.deploymentInView()
-	if !ok {
-		return m, nil
-	}
-
-	pause, verb, done := true, "pause", "paused"
-	if d.Status == "paused" {
-		pause, verb, done = false, "resume", "resumed"
-	}
-
-	client := m.client
-
-	return m.ask(
-		fmt.Sprintf("Really %s the deployment of %s?", verb, d.JobID),
-		act(fmt.Sprintf("Deployment of %s %s.", d.JobID, done), func(ctx context.Context) error {
-			return client.PauseDeployment(ctx, d.Namespace, d.ID, pause)
-		}),
-	)
-}
-
-// fetchDeployment reads the deployment of the screen. The allocations it
-// placed are read the way those of any list are.
-func fetchDeployment(client deploymentsClient, s screen) tea.Cmd {
+// fetchDeployment reads a deployment on its own. The allocations it placed
+// are read the way those of any list are.
+func fetchDeployment(client deploymentsClient, namespace, deploymentID string) tea.Cmd {
 	return request(func(ctx context.Context) (nomad.DeploymentDetail, error) {
-		return client.Deployment(ctx, s.namespace, s.deploymentID)
+		return client.Deployment(ctx, namespace, deploymentID)
 	}, func(d nomad.DeploymentDetail) tea.Msg { return deploymentMsg(d) })
-}
-
-// keepDeployment keeps what the deployment of the screen says about itself.
-func (m Model) keepDeployment(msg deploymentMsg) (Model, tea.Cmd) {
-	ours := m.screen.kind == screenDeployment && msg.ID == m.screen.deploymentID
-
-	return m.applyWhen(ours, func(m *Model) { m.deployment = nomad.DeploymentDetail(msg) })
-}
-
-// deploymentScreenPanel is the panel of the deployment the screen read.
-// Until it has, there is none.
-func (m Model) deploymentScreenPanel(width int) []string {
-	if m.deployment.ID != m.screen.deploymentID {
-		return nil
-	}
-
-	return deploymentPanel(m.deployment, width, m.rowsForPanel())
 }
 
 // deploymentPanel is what the allocations of a deployment show above them:

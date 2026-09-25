@@ -212,20 +212,17 @@ func (m Model) panel(width int) []string {
 		return p.panel(m.env(), width, m.rowsForPanel())
 	}
 
-	switch m.screen.kind {
-	case screenDeployment:
-		return m.deploymentScreenPanel(width)
-	case screenNode:
-		// A box with no room for even the machine leaves it to the
-		// allocations.
-		if m.rowsForPanel() < hostPanelRows {
-			return nil
-		}
-
-		return m.host.view(width, m.chartWidth(), m.chartHeight())
+	if m.screen.kind != screenNode {
+		return nil
 	}
 
-	return nil
+	// A box with no room for even the machine leaves it to the
+	// allocations.
+	if m.rowsForPanel() < hostPanelRows {
+		return nil
+	}
+
+	return m.host.view(width, m.chartWidth(), m.chartHeight())
 }
 
 // view is what a client shows above its allocations: what kind of machine

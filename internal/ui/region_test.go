@@ -596,7 +596,6 @@ func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
 
 	// What the screens of eu held when they were left.
 	m.allocs = twoAllocs()
-	m.deployments = []nomad.Deployment{{ID: "d1"}}
 	m.nodes = []nomad.Node{{ID: "n1"}}
 	m.host = hostModel{node: nomad.Node{ID: "n1"}, trail: []nomad.ResourceUse{{CPUPercent: 40}}}
 	m.nodeDetail = nomad.NodeDetail{ID: "n1", Name: "node-01"}

@@ -45,17 +45,17 @@ func describeAllocation(m Model) (Model, tea.Cmd) {
 	return m, allocDescription(m.client, alloc)
 }
 
-func describeDeployment(m Model) (Model, tea.Cmd) {
-	deployment, ok := selectedOf(m, screenDeployments, m.deployments)
+func describeDeployment(p deploymentsPage, e env) (deploymentsPage, outcome) {
+	deployment, ok := p.inView(e)
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
-	client := m.client
+	client := e.client
 
-	return m, describe(fmt.Sprintf("Deployment: %s", shortID(deployment.ID)), func(ctx context.Context) (string, error) {
+	return p, outcome{cmd: describe(fmt.Sprintf("Deployment: %s", shortID(deployment.ID)), func(ctx context.Context) (string, error) {
 		return client.DescribeDeployment(ctx, deployment.Namespace, deployment.ID)
-	})
+	})}
 }
 
 // showJobSpec asks for the file the job under the cursor was submitted with.
