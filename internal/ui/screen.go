@@ -55,9 +55,6 @@ const (
 type screen struct {
 	kind screenKind
 
-	// label titles a screen that is about one thing, like a description.
-	label string
-
 	// left is where the screen was when another one was opened on top of
 	// it, which is where escape comes back to.
 	left place

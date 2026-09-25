@@ -225,7 +225,8 @@ func TestLogs_SaveADescriptionToo(t *testing.T) {
 	m, cmd = m.update(ctrlKey('s'))
 	drain(m, cmd)
 
-	files, err := filepath.Glob(filepath.Join(dir, "*.txt"))
+	// The file is named after what was described.
+	files, err := filepath.Glob(filepath.Join(dir, "Job-web-*.txt"))
 	r.NoError(err)
 	r.Len(files, 1)
 }

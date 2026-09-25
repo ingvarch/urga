@@ -586,7 +586,7 @@ func TestFile_Wraps(t *testing.T) {
 func TestSaveName_OfAFile(t *testing.T) {
 	r := require.New(t)
 
-	name := saveName(fileScreen(filePage{path: "/server/local/app.env"}))
+	name := saveName(filePage{path: "/server/local/app.env"})
 
 	r.True(strings.HasPrefix(name, "app.env-"), name)
 	r.True(strings.HasSuffix(name, ".txt"), name)

@@ -21,7 +21,7 @@ func (m Model) saveText() tea.Cmd {
 		return nil
 	}
 
-	name := saveName(m.screen)
+	name := saveName(m.screen.page)
 
 	// What is kept is what is read: the filter, the wrapping and the times
 	// are how the screen was narrowed down to what matters.
@@ -45,10 +45,10 @@ func (m Model) saveText() tea.Cmd {
 
 // saveName says what the file is of and when it was taken, and keeps out
 // everything a file name cannot hold.
-func saveName(s screen) string {
-	what, extension := s.label, "txt"
-	if p, ok := s.page.(saving); ok {
-		what, extension = p.saveAs()
+func saveName(p page) string {
+	what, extension := "", "txt"
+	if s, ok := p.(saving); ok {
+		what, extension = s.saveAs()
 	}
 
 	return fmt.Sprintf("%s-%s.%s", plainName(what), time.Now().Format("20060102-150405"), extension)
