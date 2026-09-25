@@ -502,6 +502,12 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m.list.table = newTableModel(m.screen.titles())
 	m.list.filter = ""
 	m.list.sort = newSortState()
+
+	// A page of text opens on a window of its own, from the top.
+	if _, ok := m.screen.page.(reader); ok {
+		m.text = textModel{}
+	}
+
 	m.layout()
 
 	// A screen that can be opened by name shows the namespace of the

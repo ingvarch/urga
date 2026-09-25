@@ -12,12 +12,7 @@ import (
 // textModel is a block of text with a window over it: what a description or
 // a job file is read through.
 type textModel struct {
-	lines []string
-
-	// stamps are when each line arrived, for the lines that were watched
-	// arriving. A line that was already there when the screen opened has
-	// none: what a task writes carries no time of its own.
-	stamps map[int]time.Time
+	textContent
 
 	// filter keeps only the lines that say it.
 	filter string
@@ -29,6 +24,22 @@ type textModel struct {
 	// times puts the time a line arrived in front of it.
 	times bool
 
+	top int
+
+	width  int
+	height int
+}
+
+// textContent is what a text holds, apart from how it is read: a page of
+// text keeps it, the window over it is the root's.
+type textContent struct {
+	lines []string
+
+	// stamps are when each line arrived, for the lines that were watched
+	// arriving. A line that was already there when the screen opened has
+	// none: what a task writes carries no time of its own.
+	stamps map[int]time.Time
+
 	// paint is the style of the lines urga drew in a colour of their own,
 	// by line. The lines stay words: the filter reads them and a file keeps
 	// them, and the colour goes on only when they are drawn.
@@ -37,25 +48,19 @@ type textModel struct {
 	// tags go in front of lines to say where each came from, in a colour
 	// of their own.
 	tags map[int]tag
-
-	top int
-
-	width  int
-	height int
 }
 
 // emptied is the same window with nothing in it: another text, read the way
 // this one was.
 func (t textModel) emptied() textModel {
-	t.lines, t.stamps, t.top = nil, nil, 0
-	t.paint, t.tags = nil, nil
+	t.textContent, t.top = textContent{}, 0
 
 	return t
 }
 
 // add puts lines read from a stream at the end, stamped with when they
 // arrived, behind a tag and in a style of their own when they have one.
-func (t *textModel) add(lines []string, arrived time.Time, label *tag, style *lipgloss.Style) {
+func (t *textContent) add(lines []string, arrived time.Time, label *tag, style *lipgloss.Style) {
 	if t.stamps == nil {
 		t.stamps = map[int]time.Time{}
 	}
@@ -113,7 +118,7 @@ type paintedLine struct {
 
 // paintedText holds lines that urga drew, some in a colour of their own.
 func paintedText(lines []paintedLine) textModel {
-	t := textModel{paint: map[int]lipgloss.Style{}}
+	t := textModel{textContent: textContent{paint: map[int]lipgloss.Style{}}}
 
 	for i, line := range lines {
 		t.lines = append(t.lines, line.text)
@@ -223,7 +228,7 @@ func newTextModel(content string) textModel {
 		return textModel{}
 	}
 
-	return textModel{lines: strings.Split(content, "\n")}
+	return textModel{textContent: textContent{lines: strings.Split(content, "\n")}}
 }
 
 func (t *textModel) setSize(width, height int) {

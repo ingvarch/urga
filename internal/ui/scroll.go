@@ -47,7 +47,11 @@ func (m Model) scroll(by int) Model {
 
 // readsAsText says the screen shows a block of text rather than a list.
 func (m Model) readsAsText() bool {
-	return m.screen.kind == screenDescribe || m.readsAStream() || m.screen.kind == screenPlan
+	if _, ok := m.screen.page.(reader); ok {
+		return true
+	}
+
+	return m.readsAStream() || m.screen.kind == screenPlan
 }
 
 func (m Model) pageHeight() int {

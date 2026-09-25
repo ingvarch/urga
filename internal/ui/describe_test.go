@@ -138,3 +138,29 @@ func TestDescribe_DoesNotPoll(t *testing.T) {
 	_, cmd = m.update(pollMsg{})
 	r.Nil(cmd)
 }
+
+func TestDescribe_TheNextOneOpensAtTheTop(t *testing.T) {
+	r := require.New(t)
+
+	long := []string{}
+	for i := range 200 {
+		long = append(long, fmt.Sprintf("line-%03d", i))
+	}
+
+	client := &fakeClient{jobs: twoJobs(), describe: strings.Join(long, "\n")}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	described, cmd := m.update(key('d'))
+	m = drain(described, cmd)
+	m, _ = m.update(key('G'))
+	r.NotContains(plain(m.render()), long[0])
+
+	// Read to the end, left, and another one asked: it starts where it
+	// starts, not where the last one was left.
+	m, _ = m.update(escape())
+	described, cmd = m.update(key('d'))
+	m = drain(described, cmd)
+
+	r.Contains(plain(m.render()), long[0])
+}

@@ -310,6 +310,12 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case sayMsg:
 		return m.say(string(msg)), nil
 
+	case wrapMsg:
+		return wrapLines(m)
+
+	case saveMsg:
+		return saveScreen(m)
+
 	case askMsg:
 		return m.ask(msg.question, msg.apply)
 
@@ -833,6 +839,10 @@ func (m *Model) layout() {
 	// The table sits inside the box: the margin, its two border lines and the
 	// header row of the table itself are not rows.
 	m.list.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3-m.panelHeight(), 1))
+	if r, ok := m.screen.page.(reader); ok {
+		m.text.textContent = r.text(m.env())
+	}
+
 	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2-m.toggleRows()-m.barRows(), 1))
 
 	m.text.filter = m.list.filter
