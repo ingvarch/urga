@@ -27,9 +27,9 @@ func TestReadOnly_OffersOnlyWhatChangesNothing(t *testing.T) {
 		m := readOnly(open, &fakeShell{})
 
 		want := []hint{}
-		for _, b := range m.bindings() {
-			if !b.writes && (b.offered == nil || b.offered(m)) {
-				want = append(want, b.hint())
+		for _, k := range m.pageKeys() {
+			if !k.writes && k.offered {
+				want = append(want, k.hint())
 			}
 		}
 
@@ -46,8 +46,8 @@ func TestReadOnly_AWriteKeyChangesNothing(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 
 	for name, open := range everyScreen(t) {
-		for _, b := range open.bindings() {
-			if !b.writes {
+		for _, k := range open.pageKeys() {
+			if !k.writes {
 				continue
 			}
 
@@ -58,15 +58,15 @@ func TestReadOnly_AWriteKeyChangesNothing(t *testing.T) {
 			fake.logs = &nomad.LogStream{Lines: make(chan string)}
 			shell := &fakeShell{}
 
-			m, cmd := readOnly(open, shell).handleKey(keyOf(b.hint().Key))
+			m, cmd := readOnly(open, shell).handleKey(keyOf(k.hint().Key))
 			m = playOut(m, cmd)
 
-			r.Empty(fake.writes, "%s on the %s screen", b.press, name)
-			r.Equal(shellCommand{}, shell.opened, "%s on the %s screen", b.press, name)
+			r.Empty(fake.writes, "%s on the %s screen", k.press, name)
+			r.Equal(shellCommand{}, shell.opened, "%s on the %s screen", k.press, name)
 
 			// A key that does nothing with no word said reads as a broken
 			// key.
-			r.Contains(plain(m.render()), "read-only", "%s on the %s screen", b.press, name)
+			r.Contains(plain(m.render()), "read-only", "%s on the %s screen", k.press, name)
 		}
 	}
 }

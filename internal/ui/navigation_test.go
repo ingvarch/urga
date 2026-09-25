@@ -272,8 +272,8 @@ func TestAllocations_EachListAnswersItsOwnKeys(t *testing.T) {
 
 	for name, m := range allocationLists(t) {
 		got := []string{}
-		for _, b := range m.bindings() {
-			got = append(got, b.press+" "+b.label)
+		for _, k := range m.pageKeys() {
+			got = append(got, k.press+" "+k.label)
 		}
 
 		r.Equal(want[name], got, name)

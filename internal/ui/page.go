@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -152,10 +153,18 @@ type pageKey[P any] struct {
 }
 
 // keyHint is a key of a page as the root sees it: named, and whether it
-// changes the cluster or does anything now.
+// changes the cluster or does anything now. Each page has a table of its
+// own, so the same key can mean one thing here and another there, and a key
+// that is not in the table of the open page does nothing on it. What works
+// everywhere is not there, it lives in help.
 type keyHint struct {
 	press, label    string
 	writes, offered bool
+}
+
+// hint is the key as the header and help write it: ctrl+s is <ctrl-s>.
+func (k keyHint) hint() hint {
+	return hint{Key: "<" + strings.ReplaceAll(k.press, "+", "-") + ">", Description: k.label}
 }
 
 // hintsOf are the keys of a page's table as the root sees them.

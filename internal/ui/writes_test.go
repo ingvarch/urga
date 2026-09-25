@@ -179,7 +179,7 @@ func TestBindings_TheKeysThatChangeTheCluster(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 
 	for name, open := range everyScreen(t) {
-		for _, b := range open.bindings() {
+		for _, k := range open.pageKeys() {
 			fake, ok := open.client.(*fakeClient)
 			require.True(t, ok)
 
@@ -193,16 +193,16 @@ func TestBindings_TheKeysThatChangeTheCluster(t *testing.T) {
 			m.opts.Editor = &fakeEditor{replace: "changed"}
 			m.opts.Shell = shell
 
-			m, cmd := b.do(m)
+			m, cmd := m.pressPage(k.press)
 			playOut(m, cmd)
 
 			wrote := len(fake.writes) > 0 || shell.opened != (shellCommand{})
 
 			// Read-only takes away the keys marked as writes. A key that
 			// writes without the mark stays, and changes the cluster.
-			if wrote != b.writes {
+			if wrote != k.writes {
 				t.Errorf("%s on the %s screen: marked writes=%t, changed the cluster: %t %v",
-					b.press, name, b.writes, wrote, fake.writes)
+					k.press, name, k.writes, wrote, fake.writes)
 			}
 		}
 	}

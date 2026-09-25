@@ -2,36 +2,9 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
-
-// binding is one key a screen answers: how the keyboard names it, what the
-// header calls it, and what it does. Each screen has a table of its own, so
-// the same key can mean one thing here and another there, and a key that is
-// not in the table of the open screen does nothing on it.
-type binding struct {
-	press string
-	label string
-	do    func(m Model) (Model, tea.Cmd)
-
-	// writes says the key changes the cluster, which read-only takes away.
-	writes bool
-
-	// offered says the key does something in the state the screen is in.
-	// Nil is always.
-	offered func(m Model) bool
-}
-
-// hint is the binding as the header and help write it: ctrl+s is <ctrl-s>.
-func (b binding) hint() hint {
-	return hint{Key: "<" + strings.ReplaceAll(b.press, "+", "-") + ">", Description: b.label}
-}
-
-// The keys each screen answers. What works everywhere is not here, it lives
-// in help.
-var ()
 
 // resource is everything a screen knows about itself: what it is called, what
 // its columns are, which keys it answers, how it is asked for and how its
@@ -48,7 +21,6 @@ type resource struct {
 	aliases []string
 
 	titles []string
-	keys   []binding
 
 	// topics are what the cluster is asked to say about: a change in one of
 	// them is this screen no longer being what it shows. A screen with none
