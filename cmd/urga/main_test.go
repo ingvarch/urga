@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -230,4 +232,22 @@ func TestNewerRelease_TurnedOff(t *testing.T) {
 	r.Nil(newerRelease(environment(map[string]string{"URGA_NO_UPDATE_CHECK": "1"}), "v0.5.0"))
 	r.Nil(newerRelease(environment(map[string]string{"URGA_NO_UPDATE_CHECK": "yes"}), "v0.5.0"))
 	r.NotNil(newerRelease(environment(map[string]string{"URGA_NO_UPDATE_CHECK": ""}), "v0.5.0"))
+}
+
+func TestOpen_ReadsTheSettingsOfTheConfigDirectory(t *testing.T) {
+	r := require.New(t)
+
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", home)
+	r.NoError(os.MkdirAll(filepath.Join(home, "urga"), 0o700))
+	r.NoError(os.WriteFile(filepath.Join(home, "urga", "clusters.toml"), []byte(`
+[clusters.dev]
+address = "http://127.0.0.1:4646"
+`), 0o600))
+
+	_, err := open(cmdline{cluster: "dev"})
+	r.NoError(err)
+
+	_, err = open(cmdline{cluster: "stage"})
+	r.ErrorContains(err, `no cluster "stage": dev`)
 }

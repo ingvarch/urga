@@ -44,31 +44,44 @@ func run() error {
 		return nil
 	}
 
-	dir, err := config.Dir()
+	model, err := open(cl)
 	if err != nil {
 		return err
+	}
+
+	_, err = tea.NewProgram(model).Run()
+
+	return err
+}
+
+// open is urga as the command line and the settings start it, before
+// anything is asked of the cluster.
+func open(cl cmdline) (ui.Model, error) {
+	dir, err := config.Dir()
+	if err != nil {
+		return ui.Model{}, err
 	}
 
 	s, err := settings.Load(filepath.Join(dir, "clusters.toml"))
 	if err != nil {
-		return err
+		return ui.Model{}, err
 	}
 
 	st, err := startOn(cl, s)
 	if err != nil {
-		return err
+		return ui.Model{}, err
 	}
 
 	client, err := nomad.New(st.nomad)
 	if err != nil {
-		return err
+		return ui.Model{}, err
 	}
 
 	// What the last session was looking at. A session that cannot be read
 	// starts fresh.
 	cfg, err := config.Load()
 	if err != nil {
-		return err
+		return ui.Model{}, err
 	}
 
 	// Without clusters in the settings there is nothing to switch to.
@@ -77,7 +90,7 @@ func run() error {
 		connect = connectWith(cl, s)
 	}
 
-	model := ui.New(client, ui.Options{
+	return ui.New(client, ui.Options{
 		Cluster:        st.cluster,
 		Color:          st.color,
 		Clusters:       s.Names(),
@@ -91,11 +104,7 @@ func run() error {
 		Shell:          ui.NewShell(client),
 		InRegion:       ui.InRegionOf(client),
 		NewerRelease:   newerRelease(os.Getenv, version.Version),
-	})
-
-	_, err = tea.NewProgram(model).Run()
-
-	return err
+	}), nil
 }
 
 // cmdline is what the command line says.
