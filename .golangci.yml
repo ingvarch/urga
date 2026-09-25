@@ -8,3 +8,5 @@ linters:
     - staticcheck
     - unused
     - revive
+    - dupl
+    - gocritic

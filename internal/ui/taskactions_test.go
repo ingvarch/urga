@@ -96,16 +96,17 @@ func TestTasks_RefuseWhatIsNotASignal(t *testing.T) {
 func TestSignalName(t *testing.T) {
 	r := require.New(t)
 
-	for typed, name := range map[string]string{
-		"SIGHUP":    "SIGHUP",
-		"hup":       "SIGHUP",
-		" sigterm ": "SIGTERM",
-		"usr1":      "SIGUSR1",
-		"winch":     "SIGWINCH",
+	// What is typed may come with spaces around it.
+	for _, c := range []struct{ typed, name string }{
+		{"SIGHUP", "SIGHUP"},
+		{"hup", "SIGHUP"},
+		{" sigterm ", "SIGTERM"},
+		{"usr1", "SIGUSR1"},
+		{"winch", "SIGWINCH"},
 	} {
-		got, err := signalName(typed)
-		r.NoError(err, typed)
-		r.Equal(name, got, typed)
+		got, err := signalName(c.typed)
+		r.NoError(err, c.typed)
+		r.Equal(c.name, got, c.typed)
 	}
 
 	// A client sends SIGINT for a name it does not know, which stops most

@@ -30,9 +30,9 @@ func colorCode(c color.Color) string {
 }
 
 func styleCode(s lipgloss.Style) string {
-	rendered := s.Render("x")
+	code, _, _ := strings.Cut(s.Render("x"), "x")
 
-	return rendered[:strings.Index(rendered, "x")]
+	return code
 }
 
 func TestTable_ColumnsFollowTheContent(t *testing.T) {
