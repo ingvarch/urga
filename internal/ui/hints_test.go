@@ -23,7 +23,21 @@ import (
 func everyScreen(t *testing.T) map[string]Model {
 	t.Helper()
 
-	client := &fakeClient{
+	client := everyScreenClient()
+
+	open := listsByName(client)
+	openOfAJob(open)
+	openOfATask(open)
+	openOfAClient(open)
+	openOfTheLists(open)
+	openPickers(open, client)
+
+	return open
+}
+
+// everyScreenClient is a cluster with something on every screen.
+func everyScreenClient() *fakeClient {
+	return &fakeClient{
 		jobs:        twoJobs(),
 		allocs:      twoAllocs(),
 		groups:      twoGroups(),
@@ -71,7 +85,10 @@ func everyScreen(t *testing.T) map[string]Model {
 			Items:    map[string]string{"DB_HOST": "10.0.0.5"},
 		},
 	}
+}
 
+// listsByName are the lists the command line opens, with rows on them.
+func listsByName(client *fakeClient) map[string]Model {
 	rows := map[string]tea.Msg{
 		"jobs":        jobsMsg(client.jobs),
 		"deployments": deploymentsMsg(client.deployments),
@@ -96,6 +113,11 @@ func everyScreen(t *testing.T) map[string]Model {
 		open[name] = m
 	}
 
+	return open
+}
+
+// openOfAJob adds the screens that hang off a job.
+func openOfAJob(open map[string]Model) {
 	jobs := open["jobs"]
 
 	allocs, _ := jobs.update(enter())
@@ -112,10 +134,44 @@ func everyScreen(t *testing.T) map[string]Model {
 	described, cmd := jobs.update(key('d'))
 	open["describe"] = drain(described, cmd)
 
-	server, _ := open["servers"].update(enter())
-	open["server"] = server
+	versions, cmd := jobs.update(key('v'))
+	open["versions"] = drain(versions, cmd)
 
-	// The screens of one client, each opened by the key that offers it.
+	// The logs of a job: which task, then that task in every allocation.
+	pick, cmd := jobs.update(key('l'))
+	open["logtasks"] = drain(pick, cmd)
+
+	jobLogs, cmd := open["logtasks"].update(enter())
+	open["joblogs"] = drain(jobLogs, cmd)
+
+	// The plan of an edited job: the file changed, or there is nothing to
+	// plan.
+	editing := jobs
+	editing.opts.Editor = &fakeEditor{replace: "job \"web\" {\n  type = \"batch\"\n}"}
+	edited, cmd := editing.update(key('e'))
+	open["plan"] = follow(edited, cmd, 6)
+}
+
+// openOfATask adds the screens that hang off a task.
+func openOfATask(open map[string]Model) {
+	events, _ := open["tasks"].update(key('e'))
+	open["taskevents"] = events
+
+	logs, cmd := open["tasks"].update(enter())
+	open["logs"] = drain(logs, cmd)
+
+	// The files of a task, and one of them open.
+	files, cmd := open["tasks"].update(key('b'))
+	open["files"] = drain(files, cmd)
+
+	files, _ = open["files"].update(key('G'))
+	file, cmd := files.update(enter())
+	open["file"] = drain(file, cmd)
+}
+
+// openOfAClient adds the screens of one client, each opened by the key that
+// offers it.
+func openOfAClient(open map[string]Model) {
 	machine, machineCmd := open["nodes"].update(enter())
 	machine = drain(machine, machineCmd)
 	open["client"] = machine
@@ -133,16 +189,13 @@ func everyScreen(t *testing.T) map[string]Model {
 
 	driver, cmd := open["drivers"].update(enter())
 	open["driver"] = drain(driver, cmd)
+}
 
-	// The screens that hang off a job and a task.
-	versions, cmd := jobs.update(key('v'))
-	open["versions"] = drain(versions, cmd)
-
-	events, _ := open["tasks"].update(key('e'))
-	open["taskevents"] = events
-
-	logs, cmd := open["tasks"].update(enter())
-	open["logs"] = drain(logs, cmd)
+// openOfTheLists adds what the other lists open: a server, the instances
+// of a service, the values of a variable and a deployment.
+func openOfTheLists(open map[string]Model) {
+	server, _ := open["servers"].update(enter())
+	open["server"] = server
 
 	// The instances of a service.
 	instances, cmd := open["services"].update(enter())
@@ -155,28 +208,12 @@ func everyScreen(t *testing.T) map[string]Model {
 	// The screen of a deployment, opened from the list of them.
 	deployment, cmd := open["deployments"].update(enter())
 	open["deployment"] = drain(deployment, cmd)
+}
 
-	// The files of a task, and one of them open.
-	files, cmd := open["tasks"].update(key('b'))
-	open["files"] = drain(files, cmd)
-
-	files, _ = open["files"].update(key('G'))
-	file, cmd := files.update(enter())
-	open["file"] = drain(file, cmd)
-
-	// The logs of a job: which task, then that task in every allocation.
-	pick, cmd := jobs.update(key('l'))
-	open["logtasks"] = drain(pick, cmd)
-
-	jobLogs, cmd := open["logtasks"].update(enter())
-	open["joblogs"] = drain(jobLogs, cmd)
-
-	// The plan of an edited job: the file changed, or there is nothing to
-	// plan.
-	editing := jobs
-	editing.opts.Editor = &fakeEditor{replace: "job \"web\" {\n  type = \"batch\"\n}"}
-	edited, cmd := editing.update(key('e'))
-	open["plan"] = follow(edited, cmd, 6)
+// openPickers adds the lists a cluster, a region and a datacenter are picked
+// from.
+func openPickers(open map[string]Model, client *fakeClient) {
+	jobs := open["jobs"]
 
 	// The list the clusters of the settings are picked from.
 	clusters := New(client, Options{
@@ -197,8 +234,6 @@ func everyScreen(t *testing.T) map[string]Model {
 	datacenters, _ := jobs.update(datacentersMsg{names: []string{"dc1"}})
 	datacenters, _ = runLine(datacenters, "dc")
 	open["datacenters"] = datacenters
-
-	return open
 }
 
 func TestHints_EveryKeyTheHeaderOffersDoesSomething(t *testing.T) {
