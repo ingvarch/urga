@@ -141,19 +141,12 @@ func pauseDeployment(m Model) (Model, tea.Cmd) {
 	)
 }
 
-// fetchDeployment reads the deployment of the screen and the allocations it
-// placed.
-func fetchDeployment(m Model) tea.Cmd {
-	client, s := m.client, m.screen
-
-	return tea.Batch(
-		fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
-			return client.DeploymentAllocations(ctx, s.namespace, s.deploymentID)
-		}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
-		request(func(ctx context.Context) (nomad.DeploymentDetail, error) {
-			return client.Deployment(ctx, s.namespace, s.deploymentID)
-		}, func(d nomad.DeploymentDetail) tea.Msg { return deploymentMsg(d) }),
-	)
+// fetchDeployment reads the deployment of the screen. The allocations it
+// placed are read the way those of any list are.
+func fetchDeployment(client Client, s screen) tea.Cmd {
+	return request(func(ctx context.Context) (nomad.DeploymentDetail, error) {
+		return client.Deployment(ctx, s.namespace, s.deploymentID)
+	}, func(d nomad.DeploymentDetail) tea.Msg { return deploymentMsg(d) })
 }
 
 // keepDeployment keeps what the deployment of the screen says about itself.

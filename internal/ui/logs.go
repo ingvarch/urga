@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -158,22 +159,27 @@ func (m Model) appendLog(chunk string) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.text.stamps == nil {
-		m.text.stamps = map[int]time.Time{}
-	}
+	m = m.readLines(linesOf(chunk), nil, nil)
 
-	now := time.Now()
+	return m, m.logs.waitForLog()
+}
 
-	for _, line := range strings.Split(strings.TrimSuffix(chunk, "\n"), "\n") {
-		m.text.stamps[len(m.text.lines)] = now
-		m.text.lines = append(m.text.lines, line)
-	}
+// readLines puts lines a stream sent at the end, all with the one time they
+// arrived, and follows them unless following was stopped.
+func (m Model) readLines(lines []string, label *tag, style *lipgloss.Style) Model {
+	m.text.add(lines, time.Now(), label, style)
 
 	if m.logs.following {
 		m.text.toEnd()
 	}
 
-	return m, m.logs.waitForLog()
+	return m
+}
+
+// linesOf are the lines of a chunk a stream sent: the newline it ends with
+// ends its last line and starts none.
+func linesOf(chunk string) []string {
+	return strings.Split(strings.TrimSuffix(chunk, "\n"), "\n")
 }
 
 // ended lets go of a stream that has ended on its own.

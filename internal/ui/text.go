@@ -54,6 +54,36 @@ func (t textModel) emptied() textModel {
 	return t
 }
 
+// add puts lines read from a stream at the end, stamped with when they
+// arrived, behind a tag and in a style of their own when they have one.
+func (t *textModel) add(lines []string, arrived time.Time, label *tag, style *lipgloss.Style) {
+	if t.stamps == nil {
+		t.stamps = map[int]time.Time{}
+	}
+
+	if label != nil && t.tags == nil {
+		t.tags = map[int]tag{}
+	}
+
+	if style != nil && t.paint == nil {
+		t.paint = map[int]lipgloss.Style{}
+	}
+
+	for _, line := range lines {
+		at := len(t.lines)
+		t.lines = append(t.lines, line)
+		t.stamps[at] = arrived
+
+		if label != nil {
+			t.tags[at] = *label
+		}
+
+		if style != nil {
+			t.paint[at] = *style
+		}
+	}
+}
+
 // tag is a label in front of a line: the allocation it came from. It is
 // read with the line, and drawn in a style of its own.
 type tag struct {
