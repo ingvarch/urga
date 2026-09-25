@@ -205,15 +205,18 @@ func (m Model) rowsForPanel() int {
 // panel is what the screen holds above its rows, sized to it. A client has
 // one: what the machine is doing belongs over its allocations, not over a
 // list of its attributes. So do the tasks of an allocation: where it runs and
-// listens. A variable held as a lock says who holds it.
+// listens. A page may hold one of its own, like a variable held as a lock
+// saying who holds it.
 func (m Model) panel(width int) []string {
+	if p, ok := m.screen.page.(panelled); ok {
+		return p.panel(m.env(), width, m.rowsForPanel())
+	}
+
 	switch m.screen.kind {
 	case screenTasks:
 		return m.tasksPanel(width)
 	case screenDeployment:
 		return m.deploymentScreenPanel(width)
-	case screenVariable:
-		return m.variablePanel(width)
 	case screenNode:
 		// A box with no room for even the machine leaves it to the
 		// allocations.

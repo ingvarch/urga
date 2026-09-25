@@ -180,8 +180,19 @@ func copyKey[P page]() pageKey[P] {
 			return p, outcome{}
 		}
 
-		return p, outcome{now: []tea.Msg{sayMsg(sprintf("Copied %s.", row.cells[0]))}, cmd: tea.SetClipboard(row.cells[1])}
+		return p, copying(row.cells[0], row.cells[1])
 	}}
+}
+
+// copying puts a value on the clipboard and says whose it is.
+func copying(field, value string) outcome {
+	return outcome{now: []tea.Msg{sayMsg(sprintf("Copied %s.", field))}, cmd: tea.SetClipboard(value)}
+}
+
+// panelled is a page with something to say above its rows, in no more than
+// room rows.
+type panelled interface {
+	panel(e env, width, room int) []string
 }
 
 // noKeys is a page without keys of its own.

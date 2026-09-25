@@ -222,7 +222,6 @@ type clusterData struct {
 	services    []nomad.Service
 	evaluations []nomad.Evaluation
 	nodes       []nomad.Node
-	variables   []nomad.Variable
 	versions    []nomad.JobVersion
 
 	// host is the machine a client screen is open on, and the readings
@@ -253,9 +252,6 @@ type clusterData struct {
 	// their checks last said.
 	instances      []nomad.ServiceInstance
 	instanceChecks instanceChecksState
-
-	// variable is the variable a variable screen last read.
-	variable variableState
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -391,9 +387,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case nodesMsg:
 		return usageOnce(m.applyList(screenNodes, func(m *Model) { m.nodes = m.nodesInView(msg) }))
-
-	case variablesMsg:
-		return m.applyList(screenVariables, func(m *Model) { m.variables = msg })
 
 	case agentMsg:
 		return m.keepAgent(msg), nil
@@ -536,9 +529,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case deploymentMsg:
 		return m.keepDeployment(msg)
-
-	case variableMsg:
-		return m.keepVariable(msg)
 
 	case newerReleaseMsg:
 		return m.keepRelease(msg)

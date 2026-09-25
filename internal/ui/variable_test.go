@@ -164,6 +164,79 @@ func TestVariables_ListSaysWhoHoldsTheLock(t *testing.T) {
 	r.NotContains(fileRow(t, m, 1), "874ae5d0")
 }
 
+func TestVariables_TheListOfTheNamespaceAndItsKeys(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{variables: []nomad.Variable{leaderVariable().Variable, webVariable().Variable}}
+	m := typeCommand(newTestModel(client), "variables")
+
+	// Asked in the namespace of the session, and titled with it.
+	r.Equal("production", client.askedNamespace)
+	r.Contains(plain(m.render()), "Variables (production) [2]")
+
+	header := fileRow(t, m, -1)
+	for _, title := range []string{"Path", "Namespace", "Lock", "Age", "Modified"} {
+		r.Contains(header, title)
+	}
+
+	r.Contains(fileRow(t, m, 1), "nomad/jobs/web")
+	r.Contains(fileRow(t, m, 1), "default")
+
+	// The locked one has no edit, the other one has.
+	r.Equal([]hint{{Key: "<enter>", Description: "Values"}}, m.hints())
+
+	m, _ = m.update(key('j'))
+	r.Equal([]hint{{Key: "<enter>", Description: "Values"}, {Key: "<e>", Description: "Edit"}}, m.hints())
+}
+
+func TestVariable_TheKeysOfTheValues(t *testing.T) {
+	r := require.New(t)
+
+	m := onVariable(t, &fakeClient{}, webVariable())
+	r.Equal([]hint{
+		{Key: "<v>", Description: "Toggle Values"},
+		{Key: "<c>", Description: "Copy"},
+		{Key: "<e>", Description: "Edit"},
+	}, m.hints())
+
+	m = onVariable(t, &fakeClient{}, leaderVariable())
+	r.Equal([]hint{{Key: "<v>", Description: "Toggle Values"}, {Key: "<c>", Description: "Copy"}}, m.hints())
+}
+
+func TestVariables_AListThatAnswersLateIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	m := onVariable(t, &fakeClient{}, webVariable())
+
+	// The list answers while a variable of it is open.
+	m, _ = m.update(variablesMsg{leaderVariable().Variable})
+	r.Contains(fileRow(t, m, 0), "CERT")
+
+	// Back on the list, it shows what it held.
+	m, _ = m.update(escape())
+
+	out := plain(m.render())
+	r.Contains(out, "nomad/jobs/web")
+	r.NotContains(out, "locks/leader")
+}
+
+func TestVariables_OfTheRegionLeftAreLetGo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{variables: []nomad.Variable{webVariable().Variable}}
+	m := regionalModel(t, client)
+	m = typeCommand(m, "variables")
+	r.Contains(plain(m.render()), "nomad/jobs/web")
+
+	// The variables of eu must not stand under the name of us before us
+	// answers.
+	client.variables = nil
+	m, _ = runLine(m, "region us")
+
+	r.Contains(plain(m.render()), "Variables (production) [0]")
+	r.NotContains(plain(m.render()), "nomad/jobs/web")
+}
+
 // webFile is the web variable as the editor gets it.
 const webFile = "# Variable nomad/jobs/web in namespace default.\nDB_HOST = \"10.0.0.5\"\n"
 

@@ -375,33 +375,9 @@ func init() {
 		},
 
 		screenVariables: {
-			name:    "Variables",
 			stored:  "variables",
 			aliases: []string{"variables", "variable", "vars", "var"},
-			titles:  variableTitles,
-			keys: []binding{
-				{press: "enter", label: "Values", do: openVariable},
-				{press: "e", label: "Edit", do: editVariable, writes: true, offered: variableUnlocked},
-			},
-			fetch: func(m Model) tea.Cmd {
-				client, namespace := m.client, m.namespace
-
-				return fetchList(func(ctx context.Context) ([]nomad.Variable, error) {
-					return client.Variables(ctx, namespace)
-				}, func(items []nomad.Variable) tea.Msg { return variablesMsg(items) })
-			},
-			rows: func(m Model) []tableRow { return variableRows(m.variables) },
-		},
-
-		screenVariable: {
-			titles: variableItemTitles,
-			keys:   variableBindings,
-
-			title: func(m Model, count int) string {
-				return sprintf("Variable %s (%s) [%d]", m.screen.label, namespaceLabel(m.screen.namespace), count)
-			},
-			fetch: fetchVariable,
-			rows:  func(m Model) []tableRow { return variableItemRows(m.variable) },
+			open:    func() page { return variablesPage{} },
 		},
 
 		screenRegions:     {open: func() page { return regionsPage{} }},
