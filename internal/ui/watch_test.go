@@ -327,12 +327,13 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 		screenNodePools:   {nomad.TopicNodePool},
 	}
 
+	// Each is asked the way the program opens it, page and all.
 	for kind, topics := range watched {
-		r.Equal(topics, screen{kind: kind}.topics(), "screen %d", kind)
+		r.Equal(topics, Model{}.screenOf(kind).topics(), "screen %d", kind)
 	}
 
 	for _, kind := range []screenKind{screenNamespaces, screenVariables, screenServers} {
-		r.Empty(screen{kind: kind}.topics(), "screen %d", kind)
+		r.Empty(Model{}.screenOf(kind).topics(), "screen %d", kind)
 	}
 }
 

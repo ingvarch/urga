@@ -224,16 +224,26 @@ func (m Model) narrow(datacenter string, show func(Model) (Model, tea.Cmd)) (Mod
 // on the way here that can be opened by name.
 func (m Model) listScreen() screen {
 	if m.screen.of().stored != "" {
-		return m.screen
+		return m.fresh(m.screen)
 	}
 
 	for i := len(m.history) - 1; i >= 0; i-- {
 		if m.history[i].of().stored != "" {
-			return m.history[i]
+			return m.fresh(m.history[i])
 		}
 	}
 
 	return screen{kind: screenJobs, namespace: m.namespace}
+}
+
+// fresh is a list as it was opened, without what its page read of the
+// region that was left.
+func (m Model) fresh(s screen) screen {
+	if s.page != nil {
+		s.page = resources[s.kind].open()
+	}
+
+	return s
 }
 
 // listed is a list of names as a message reads it.

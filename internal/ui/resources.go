@@ -210,15 +210,3 @@ func lockOf(v nomad.Variable) string {
 
 	return shortID(v.Lock.ID)
 }
-
-var nodePoolTitles = []string{"Name", "Scheduler", "Description"}
-
-func nodePoolRows(pools []nomad.NodePool) []tableRow {
-	rows := make([]tableRow, 0, len(pools))
-
-	for _, p := range pools {
-		rows = append(rows, tableRow{cells: []string{p.Name, p.Scheduler, p.Description}})
-	}
-
-	return rows
-}

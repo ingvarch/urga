@@ -139,6 +139,10 @@ type resource struct {
 
 	// rows are what the screen shows.
 	rows func(m Model) []tableRow
+
+	// open makes the page of a screen that is a type of its own; such a
+	// screen needs nothing else here but the names it is opened by.
+	open func() page
 }
 
 // resources is the one place that knows what urga can show. It is filled in
@@ -431,16 +435,9 @@ func init() {
 		},
 
 		screenNodePools: {
-			name:    "Node Pools",
 			stored:  "nodepools",
 			aliases: []string{"nodepools", "nodepool", "np"},
-			titles:  nodePoolTitles,
-			topics:  []string{nomad.TopicNodePool},
-			cluster: true,
-			fetch: func(m Model) tea.Cmd {
-				return fetchList(m.client.NodePools, func(items []nomad.NodePool) tea.Msg { return nodePoolsMsg(items) })
-			},
-			rows: func(m Model) []tableRow { return nodePoolRows(m.nodePools) },
+			open:    func() page { return nodePoolsPage{} },
 		},
 
 		screenServers: {

@@ -223,7 +223,6 @@ type clusterData struct {
 	evaluations []nomad.Evaluation
 	nodes       []nomad.Node
 	variables   []nomad.Variable
-	nodePools   []nomad.NodePool
 	versions    []nomad.JobVersion
 	servers     []nomad.Server
 
@@ -311,6 +310,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
+	// An answer the open page asked for is the page's to keep.
+	if p := m.screen.page; p != nil {
+		if next, ok := p.take(msg); ok {
+			return m.applyWhen(true, func(m *Model) { m.screen.page = next })
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		return m.resize(msg), nil
@@ -377,9 +383,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case variablesMsg:
 		return m.applyList(screenVariables, func(m *Model) { m.variables = msg })
-
-	case nodePoolsMsg:
-		return m.applyList(screenNodePools, func(m *Model) { m.nodePools = msg })
 
 	case serversMsg:
 		return m.applyList(screenServers, func(m *Model) { m.servers = m.serversInView(msg) })

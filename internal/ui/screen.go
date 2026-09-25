@@ -86,6 +86,9 @@ type screen struct {
 	// left is where the screen was when another one was opened on top of
 	// it, which is where escape comes back to.
 	left place
+
+	// page is the screen, for a screen that is a type of its own.
+	page page
 }
 
 // place is where a list was left: the row under the cursor, how far down the
@@ -105,10 +108,22 @@ func (s screen) listsAllocs() bool {
 }
 
 // titles are the columns of a screen.
-func (s screen) titles() []string { return s.of().titles }
+func (s screen) titles() []string {
+	if s.page != nil {
+		return s.page.titles()
+	}
+
+	return s.of().titles
+}
 
 // topics are what the cluster is asked to say about while the screen is up.
-func (s screen) topics() []string { return s.of().topics }
+func (s screen) topics() []string {
+	if s.page != nil {
+		return s.page.topics()
+	}
+
+	return s.of().topics
+}
 
 // bindings are the keys of the screen, in the order the header shows them,
 // whether or not each one does something right now.
@@ -179,6 +194,10 @@ func (m Model) binding(press string) (binding, bool) {
 // what is on the screen, which the filter narrows.
 func (m Model) title() string {
 	count := len(m.list.table.rows)
+	if p := m.screen.page; p != nil {
+		return p.title(m.env(), count)
+	}
+
 	res := m.screen.of()
 
 	if res.title != nil {
@@ -194,6 +213,10 @@ func (m Model) title() string {
 
 // rows are what the open screen shows.
 func (m Model) rows() []tableRow {
+	if p := m.screen.page; p != nil {
+		return p.rows(m.env())
+	}
+
 	res := m.screen.of()
 	if res.rows == nil {
 		return nil
@@ -206,6 +229,10 @@ func (m Model) rows() []tableRow {
 // content arrives another way, like a description or a log stream, asks for
 // nothing.
 func (m Model) fetch() tea.Cmd {
+	if p := m.screen.page; p != nil {
+		return askedFor(m.asked, p.fetch(m.env()))
+	}
+
 	res := m.screen.of()
 	if res.fetch == nil {
 		return nil
@@ -306,10 +333,21 @@ func (m Model) selectedIndex() (int, bool) {
 // to the same place.
 func (m Model) show(kind screenKind) (Model, tea.Cmd) {
 	if kind != m.screen.kind {
-		return m.push(screen{kind: kind, namespace: m.namespace})
+		return m.push(m.screenOf(kind))
 	}
 
 	return m.arrive()
+}
+
+// screenOf is a screen opened by name, in the namespace of the session, with
+// nothing read into it yet.
+func (m Model) screenOf(kind screenKind) screen {
+	s := screen{kind: kind, namespace: m.namespace}
+	if open := resources[kind].open; open != nil {
+		s.page = open()
+	}
+
+	return s
 }
 
 // push opens a list on top of the one that is there, which is where escape
