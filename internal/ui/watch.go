@@ -235,3 +235,19 @@ func (m Model) pollEvery() time.Duration {
 
 	return m.opts.PollEvery
 }
+
+// startWatch keeps the stream the cluster opened.
+func (m Model) startWatch(msg watchingMsg) (Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.watch, cmd = m.watch.start(msg)
+
+	return m, cmd
+}
+
+// keepChange takes what the cluster said changed.
+func (m Model) keepChange(msg changeMsg) (Model, tea.Cmd) {
+	var cmd tea.Cmd
+	m.watch, cmd = m.watch.keepChange(msg)
+
+	return m, cmd
+}

@@ -114,3 +114,14 @@ func (s namespaceState) namespaceColumnData() []namespaceKey {
 
 	return keys
 }
+
+// keepNamespaces keeps the namespaces whatever is on the screen: the command
+// line and the number keys need the list to switch between them.
+func (m Model) keepNamespaces(msg namespacesMsg) (Model, tea.Cmd) {
+	m.namespaces = msg
+	m.rememberNamespaces(msg)
+
+	next, cmd := m.applyList(namespacesView, func(*Model) {})
+
+	return next, tea.Batch(cmd, next.remember())
+}
