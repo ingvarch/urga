@@ -27,7 +27,7 @@ func openEvaluation(m Model) (Model, tea.Cmd) {
 }
 
 // describeEvaluation reads one evaluation in full.
-func describeEvaluation(client Client, namespace, id string) tea.Cmd {
+func describeEvaluation(client evaluationsClient, namespace, id string) tea.Cmd {
 	return describe(fmt.Sprintf("Evaluation %s", shortID(id)), func(ctx context.Context) (string, error) {
 		detail, err := client.Evaluation(ctx, namespace, id)
 		if err != nil {
@@ -74,7 +74,7 @@ func groupPlacement(m Model) (Model, tea.Cmd) {
 
 // placementOf opens the newest evaluation of the job that failed to place
 // something.
-func placementOf(client Client, namespace, jobID string) tea.Cmd {
+func placementOf(client evaluationsClient, namespace, jobID string) tea.Cmd {
 	return describe(fmt.Sprintf("Placement (Job: %s)", jobID), func(ctx context.Context) (string, error) {
 		eval, err := client.FailedPlacement(ctx, namespace, jobID)
 

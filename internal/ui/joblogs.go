@@ -133,7 +133,7 @@ func (m Model) askLogScope(scope screen) (Model, tea.Cmd) {
 
 // allocsOf reads the allocations of a list: of a deployment, of a client, of
 // a job, or of the namespace.
-func allocsOf(client Client, s screen) func(ctx context.Context) ([]nomad.Alloc, error) {
+func allocsOf(client allocsClient, s screen) func(ctx context.Context) ([]nomad.Alloc, error) {
 	return func(ctx context.Context) ([]nomad.Alloc, error) {
 		switch {
 		case s.deploymentID != "":

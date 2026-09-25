@@ -48,7 +48,7 @@ func copied(m Model, field, value string) (Model, tea.Cmd) {
 // fetchRaft asks what the raft of the cluster makes of its servers. An ACL
 // may hold the answer back, which is not an error of the screen: the reason
 // takes the place of the answer.
-func fetchRaft(client Client) tea.Cmd {
+func fetchRaft(client serversClient) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()

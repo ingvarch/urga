@@ -975,7 +975,7 @@ func percentOf(value int) string {
 	return fmt.Sprintf("%d%%", value)
 }
 
-func fetchAgent(client Client) tea.Cmd {
+func fetchAgent(client clusterClient) tea.Cmd {
 	return request(client.Agent, func(agent nomad.Agent) tea.Msg { return agentMsg(agent) })
 }
 
