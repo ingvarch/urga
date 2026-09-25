@@ -47,13 +47,18 @@ func clientAllocs() []nomad.Alloc {
 	}}
 }
 
+// trailOf are the readings the chart of the open client holds.
+func trailOf(m Model) []nomad.ResourceUse {
+	return m.screen.page.(clientPage).host.trail
+}
+
 // reading is what the machine of the open screen answers.
 func reading(cpu int) hostUseMsg {
 	return hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{CPUPercent: cpu}}
 }
 
-// clientScreen drills into the one client of the cluster.
-func clientScreen(t *testing.T) (Model, *fakeClient) {
+// onClient drills into the one client of the cluster.
+func onClient(t *testing.T) (Model, *fakeClient) {
 	t.Helper()
 
 	client := &fakeClient{
@@ -71,7 +76,7 @@ func clientScreen(t *testing.T) (Model, *fakeClient) {
 func TestClient_OpensWhatItRuns(t *testing.T) {
 	r := require.New(t)
 
-	m, client := clientScreen(t)
+	m, client := onClient(t)
 
 	// The machine is asked for its own work.
 	r.Equal("node-1", client.askedNodeID)
@@ -85,7 +90,7 @@ func TestClient_OpensWhatItRuns(t *testing.T) {
 func TestClient_SaysWhatKindOfMachineItIs(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 
 	out := plain(m.render())
 	r.Contains(out, "ready")
@@ -97,7 +102,7 @@ func TestClient_SaysWhatKindOfMachineItIs(t *testing.T) {
 func TestClient_DrawsWhatTheHostIsDoing(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{
 		CPUPercent: 29, CPUTicks: 1165,
@@ -122,7 +127,7 @@ func TestClient_DrawsWhatTheHostIsDoing(t *testing.T) {
 func TestClient_TheChartIsDroppedOnAShortScreen(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 	m, _ = m.update(reading(29))
 
 	// A box of nine rows, whatever the header above it takes.
@@ -139,9 +144,9 @@ func TestClient_TheChartIsDroppedOnAShortScreen(t *testing.T) {
 func TestClient_TheChartKeepsTheReadings(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 
-	before := len(m.host.trail)
+	before := len(trailOf(m))
 
 	for _, at := range []int{10, 20, 30} {
 		m, _ = m.update(reading(at))
@@ -149,40 +154,40 @@ func TestClient_TheChartKeepsTheReadings(t *testing.T) {
 
 	// Every reading is kept, the newest last: that is what the chart draws
 	// from left to right.
-	r.Len(m.host.trail, before+3)
-	r.Equal(30, m.host.trail[len(m.host.trail)-1].CPUPercent)
+	r.Len(trailOf(m), before+3)
+	r.Equal(30, trailOf(m)[len(trailOf(m))-1].CPUPercent)
 }
 
 func TestClient_AReadingThatFailsKeepsTheChart(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 
 	m, _ = m.update(reading(10))
-	kept := len(m.host.trail)
+	kept := len(trailOf(m))
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-1", err: errTest})
 
 	// A machine that does not answer says so, and what it said before stays
 	// on the chart.
-	r.Len(m.host.trail, kept)
+	r.Len(trailOf(m), kept)
 	r.Contains(plain(m.render()), "no answer")
 }
 
 func TestClient_AnotherClientStartsItsOwnChart(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 
 	m, _ = m.update(reading(10))
-	r.Contains(m.host.trail, nomad.ResourceUse{CPUPercent: 10})
+	r.Contains(trailOf(m), nomad.ResourceUse{CPUPercent: 10})
 
 	m, _ = m.update(escape())
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
 	// The readings belong to the machine they were taken on.
-	r.NotContains(m.host.trail, nomad.ResourceUse{CPUPercent: 10})
+	r.NotContains(trailOf(m), nomad.ResourceUse{CPUPercent: 10})
 }
 
 func TestClient_ReadsAnAllocationInItsOwnNamespace(t *testing.T) {
@@ -207,7 +212,7 @@ func TestClient_ReadsAnAllocationInItsOwnNamespace(t *testing.T) {
 func TestClient_OpensTheTasksOfAnAllocation(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 
 	m, _ = m.update(enter())
 
@@ -220,7 +225,7 @@ func TestClient_OpensTheTasksOfAnAllocation(t *testing.T) {
 func TestClient_TheChartBelongsToTheClientScreenOnly(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 	m, _ = m.update(reading(29))
 
 	r.Contains(plain(m.render()), "Status")
@@ -238,15 +243,15 @@ func TestClient_TheChartBelongsToTheClientScreenOnly(t *testing.T) {
 func TestClient_AReadingOfTheMachineYouLeftIsDropped(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 
-	before := len(m.host.trail)
+	before := len(trailOf(m))
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-9", use: nomad.ResourceUse{CPUPercent: 99}})
 
 	// A reading that was asked of another machine says nothing about this
 	// one, on the chart or in the error line.
-	r.Len(m.host.trail, before)
+	r.Len(trailOf(m), before)
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-9", err: errTest})
 	r.NotEqual(flashErr, m.flash.level)
@@ -255,7 +260,7 @@ func TestClient_AReadingOfTheMachineYouLeftIsDropped(t *testing.T) {
 func TestClient_TheMachineInThePanelKeepsUp(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 	r.Contains(plain(m.render()), "ready")
 
 	m, _ = m.update(hostMsg(nomad.Node{ID: "node-1", Name: "nomad-server-01", Status: "down", Drain: true}))
@@ -267,14 +272,17 @@ func TestClient_TheMachineInThePanelKeepsUp(t *testing.T) {
 	r.Contains(out, "draining")
 
 	// And the answer of another machine is not this one.
-	m, _ = m.update(hostMsg(nomad.Node{ID: "node-9", Name: "somewhere-else", Status: "ready"}))
-	r.NotContains(plain(m.render()), "somewhere-else")
+	m, _ = m.update(hostMsg(nomad.Node{ID: "node-9", Name: "somewhere-else", Status: "ready", Address: "10.9.9.9"}))
+
+	out = plain(m.render())
+	r.NotContains(out, "10.9.9.9")
+	r.Contains(out, "draining")
 }
 
 func TestClient_ANarrowScreenKeepsTheMachineAndDropsTheCharts(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 	m, _ = m.update(reading(29))
 
 	m, _ = m.update(tea.WindowSizeMsg{Width: 20, Height: 40})
@@ -317,26 +325,26 @@ func TestClient_TheFirstReadingComesWithTheList(t *testing.T) {
 	m = drain(m, cmd)
 
 	// The chart has something to draw as soon as the screen does.
-	r.NotEmpty(m.host.trail)
-	r.Equal(42, m.host.trail[len(m.host.trail)-1].CPUPercent)
+	r.NotEmpty(trailOf(m))
+	r.Equal(42, trailOf(m)[len(trailOf(m))-1].CPUPercent)
 
 	// The list is answered on every poll and on every change the cluster
 	// reports. None of those answers is a reading: the chart has a timer of
 	// its own, and a second chain next to it would read twice as often.
-	before := len(m.host.trail)
+	before := len(trailOf(m))
 
 	for range 3 {
 		m, cmd = m.update(allocsMsg(clientAllocs()))
 		m = drain(m, cmd)
 	}
 
-	r.Len(m.host.trail, before)
+	r.Len(trailOf(m), before)
 }
 
 func TestClient_APollOfTheListReadsNoHost(t *testing.T) {
 	r := require.New(t)
 
-	m, client := clientScreen(t)
+	m, client := onClient(t)
 	calls := client.usageCalls
 
 	// A poll comes every thirty seconds while the cluster streams and every
@@ -350,7 +358,7 @@ func TestClient_APollOfTheListReadsNoHost(t *testing.T) {
 func TestClient_APollOfTheListReadsTheMachine(t *testing.T) {
 	r := require.New(t)
 
-	m, client := clientScreen(t)
+	m, client := onClient(t)
 	client.nodes[0].Status, client.nodes[0].Drain = "down", true
 
 	// The machine is asked with its allocations, or the panel goes on
@@ -365,7 +373,7 @@ func TestClient_APollOfTheListReadsTheMachine(t *testing.T) {
 func TestClient_EveryReadingSetsTheTimerForTheNext(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 
 	_, cmd := m.update(reading(10))
 	r.NotNil(cmd)
@@ -379,13 +387,13 @@ func TestClient_EveryReadingSetsTheTimerForTheNext(t *testing.T) {
 func TestClient_TheTimerTakesAReading(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
-	before := len(m.host.trail)
+	m, _ := onClient(t)
+	before := len(trailOf(m))
 
 	m, cmd := m.update(pollHostMsg{})
 	m = drain(m, cmd)
 
-	r.Len(m.host.trail, before+1)
+	r.Len(trailOf(m), before+1)
 }
 
 func TestClient_ComingBackReadsAgain(t *testing.T) {
@@ -400,15 +408,15 @@ func TestClient_ComingBackReadsAgain(t *testing.T) {
 
 	// The timer of the chart was let go of with the screen. Coming back
 	// starts another one, or the chart stands still under a live list.
-	before := len(m.host.trail)
-
 	m, _ = m.update(escape())
 	r.Equal(screenNode, m.screen.kind)
+
+	before := len(trailOf(m))
 
 	m, cmd = m.update(allocsMsg(client.nodeAllocs))
 	m = drain(m, cmd)
 
-	r.Len(m.host.trail, before+1)
+	r.Len(trailOf(m), before+1)
 }
 
 // drawnPanel is how many rows the screen draws above its table.
@@ -422,7 +430,7 @@ func drawnPanel(m Model) int {
 func TestClient_ThePanelTakesWhatTheBoxHasRoomFor(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 	m, _ = m.update(reading(29))
 
 	// The box grows down from tall charts to short ones, to the machine
@@ -456,7 +464,7 @@ func TestClient_ThePanelTakesWhatTheBoxHasRoomFor(t *testing.T) {
 func TestPanel_TakesTheRowsItDraws(t *testing.T) {
 	r := require.New(t)
 
-	client, _ := clientScreen(t)
+	client, _ := onClient(t)
 	client, _ = client.update(reading(29))
 
 	screens := map[string]Model{
@@ -482,11 +490,200 @@ func TestPanel_TakesTheRowsItDraws(t *testing.T) {
 func TestClient_TheChartSaysHowFarBackItReaches(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := clientScreen(t)
+	m, _ := onClient(t)
 	m, _ = m.update(reading(29))
 
 	// The left edge is as many readings back as the chart is wide, and the
 	// readings come at the pace of their own timer.
-	window := time.Duration(m.chartWidth()-chartAxisWidth) * hostUseEvery
+	window := time.Duration(chartWidth(m.width-2*screenPadX-2)-chartAxisWidth) * hostUseEvery
 	r.Contains(plain(m.render()), age(window)+" ago")
+}
+
+func TestClient_TheAllocationsOnItAnswerTheirKeys(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onClient(t)
+
+	// A client runs the work of every namespace: an allocation is restarted
+	// in the one it lives in.
+	asked, _ := m.update(key('r'))
+	r.Contains(plain(asked.render()), "Really restart the allocation af1f37df?")
+
+	asked, cmd := answerYes(asked)
+	drain(asked, cmd)
+
+	r.Equal(1, client.restarted)
+	r.Equal("production", client.askedNamespace)
+	r.Equal("af1f37df-4528-6395-3a51-1ffcbf3c2ba4", client.askedID)
+
+	// And described there.
+	client.describe = "the allocation, as the cluster describes it"
+
+	described, cmd := m.update(key('d'))
+	described = drain(described, cmd)
+
+	r.Equal(screenDescribe, described.screen.kind)
+	r.Contains(plain(described.render()), "Allocation: af1f37df")
+	r.Equal("production", client.askedNamespace)
+}
+
+// twoOnAClient are two allocations of two jobs on the one client.
+func twoOnAClient() []nomad.Alloc {
+	other := clientAllocs()[0]
+	other.ID, other.JobID, other.TaskGroup = "bb2f37df-0000-0000-0000-000000000000", "cron", "nightly"
+	other.Namespace = "staging"
+	other.Tasks = []nomad.Task{{Name: "job", State: "running"}}
+
+	return append(clientAllocs(), other)
+}
+
+func TestClient_MarksTakeTheAllocationsOnIt(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{nodes: busyClient(), nodeAllocs: twoOnAClient()}
+
+	m, _ := nodeModelOf(client)
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(ctrlKey('k'))
+	r.Contains(plain(m.render()), "Really stop 2 allocations?")
+
+	m, cmd = answerYes(m)
+	drain(m, cmd)
+
+	r.Equal(2, client.stoppedAllocs)
+}
+
+func TestClient_TheLogsOfWhatRunsOnIt(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{nodes: busyClient(), nodeAllocs: twoOnAClient()}
+
+	m, _ := nodeModelOf(client)
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	client.askedNodeID = ""
+
+	m, cmd = m.update(key('l'))
+	m = drain(m, cmd)
+
+	// The work of the machine is read again, and the question names it.
+	r.Equal("node-1", client.askedNodeID)
+	r.Equal(screenLogTasks, m.screen.kind)
+	r.Contains(plain(m.render()), "Logs of which task? (Client: nomad-server-01)")
+}
+
+func TestClient_NothingRunsOnIt(t *testing.T) {
+	r := require.New(t)
+
+	allocs := clientAllocs()
+	allocs[0].Status = "complete"
+
+	client := &fakeClient{nodes: busyClient(), nodeAllocs: allocs}
+
+	m, _ := nodeModelOf(client)
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	m, cmd = m.update(key('l'))
+	m = drain(m, cmd)
+
+	r.Equal(screenNode, m.screen.kind)
+	r.Contains(plain(m.render()), "nomad-server-01 has no allocation running")
+}
+
+func TestClient_WatchesTheWorkOfEveryNamespace(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{nodes: busyClient(), nodeAllocs: clientAllocs()}
+
+	m, _ := nodeModelOf(client)
+	m, _ = m.update(enter())
+
+	m.update(m.watchScreen()())
+
+	r.Equal(nomad.AllNamespaces, client.watchedNamespace)
+	r.Equal([]string{nomad.TopicAllocation}, client.watchedTopics)
+}
+
+func TestClient_ComingBackShowsItsOwnAllocations(t *testing.T) {
+	r := require.New(t)
+
+	// The allocation on this client was replaced by one on another.
+	here := clientAllocs()[0]
+	here.Next = "c3d4e5f6-0000-0000-0000-000000000000"
+
+	there := nomad.Alloc{
+		ID: here.Next, Namespace: "production", JobID: "cron", TaskGroup: "nightly",
+		NodeID: "node-2", NodeName: "nomad-client-02", Status: "running",
+	}
+
+	client := &fakeClient{nodes: busyClient(), nodeAllocs: []nomad.Alloc{here}, alloc: here}
+
+	m, _ := nodeModelOf(client)
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	// The allocation, the one that replaced it, and the client that one
+	// runs on, with work of its own.
+	m, cmd = m.update(enter())
+	m = drain(m, cmd)
+
+	client.alloc = there
+	m, cmd = m.update(key('n'))
+	m = drain(m, cmd)
+
+	client.nodeAllocs = []nomad.Alloc{there}
+	m, cmd = m.update(key('c'))
+	m = drain(m, cmd)
+	r.Contains(plain(m.render()), "Client nomad-client-02")
+
+	for range 3 {
+		m, _ = m.update(escape())
+	}
+
+	// Before it is asked again, the first client shows what it held, not
+	// what the second one runs.
+	out := plain(m.render())
+	r.Contains(out, "Client nomad-server-01 [1]")
+	r.Contains(out, "pelmeni_buh_bot")
+	r.NotContains(out, "nightly")
+}
+
+func TestClient_ThePanelSaysWhatTheListKnewUntilTheMachineAnswers(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := clientOpened(t, 0)
+
+	out := plain(m.render())
+	r.Contains(out, "10.0.0.2")
+	r.Contains(out, "dc1")
+}
+
+func TestClient_TheMachineAnsweringLeavesTheErrorOfTheList(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onClient(t)
+	m, _ = m.update(errMsg{err: errors.New("the list would not come")})
+
+	// The machine answered, the list did not: what went wrong with the list
+	// is still what is happening.
+	m, _ = m.update(hostMsg(busyClient()[0]))
+
+	r.Contains(plain(m.render()), "the list would not come")
+}
+
+func TestClient_AReadingTakesTheErrorOfTheLastOneOff(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onClient(t)
+
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", err: errTest})
+	r.Contains(plain(m.render()), "no answer")
+
+	m, _ = m.update(reading(10))
+	r.NotContains(plain(m.render()), "no answer")
 }

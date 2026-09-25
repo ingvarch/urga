@@ -92,65 +92,158 @@ func fetchHostUse(client nodesClient, nodeID string) tea.Cmd {
 	}
 }
 
-// hostOnce takes the first reading of the chart when the list of a client is
-// filled, and only then: the timer of the chart keeps them coming after that.
-func hostOnce(m Model, filled tea.Cmd) (Model, tea.Cmd) {
-	if m.screen.kind != screenNode || m.host.due {
-		return m, filled
-	}
+// clientPage is one client: the allocations on it, from every namespace,
+// under what the machine itself is doing.
+type clientPage struct {
+	nodeID, name string
 
-	m.host.due = true
+	// host is the machine as the page last read it, and the readings taken
+	// of it since the page was opened.
+	host hostModel
 
-	return m, tea.Batch(filled, m.readHost())
+	allocs []nomad.Alloc
 }
 
-// readHost takes a reading of the machine the screen is open on. Like the
-// screen, it belongs to the ask it was made for.
-func (m Model) readHost() tea.Cmd {
-	return askedFor(m.asked, fetchHostUse(m.client, m.screen.nodeID))
+// clientScreen opens a client with what is known of the machine so far. It
+// runs the work of every namespace, which is what its stream watches.
+func clientScreen(node nomad.Node) screen {
+	return screen{
+		kind:      screenNode,
+		namespace: nomad.AllNamespaces,
+
+		// The readings belong to the machine they were taken on, the chart
+		// starts over on every client.
+		page: clientPage{nodeID: node.ID, name: node.Name, host: hostModel{node: node}},
+	}
 }
 
-// pollHost takes the next reading of the chart. Its timer has gone off, and
-// the answer sets the next one.
-func (m Model) pollHost() (Model, tea.Cmd) {
-	if m.screen.kind != screenNode {
-		return m, nil
-	}
-
-	return m, m.readHost()
+func (p clientPage) title(_ env, count int) string {
+	return sprintf("Client %s [%d]", p.name, count)
 }
 
-// keepHost keeps what the panel says about the machine up with it.
-func (m Model) keepHost(node hostMsg) Model {
-	if node.ID != m.screen.nodeID {
-		return m
+func (clientPage) titles() []string { return allocTitles }
+func (clientPage) topics() []string { return []string{nomad.TopicAllocation} }
+
+// fetch reads the work of the machine, and the machine itself: what the
+// panel says about it keeps up with the rest of the screen. What the host is
+// doing is read on the timer of the chart, not with the list.
+func (p clientPage) fetch(e env) tea.Cmd {
+	client, nodeID := e.client, p.nodeID
+
+	return tea.Batch(
+		fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
+			return client.NodeAllocations(ctx, nodeID)
+		}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
+		fetchHost(client, nodeID),
+	)
+}
+
+func (p clientPage) take(msg tea.Msg, e env) (page, outcome, bool) {
+	switch msg := msg.(type) {
+	case allocsMsg:
+		p.allocs = msg
+
+		return p.hostOnce(e)
+
+	case hostMsg:
+		if msg.ID != p.nodeID {
+			return p, outcome{}, false
+		}
+
+		// What the panel says about the machine keeps up with it. The
+		// machine is not the list: its answer leaves what went wrong with
+		// the list on the status line, and the poll where it is.
+		p.host.node = nomad.Node(msg)
+
+		return p, outcome{reading: true}, true
+
+	case hostUseMsg:
+		if msg.nodeID != p.nodeID {
+			return p, outcome{}, false
+		}
+
+		return p.keepHostUse(msg)
+
+	case pollHostMsg:
+		// The timer of the chart has gone off, and the answer sets the next
+		// one.
+		return p, outcome{cmd: fetchHostUse(e.client, p.nodeID), reading: true}, true
 	}
 
-	m.host.node = nomad.Node(node)
+	return p, outcome{}, false
+}
 
-	return m
+// hostOnce takes the first reading of the chart when the list of the client
+// is filled, and only then: the timer of the chart keeps them coming after
+// that.
+func (p clientPage) hostOnce(e env) (page, outcome, bool) {
+	if p.host.due {
+		return p, outcome{}, true
+	}
+
+	p.host.due = true
+
+	return p, outcome{cmd: fetchHostUse(e.client, p.nodeID)}, true
 }
 
 // keepHostUse puts a reading on the chart. A machine that does not answer
 // says so and keeps what it said before: a chart that empties on one timeout
 // reads as a machine that stopped working.
-func (m Model) keepHostUse(msg hostUseMsg) (Model, tea.Cmd) {
-	if msg.nodeID != m.screen.nodeID {
-		return m, nil
-	}
-
+func (p clientPage) keepHostUse(msg hostUseMsg) (page, outcome, bool) {
 	// The next reading is due whatever came of this one: a machine that did
 	// not answer once is asked again.
-	next := askedFor(m.asked, tea.Tick(hostUseEvery, func(time.Time) tea.Msg { return pollHostMsg{} }))
+	next := tea.Tick(hostUseEvery, func(time.Time) tea.Msg { return pollHostMsg{} })
 
 	if msg.err != nil {
-		return m.fail(msg.err), next
+		return p, outcome{now: []tea.Msg{failMsg{err: msg.err}}, cmd: next, reading: true}, true
 	}
 
-	m = m.forget()
-	m.host = m.host.keep(msg.use)
+	p.host = p.host.keep(msg.use)
 
-	return m, next
+	return p, outcome{now: []tea.Msg{forgetMsg{}}, cmd: next, reading: true}, true
+}
+
+// restart lets go of the reading of the chart the page thinks is on its
+// way: it belonged to an ask that is over.
+func (p clientPage) restart() page {
+	p.host.due = false
+
+	return p
+}
+
+func (p clientPage) rows(e env) []tableRow { return allocRows(p.allocs, e.usage) }
+
+func (p clientPage) visible(env) []nomad.Alloc { return p.allocs }
+
+func (p clientPage) ids(env) []string { return names(p.allocs, allocMark) }
+
+func (p clientPage) readings(e env) []rowRef { return runningRefs(e.index, p.allocs) }
+
+func (clientPage) reading(ctx context.Context, client Client, ref rowRef) (nomad.ResourceUse, error) {
+	return allocReading(ctx, client, ref)
+}
+
+// logScope: the logs are read of what runs on the machine.
+func (p clientPage) logScope(env) screen {
+	return screen{kind: screenNode, namespace: nomad.AllNamespaces, nodeID: p.nodeID, label: p.name}
+}
+
+// clientKeys are the keys of the machine, and after them the keys of the
+// allocations on it, which answer here as on any other list of allocations.
+var clientKeys = append([]pageKey[clientPage]{
+	{press: "e", label: "Events", do: nodeScreen(screenNodeEvents, func(d machine) page { return nodeEventsPage{machine: d} })},
+	// Draining is a key of the list of clients; on the screen of one client
+	// the same key opens what it can run.
+	{press: "ctrl+d", label: "Drivers", do: nodeScreen(screenNodeDrivers, func(d machine) page { return nodeDriversPage{machine: d} })},
+	{press: "ctrl+h", label: "Host Volumes", do: nodeScreen(screenNodeVolumes, func(d machine) page { return nodeVolumesPage{machine: d} })},
+	{press: "a", label: "Attributes", do: nodeScreen(screenNodeAttributes, func(d machine) page { return nodeAttributesPage{machine: d} })},
+	{press: "m", label: "Meta", do: nodeScreen(screenNodeMeta, func(d machine) page { return nodeMetaPage{nodeID: d.nodeID, name: d.name} })},
+}, allocKeys[clientPage]()...)
+
+func (p clientPage) keys(e env) []keyHint { return hintsOf(p, e, clientKeys) }
+
+func (p clientPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, clientKeys, k)
 }
 
 // keep puts a reading at the end of the chart, which holds the last few
@@ -165,21 +258,23 @@ func (h hostModel) keep(use nomad.ResourceUse) hostModel {
 	return h
 }
 
-// chartWidth is what one of the two charts gets: half of the panel, which
-// keeps a column for the margin of the table and a gap between them.
-func (m Model) chartWidth() int {
-	return max((m.width-2*screenPadX-3-columnGap)/2, 1)
+// chartWidth is what one of the two charts gets of a panel this wide: half
+// of it, which keeps a column for the margin of the table and a gap between
+// them.
+func chartWidth(width int) int {
+	return max((width-1-columnGap)/2, 1)
 }
 
-// chartHeight is how tall the plot of a chart is here. A short screen gets
-// the short one, and then none at all: the allocations come first. A narrow
-// one gets none either: half of it has no room for a chart with its scale.
-func (m Model) chartHeight() int {
-	if m.chartWidth() <= chartAxisWidth {
+// chartHeight is how tall the plot of a chart is in a panel of room rows. A
+// short screen gets the short one, and then none at all: the allocations
+// come first. A narrow one gets none either: half of it has no room for a
+// chart with its scale.
+func chartHeight(half, room int) int {
+	if half <= chartAxisWidth {
 		return 0
 	}
 
-	room := m.rowsForPanel() - hostChartRest - hostPanelRest
+	room -= hostChartRest + hostPanelRest
 
 	switch {
 	case room >= hostChartHeight:
@@ -191,9 +286,10 @@ func (m Model) chartHeight() int {
 	return 0
 }
 
-// panelHeight is how many rows the panel takes from the table.
+// panelHeight is how many rows the panel takes from the table, at the width
+// it is drawn at.
 func (m Model) panelHeight() int {
-	return len(m.panel(m.width))
+	return len(m.panel(m.width - 2*screenPadX - 2))
 }
 
 // rowsForPanel is what is left of the box once the table has the rows it
@@ -212,17 +308,20 @@ func (m Model) panel(width int) []string {
 		return p.panel(m.env(), width, m.rowsForPanel())
 	}
 
-	if m.screen.kind != screenNode {
-		return nil
-	}
+	return nil
+}
 
+// panel is what the machine is doing, above its allocations.
+func (p clientPage) panel(_ env, width, room int) []string {
 	// A box with no room for even the machine leaves it to the
 	// allocations.
-	if m.rowsForPanel() < hostPanelRows {
+	if room < hostPanelRows {
 		return nil
 	}
 
-	return m.host.view(width, m.chartWidth(), m.chartHeight())
+	half := chartWidth(width)
+
+	return p.host.view(width, half, chartHeight(half, room))
 }
 
 // view is what a client shows above its allocations: what kind of machine
@@ -361,28 +460,3 @@ func shares(trail []nomad.ResourceUse, of func(nomad.ResourceUse) int) []float64
 func cpuShare(use nomad.ResourceUse) int { return use.CPUPercent }
 
 func memoryShare(use nomad.ResourceUse) int { return use.MemoryPercent }
-
-// openClient drills into the client under the cursor: what it runs, under
-// what the machine itself is doing.
-func openClient(m Model) (Model, tea.Cmd) {
-	node, ok := selectedOf(m, screenNodes, m.nodes)
-	if !ok {
-		return m, nil
-	}
-
-	return m.openNode(node)
-}
-
-// openNode opens the screen of one client.
-func (m Model) openNode(node nomad.Node) (Model, tea.Cmd) {
-	// The readings belong to the machine they were taken on, the chart
-	// starts over on every client.
-	m.host = hostModel{node: node}
-
-	return m.push(screen{
-		kind:      screenNode,
-		namespace: nomad.AllNamespaces,
-		nodeID:    node.ID,
-		label:     node.Name,
-	})
-}

@@ -78,8 +78,8 @@ func editJob(p jobsPage, e env) (jobsPage, outcome) {
 	return p, outcome{cmd: openEditor(jobFile(e.client, job))}
 }
 
-func editMeta(m Model) (Model, tea.Cmd) {
-	return m, openEditor(metaFile(m.client, m.screen.nodeID, m.screen.label))
+func editMeta(p nodeMetaPage, e env) (nodeMetaPage, outcome) {
+	return p, outcome{cmd: openEditor(metaFile(e.client, p.nodeID, p.name))}
 }
 
 // file is what the editor is given: the name to save it under and what is in

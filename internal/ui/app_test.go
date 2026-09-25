@@ -103,6 +103,7 @@ type fakeClient struct {
 	askedServer      string
 	metaSpec         string
 	metaSubmitted    string
+	metaNodeID       string
 	askedVersion     uint64
 	watchedTopics    []string
 	watchedNamespace string
@@ -327,7 +328,7 @@ func (f *fakeClient) NodeMetaSpec(_ context.Context, nodeID string) (string, err
 
 func (f *fakeClient) SubmitNodeMeta(_ context.Context, nodeID, source string) error {
 	f.wrote("SubmitNodeMeta")
-	f.askedNodeID, f.metaSubmitted = nodeID, source
+	f.askedNodeID, f.metaSubmitted, f.metaNodeID = nodeID, source, nodeID
 
 	return f.refused(f.err)
 }

@@ -99,12 +99,6 @@ type place struct {
 	sort   sortState
 }
 
-// listsAllocs says the screen is a list of allocations that is not a page
-// yet, which answers the keys of an allocation whatever it was opened for.
-func (s screen) listsAllocs() bool {
-	return s.kind == screenNode
-}
-
 // titles are the columns of a screen.
 func (s screen) titles() []string {
 	if s.page != nil {
@@ -271,17 +265,11 @@ func (m Model) title() string {
 		return p.title(m.env(), count)
 	}
 
-	res := m.screen.of()
-
-	if res.title != nil {
+	if res := m.screen.of(); res.title != nil {
 		return res.title(m, count)
 	}
 
-	if res.cluster {
-		return sprintf("%s [%d]", res.name, count)
-	}
-
-	return sprintf("%s (%s) [%d]", res.name, namespaceLabel(m.namespace), count)
+	return ""
 }
 
 // rows are what the open screen shows.
@@ -506,7 +494,6 @@ func (m Model) enter() (Model, tea.Cmd) {
 
 	// So were the readings, and their chain ends with that ask.
 	m.usage = m.usage.forgetRows()
-	m.host.due = false
 
 	if p, ok := m.screen.page.(restarter); ok {
 		m.screen.page = p.restart()

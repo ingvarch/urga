@@ -251,13 +251,12 @@ type (
 
 	// logsMsg follows what a task writes: the screen of its log.
 	logsMsg screen
-
-	// openNodeMsg opens the screen of a client.
-	openNodeMsg nomad.Node
 )
 
 // copyKey copies the value of the field under the cursor, on a page that
-// reads as a list of fields. It goes over OSC52, so it works through ssh.
+// reads as a list of fields: that is how an address or an id gets out of the
+// screen and into a command somewhere else. It goes over OSC52, so it works
+// through ssh.
 func copyKey[P page]() pageKey[P] {
 	return pageKey[P]{press: "c", label: "Copy", do: func(p P, e env) (P, outcome) {
 		// The value is the second column on every page of fields; a page

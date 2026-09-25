@@ -106,14 +106,15 @@ func TestTasks_ThePanelIsOverThem(t *testing.T) {
 func TestTasks_OpenTheClient(t *testing.T) {
 	r := require.New(t)
 
-	m := openCanary(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()})
-	m, _ = m.update(key('c'))
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := openCanary(t, client)
+	m, cmd := m.update(key('c'))
+	m = drain(m, cmd)
 
 	// The machine it runs on, with what it runs and what it is doing.
 	r.Equal(screenNode, m.screen.kind)
-	r.Equal("a3e23694-4528-6395-3a51-1ffcbf3c2ba4", m.screen.nodeID)
-	r.Equal("node-01", m.screen.label)
-	r.Equal("a3e23694-4528-6395-3a51-1ffcbf3c2ba4", m.host.node.ID)
+	r.Contains(plain(m.render()), "Client node-01")
+	r.Equal("a3e23694-4528-6395-3a51-1ffcbf3c2ba4", client.askedNodeID)
 }
 
 func TestTasks_OpenTheAllocationItReplaced(t *testing.T) {

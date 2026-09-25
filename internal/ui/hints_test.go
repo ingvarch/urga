@@ -321,8 +321,9 @@ func TestEveryScreen_CoversEveryKindOfScreen(t *testing.T) {
 	}
 
 	// A screen left out of the tests of the keys is a screen whose keys
-	// read-only is never checked against.
-	for kind := range resources {
+	// read-only is never checked against. Every kind counts, not only those
+	// the registry still holds.
+	for kind := screenJobs; kind <= screenDeployment; kind++ {
 		r.True(covered[kind], "no screen of kind %d in everyScreen", kind)
 	}
 }

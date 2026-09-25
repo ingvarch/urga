@@ -32,6 +32,57 @@ func readyNode() []nomad.Node {
 	return []nomad.Node{{ID: "node-1", Name: "server-01", Status: "ready", Eligibility: "eligible"}}
 }
 
+// keyNames are the keys the header offers, by what is pressed and what it is
+// called, in its order.
+func keyNames(m Model) []string {
+	out := []string{}
+	for _, b := range m.keys() {
+		out = append(out, b.press+" "+b.label)
+	}
+
+	return out
+}
+
+func TestClients_TheList(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := nodeModel(t, busyClient())
+
+	r.Contains(plain(m.render()), "Clients [1]")
+	r.Equal([]string{"ID", "Name", "Datacenter", "Pool", "Version", "Status", "Eligibility", "Drain", "CPU", "MEM", "Address"}, m.screen.titles())
+	r.Equal([]string{nomad.TopicNode}, m.screen.topics())
+
+	// What the machine takes is not known until it is read.
+	r.Regexp(`^\s*node-1\s+nomad-server-01\s+dc1\s+default\s+1\.11\.1\s+ready\s+eligible\s+false\s+-\s+-\s+10\.0\.0\.2`, fileRow(t, m, 0))
+
+	r.Equal([]string{"enter Allocations", "ctrl+d Drain", "i Toggle Eligibility", "space Mark", "ctrl+a Mark All"}, keyNames(m))
+}
+
+func TestClients_OnlyThoseThatTakeNoWork(t *testing.T) {
+	r := require.New(t)
+
+	nodes := []nomad.Node{
+		{ID: "node-1", Name: "server-01", Status: "ready", Eligibility: "eligible"},
+		{ID: "node-2", Name: "server-02", Status: "down", Eligibility: "eligible"},
+		{ID: "node-3", Name: "server-03", Status: "ready", Eligibility: "ineligible", Drain: true},
+	}
+
+	m, _ := nodeModel(t, nodes)
+	m, _ = m.update(key('!'))
+
+	// One that is down and one that is draining; the one that works is
+	// left out.
+	out := plain(m.render())
+	r.NotContains(out, "server-01")
+	r.Contains(out, "server-02")
+	r.Contains(out, "server-03")
+	r.Contains(out, "2 of 3")
+
+	// Enter opens the first one that is left.
+	m, _ = m.update(enter())
+	r.Contains(plain(m.render()), "Client server-02")
+}
+
 func TestNode_Drain(t *testing.T) {
 	r := require.New(t)
 

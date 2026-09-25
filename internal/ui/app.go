@@ -215,18 +215,6 @@ type Model struct {
 // clusterData is what the cluster last said in the region the session asks
 // in, kept in one place so that leaving the region lets go of all of it.
 type clusterData struct {
-	allocs []nomad.Alloc
-	nodes  []nomad.Node
-
-	// host is the machine a client screen is open on, and the readings
-	// taken of it since it was opened.
-	host hostModel
-
-	// nodeDetail is what the machine of a client screen says about itself,
-	// nodeMeta the metadata it carries.
-	nodeDetail nomad.NodeDetail
-	nodeMeta   []nomad.MetaEntry
-
 	// dir is the directory of an allocation the files screen last listed.
 	dir dirState
 
@@ -346,9 +334,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case logsMsg:
 		return m.followLog(screen(msg))
 
-	case openNodeMsg:
-		return m.openNode(nomad.Node(msg))
-
 	case failMsg:
 		return m.fail(msg.err), nil
 
@@ -367,9 +352,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case tokenMsg:
 		return m.keepToken(msg), nil
 
-	case allocsMsg:
-		return hostOnce(usageOnce(m.applyWhen(m.screen.listsAllocs(), func(m *Model) { m.allocs = msg })))
-
 	case namespacesMsg:
 		// The namespaces are kept whatever is on the screen: the command
 		// line and the number keys need the list to switch between them.
@@ -379,9 +361,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		next, cmd := m.applyList(screenNamespaces, func(*Model) {})
 
 		return next, tea.Batch(cmd, next.remember())
-
-	case nodesMsg:
-		return usageOnce(m.applyList(screenNodes, func(m *Model) { m.nodes = m.nodesInView(msg) }))
 
 	case agentMsg:
 		return m.keepAgent(msg), nil
@@ -496,24 +475,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		// The list is stale the moment the cluster changed, ask again.
 		return m, m.fetch()
-
-	case nodeDetailMsg:
-		// The answer belongs to the machine it was asked of: leaving one
-		// client for another must not show the first one under the second.
-		return m.applyWhen(m.screen.nodeID == msg.ID, func(m *Model) { m.nodeDetail = nomad.NodeDetail(msg) })
-
-	case nodeMetaMsg:
-		return m.applyWhen(m.screen.kind == screenNodeMeta && m.screen.nodeID == msg.nodeID,
-			func(m *Model) { m.nodeMeta = msg.meta })
-
-	case hostMsg:
-		return m.keepHost(msg), nil
-
-	case hostUseMsg:
-		return m.keepHostUse(msg)
-
-	case pollHostMsg:
-		return m.pollHost()
 
 	case newerReleaseMsg:
 		return m.keepRelease(msg)

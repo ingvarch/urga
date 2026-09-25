@@ -154,10 +154,6 @@ func (m Model) narrow(datacenter string, show func(Model) (Model, tea.Cmd)) (Mod
 	m.datacenter = datacenter
 	m.usage.cluster = nomad.Usage{}
 
-	// What is held is narrowed at once: until the cluster answers, and when
-	// it does not, nothing of another datacenter stands under the new name.
-	m.nodes = m.nodesInView(m.nodes)
-
 	next, cmd := show(m)
 
 	return next, tea.Batch(cmd, next.fetchClusterUsage())
@@ -208,9 +204,9 @@ func (m Model) regionInUse() string {
 	return m.agentRegion
 }
 
-// The lists that have a datacenter are narrowed to it, as they are stored or
-// as they are drawn: every key that finds a row by its place reads the same
-// list and finds the one on the screen.
+// The lists that have a datacenter are narrowed to it as they are drawn:
+// every key that finds a row by its place reads the same list and finds the
+// one on the screen.
 
 // jobsIn are the jobs that may be placed in a datacenter, every one of them
 // for none.
@@ -218,7 +214,10 @@ func jobsIn(datacenter string, jobs []nomad.Job) []nomad.Job {
 	return keep(jobs, func(job nomad.Job) bool { return job.RunsIn(datacenter) })
 }
 
-func (s regionState) nodesInView(nodes []nomad.Node) []nomad.Node {
+// nodesIn are the clients of a datacenter, every one of them for none.
+func nodesIn(datacenter string, nodes []nomad.Node) []nomad.Node {
+	s := regionState{datacenter: datacenter}
+
 	return keep(nodes, func(node nomad.Node) bool { return s.inDatacenter(node.Datacenter) })
 }
 
