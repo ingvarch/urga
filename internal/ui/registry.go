@@ -106,12 +106,6 @@ type resource struct {
 	titles []string
 	keys   []binding
 
-	// keysFor, titlesFor and topicsFor answer for a screen that is opened
-	// for different things, and shows and does different things with them.
-	keysFor   func(s screen) []binding
-	titlesFor func(s screen) []string
-	topicsFor func(s screen) []string
-
 	// topics are what the cluster is asked to say about: a change in one of
 	// them is this screen no longer being what it shows. A screen with none
 	// is asked on its own.
@@ -133,7 +127,7 @@ type resource struct {
 	// readings are the resources whose usage the rows show, and reading is
 	// how one of them is read. A screen without readings leaves both nil.
 	readings func(m Model) []rowRef
-	reading  func(client Client, ctx context.Context, ref rowRef) (nomad.ResourceUse, error)
+	reading  func(ctx context.Context, client Client, ref rowRef) (nomad.ResourceUse, error)
 
 	// title overrides the "<name> (<namespace>) [n]" form for a screen that
 	// says what it was opened for.
@@ -173,71 +167,17 @@ func init() {
 		},
 
 		screenAllocations: {
-			aliases: []string{"allocations", "allocation", "allocs", "alloc"},
-			titles:  allocTitles,
-			keys:    allocBindings,
-			ids:     allocIDs,
-			topics:  []string{nomad.TopicAllocation},
-
-			// The allocations of a client sit on the screen of that client,
-			// which answers for the machine as well as for the work on it.
-			keysFor: func(s screen) []binding {
-				if s.isClient() {
-					return clientBindings
-				}
-
-				if s.isDeployment() {
-					return deploymentScreenBindings
-				}
-
-				return allocBindings
-			},
-
-			// The allocations of a deployment sit under its groups, and say
-			// what the deployment made of each of them.
-			titlesFor: func(s screen) []string {
-				if s.isDeployment() {
-					return deploymentAllocTitles
-				}
-
-				return allocTitles
-			},
-			topicsFor: func(s screen) []string {
-				if s.isDeployment() {
-					return []string{nomad.TopicAllocation, nomad.TopicDeployment}
-				}
-
-				return []string{nomad.TopicAllocation}
-			},
-
-			readings: func(m Model) []rowRef {
-				allocs := m.visibleAllocs()
-
-				refs := make([]rowRef, 0, len(m.index))
-				for _, at := range m.index {
-					// Only what runs has anything to report.
-					if at < len(allocs) && allocs[at].Status == statusRunning {
-						refs = append(refs, rowRef{namespace: allocs[at].Namespace, id: allocs[at].ID})
-					}
-				}
-
-				return refs
-			},
-			reading: func(client Client, ctx context.Context, ref rowRef) (nomad.ResourceUse, error) {
-				return client.AllocationUsage(ctx, ref.namespace, ref.id)
-			},
+			aliases:  []string{"allocations", "allocation", "allocs", "alloc"},
+			titles:   allocTitles,
+			keys:     allocBindings,
+			ids:      allocIDs,
+			topics:   []string{nomad.TopicAllocation},
+			readings: allocReadings,
+			reading:  allocReading,
 
 			title: func(m Model, count int) string {
-				if m.screen.isDeployment() {
-					return sprintf("Deployment %s (Job: %s) [%d]", shortID(m.screen.deploymentID), m.screen.jobID, count)
-				}
-
 				if m.screen.taskGroup != "" {
 					return sprintf("Allocations (Group: %s) [%d]", m.screen.taskGroup, count)
-				}
-
-				if m.screen.nodeID != "" {
-					return sprintf("Client %s [%d]", m.screen.label, count)
 				}
 
 				// The command line opens the allocations of the namespace, with
@@ -248,30 +188,49 @@ func init() {
 
 				return sprintf("Allocations (Job: %s) [%d]", m.screen.jobID, count)
 			},
+			fetch: fetchAllocs,
+			rows:  allocListRows,
+		},
+
+		// The allocations of a client sit on the screen of that client,
+		// which answers for the machine as well as for the work on it.
+		screenNode: {
+			titles:   allocTitles,
+			keys:     clientBindings,
+			ids:      allocIDs,
+			topics:   []string{nomad.TopicAllocation},
+			readings: allocReadings,
+			reading:  allocReading,
+
+			title: func(m Model, count int) string {
+				return sprintf("Client %s [%d]", m.screen.label, count)
+			},
 			fetch: func(m Model) tea.Cmd {
-				client, screen := m.client, m.screen
-				allocs := fetchList(allocsOf(client, screen), func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
-
-				if screen.isDeployment() {
-					return tea.Batch(allocs, fetchDeployment(client, screen))
-				}
-
-				if screen.nodeID != "" {
-					// The machine answers for its allocations and for itself:
-					// the chart above them is what the host is doing. That is
-					// read on the timer of the chart, not with the list.
-					return tea.Batch(allocs, fetchHost(client, screen.nodeID))
-				}
-
-				return allocs
+				// The machine answers for its allocations and for itself:
+				// the chart above them is what the host is doing. That is
+				// read on the timer of the chart, not with the list.
+				return tea.Batch(fetchAllocs(m), fetchHost(m.client, m.screen.nodeID))
 			},
-			rows: func(m Model) []tableRow {
-				if m.screen.isDeployment() {
-					return deploymentAllocRows(m.visibleAllocs(), m.usage.rows)
-				}
+			rows: allocListRows,
+		},
 
-				return allocRows(m.visibleAllocs(), m.usage.rows)
+		// The allocations of a deployment sit under its groups, and say
+		// what the deployment made of each of them.
+		screenDeployment: {
+			titles:   deploymentAllocTitles,
+			keys:     deploymentScreenBindings,
+			ids:      allocIDs,
+			topics:   []string{nomad.TopicAllocation, nomad.TopicDeployment},
+			readings: allocReadings,
+			reading:  allocReading,
+
+			title: func(m Model, count int) string {
+				return sprintf("Deployment %s (Job: %s) [%d]", shortID(m.screen.deploymentID), m.screen.jobID, count)
 			},
+			fetch: func(m Model) tea.Cmd {
+				return tea.Batch(fetchAllocs(m), fetchDeployment(m.client, m.screen))
+			},
+			rows: func(m Model) []tableRow { return deploymentAllocRows(m.visibleAllocs(), m.usage.rows) },
 		},
 
 		screenTasks: {
@@ -432,7 +391,7 @@ func init() {
 
 				return refs
 			},
-			reading: func(client Client, ctx context.Context, ref rowRef) (nomad.ResourceUse, error) {
+			reading: func(ctx context.Context, client Client, ref rowRef) (nomad.ResourceUse, error) {
 				return client.NodeUsage(ctx, ref.id)
 			},
 			fetch: func(m Model) tea.Cmd {

@@ -318,6 +318,8 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 	watched := map[screenKind][]string{
 		screenJobs:        {nomad.TopicJob},
 		screenAllocations: {nomad.TopicAllocation},
+		screenNode:        {nomad.TopicAllocation},
+		screenDeployment:  {nomad.TopicAllocation, nomad.TopicDeployment},
 		screenDeployments: {nomad.TopicDeployment},
 		screenEvaluations: {nomad.TopicEvaluation},
 		screenNodes:       {nomad.TopicNode},
@@ -326,11 +328,11 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 	}
 
 	for kind, topics := range watched {
-		r.Equal(topics, resources[kind].topics, "screen %d", kind)
+		r.Equal(topics, screen{kind: kind}.topics(), "screen %d", kind)
 	}
 
 	for _, kind := range []screenKind{screenNamespaces, screenVariables, screenServers} {
-		r.Empty(resources[kind].topics, "screen %d", kind)
+		r.Empty(screen{kind: kind}.topics(), "screen %d", kind)
 	}
 }
 

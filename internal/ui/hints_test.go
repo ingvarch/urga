@@ -15,8 +15,7 @@ import (
 
 // everyScreen is one model per screen, each with rows on it: a key that acts
 // on a row says nothing about itself when there is no row. The screens are
-// kept by name rather than by kind: the allocations of a job and the screen
-// of one client are the same kind and answer different keys.
+// kept by name, which is what a failure reports.
 func everyScreen(t *testing.T) map[string]Model {
 	t.Helper()
 

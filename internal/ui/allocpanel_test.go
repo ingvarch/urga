@@ -110,7 +110,7 @@ func TestTasks_OpenTheClient(t *testing.T) {
 	m, _ = m.update(key('c'))
 
 	// The machine it runs on, with what it runs and what it is doing.
-	r.True(m.screen.isClient())
+	r.Equal(screenNode, m.screen.kind)
 	r.Equal("a3e23694-4528-6395-3a51-1ffcbf3c2ba4", m.screen.nodeID)
 	r.Equal("node-01", m.screen.label)
 	r.Equal("a3e23694-4528-6395-3a51-1ffcbf3c2ba4", m.host.node.ID)

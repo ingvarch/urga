@@ -50,7 +50,7 @@ func nodeScreen(kind screenKind) func(Model) (Model, tea.Cmd) {
 // openNodeScreen opens one of the screens of the client the cursor came
 // from. They all read the same answer from the machine.
 func openNodeScreen(m Model, kind screenKind) (Model, tea.Cmd) {
-	if !m.screen.isClient() {
+	if m.screen.kind != screenNode {
 		return m, nil
 	}
 
