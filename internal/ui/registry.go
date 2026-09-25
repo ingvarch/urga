@@ -31,14 +31,7 @@ func (b binding) hint() hint {
 
 // The keys each screen answers. What works everywhere is not here, it lives
 // in help.
-var (
-	// textBindings are the keys of a screen that reads as text rather than
-	// as a list.
-	textBindings = []binding{
-		{press: "w", label: "Toggle Wrap", do: wrapLines},
-		{press: "ctrl+s", label: "Save", do: saveScreen},
-	}
-)
+var ()
 
 // resource is everything a screen knows about itself: what it is called, what
 // its columns are, which keys it answers, how it is asked for and how its
@@ -172,11 +165,6 @@ func init() {
 			stored:  "nodepools",
 			aliases: []string{"nodepools", "nodepool", "np"},
 			open:    func() page { return nodePoolsPage{} },
-		},
-
-		screenDescribe: {
-			keys:  textBindings,
-			title: func(m Model, _ int) string { return m.screen.label },
 		},
 
 		screenPlan: {

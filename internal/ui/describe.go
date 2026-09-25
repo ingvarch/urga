@@ -83,14 +83,40 @@ func describe(label string, load func(ctx context.Context) (string, error)) tea.
 // showDescribe puts a description on the screen, on top of the list it was
 // asked from.
 func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
-	next := screen{kind: screenDescribe, namespace: m.screen.namespace, label: msg.label}
-
 	text := newTextModel(msg.content)
 	if msg.lines != nil {
 		text = paintedText(msg.lines)
 	}
 
-	return m.stackText(next, text), nil
+	return m.push(screen{
+		kind:      screenDescribe,
+		namespace: m.screen.namespace,
+		label:     msg.label,
+		page:      describePage{label: msg.label, content: text.textContent},
+	})
+}
+
+// describePage is a description: what the cluster says of a resource, or
+// what urga drew of one, as text to read.
+type describePage struct {
+	noAnswers
+
+	label   string
+	content textContent
+}
+
+var describeKeys = textKeys[describePage]()
+
+func (p describePage) title(env, int) string { return p.label }
+func (describePage) titles() []string        { return nil }
+func (describePage) topics() []string        { return nil }
+func (describePage) fetch(env) tea.Cmd       { return nil }
+func (describePage) rows(env) []tableRow     { return nil }
+func (p describePage) text(env) textContent  { return p.content }
+func (p describePage) keys(e env) []keyHint  { return hintsOf(p, e, describeKeys) }
+
+func (p describePage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, describeKeys, k)
 }
 
 // describeLines is describe for a description urga draws in colour.

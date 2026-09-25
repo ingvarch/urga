@@ -210,6 +210,11 @@ type (
 	// sayMsg puts what came of a key on the status line.
 	sayMsg string
 
+	// wrapMsg and saveMsg are the window over a text: wrap its lines, or
+	// write what it shows to a file.
+	wrapMsg struct{}
+	saveMsg struct{}
+
 	// switchRegionMsg, narrowMsg and switchClusterMsg move the session to
 	// another region, datacenter (empty is every one) or cluster.
 	switchRegionMsg  string
@@ -305,12 +310,33 @@ type panelled interface {
 	panel(e env, width, room int) []string
 }
 
+// reader is a page that reads as text rather than as a list. The text is the
+// page's; the window over it, the wrap, the filter and the times, is the
+// root's, as the list is for a page of rows.
+type reader interface {
+	text(e env) textContent
+}
+
+// textKeys are the keys of a page that reads as text.
+func textKeys[P page]() []pageKey[P] {
+	return []pageKey[P]{
+		{press: "w", label: "Toggle Wrap", do: func(p P, _ env) (P, outcome) { return p, then(wrapMsg{}) }},
+		{press: "ctrl+s", label: "Save", do: func(p P, _ env) (P, outcome) { return p, then(saveMsg{}) }},
+	}
+}
+
 // restarter is a page with timers of its own. Every ask of the session ends
 // the chains it had, so restart lets go of the ones the page thinks are on
 // their way.
 type restarter interface {
 	restart() page
 }
+
+// noAnswers is a page that asks the cluster nothing: what it shows came
+// with it.
+type noAnswers struct{}
+
+func (noAnswers) take(tea.Msg, env) (page, outcome, bool) { return nil, outcome{}, false }
 
 // noKeys is a page without keys of its own.
 type noKeys struct{}
