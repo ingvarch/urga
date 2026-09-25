@@ -66,8 +66,9 @@ func (m Model) switchNamespace(namespace string) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// A list opened by name follows the session there when it is entered; a
+	// screen opened for a job or an allocation stays where that one lives.
 	m.namespace = namespace
-	m.screen.namespace = namespace
 	m.list.filter = ""
 
 	next, cmd := m.enter()
