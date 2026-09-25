@@ -15,7 +15,7 @@ func nodeModel(t *testing.T, nodes []nomad.Node) (Model, *fakeClient) {
 	return nodeModelOf(&fakeClient{nodes: nodes})
 }
 
-// nodeModelOf opens the clients screen on a cluster of its own.
+// nodeModelOf opens the clients screen on the given fake cluster.
 func nodeModelOf(client *fakeClient) (Model, *fakeClient) {
 	nodes := client.nodes
 
@@ -32,8 +32,8 @@ func readyNode() []nomad.Node {
 	return []nomad.Node{{ID: "node-1", Name: "server-01", Status: "ready", Eligibility: "eligible"}}
 }
 
-// keyNames are the keys the header offers, by what is pressed and what it is
-// called, in its order.
+// keyNames are the keys the header offers, each as its key and label, in
+// header order.
 func keyNames(m Model) []string {
 	out := []string{}
 	for _, b := range m.keys() {
@@ -52,7 +52,7 @@ func TestClients_TheList(t *testing.T) {
 	r.Equal([]string{"ID", "Name", "Datacenter", "Pool", "Version", "Status", "Eligibility", "Drain", "CPU", "MEM", "Address"}, m.screen.page.titles())
 	r.Equal([]string{nomad.TopicNode}, m.screen.page.topics())
 
-	// What the machine takes is not known until it is read.
+	// The CPU and memory use of the machine is unknown until it is read.
 	r.Regexp(`^\s*node-1\s+nomad-server-01\s+dc1\s+default\s+1\.11\.1\s+ready\s+eligible\s+false\s+-\s+-\s+10\.0\.0\.2`, fileRow(t, m, 0))
 
 	r.Equal([]string{"enter Allocations", "ctrl+d Drain", "i Toggle Eligibility", "space Mark", "ctrl+a Mark All"}, keyNames(m))
@@ -183,7 +183,7 @@ func TestNode_StoppingADrainMovesNothing(t *testing.T) {
 
 	out := plain(m.render())
 
-	// Stopping a drain does not move anything; it stops the moving.
+	// Stopping a drain moves nothing; it stops allocations being moved.
 	r.Contains(out, "stop draining the client server-01")
 	r.NotContains(out, "move elsewhere")
 }

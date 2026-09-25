@@ -109,8 +109,8 @@ func TestChart_ALineIsAHairline(t *testing.T) {
 func TestChart_ALineGivesWayToTheTopOfAReading(t *testing.T) {
 	r := require.New(t)
 
-	// A reading whose top lands on the line keeps the cell: the line runs
-	// behind what is drawn, it does not cut through it.
+	// A reading whose top falls in the cell of a line keeps the cell: the line
+	// runs behind what is drawn, it does not cut through it.
 	cells := aChart(0.27).cells(1, 8)
 
 	r.Equal(cellEdge, cells[5][0].kind)
@@ -132,7 +132,7 @@ func TestChart_TheLinesAreDotted(t *testing.T) {
 
 	cells := aChart(0.05, 0.05, 0.95, 0.95).cells(4, 8)
 
-	// A line puts a mark down every other column, in the air and over a
+	// A line draws a mark every other column, in the air and over a
 	// reading alike.
 	r.Equal(cellLine, cells[3][0].kind)
 	r.Equal(cellAir, cells[3][1].kind)
@@ -148,7 +148,7 @@ func TestChart_AReadingOfNothingIsStillAReading(t *testing.T) {
 
 	// Nothing running is not the same as nothing read yet: the reading is
 	// drawn on the floor of the plot, where it belongs, so the area does
-	// not break where a machine went quiet.
+	// not break where a machine used nothing.
 	r.Equal(cellEdge, cells[7][1].kind)
 	r.Equal(chartHair, cells[7][1].glyph)
 
@@ -236,8 +236,8 @@ func TestChart_TooNarrowForItsScaleDrawsNothing(t *testing.T) {
 	r := require.New(t)
 
 	// The scale alone is six columns. Drawing it into less spills out of
-	// the box the chart is given, and a chart one column wide says nothing
-	// anyway.
+	// the box the chart is given, and a chart one column wide shows nothing
+	// useful anyway.
 	r.Empty(aChart(1).render(chartAxisWidth, 4))
 	r.NotEmpty(aChart(1).render(chartAxisWidth+1, 4))
 }

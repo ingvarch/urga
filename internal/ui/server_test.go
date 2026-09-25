@@ -150,7 +150,7 @@ func TestServer_ShowsEveryTagTheAgentCarries(t *testing.T) {
 	r.Contains(out, "expect")
 	r.Contains(out, "role")
 
-	// A tag a field already says is not repeated.
+	// A tag a field already shows is not repeated.
 	r.NotContains(out, "build")
 }
 
@@ -180,8 +180,8 @@ func TestServer_WhenRaftIsNotAllowed(t *testing.T) {
 
 	out := plain(m.render())
 
-	// The one thing an ACL is likely to hold back says why, in its own row,
-	// and the rest of the screen stands.
+	// The one thing an ACL is likely to refuse shows its error in its own
+	// row, and the rest of the screen stays.
 	r.Contains(out, "Raft")
 	r.Contains(out, "no answer")
 	r.Contains(out, "server-02.global")
@@ -219,7 +219,7 @@ func TestServer_CopyingWithNothingUnderTheCursor(t *testing.T) {
 	m = typeIn(m, "servers")
 	m, _ = m.update(enter())
 
-	// An empty screen has nothing to copy and says nothing.
+	// An empty screen has nothing to copy and shows no message.
 	next, cmd := m.update(key('c'))
 	r.Nil(cmd)
 	r.Empty(next.flash.text)
@@ -235,8 +235,8 @@ func TestServer_AnAnswerClearsTheErrorAndAsksAgain(t *testing.T) {
 
 	m, cmd := m.update(serverMsg(aServer()))
 
-	// The server answered, so what went wrong is over, and the next ask is
-	// on its way.
+	// The server answered, so the error is cleared, and the next poll is
+	// scheduled.
 	r.NotContains(plain(m.render()), "no answer")
 	r.NotNil(cmd)
 	r.IsType(pollMsg{}, cmd())

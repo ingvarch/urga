@@ -13,9 +13,9 @@ import (
 	"github.com/hashicorp/nomad/api"
 )
 
-// VariableConflict is a save refused because the variable is not the one
-// that was read: what happened to it since, and the index a save that
-// replaces it gives.
+// VariableConflict is a save refused because the variable changed since it
+// was read: what happened to it, and the index a save must give to
+// replace it.
 type VariableConflict struct {
 	Path    string
 	Deleted bool
@@ -34,8 +34,8 @@ func (e *VariableConflict) Error() string {
 	return fmt.Sprintf("variable %s changed since it was read", e.Path)
 }
 
-// VariableSource is a variable as a file, and the version of it the file
-// was read at: the save goes through only if the variable is still at it.
+// VariableSource is a variable as a file, and the index it was read at: the
+// save succeeds only if the variable is still at that index.
 type VariableSource struct {
 	Source string
 	Index  uint64
@@ -70,9 +70,9 @@ func (c *Client) SubmitVariable(ctx context.Context, namespace, path, source str
 	return err
 }
 
-// variableConflict reads the variable again to say what happened to it: the
-// cluster refuses a variable changed, deleted or locked since alike, and
-// sends back nothing for the last two.
+// variableConflict reads the variable again to find out what happened to it:
+// the cluster returns the same error for a variable changed, deleted or
+// locked since, and returns no variable for the last two.
 func (c *Client) variableConflict(ctx context.Context, namespace, path string) error {
 	now, _, err := c.api.Variables().Peek(path, c.query(ctx, namespace))
 	if err != nil {

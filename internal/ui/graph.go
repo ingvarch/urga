@@ -42,8 +42,8 @@ const (
 	cellOver
 )
 
-// chartDash is how often a line of the scale puts a mark down: every other
-// column, which reads as a dotted line rather than a drawn one.
+// chartDash is how often a line of the scale draws a mark: every other
+// column, so the line looks dotted rather than solid.
 const chartDash = 2
 
 // chartHair is what a line of the scale is drawn with. It sits along the
@@ -140,9 +140,9 @@ func (c chart) cells(width, height int) [][]chartCell {
 	return rows
 }
 
-// draw puts one reading up its column, from the floor of the plot. The top
-// of it is kept apart from the body: a line of the scale crosses the body,
-// and gives way to the top.
+// draw fills one reading up its column, from the floor of the plot. The top
+// of it is kept apart from the body: a line of the scale is drawn over the
+// body and hidden behind the top.
 func (c chart) draw(rows [][]chartCell, column int, value float64, height int) {
 	filled := value * float64(height)
 	top := true
@@ -256,7 +256,7 @@ func (c chart) paint(kind int) lipgloss.Style {
 	return chartPaint(c.color)
 }
 
-// headline is what the chart says right now: what it is and how much of it
+// headline is what the chart shows right now: what it is and how much of it
 // on the left, the numbers behind that on the right.
 func (c chart) headline(width int) string {
 	left := styleLabel.Render(c.name) + "  " + styleValue.Render(c.reading)

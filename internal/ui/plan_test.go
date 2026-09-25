@@ -126,7 +126,7 @@ func TestPlanText_NothingChanges(t *testing.T) {
 	r.NotContains(text, "Placement failures")
 	r.NotContains(text, "Warnings")
 
-	// A plan the scheduler said nothing about.
+	// An empty plan: the scheduler returned nothing.
 	text = strings.Join(texts(planText(nomad.Plan{}, false)), "\n")
 	r.Contains(text, "No changes detected")
 }
@@ -157,7 +157,7 @@ func TestPlan_ComesBeforeTheSubmit(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
 	m := planned(t, client)
 
-	// Saving the file asks the cluster what it would do, and does nothing
+	// Saving the file requests a plan from the cluster and submits nothing
 	// yet: a changed file can restart every allocation of the job.
 	r.IsType(planPage{}, m.screen.page)
 	r.Equal("job \"web\" {\n  type = \"batch\"\n}", client.plannedSource)
@@ -227,7 +227,7 @@ func TestPlan_PlansTheSameFileAgain(t *testing.T) {
 	r.IsType(planPage{}, m.screen.page)
 	r.Contains(strings.Join(m.text.lines, "\n"), "3 allocations will be updated in-place")
 
-	// Submitted after a new plan, it goes at the new index.
+	// Submitted after a new plan, it is sent with the new index.
 	m, cmd = m.update(key('y'))
 	drain(m, cmd)
 	r.Equal(uint64(43), client.submittedIndex)
@@ -326,8 +326,8 @@ func TestPlan_WhatCannotBePlacedIsNotSent(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: shortOfMemory()}
 	m := planned(t, client)
 
-	// The cluster has no room for it: the button says so, and neither the
-	// button nor the key sends it.
+	// The cluster has no room for it: the button shows that, and neither
+	// the button nor the key sends it.
 	line, _ := buttons(m)
 	r.Contains(line, "Can't submit: placement failed")
 	r.False(offers(m, "y"))
@@ -385,7 +385,7 @@ func TestPlan_ARevertSaysWhatItDoes(t *testing.T) {
 	m, cmd := m.update(key('u'))
 	m = drain(m, cmd)
 
-	// The key that sends it says what it sends.
+	// The question names what the key sends: a revert, not a submit.
 	r.True(offers(m, "y"))
 
 	out := plain(m.render())
@@ -476,7 +476,7 @@ func TestPlan_PlannedAgainInPlaceOfTheOneBefore(t *testing.T) {
 	m, cmd := m.update(key('r'))
 	m = drain(m, cmd)
 
-	// Read the way the one before was, on the same button.
+	// Shown the way the one before was, with the same button chosen.
 	r.True(m.text.wrap)
 	r.Contains(m.render(), opening(styleButtonOn)+" Submit ")
 
@@ -503,7 +503,7 @@ func TestPlan_ASubmitThatFailsStaysOnThePlan(t *testing.T) {
 	r.IsType(planPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "rpc error")
 
-	// Planned again, what went wrong stays up for its time.
+	// Planned again, the error stays on screen until its timer ends.
 	m, cmd = m.update(key('r'))
 	m = drain(m, cmd)
 
@@ -517,7 +517,7 @@ func TestPlan_WhatCameOfASubmitIsSaidAfterLeaving(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
 	m := planned(t, client)
 
-	// Sent, and left before the cluster answers.
+	// Sent, and the plan is left before the cluster answers.
 	m, sent := m.update(key('y'))
 	m, _ = m.update(escape())
 	m = drain(m, sent)
@@ -581,7 +581,7 @@ func TestPlan_OfAnotherJobGoesOnTop(t *testing.T) {
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
 
-	// Both jobs are asked to go back before either plan arrives.
+	// A revert of both jobs is requested before either plan arrives.
 	m, web := m.update(key('u'))
 	m, _ = m.update(key('j'))
 	m, cron := m.update(key('u'))

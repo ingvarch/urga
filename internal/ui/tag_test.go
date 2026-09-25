@@ -40,8 +40,8 @@ func TestText_ATagInFrontOfALine(t *testing.T) {
 	r.Contains(rows[0], opening(styleText)+"GET /health 200")
 	r.True(strings.HasPrefix(rows[1], opening(second)+"4f2a1c9e │ "), rows[1])
 
-	// It is read with the line: the filter finds the lines of one
-	// allocation, and what is saved says where each line came from.
+	// The tag counts as part of the line: the filter finds the lines of one
+	// allocation, and what is saved shows where each line came from.
 	text.filter = "4f2a"
 	r.NotContains(text.view(), "GET /health")
 	r.Contains(text.view(), "worker started")
@@ -59,7 +59,7 @@ func TestText_ATagThroughTheWrapAndTheTimes(t *testing.T) {
 	rows := text.rows()
 
 	// The time a line arrived comes first, then where it came from; a line
-	// laid over several rows says where it came from once.
+	// wrapped over several rows shows its tag once.
 	r.True(strings.HasPrefix(rows[1].text, "18:26:44  4f2a1c9e │ worker"), rows[1].text)
 
 	view := strings.Split(text.view(), "\n")
@@ -81,8 +81,8 @@ func TestText_ATagCutAtTheEdgeOfTheScreen(t *testing.T) {
 		}
 		whole := "18:26:44  " + label + "GET /health 200"
 
-		// The edge falls in the time, on the mark that says the line goes
-		// on, and in the tag: the row reads as the line cut there.
+		// The edge falls in the time, on the ellipsis that marks a cut, and in
+		// the tag: the row shows the line cut there.
 		for width := 1; width <= ansi.StringWidth(whole)+1; width++ {
 			text.setSize(width, 1)
 

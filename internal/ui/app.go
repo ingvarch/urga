@@ -21,7 +21,7 @@ import (
 // Options are what the session starts with.
 type Options struct {
 	// Cluster is the name the settings give the cluster, empty for the one
-	// of the environment. Color is what the settings paint it in.
+	// of the environment. Color is the colour the settings give it.
 	Cluster string
 	Color   string
 
@@ -33,11 +33,11 @@ type Options struct {
 	// Namespace the session looks at. Empty is every namespace.
 	Namespace string
 
-	// NamespaceGiven says the namespace was typed on the command line, so
-	// it wins over the one the last session left.
+	// NamespaceGiven means the namespace was typed on the command line, so
+	// it replaces the one the last session saved.
 	NamespaceGiven bool
 
-	// ReadOnly takes away every key that changes the cluster.
+	// ReadOnly disables every key that changes the cluster.
 	ReadOnly bool
 
 	// Version of urga, for the header.
@@ -46,22 +46,22 @@ type Options struct {
 	// PollEvery is the wait between an answer and the next ask.
 	PollEvery time.Duration
 
-	// Config is what the last session left behind. It may be nil.
+	// Config is what the last session saved. It may be nil.
 	Config *config.Config
 
-	// Editor hands a resource to the editor of the user. It may be nil,
-	// and editing then says so.
+	// Editor opens a resource in the user's editor. It may be nil; editing
+	// then shows an error.
 	Editor Editor
 
 	// Shell runs a shell inside a task. It may be nil.
 	Shell Shell
 
-	// InRegion is the same cluster asked in another region. It may be nil,
-	// and switching regions then says so.
+	// InRegion is a client for the same cluster in another region. It may
+	// be nil; switching regions then shows an error.
 	InRegion func(region string) Client
 
-	// NewerRelease asks whether a newer urga is out: its version, or empty.
-	// Nil asks nothing.
+	// NewerRelease checks for a newer release of urga: its version, or
+	// empty. Nil skips the check.
 	NewerRelease func(ctx context.Context) (string, error)
 }
 
@@ -71,8 +71,8 @@ const (
 
 	statusHeight = 1
 
-	// The screen keeps its distance from the edges of the terminal: a line
-	// of air on top, the box one column in, the text of the header and the
+	// The screen keeps a margin from the edges of the terminal: a blank
+	// line on top, the box one column in, the text of the header and the
 	// status line one further.
 	screenPadTop = 1
 	screenPadX   = 1
@@ -97,23 +97,23 @@ type (
 	serverMsg      nomad.Server
 	nodeDetailMsg  nomad.NodeDetail
 
-	// versionsMsg carries the job it was asked of: version numbers belong
-	// to one job, and the ones of another must not stand under its name.
+	// versionsMsg carries the job it was requested for: version numbers
+	// belong to one job, and those of another must not show under its name.
 	versionsMsg struct {
 		jobID    string
 		versions []nomad.JobVersion
 	}
 
-	// nodeMetaMsg carries the machine it was asked of, like every answer
-	// that belongs to one client.
+	// nodeMetaMsg carries the node it was requested for, like every answer
+	// about one client.
 	nodeMetaMsg struct {
 		nodeID string
 		meta   []nomad.MetaEntry
 	}
 
-	// raftMsg is what the raft of the cluster says about its servers. An
-	// ACL may hold it back, and then the reason is shown where the answer
-	// would have been.
+	// raftMsg holds the raft peers of the cluster. An ACL may deny the
+	// request, and then the error is shown where the peers would have
+	// been.
 	raftMsg struct {
 		peers []nomad.RaftPeer
 		err   error
@@ -124,8 +124,8 @@ type (
 	pollMsg  struct{}
 )
 
-// Model is the whole interface. It owns the screen, the keyboard and what the
-// cluster last said.
+// Model is the whole interface. It owns the screen, the keyboard and the last
+// answers of the cluster.
 type Model struct {
 	client Client
 	opts   Options
@@ -147,19 +147,19 @@ type Model struct {
 	prompt  promptModel
 	confirm confirmModel
 
-	// flash is the one thing the status line has to say: what came of an
-	// action, something worth knowing, or something that went wrong.
+	// flash is the one message the status line shows: the result of an
+	// action, something worth knowing, or an error.
 	flash flash
 
 	// editing is the file that is open in the editor.
 	editing editFileMsg
 
-	// troubled leaves only what the cluster is not happy with.
+	// troubled shows only the rows that need attention.
 	troubled bool
 
 	// newer is a release of urga newer than this one, empty when there is
-	// none or it is not known. It is about urga, not the cluster: a switch
-	// keeps it.
+	// none or it is not known. It is about urga, not the cluster:
+	// switching clusters keeps it.
 	newer string
 
 	// list is how the rows of the open screen are read.
@@ -167,40 +167,40 @@ type Model struct {
 
 	text textModel
 
-	// asked counts the screens put up, so that an answer to one that is no
-	// longer up is dropped.
+	// asked counts the screens opened, so that an answer for one that is
+	// closed is dropped.
 	asked int
 
-	// polling says a timer is already on its way with the next ask. Every
-	// answer would otherwise schedule one, and a screen that is answered
-	// from several sides would end up with a timer per answer.
+	// polling means a timer for the next poll is already running. Every
+	// answer would otherwise schedule one, and a screen that gets answers
+	// from several requests would end up with a timer per answer.
 	polling bool
 
-	// watch is the cluster saying when what the screen shows changed.
+	// watch is the event stream that signals when the screen is stale.
 	watch watchState
 
 	nomadVersion string
 
-	// usage is what the cluster and the rows on the screen are busy with.
+	// usage is the CPU and memory use of the cluster and of the rows.
 	usage usageState
 
-	// regionState is where in the cluster the session looks.
+	// regionState is the region and datacenter the session shows.
 	regionState
 
-	// connection counts the clusters the session connected to. What was
-	// asked of one it left is answered for no one.
+	// connection counts the clusters the session connected to. An answer
+	// from a cluster the session left is dropped.
 	connection int
 
 	// token is the token the session sends, as the cluster sees it; nil
-	// until it has said.
+	// until the cluster answers.
 	token *nomad.Token
 
-	// answered says the screen that is open has had its answer: an empty
-	// list before it is not an empty list yet.
+	// answered means the open screen has got its answer: before that, an
+	// empty list does not yet mean there is nothing.
 	answered bool
 
-	// refused is a request the cluster refused before it said whose token
-	// the session sends.
+	// refused is a request the cluster refused before it reported whose
+	// token the session sends.
 	refused error
 }
 
@@ -239,8 +239,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	next, cmd := m.update(msg)
 
-	// A message that has just been put up asks for the redraw that will
-	// take it down again.
+	// A message that was just shown schedules the redraw that will hide
+	// it again.
 	if next.flash.text != "" && next.flash.at != before {
 		cmd = tea.Batch(cmd, flashTimer(next.flash.at))
 	}
@@ -254,15 +254,15 @@ func (m Model) applyList(v *view, store func(*Model)) (Model, tea.Cmd) {
 	return m.applyWhen(m.screen.view == v, store)
 }
 
-// takeError says what went wrong. The rows that are on the screen stay
-// there. An empty table reads as an empty cluster.
+// takeError shows the error. The rows that are on the screen stay there:
+// an empty table looks like an empty cluster.
 func (m Model) takeError(err error) (Model, tea.Cmd) {
 	if why, ok := m.refusedBecause(err); ok {
 		return m.flashed(why, flashErr).schedulePoll()
 	}
 
-	// Refused before the cluster said whose token it is: said again when it
-	// has.
+	// Refused before the cluster reported whose token it is: the error is
+	// shown again, with the reason, once it has.
 	if nomad.Forbidden(err) {
 		m.refused = err
 	}
@@ -270,8 +270,7 @@ func (m Model) takeError(err error) (Model, tea.Cmd) {
 	return m.fail(err).schedulePoll()
 }
 
-// applyWhen stores an answer that belongs to what is open, and asks again
-// in a while.
+// applyWhen stores an answer for what is open, and schedules the next poll.
 func (m Model) applyWhen(ours bool, store func(*Model)) (Model, tea.Cmd) {
 	if !ours {
 		return m, nil
@@ -286,9 +285,9 @@ func (m Model) applyWhen(ours bool, store func(*Model)) (Model, tea.Cmd) {
 }
 
 // handleKey is the one place that decides who gets a key press: an overlay
-// first, then what the open resource can do, then the way around the screen.
-// What the resource can do is the table of its screen: a key answers there
-// or nowhere, and each one looks at the row under the cursor.
+// first, then the actions of the open resource, then navigation. The actions
+// of a resource are the key table of its screen: a key is handled there or
+// not at all, and each one acts on the row under the cursor.
 func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	if m.overlay != overlayNone {
 		return m.overlayKey(msg)
@@ -298,7 +297,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m.pressPage(k.press)
 	}
 
-	// A key read-only took away says why, rather than do nothing.
+	// A key disabled by read-only shows why, rather than do nothing.
 	if k, ok := m.withheldKey(msg.String()); ok {
 		return m.warn(fmt.Sprintf("read-only: %s is off", k.label)), nil
 	}
@@ -314,7 +313,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m.sessionKey(msg)
 }
 
-// overlayKey hands the key to whatever took the keyboard.
+// overlayKey passes the key to the overlay that has the keyboard.
 func (m Model) overlayKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch m.overlay {
 	case overlayPrompt, overlayFilter, overlayScale, overlaySignal:
@@ -365,7 +364,7 @@ func (m Model) sessionKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	}
 }
 
-// sortKey orders the list by the column a letter names, the way one key
+// sortKey orders the list by the column a letter names, so that one key
 // picks a column.
 func (m Model) sortKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	if len(msg.Text) != 1 {
@@ -388,7 +387,7 @@ func (m Model) sortKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// helpKey closes the help window, which is all it answers.
+// helpKey closes the help window; it handles no other key.
 func (m Model) helpKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "enter", "?", "q":
@@ -398,8 +397,8 @@ func (m Model) helpKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// View draws the screen. urga runs in the alternate screen, the terminal
-// comes back as it was.
+// View draws the screen. urga runs in the alternate screen, so the terminal
+// is restored on exit.
 func (m Model) View() tea.View {
 	view := tea.NewView(m.render())
 	view.AltScreen = true
@@ -426,7 +425,7 @@ func (m Model) render() string {
 
 	framed := paintedFrame(title, body, width, m.bodyHeight(), m.border())
 
-	// A question floats over the screen, next to the row it was asked about.
+	// A question is drawn over the screen, next to the row it is about.
 	if m.overlay == overlayConfirm {
 		framed = modal(framed, m.confirm.view(width-2*modalPadX), m.cursorLine())
 	}
@@ -439,13 +438,13 @@ func (m Model) render() string {
 	return strings.Join(parts, "\n")
 }
 
-// clusterColour is what the settings paint the cluster in, nil for none.
+// clusterColour is the colour the settings give the cluster, nil for none.
 func (m Model) clusterColour() color.Color {
 	return clusterColours[m.opts.Color]
 }
 
 // border is the style of the box around the screen: the colour of the
-// cluster, seen out of the corner of an eye while reading the rows.
+// cluster, so it stays in sight while reading the rows.
 func (m Model) border() lipgloss.Style {
 	if paint := m.clusterColour(); paint != nil {
 		return lipgloss.NewStyle().Foreground(paint)
@@ -454,7 +453,7 @@ func (m Model) border() lipgloss.Style {
 	return styleBorder
 }
 
-// headerData is what the top of the screen says about the session.
+// headerData is what the header shows about the session.
 func (m Model) headerData() header {
 	return header{
 		cluster:       m.opts.Cluster,
@@ -484,8 +483,8 @@ func (m Model) cursorLine() int {
 	return 2 + m.panelHeight() + m.list.table.cursor - m.list.table.top
 }
 
-// body is what fills the box: what took the screen, or what the screen
-// shows.
+// body is what fills the box: the help window when it is open, or what the
+// screen shows.
 func (m Model) body(width int) (title, content string) {
 	switch {
 	case m.overlay == overlayHelp:
@@ -526,7 +525,7 @@ func (m Model) status() string {
 		return m.statusLeft(width)
 	}
 
-	// The token against the right edge; what is on the left gives way to it.
+	// The token sits at the right edge; the left part is cut to make room.
 	wide := ansi.StringWidth(tokenLabel + value)
 	left := m.statusLeft(width - wide - columnGap)
 	gap := max(width-ansi.StringWidth(left)-wide, columnGap)
@@ -534,7 +533,7 @@ func (m Model) status() string {
 	return left + strings.Repeat(" ", gap) + styleLabel.Render(tokenLabel) + style.Render(value)
 }
 
-// statusLeft is what the status line says on the left: a message, the mode
+// statusLeft is what the status line shows on the left: a message, the mode
 // the list is in, or the keys that work everywhere.
 func (m Model) statusLeft(width int) string {
 	if m.flash.fresh() {
@@ -571,8 +570,8 @@ func (m Model) resize(msg tea.WindowSizeMsg) Model {
 	return m
 }
 
-// layout sizes the table to the window and fills it with what the cluster
-// last said.
+// layout sizes the table to the window and fills it with the last answers
+// of the cluster.
 func (m *Model) layout() {
 	if m.width == 0 {
 		return
@@ -594,7 +593,7 @@ func (m *Model) layout() {
 	m.text.filter = m.list.filter
 	m.text.follow()
 
-	// A window that follows a stream goes down with what arrived.
+	// A window that follows a stream scrolls to the end as lines arrive.
 	if grew && m.text.following {
 		m.text.toEnd()
 	}
@@ -602,8 +601,8 @@ func (m *Model) layout() {
 	m.list = m.list.read(m.rows(), m.screen.page.titles(), m.ids(), m.troubled)
 }
 
-// schedulePoll asks for the next poll, unless one is already on its way.
-// The caller keeps the model it is given: the promise to poll lives in it.
+// schedulePoll schedules the next poll, unless one is already scheduled.
+// The caller keeps the model it returns: that model records the schedule.
 func (m Model) schedulePoll() (Model, tea.Cmd) {
 	if m.polling {
 		return m, nil
@@ -616,8 +615,8 @@ func (m Model) schedulePoll() (Model, tea.Cmd) {
 
 // poll asks for the screen again.
 func (m Model) poll() (Model, tea.Cmd) {
-	// The timer has fired and there is room for the next one, which the
-	// answer to this ask will set.
+	// The timer has fired, so the next one may be set. The answer to this
+	// request sets it.
 	m.polling = false
 
 	return m, m.fetch()
@@ -636,8 +635,8 @@ func fetchAgent(client clusterClient) tea.Cmd {
 	return request(client.Agent, func(agent nomad.Agent) tea.Msg { return agentMsg(agent) })
 }
 
-// keepAgent keeps what the agent says about itself: its version is in the
-// header, and its region answers a session that names none.
+// keepAgent stores what the agent reports about itself: its version goes in
+// the header, and its region is used when the session names none.
 func (m Model) keepAgent(agent agentMsg) Model {
 	m.nomadVersion = agent.Version
 	m.agentRegion = agent.Region

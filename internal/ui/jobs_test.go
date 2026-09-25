@@ -16,8 +16,7 @@ func TestJobsTitle(t *testing.T) {
 	m := newTestModel(&fakeClient{jobs: twoJobs()})
 	m, _ = m.update(jobsMsg(twoJobs()))
 
-	// The namespace and the number of rows, so the list says what it holds
-	// without counting.
+	// The namespace and the number of rows, so nobody has to count them.
 	r.Equal("Jobs (production) [2]", m.title())
 
 	m.namespace = nomad.AllNamespaces
@@ -54,10 +53,10 @@ func TestJobRows(t *testing.T) {
 func TestJobColor(t *testing.T) {
 	r := require.New(t)
 
-	// A service that runs everything it asks for is quiet.
+	// A service that runs all the allocations it wants has no color.
 	r.Nil(jobColor(nomad.Job{Type: "service", Status: "running", Running: 3, Desired: 3}))
 
-	// One that is short of allocations is not.
+	// One that runs fewer than it wants gets the attention color.
 	r.Equal(colorAttention, jobColor(nomad.Job{Type: "service", Status: "running", Running: 2, Desired: 3}))
 
 	r.Equal(colorPending, jobColor(nomad.Job{Type: "service", Status: "pending"}))
@@ -89,7 +88,7 @@ func TestJobs_TheKeysOfAJob(t *testing.T) {
 	}
 	r.Equal(keys, m.hints())
 
-	// A job with an allocation that waits for a place has a why to ask.
+	// A job with an allocation waiting to be placed gets the Placement key.
 	m, _ = m.update(jobsMsg(waiting()))
 	r.Equal(append(keys, hint{Key: "<p>", Description: "Placement"}), m.hints())
 }
@@ -121,7 +120,7 @@ func TestJobs_TheListOfTheRegionLeftIsNotShown(t *testing.T) {
 	m, clusters := onDev(t)
 	r.Contains(plain(m.render()), "cron")
 
-	// prod does not answer: what dev said must not stand under its name.
+	// prod does not answer: the jobs of dev must not show under its name.
 	clusters.prod.err = errors.New("connection refused")
 	m = typeCommand(m, "ctx prod")
 

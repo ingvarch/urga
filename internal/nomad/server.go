@@ -28,9 +28,9 @@ type Server struct {
 	// Leader says this is the server the others follow.
 	Leader bool
 
-	// Tags are what the agent says about itself in the gossip pool. The
-	// fields above are read out of them; the rest is what this cluster was
-	// built with, and it belongs on the detail of a server.
+	// Tags are what the agent reports about itself in the gossip pool. The
+	// fields above are read from them; the rest is how this cluster was
+	// built, for the detail screen of a server.
 	Tags map[string]string
 
 	// Protocol is the version of the gossip the agent speaks, and the range
@@ -41,7 +41,7 @@ type Server struct {
 }
 
 // RaftPeer is one server as the raft of the cluster sees it, which is not
-// the same view as the gossip: a server can be alive and no longer count.
+// the same view as the gossip: a server can be alive and no longer a peer.
 type RaftPeer struct {
 	ID      string
 	Node    string
@@ -61,17 +61,17 @@ func (c *Client) Servers(ctx context.Context) ([]Server, error) {
 		return nil, err
 	}
 
-	// The gossip spans every region. A client that names none is answered
-	// in the one of the agent, which the answer says itself.
+	// The gossip spans every region. A client that names no region gets the
+	// region of its agent, and the answer names that region.
 	region := c.region
 	if region == "" {
 		region = members.ServerRegion
 	}
 
-	// Who leads is a separate question, and one the cluster may not be able
-	// to answer during an election. The list is worth showing either way.
-	// That endpoint takes no options, so it carries no context of its own.
-	// Every region has a leader of its own.
+	// The leader is a separate request, and the cluster may not answer it
+	// during an election. The list is shown either way, so its error is
+	// ignored. That endpoint takes no options, so it carries no context of
+	// its own. Every region has a leader of its own.
 	leader, _ := c.api.Status().RegionLeader(c.region)
 
 	servers := make([]Server, 0, len(members.Members))
@@ -122,7 +122,7 @@ func (c *Client) Server(ctx context.Context, name string) (Server, error) {
 }
 
 // RaftPeers is the raft configuration of the cluster: who votes and who
-// leads. It is asked of the operator, which an ACL may not allow.
+// leads. It uses the operator endpoint, which an ACL may not allow.
 func (c *Client) RaftPeers(ctx context.Context) ([]RaftPeer, error) {
 	config, err := c.api.Operator().RaftGetConfiguration(c.query(ctx, ""))
 	if err != nil {

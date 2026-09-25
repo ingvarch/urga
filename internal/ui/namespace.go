@@ -14,7 +14,7 @@ import (
 type namespaceState struct {
 	namespace string
 
-	// namespaceOrder is which namespace each number key stands for.
+	// namespaceOrder is which namespace each number key selects.
 	namespaceOrder []string
 
 	// namespaces are kept across a switch of region: the command line and
@@ -22,9 +22,9 @@ type namespaceState struct {
 	namespaces []nomad.Namespace
 }
 
-// rememberNamespaces keeps the order the keys were handed out in. A cluster
-// that answers in another order must not renumber them under the fingers,
-// and the rule for that lives with the file it is written to.
+// rememberNamespaces keeps the order the number keys were given out in. A
+// cluster that answers in another order must not renumber keys the user
+// knows. The rule lives in config, which writes the order to its file.
 func (s *namespaceState) rememberNamespaces(list []nomad.Namespace) {
 	seen := make([]string, 0, len(list))
 	for _, ns := range list {
@@ -45,7 +45,7 @@ func (s namespaceState) knowsNamespace(namespace string) bool {
 	return false
 }
 
-// namespaceKey switches the session to the namespace a number stands for.
+// namespaceKey switches the session to the namespace a number key selects.
 // Zero is every namespace at once.
 func (m Model) namespaceKey(digit int) (Model, tea.Cmd) {
 	if digit == 0 {
@@ -66,8 +66,8 @@ func (m Model) switchNamespace(namespace string) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	// A list opened by name follows the session there when it is entered; a
-	// screen opened for a job or an allocation stays where that one lives.
+	// A list opened by name is entered again in the new namespace, with no
+	// filter; a screen opened for a job or an allocation stays in its own.
 	m.namespace = namespace
 	if m.screen.followsSession() {
 		m.list.filter = ""
@@ -78,10 +78,10 @@ func (m Model) switchNamespace(namespace string) (Model, tea.Cmd) {
 	return next, tea.Batch(cmd, next.remember())
 }
 
-// followSession puts the open screen up again after the session moved to
+// followSession enters the open screen again after the session moved to
 // another namespace or datacenter, when it is a list that follows the
 // session. A screen opened for one job, allocation or stream stays as it is:
-// asking it again would only start its stream over and lose its window.
+// asking for it again would only restart its stream and lose its window.
 func (m Model) followSession() (Model, tea.Cmd) {
 	if !m.screen.followsSession() {
 		m.layout()

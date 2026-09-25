@@ -46,7 +46,7 @@ func TestVersions_ListWhatTheJobWas(t *testing.T) {
 	r.Contains(out, "Versions (Job: web) [3]")
 
 	// What each version is: its number, whether it runs, whether the
-	// cluster was happy with it, what it was called and how much it changed.
+	// cluster marked it stable, its tag and how much it changed.
 	r.Contains(out, "golden")
 	r.Contains(out, "current")
 	r.Contains(out, "stable")
@@ -127,7 +127,7 @@ func TestVersions_OfAnotherJobAreNotShownHere(t *testing.T) {
 
 	// Until the cluster answers for this job, the screen holds nothing:
 	// version numbers belong to one job, and the ones of another must not
-	// stand under its name.
+	// show under its name.
 	r.Contains(plain(m.render()), "Versions (Job: cron) [0]")
 
 	// And a late answer for the job that was left is dropped.

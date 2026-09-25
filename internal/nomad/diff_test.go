@@ -52,9 +52,9 @@ func TestHCLDiff(t *testing.T) {
 	var diff api.JobDiff
 	r.NoError(json.Unmarshal([]byte(editedWeb), &diff))
 
-	// The way the job file reads, as a unified diff shows a change to it:
-	// the blocks that lead to a change, and every changed value as the line
-	// it was and the line it is. What did not change is left out.
+	// In job file syntax, the way a unified diff shows a change: the blocks
+	// that contain a change, and every changed value as its old line and its
+	// new line. What did not change is left out.
 	r.Equal([]DiffLine{
 		{Kind: DiffDeleted, Indent: 0, Text: "priority = 50"},
 		{Kind: DiffAdded, Indent: 0, Text: "priority = 70"},
@@ -101,8 +101,8 @@ func TestHCLDiff_Names(t *testing.T) {
 func TestHCLDiff_Values(t *testing.T) {
 	r := require.New(t)
 
-	// A number and a boolean read as they are, anything else as a string,
-	// with what would end it early escaped.
+	// A number and a boolean are written as they are, anything else as a
+	// quoted string with its quotes escaped.
 	r.Equal("3", hclValue("3"))
 	r.Equal("0.5", hclValue("0.5"))
 	r.Equal("true", hclValue("true"))

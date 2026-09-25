@@ -14,7 +14,7 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// errTest is what a machine that does not answer says.
+// errTest is the error of a node that does not answer.
 var errTest = errors.New("no answer from the client")
 
 func busyClient() []nomad.Node {
@@ -78,7 +78,7 @@ func TestClient_OpensWhatItRuns(t *testing.T) {
 
 	m, client := onClient(t)
 
-	// The machine is asked for its own work.
+	// The node is asked for the allocations it runs.
 	r.Equal("node-1", client.askedNodeID)
 
 	out := plain(m.render())
@@ -111,8 +111,8 @@ func TestClient_DrawsWhatTheHostIsDoing(t *testing.T) {
 
 	out := plain(m.render())
 
-	// What the machine takes, next to what it has, and a chart of the
-	// readings taken since the screen was opened.
+	// What the node uses next to what it has, and a chart of the readings
+	// taken since the screen was opened.
 	r.Contains(out, "CPU")
 	r.Contains(out, "29%")
 	r.Contains(out, "1165 / 4000 MHz")
@@ -134,8 +134,8 @@ func TestClient_TheChartIsDroppedOnAShortScreen(t *testing.T) {
 	m, _ = m.update(tea.WindowSizeMsg{Width: 120, Height: headerHeight + 11})
 	out := plain(m.render())
 
-	// On a screen with no room for both, the allocations win and the
-	// machine still says what it is.
+	// On a screen with no room for both, the chart is dropped for the
+	// allocations, and the status of the node still shows.
 	r.Contains(out, "pelmeni_buh_bot")
 	r.Contains(out, "ready")
 	r.NotContains(out, "100%")
@@ -168,8 +168,8 @@ func TestClient_AReadingThatFailsKeepsTheChart(t *testing.T) {
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-1", err: errTest})
 
-	// A machine that does not answer says so, and what it said before stays
-	// on the chart.
+	// When the node does not answer, the error shows, and the readings from
+	// before stay on the chart.
 	r.Len(trailOf(m), kept)
 	r.Contains(plain(m.render()), "no answer")
 }
@@ -204,8 +204,8 @@ func TestClient_ReadsAnAllocationInItsOwnNamespace(t *testing.T) {
 
 	m.fetchUsage()()
 
-	// A client runs the work of every namespace, and a reading is asked for
-	// in the namespace the allocation belongs to.
+	// A client runs allocations of every namespace, and a reading is asked
+	// for in the namespace the allocation belongs to.
 	r.Equal("staging", client.usageNamespace)
 }
 
@@ -230,8 +230,8 @@ func TestClient_TheChartBelongsToTheClientScreenOnly(t *testing.T) {
 
 	r.Contains(plain(m.render()), "Status")
 
-	// A screen opened from the client is about one thing of its own; what
-	// the machine is doing stays behind on the screen it belongs to.
+	// A screen opened from the client shows only its own content; the panel
+	// of the node stays on the client screen.
 	next, cmd := m.update(key('a'))
 	next = drain(next, cmd)
 
@@ -249,8 +249,8 @@ func TestClient_AReadingOfTheMachineYouLeftIsDropped(t *testing.T) {
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-9", use: nomad.ResourceUse{CPUPercent: 99}})
 
-	// A reading that was asked of another machine says nothing about this
-	// one, on the chart or in the error line.
+	// A reading asked of another node is dropped: it goes neither on the
+	// chart nor on the error line.
 	r.Len(trailOf(m), before)
 
 	m, _ = m.update(hostUseMsg{nodeID: "node-9", err: errTest})
@@ -271,7 +271,7 @@ func TestClient_TheMachineInThePanelKeepsUp(t *testing.T) {
 	r.Contains(out, "down")
 	r.Contains(out, "draining")
 
-	// And the answer of another machine is not this one.
+	// An answer about another node is dropped.
 	m, _ = m.update(hostMsg(nomad.Node{ID: "node-9", Name: "somewhere-else", Status: "ready", Address: "10.9.9.9"}))
 
 	out = plain(m.render())
@@ -290,8 +290,8 @@ func TestClient_ANarrowScreenKeepsTheMachineAndDropsTheCharts(t *testing.T) {
 	out := plain(m.render())
 
 	// Half of a narrow screen has no room for a chart with its scale, so
-	// the machine keeps the room and the charts give it up rather than
-	// spill out of the box.
+	// the node details keep the room and the charts are dropped instead of
+	// spilling out of the box.
 	r.Contains(out, "ready")
 	r.NotContains(out, "100%")
 
@@ -329,8 +329,8 @@ func TestClient_TheFirstReadingComesWithTheList(t *testing.T) {
 	r.Equal(42, trailOf(m)[len(trailOf(m))-1].CPUPercent)
 
 	// The list is answered on every poll and on every change the cluster
-	// reports. None of those answers is a reading: the chart has a timer of
-	// its own, and a second chain next to it would read twice as often.
+	// reports. None of those answers takes a reading: the chart has a timer
+	// of its own, and a second timer next to it would read twice as often.
 	before := len(trailOf(m))
 
 	for range 3 {
@@ -348,8 +348,8 @@ func TestClient_APollOfTheListReadsNoHost(t *testing.T) {
 	calls := client.usageCalls
 
 	// A poll comes every thirty seconds while the cluster streams and every
-	// two when it does not. Readings taken with it land on the chart at
-	// either pace, under an axis that assumes one.
+	// two when it does not. Readings taken with it would reach the chart at
+	// either pace, while its axis assumes one fixed pace.
 	drain(m, m.fetch())
 
 	r.Equal(calls, client.usageCalls)
@@ -361,8 +361,8 @@ func TestClient_APollOfTheListReadsTheMachine(t *testing.T) {
 	m, client := onClient(t)
 	client.nodes[0].Status, client.nodes[0].Drain = "down", true
 
-	// The machine is asked with its allocations, or the panel goes on
-	// saying what it was when the screen opened.
+	// The node is asked for with its allocations, or the panel keeps
+	// showing the node as it was when the screen opened.
 	m = drain(m, m.fetch())
 
 	out := plain(m.render())
@@ -406,8 +406,8 @@ func TestClient_ComingBackReadsAgain(t *testing.T) {
 	m, _ = m.update(enter())
 	r.IsType(tasksPage{}, m.screen.page)
 
-	// The timer of the chart was let go of with the screen. Coming back
-	// starts another one, or the chart stands still under a live list.
+	// The timer of the chart stopped when the screen was left. Coming back
+	// starts another one, or the chart stops moving under a live list.
 	m, _ = m.update(escape())
 	r.IsType(clientPage{}, m.screen.page)
 
@@ -433,8 +433,8 @@ func TestClient_ThePanelTakesWhatTheBoxHasRoomFor(t *testing.T) {
 	m, _ := onClient(t)
 	m, _ = m.update(reading(29))
 
-	// The box grows down from tall charts to short ones, to the machine
-	// alone, to the allocations alone. The table gets whatever is left.
+	// As the box shrinks, the panel goes from tall charts to short ones, to
+	// the node alone, and then away. The table gets whatever is left.
 	for _, tc := range []struct {
 		width, box, panel int
 		charts            bool
@@ -504,8 +504,8 @@ func TestClient_TheAllocationsOnItAnswerTheirKeys(t *testing.T) {
 
 	m, client := onClient(t)
 
-	// A client runs the work of every namespace: an allocation is restarted
-	// in the one it lives in.
+	// A client runs allocations of every namespace: an allocation is
+	// restarted in its own namespace.
 	asked, _ := m.update(key('r'))
 	r.Contains(plain(asked.render()), "Really restart the allocation af1f37df?")
 
@@ -570,7 +570,7 @@ func TestClient_TheLogsOfWhatRunsOnIt(t *testing.T) {
 	m, cmd = m.update(key('l'))
 	m = drain(m, cmd)
 
-	// The work of the machine is read again, and the question names it.
+	// The allocations of the node are read again, and the question names it.
 	r.Equal("node-1", client.askedNodeID)
 	r.IsType(logTasksPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Logs of which task? (Client: nomad-server-01)")
@@ -659,7 +659,7 @@ func TestClient_ComingBackShowsItsOwnAllocations(t *testing.T) {
 	m = drain(m, cmd)
 
 	// The allocation, the one that replaced it, and the client that one
-	// runs on, with work of its own.
+	// runs on, with allocations of its own.
 	m, cmd = m.update(enter())
 	m = drain(m, cmd)
 
@@ -676,8 +676,8 @@ func TestClient_ComingBackShowsItsOwnAllocations(t *testing.T) {
 		m, _ = m.update(escape())
 	}
 
-	// Before it is asked again, the first client shows what it held, not
-	// what the second one runs.
+	// Before it is asked again, the first client shows the allocations it
+	// had, not those of the second one.
 	out := plain(m.render())
 	r.Contains(out, "Client nomad-server-01 [1]")
 	r.Contains(out, "pelmeni_buh_bot")
@@ -700,8 +700,8 @@ func TestClient_TheMachineAnsweringLeavesTheErrorOfTheList(t *testing.T) {
 	m, _ := onClient(t)
 	m, _ = m.update(errMsg{err: errors.New("the list would not come")})
 
-	// The machine answered, the list did not: what went wrong with the list
-	// is still what is happening.
+	// The node answered, the list did not: the error of the list stays on
+	// the screen.
 	m, _ = m.update(hostMsg(busyClient()[0]))
 
 	r.Contains(plain(m.render()), "the list would not come")

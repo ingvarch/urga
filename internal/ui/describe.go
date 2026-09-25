@@ -20,8 +20,8 @@ type describeMsg struct {
 	lines []paintedLine
 }
 
-// The screens that can be described each ask for what the cursor is on, in
-// the words of the cluster. Nothing to describe answers with nothing.
+// The screens that can be described each request what the cursor is on, as
+// the cluster returns it. With nothing under the cursor, nothing is sent.
 
 func describeJob(p jobsPage, e env) (jobsPage, outcome) {
 	job, ok := p.picked(e)
@@ -61,8 +61,8 @@ func showJobSpec(p jobsPage, e env) (jobsPage, outcome) {
 	return p, outcome{cmd: describe(fmt.Sprintf("Job spec: %s", job.ID), func(ctx context.Context) (string, error) {
 		spec, err := client.JobSpec(ctx, job.Namespace, job.ID)
 
-		// The cluster has no file to show. Saying so is the job of the
-		// screen, the client answers with an error and no prose.
+		// The cluster has no file to show. The screen writes the message;
+		// the client returns only an error.
 		if errors.Is(err, nomad.ErrNoSource) {
 			return fmt.Sprintf(
 				"The cluster kept no source for %s.\n\n"+
@@ -80,8 +80,8 @@ func describe(label string, load func(ctx context.Context) (string, error)) tea.
 	})
 }
 
-// showDescribe puts a description on the screen, on top of the list it was
-// asked from.
+// showDescribe shows a description on top of the list it was requested
+// from.
 func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
 	text := newTextModel(msg.content)
 	if msg.lines != nil {

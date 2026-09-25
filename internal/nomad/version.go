@@ -21,7 +21,7 @@ type JobVersion struct {
 	Version uint64
 
 	// Current says this is the version that runs, Stable that the cluster
-	// was happy with it.
+	// marked it stable, as it does after a successful deployment.
 	Current bool
 	Stable  bool
 
@@ -34,8 +34,8 @@ type JobVersion struct {
 	Changes int
 }
 
-// JobVersions lists what a job was, newest first, with how much each version
-// changed from the one before it.
+// JobVersions lists the versions of a job, newest first, with how much each
+// one changed from the one before it.
 func (c *Client) JobVersions(ctx context.Context, namespace, jobID string) ([]JobVersion, error) {
 	jobs, diffs, err := c.versions(ctx, namespace, jobID)
 	if err != nil {
@@ -114,9 +114,9 @@ func (c *Client) versions(ctx context.Context, namespace, jobID string) ([]*api.
 	return jobs, diffs, err
 }
 
-// countChanges is how many fields a diff touches, counted on the tree: the
-// text puts a value on as many lines as it has, and those lines can read
-// like a diff of their own.
+// countChanges is how many fields a diff changes, counted on the diff tree:
+// in the text, a value of many lines takes as many lines, and those lines
+// can look like changes of their own.
 func countChanges(diff *api.JobDiff) int {
 	count := countFields(diff.Fields, diff.Objects)
 

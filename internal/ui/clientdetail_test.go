@@ -179,7 +179,7 @@ func TestClient_ShowsItsMetadataAndWhereItComesFrom(t *testing.T) {
 	r.Contains(out, "owner")
 	r.Contains(out, "igor")
 
-	// Only what the API set can be changed from here, so the screen says
+	// Only what the API set can be changed from here, so the screen shows
 	// which keys those are.
 	r.Contains(out, "api")
 	r.Contains(out, "agent")
@@ -224,8 +224,8 @@ func TestClient_EditsTheMetadata(t *testing.T) {
 	m, cmd := m.update(key('e'))
 	m = follow(m, cmd, 5)
 
-	// What the API can set is what the editor was given, and what comes
-	// back goes to the machine.
+	// The editor gets what the API can set, and what the user saves is
+	// sent to the machine.
 	r.NotEmpty(editor.opened)
 	r.Equal(`{"owner": "ingvar"}`, client.metaSubmitted)
 	r.Equal("node-1", client.metaNodeID)
@@ -239,7 +239,7 @@ func TestClient_TheMetadataOfAnotherMachineIsNotShownHere(t *testing.T) {
 
 	m, _ = m.update(nodeMetaMsg{nodeID: "node-9", meta: []nomad.MetaEntry{{Key: "owner", Value: "somebody else"}}})
 
-	// An answer for the machine that was left must not turn up under the
+	// An answer for the machine that was left must not be shown under the
 	// name of the one that is open.
 	r.NotContains(plain(m.render()), "somebody else")
 }
@@ -254,8 +254,8 @@ func TestClient_KeepsOfferingWhatTheAllocationsAnswer(t *testing.T) {
 		keys = append(keys, h.Key)
 	}
 
-	// The screen of a client answers for the machine and for the work on
-	// it, so the header offers both.
+	// The screen of a client covers the machine and the work on it, so
+	// the header offers keys for both.
 	r.Contains(keys, "<m>")
 	r.Contains(keys, "<r>")
 	r.Contains(keys, "<d>")
@@ -272,8 +272,8 @@ func TestClient_AnAnswerClearsTheErrorAndAsksAgain(t *testing.T) {
 
 	m, cmd := m.update(nodeDetailMsg(clientDetail()))
 
-	// The machine answered, so what went wrong is over, and the next ask is
-	// on its way.
+	// The machine answered, so the error is cleared, and the next poll is
+	// scheduled.
 	r.NotContains(plain(m.render()), "no answer")
 	r.NotNil(cmd)
 	r.IsType(pollMsg{}, cmd())
@@ -318,8 +318,8 @@ func TestClient_EachOfItsScreensHasItsColumnsAndKeys(t *testing.T) {
 		r.Equal(s.titles, m.screen.page.titles(), s.name)
 		r.Equal(s.keys, keyNames(m), s.name)
 
-		// The cluster says nothing of a machine on its stream: the screens
-		// of one are asked on a timer.
+		// The event stream carries no changes for a machine: the screens
+		// of one are polled on a timer.
 		r.Empty(m.screen.page.topics(), s.name)
 	}
 
@@ -447,8 +447,8 @@ func TestClient_AScreenOfAnotherClientStartsEmpty(t *testing.T) {
 
 	m, _ = m.update(key('a'))
 
-	// Until that machine answers, it has said nothing: what the first one
-	// said is not its.
+	// Until that machine answers, its screen is empty: the attributes of
+	// the first one are not shown for it.
 	out := plain(m.render())
 	r.Contains(out, "Attributes (Client: nomad-client-02) [0]")
 	r.NotContains(out, "amd64")

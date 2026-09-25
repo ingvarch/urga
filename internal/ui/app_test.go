@@ -46,8 +46,8 @@ type fakeClient struct {
 	// variableSpec is a variable as a file.
 	variableSpec nomad.VariableSource
 
-	// refusals are what the sends of an edit answer, in turn: the plan of a
-	// job, a namespace, metadata and a variable.
+	// refusals are the errors the sends of an edit return, in turn: the plan
+	// of a job, a namespace, metadata and a variable.
 	refusals []error
 
 	describe      string
@@ -122,7 +122,8 @@ type fakeClient struct {
 	datacenters     []string
 	usageDatacenter string
 
-	// checks are the checks of any allocation, and who asked for them last.
+	// checks are the checks of any allocation, and the one they were last
+	// requested for.
 	checks          []nomad.Check
 	checksNamespace string
 	checksAllocID   string
@@ -141,7 +142,7 @@ type fakeClient struct {
 	filesAllocID   string
 	filesPath      string
 
-	// file is what a file opened says, and which one was opened last.
+	// file is the content of an opened file, and which one was opened last.
 	file          *nomad.LogStream
 	fileErr       error
 	fileNamespace string
@@ -157,7 +158,7 @@ type fakeClient struct {
 	deploymentID        string
 
 	// promotedGroups are the groups promoted on their own, paused whether
-	// each pause asked to pause or to go on.
+	// each call asked to pause or to resume.
 	promotedGroups []string
 	paused         []bool
 
@@ -630,7 +631,8 @@ func (f *fakeClient) SubmitVariable(_ context.Context, namespace, path, source s
 	return f.refused(f.actionErr)
 }
 
-// refused is the next of the refusals, or otherwise what the call answers.
+// refused is the next of the refusals, or the call's own error when none is
+// left.
 func (f *fakeClient) refused(otherwise error) error {
 	if len(f.refusals) == 0 {
 		return otherwise
@@ -692,8 +694,8 @@ func newTestModel(client Client) Model {
 	return m
 }
 
-// answered is what an ask of the screen came back with, without the label
-// that ties it to the ask.
+// answered is the message a request of the screen returned, without the
+// label that ties it to that request.
 func answered(t *testing.T, msg tea.Msg) tea.Msg {
 	t.Helper()
 
@@ -833,8 +835,8 @@ func TestModel_SchedulesTheNextPollOnAnswer(t *testing.T) {
 func TestModel_UsesTheAlternateScreen(t *testing.T) {
 	r := require.New(t)
 
-	// urga takes the whole terminal and gives it back untouched when it ends,
-	// it does not scribble over what the user had in the scrollback.
+	// urga runs on the alternate screen, so when it ends the terminal and its
+	// scrollback look as they did before.
 	r.True(newTestModel(&fakeClient{}).View().AltScreen)
 }
 
@@ -846,7 +848,7 @@ func TestModel_LeavesAMarginAroundTheScreen(t *testing.T) {
 
 	rows := lines(m.render())
 
-	// A line of air above everything, and nothing touches the left edge.
+	// An empty line above everything, and nothing touches the left edge.
 	r.Empty(strings.TrimSpace(rows[0]))
 	r.True(strings.HasPrefix(rows[1], strings.Repeat(" ", headerPadX)+"Address:"), rows[1])
 
@@ -856,7 +858,7 @@ func TestModel_LeavesAMarginAroundTheScreen(t *testing.T) {
 	// The box keeps the same margin on the right.
 	r.Equal(120-screenPadX, ansi.StringWidth(box))
 
-	// The status line follows the header, not the box.
+	// The status line lines up with the header, not the box.
 	last := rows[len(rows)-1]
 	r.True(strings.HasPrefix(last, strings.Repeat(" ", headerPadX)+"<:>"), last)
 }
@@ -881,7 +883,7 @@ func clipboardOf(cmd tea.Cmd) string {
 	return fmt.Sprintf("%s", cmd())
 }
 
-// fakeChanges is the cluster saying when things change, without a cluster.
+// fakeChanges is an event stream that reports changes, without a cluster.
 type fakeChanges struct {
 	c      chan nomad.Change
 	errs   chan error

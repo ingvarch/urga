@@ -128,7 +128,7 @@ type groupRef struct {
 	nomad.TaskGroup
 }
 
-// askScale puts up the line that asks for the count of a group, with the
+// askScale shows the prompt for the new count of a group, filled with the
 // count it runs now.
 func (m Model) askScale(group groupRef) (Model, tea.Cmd) {
 	m.overlay = overlayScale

@@ -18,8 +18,8 @@ var logo = []string{
 // logoWidth is what the art takes on the screen.
 var logoWidth = ansi.StringWidth(logo[0])
 
-// minHeaderWidth is what the cluster info and the keys need. The art gives
-// its place up before they do.
+// minHeaderWidth is what the cluster info and the keys need. When room is
+// short, the art is hidden before they are cut.
 const minHeaderWidth = 60
 
 // fitLogo is the art when there is room for it, nothing when there is not.

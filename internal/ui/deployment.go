@@ -19,8 +19,8 @@ import (
 type deploymentMsg nomad.DeploymentDetail
 
 // deploymentAllocTitles are the columns of the allocations of a deployment:
-// the job and the namespace are the deployment's, and what it made of each
-// allocation is what the screen is read for.
+// the job and the namespace are the deployment's, and the screen is read for
+// the canary and health of each allocation.
 var deploymentAllocTitles = []string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "CPU", "MEM", "Age"}
 
 // groupTitles are the columns of the groups of a deployment.
@@ -116,7 +116,7 @@ func deploymentColor(d nomad.Deployment) color.Color {
 }
 
 // openDeployment opens the deployment under the cursor: how far it got with
-// each group, over the allocations it placed.
+// each group, above the allocations it placed.
 func openDeployment(p deploymentsPage, e env) (deploymentsPage, outcome) {
 	deployment, ok := p.inView(e)
 	if !ok {
@@ -142,8 +142,8 @@ func deploymentIs[P deploymentHolder](status string) func(p P, e env) bool {
 	}
 }
 
-// promoteDeployment takes the canaries of every group of the deployment in
-// view into service.
+// promoteDeployment promotes the canaries of every group of the deployment
+// in view.
 func promoteDeployment[P deploymentHolder](p P, e env) (P, outcome) {
 	deployment, ok := p.inView(e)
 	if !ok {
@@ -160,7 +160,7 @@ func promoteDeployment[P deploymentHolder](p P, e env) (P, outcome) {
 	})
 }
 
-// failDeployment stops a deployment where it is.
+// failDeployment marks a deployment as failed, which stops it.
 func failDeployment[P deploymentHolder](p P, e env) (P, outcome) {
 	deployment, ok := p.inView(e)
 	if !ok {
@@ -177,8 +177,7 @@ func failDeployment[P deploymentHolder](p P, e env) (P, outcome) {
 	})
 }
 
-// pauseDeployment stops the deployment in view where it is, or lets a
-// paused one go on.
+// pauseDeployment pauses the deployment in view, or resumes a paused one.
 func pauseDeployment[P deploymentHolder](p P, e env) (P, outcome) {
 	d, ok := p.inView(e)
 	if !ok {
@@ -200,7 +199,7 @@ func pauseDeployment[P deploymentHolder](p P, e env) (P, outcome) {
 	})
 }
 
-// deploymentPage is one deployment: how far it got with each group, over
+// deploymentPage is one deployment: how far it got with each group, above
 // the allocations it placed.
 type deploymentPage struct {
 	namespace, jobID, deploymentID string
@@ -214,8 +213,8 @@ type deploymentPage struct {
 	allocs []nomad.Alloc
 }
 
-// deploymentOf is a deployment where it lives, which is where its stream
-// watches.
+// deploymentOf is the page of a deployment in its namespace, which is where
+// its stream watches.
 func deploymentOf(d nomad.Deployment) deploymentPage {
 	return deploymentPage{namespace: d.Namespace, jobID: d.JobID, deploymentID: d.ID}
 }
@@ -226,7 +225,7 @@ func (p deploymentPage) title(_ env, count int) string {
 
 func (deploymentPage) titles() []string { return deploymentAllocTitles }
 
-// topics: what it placed changes, and so does the deployment itself.
+// topics: the allocations it placed change, and so does the deployment.
 func (p deploymentPage) where(env) string { return p.namespace }
 
 func (deploymentPage) topics() []string {
@@ -254,8 +253,8 @@ func (p deploymentPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 		return p, outcome{}, true
 
 	case deploymentMsg:
-		// What the deployment of the page says about itself: another
-		// deployment's answer is not the page's.
+		// Only the deployment of this page is kept: an answer about another
+		// deployment is ignored.
 		if msg.ID != p.deploymentID {
 			return p, outcome{}, false
 		}
@@ -290,7 +289,7 @@ func (deploymentPage) reading(ctx context.Context, client Client, ref rowRef) (n
 	return allocReading(ctx, client, ref)
 }
 
-// logsOf: the logs are read of what the deployment placed for its job.
+// logsOf: the logs of the allocations the deployment placed for its job.
 func (p deploymentPage) logsOf(env) logScope {
 	return logScope{namespace: p.namespace, jobID: p.jobID, deploymentID: p.deploymentID}
 }
@@ -298,8 +297,8 @@ func (p deploymentPage) logsOf(env) logScope {
 // inView is the deployment the page read.
 func (p deploymentPage) inView(env) (nomad.Deployment, bool) { return p.deployment.Deployment, p.read }
 
-// deploymentKeys are what the deployment can do, then what its allocations
-// can, the way a client screen puts the machine first.
+// deploymentKeys are the actions of the deployment, then those of its
+// allocations, the way a client screen lists the node first.
 var deploymentKeys = append([]pageKey[deploymentPage]{
 	{press: "p", label: "Promote Group", do: promoteGroup, writes: true, offered: groupWaitsHere},
 	{press: "ctrl+p", label: "Promote All", do: promoteDeployment[deploymentPage], writes: true, offered: someGroupWaits},
@@ -349,8 +348,8 @@ func someGroupWaits(p deploymentPage, _ env) bool {
 	return p.active() && slices.ContainsFunc(p.deployment.Groups, nomad.DeploymentGroup.WaitsForPromotion)
 }
 
-// promoteGroup takes the canaries of the group of the allocation under the
-// cursor into service. The other groups keep theirs.
+// promoteGroup promotes the canaries of the group of the allocation under
+// the cursor. The other groups are left as they are.
 func promoteGroup(p deploymentPage, e env) (deploymentPage, outcome) {
 	group, ok := p.waitingGroup(e)
 	if !ok {
@@ -375,8 +374,8 @@ func fetchDeployment(client deploymentsClient, namespace, deploymentID string) t
 	}, func(d nomad.DeploymentDetail) tea.Msg { return deploymentMsg(d) })
 }
 
-// deploymentPanel is what the allocations of a deployment show above them:
-// what the deployment is, and how far it got with each group.
+// deploymentPanel is the panel above the allocations of a deployment: what
+// the deployment is, and how far it got with each group.
 func deploymentPanel(d nomad.DeploymentDetail, width, room int) []string {
 	head := []string{}
 
@@ -431,7 +430,7 @@ func groupBlock(groups []nomad.DeploymentGroup, active bool, width int) panelBlo
 }
 
 // groupCells are the cells of one group. A group without canaries has
-// nothing to promote, and says so with a dash.
+// nothing to promote, and shows a dash there.
 func groupCells(g nomad.DeploymentGroup, active bool) []string {
 	canaries, promoted := "-", "-"
 	if g.DesiredCanaries > 0 {

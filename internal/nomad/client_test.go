@@ -14,7 +14,7 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// recorder answers with the given body and keeps the request it was asked.
+// recorder answers with the given body and keeps the request it received.
 func recorder(t *testing.T, body string) (*nomad.Client, *http.Request) {
 	t.Helper()
 
@@ -41,8 +41,8 @@ func TestJobs_AsksInTheNamespace(t *testing.T) {
 	_, err := client.Jobs(context.Background(), "production")
 	r.NoError(err)
 
-	// The namespace belongs to the request. Asking in the wrong one answers
-	// with an empty list or a 404, which reads like an empty cluster.
+	// The namespace is sent with the request. A request in the wrong one gets
+	// an empty list or a 404, which looks like an empty cluster.
 	r.Equal("/v1/jobs", asked.URL.Path)
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 }
@@ -91,13 +91,13 @@ func TestJobs_ReadsTheList(t *testing.T) {
 	r.Equal("running", job.Status)
 	r.Equal(time.Unix(0, 1758499200000000000).UTC(), job.SubmitTime.UTC())
 
-	// The counts of every task group together, the way the job list shows
-	// them. Allocations that ended, failed or were lost are not waited for,
-	// counting them reads as a job that never comes up.
+	// The counts of every task group added up, as the job list shows them.
+	// Allocations that completed, failed or were lost are left out of
+	// Desired: counting them would show a job that never comes up.
 	r.Equal(4, job.Running)
 	r.Equal(6, job.Desired)
 
-	// What waits for a place is a question of its own: why it is not placed.
+	// Queued allocations are counted apart: why they wait is its own question.
 	r.Equal(1, job.Queued)
 }
 
@@ -114,8 +114,8 @@ func TestJobs_WithoutASummary(t *testing.T) {
 	r.Zero(jobs[0].Running)
 	r.Zero(jobs[0].Desired)
 
-	// No submit time stays no submit time. Turning it into 1970 puts an age
-	// of twenty thousand days in the list.
+	// A missing submit time stays zero. Turning it into 1970 would show an
+	// age of twenty thousand days in the list.
 	r.True(jobs[0].SubmitTime.IsZero())
 }
 
@@ -144,14 +144,14 @@ func TestAgent_WithoutABuildTag(t *testing.T) {
 
 	agent, err := client.Agent(context.Background())
 
-	// An agent that does not say answers with nothing, not with an error the
-	// header would have to show.
+	// An agent that does not report them gives empty values, not an error
+	// the header would have to show.
 	r.NoError(err)
 	r.Empty(agent.Version)
 	r.Empty(agent.Region)
 }
 
-// headersOf is what a client sends with a request, and what it asks.
+// headersOf returns the headers and the query a client sends with a request.
 func headersOf(t *testing.T, cfg nomad.Config) (http.Header, url.Values) {
 	t.Helper()
 
@@ -209,8 +209,8 @@ func TestNew_WithoutANameTheEnvironmentIsTheCluster(t *testing.T) {
 }
 
 func TestNew_TheCertificatesOfANamedCluster(t *testing.T) {
-	// A CA file that is not there is a cluster that cannot be trusted,
-	// not one to talk to without it.
+	// A missing CA file is an error: the cluster cannot be trusted, and the
+	// client does not connect without it.
 	_, err := nomad.New(nomad.Config{
 		Address: "https://nomad.prod:4646",
 		Named:   true,

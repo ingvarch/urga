@@ -60,7 +60,7 @@ func logServer(t *testing.T, state string, frames ...frame) (*nomad.Client, *url
 	return client, asked
 }
 
-// readAll is what the stream hands over until it ends.
+// readAll collects what the stream sends until it ends.
 func readAll(t *testing.T, stream *nomad.LogStream) string {
 	t.Helper()
 
@@ -90,9 +90,9 @@ func TestLogs_OpenWithTheLastOfWhatWasWritten(t *testing.T) {
 	r.NoError(err)
 	readAll(t, stream)
 
-	// A log opened on its end shows nothing until the task writes again,
-	// and a task that crashed writes nothing again. The last of what it
-	// wrote is what the screen is opened for.
+	// A log opened at its end shows nothing until the task writes again,
+	// and a task that crashed never writes again. The screen is opened to
+	// see the last lines it wrote.
 	r.Equal("end", asked.Get("origin"))
 	r.Equal("65536", asked.Get("offset"))
 	r.Equal("server", asked.Get("task"))
@@ -149,8 +149,8 @@ func TestLogs_ARotatedFileStartsWhereTheOneBeforeStopped(t *testing.T) {
 	stream, err := client.Logs(context.Background(), "production", "a1", "server", nomad.LogStdout)
 	r.NoError(err)
 
-	// A log is turned over into a new file by size, not at the end of a
-	// line: the start of any file but the first is the rest of a line.
+	// A log is rotated into a new file by size, not at the end of a line:
+	// the start of any file but the first is the rest of a line.
 	r.Equal("whole\n", readAll(t, stream))
 }
 

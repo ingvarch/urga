@@ -75,8 +75,8 @@ func TestAllocations_Tasks(t *testing.T) {
 	allocs, err := client.Allocations(context.Background(), "production", "web")
 	r.NoError(err)
 
-	// The tasks come in the order their names read, so the list does not
-	// shuffle between two polls.
+	// The tasks are sorted by name, so the list does not shuffle between two
+	// polls.
 	r.Len(allocs[0].Tasks, 2)
 	r.Equal("server", allocs[0].Tasks[0].Name)
 	r.Equal("running", allocs[0].Tasks[0].State)
@@ -106,8 +106,8 @@ func TestNodeAllocations_AsksTheNode(t *testing.T) {
 	r.NoError(err)
 	r.Len(allocs, 1)
 
-	// The machine is asked for its own work, in every namespace: a client
-	// runs whatever the schedulers put on it.
+	// The node is asked for the allocations it runs, in every namespace: a
+	// client runs whatever the schedulers put on it.
 	r.Equal("/v1/node/node-1/allocations", asked.URL.Path)
 	r.Equal("*", asked.URL.Query().Get("namespace"))
 
@@ -241,7 +241,7 @@ func TestAllocation_HealthInItsDeployment(t *testing.T) {
 	r.Equal("unhealthy", health(`{"Healthy": false}`))
 	r.Equal("checking", health(`null`))
 
-	// Outside a deployment there is no health to speak of.
+	// Outside a deployment an allocation has no health.
 	client, _ := recorder(t, `{"ID": "a"}`)
 	alloc, err := client.Allocation(context.Background(), "production", "a")
 	r.NoError(err)

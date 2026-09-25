@@ -18,7 +18,7 @@ func TestFilter_KeepsWhatSaysIt(t *testing.T) {
 func TestFilter_InverseLeavesTheRest(t *testing.T) {
 	r := require.New(t)
 
-	// What k9s writes as `/!web`: everything but what says it.
+	// `!web` keeps everything that does not contain web.
 	match := matcher("!web")
 
 	r.False(match("web production running"))
@@ -28,8 +28,8 @@ func TestFilter_InverseLeavesTheRest(t *testing.T) {
 func TestFilter_FuzzyTakesTheLettersInOrder(t *testing.T) {
 	r := require.New(t)
 
-	// What k9s writes as `/-f pbb`: the letters in that order, with
-	// anything between them.
+	// `-f pbb` matches the letters in that order, with anything between
+	// them.
 	match := matcher("-f pbb")
 
 	r.True(match("pelmeni_buh_bot"))
@@ -49,12 +49,12 @@ func TestFilter_AnEmptyOneKeepsEverything(t *testing.T) {
 func TestFilter_NothingIsLitUpForOneThatExcludes(t *testing.T) {
 	r := require.New(t)
 
-	// A line is kept because it does not say the word: there is nothing in
-	// it to light up.
+	// A line is kept because it does not contain the word: there is nothing
+	// in it to highlight.
 	r.Nil(matchIn("cron production", "!web"))
 
-	// And the letters of a fuzzy filter sit all over the line, so lighting
-	// up the first of them would say the wrong thing.
+	// And the letters of a fuzzy filter are spread over the line, so
+	// highlighting the first of them would be misleading.
 	r.Nil(matchIn("pelmeni_buh_bot", "-f pbb"))
 }
 

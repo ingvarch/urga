@@ -140,8 +140,8 @@ type Node struct {
 	Drain       bool
 	Address     string
 
-	// CPUShares and MemoryMB are what the machine has, which is what its
-	// readings are measured against.
+	// CPUShares and MemoryMB are the capacity of the machine; its usage is
+	// measured against them.
 	CPUShares int
 	MemoryMB  int
 }
@@ -183,7 +183,7 @@ func newNode(n *api.NodeListStub) Node {
 	return node
 }
 
-// Variable is an entry of the variable store. Only what the list says, the
+// Variable is an entry of the variable store. Only what the list returns; the
 // values themselves are not read.
 type Variable struct {
 	Path      string
@@ -301,7 +301,7 @@ type TaskGroup struct {
 	Lost     int
 }
 
-// TaskGroups lists the groups of a job with what the cluster made of them.
+// TaskGroups lists the groups of a job with the allocation counts of each.
 func (c *Client) TaskGroups(ctx context.Context, namespace, jobID string) ([]TaskGroup, error) {
 	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
 	if err != nil {

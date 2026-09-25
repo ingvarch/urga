@@ -7,7 +7,7 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// viewOfName is how a view is written down between runs, and back.
+// viewOfName finds a view by the name it is saved under between runs.
 var viewOfName = storedIndex()
 
 func storedIndex() map[string]*view {
@@ -22,7 +22,7 @@ func storedIndex() map[string]*view {
 	return names
 }
 
-// restore picks the session up where it was left.
+// restore brings back the namespace, number keys and screen of the last run.
 func (m Model) restore() Model {
 	if m.opts.Config == nil {
 		return m
@@ -44,13 +44,13 @@ func (m Model) restore() Model {
 	return m
 }
 
-// session is what the cluster in use was left looking at.
+// session is the saved session of the cluster in use.
 func (m Model) session() *config.Session {
 	return m.opts.Config.Of(m.opts.Cluster)
 }
 
-// remember writes down what this session is looking at. It is a command, so
-// the file is written off the path that answers keys.
+// remember saves the namespace and the screen of this session. It is a
+// command, so the file is written outside the code that handles keys.
 func (m Model) remember() tea.Cmd {
 	cfg := m.opts.Config
 	if cfg == nil {
@@ -74,8 +74,8 @@ func (m Model) remember() tea.Cmd {
 	}
 }
 
-// NamespaceOrAll is how a namespace is named when none was chosen: every
-// namespace at once is a choice of its own and is written as one.
+// NamespaceOrAll is how a namespace is named when none was chosen: all
+// namespaces at once is a choice too, and is saved as one.
 func NamespaceOrAll(namespace string) string {
 	if namespace == "" {
 		return nomad.AllNamespaces

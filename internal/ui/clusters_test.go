@@ -41,8 +41,8 @@ func onDev(t *testing.T) (Model, *twoClusters) {
 	cfg, err := config.Load()
 	require.NoError(t, err)
 
-	// Both clusters follow their event streams, like a cluster that allows
-	// it: the status line is left to what the switch says.
+	// Both clusters stream their events, like a cluster that allows it, so
+	// no warning about polling hides the messages of the switch.
 	clusters := &twoClusters{
 		dev: &fakeClient{jobs: twoJobs(), changes: newChanges()},
 		prod: &fakeClient{
@@ -90,7 +90,7 @@ func TestClusters_SwitchByName(t *testing.T) {
 	r.Contains(out, "billing")
 	r.NotContains(out, "cron")
 
-	// Said once it is so, not while it is on its way.
+	// Shown once connected, not while the connection is still being made.
 	r.Contains(out, "Connected to prod.")
 	r.NotContains(out, "Connecting")
 
@@ -104,7 +104,7 @@ func TestClusters_EachKeepsItsNamespace(t *testing.T) {
 	m, clusters := onDev(t)
 	clusters.cfg.Of("dev").UseNamespace("default")
 
-	// prod starts where the settings say, the first time.
+	// The first time, prod starts in the namespace its settings give.
 	m = typeCommand(m, "ctx prod")
 	r.Equal("payments", m.namespace)
 
@@ -165,7 +165,7 @@ func TestClusters_AClusterThatCannotBeReached(t *testing.T) {
 
 	m = typeCommand(m, "ctx prod")
 
-	// The session stays where it was, and says why.
+	// The session stays on dev and shows the error.
 	r.Equal("dev", m.opts.Cluster)
 	r.Contains(plain(m.render()), "NOMAD_TOKEN_PROD is not set")
 	r.Contains(plain(m.render()), "cron")
@@ -185,7 +185,7 @@ func TestClusters_ClosesTheLogsOfEveryAllocation(t *testing.T) {
 	closed := countClosed(clusters.dev.logsByAlloc)
 	m = typeCommand(m, "ctx prod")
 
-	// Each one is a request held open to a client of the cluster left.
+	// Each stream holds a request open to a client of the old cluster.
 	r.Equal(2, *closed)
 	r.Equal("prod", m.opts.Cluster)
 }

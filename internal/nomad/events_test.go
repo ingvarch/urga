@@ -13,7 +13,7 @@ import (
 )
 
 // eventServer answers the event stream with the lines it is given, one
-// after another, and keeps the request it was asked.
+// after another, and records the request it received.
 func eventServer(t *testing.T, lines ...string) (*nomad.Client, *http.Request) {
 	t.Helper()
 
@@ -99,8 +99,8 @@ func TestEvents_WhenTheClusterWillNotStream(t *testing.T) {
 	client, err := nomad.New(nomad.Config{Address: server.URL})
 	r.NoError(err)
 
-	// An ACL that does not allow the stream says so at once, so that the
-	// caller can go on asking the way it did before.
+	// An ACL that does not allow the stream returns an error at once, so
+	// that the caller can keep polling the way it did before.
 	_, err = client.Events(context.Background(), "", []string{"Job"})
 	r.Error(err)
 }

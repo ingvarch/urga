@@ -102,7 +102,7 @@ func TestNavigation_EscapeWalksBack(t *testing.T) {
 	m, _ = m.update(escape())
 	r.IsType(jobsPage{}, m.screen.page)
 
-	// The job list is the floor, escape on it stays there.
+	// The job list is the bottom of the stack: escape on it stays there.
 	m, _ = m.update(escape())
 	r.IsType(jobsPage{}, m.screen.page)
 }
@@ -256,8 +256,8 @@ func TestAllocations_TheCommandOpensThemOverTheAllocationsOfAJob(t *testing.T) {
 	m = playOut(m, cmd)
 	r.Contains(plain(m.render()), "Allocations (Job: web)")
 
-	// The allocations of a job are not the list the command line names:
-	// asked for, that one opens, and escape comes back to the job.
+	// The allocations of a job are not the list the command line names: the
+	// command opens that list, and escape comes back to the job.
 	m = typeCommand(m, "allocations")
 	r.Contains(plain(m.render()), "Allocations (production)")
 
@@ -284,7 +284,7 @@ func TestAllocations_EachListAnswersItsOwnKeys(t *testing.T) {
 	want := map[string][]string{
 		"job": allocKeys,
 
-		// The machine first, then the work on it.
+		// The keys of the node first, then those of its allocations.
 		"client": slices.Concat([]string{"e Events", "ctrl+d Drivers", "ctrl+h Host Volumes", "a Attributes", "m Meta"}, allocKeys),
 
 		// The deployment first, then what it placed.
@@ -325,7 +325,7 @@ func TestAllocations_EachListHasItsOwnColumnsTitleAndTopics(t *testing.T) {
 		r.Equal(want[name].title, m.title(), name)
 		r.Equal(want[name].topics, m.screen.page.topics(), name)
 
-		// Every one of them reads what its running allocations take.
+		// Every one of them reads the usage of its running allocations.
 		r.NotNil(m.fetchUsage(), name)
 	}
 }
@@ -361,7 +361,7 @@ func TestAllocations_OfTheNamespaceFollowTheSession(t *testing.T) {
 	r.Equal("production", client.askedNamespace)
 	r.Empty(client.askedJobID)
 
-	// A switch of namespace takes them along.
+	// A switch of namespace asks for them again in the new one.
 	m, cmd = m.update(key('2'))
 	m = drain(m, cmd)
 
@@ -400,7 +400,7 @@ func TestAllocations_AnAnswerAfterLeavingIsDropped(t *testing.T) {
 	m, _ = m.update(enter())
 	m, _ = m.update(escape())
 
-	// The allocations answer on the jobs they were asked from.
+	// The allocations answer after escape went back to the jobs.
 	m, _ = m.update(allocsMsg(twoAllocs()))
 
 	out := plain(m.render())

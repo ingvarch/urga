@@ -21,8 +21,9 @@ const logTail = 64 << 10
 // taskStateDead is how the cluster says a task has stopped for good.
 const taskStateDead = "dead"
 
-// LogStream is a task writing. Lines arrive on Lines until the task stops or
-// Close is called; Err says why it ended, if it did not end on its own.
+// LogStream follows what a task writes. Lines arrive on Lines until the task
+// stops or Close is called; Err says why it ended, if it did not end on its
+// own.
 type LogStream struct {
 	Lines <-chan string
 	Err   <-chan error
@@ -39,8 +40,8 @@ type LogStream struct {
 	Size int64
 	From int64
 
-	// OnClose runs when the stream is closed, which is how a test sees that
-	// the request behind it was let go of.
+	// OnClose runs when the stream is closed, so a test can check that the
+	// request behind it was cancelled.
 	OnClose func()
 
 	cancel chan struct{}
@@ -74,7 +75,7 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 	cancel := make(chan struct{})
 
 	// A dead task is read to the end of what it wrote. Followed, its stream
-	// would stay open with nothing more to say.
+	// would stay open with no more lines to come.
 	finished := taskDead(alloc, task)
 
 	frames, errs := c.api.AllocFS().Logs(alloc, !finished, task, source, "end", logTail, cancel, c.query(context.Background(), namespace))

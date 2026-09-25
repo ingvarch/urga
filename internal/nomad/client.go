@@ -27,7 +27,7 @@ type Config struct {
 	TLS   TLS
 }
 
-// TLS are the files that prove a cluster is the one it says, and urga to it.
+// TLS are the files that verify the cluster to urga and urga to the cluster.
 type TLS struct {
 	CACert     string
 	ClientCert string
@@ -35,8 +35,8 @@ type TLS struct {
 	ServerName string
 }
 
-// Client is the cluster, asked in one region. An empty region is the one
-// of the agent it talks to.
+// Client sends requests to the cluster in one region. An empty region is
+// the one of the agent it talks to.
 type Client struct {
 	api    *api.Client
 	region string
@@ -46,8 +46,8 @@ type Client struct {
 func New(cfg Config) (*Client, error) {
 	c := api.DefaultConfig()
 
-	// What the environment set is replaced whole, the parts the settings
-	// leave empty included.
+	// Every value from the environment is replaced, including the ones the
+	// settings leave empty.
 	if cfg.Named {
 		c.Namespace, c.HttpAuth, c.SecretID = "", nil, cfg.Token
 		c.Region = ""
@@ -75,9 +75,9 @@ func New(cfg Config) (*Client, error) {
 	return &Client{api: client, region: c.Region}, nil
 }
 
-// InRegion is the same cluster asked in another region. The client it came
-// from is left as it is: a request still out keeps the region it was
-// asked in.
+// InRegion is a client for the same cluster in another region. The original
+// client does not change: a request in flight keeps the region it was
+// sent to.
 func (c *Client) InRegion(region string) *Client {
 	return &Client{api: c.api, region: region}
 }
@@ -137,8 +137,8 @@ type Agent struct {
 	Region string
 }
 
-// Agent asks the agent the client talks to. The context is here for the
-// shape of the API, the agent endpoint of Nomad takes none.
+// Agent asks the agent the client talks to. The context is there to match
+// the other calls: the agent endpoint of Nomad takes none.
 func (c *Client) Agent(_ context.Context) (Agent, error) {
 	self, err := c.api.Agent().Self()
 	if err != nil {

@@ -10,12 +10,13 @@ import (
 )
 
 // checksEvery is how often the checks of an allocation are read. The event
-// stream does not say when a check changes: its client keeps the result.
+// stream does not report a change of a check: the Nomad client of the
+// allocation keeps the result.
 const checksEvery = rowUsageEvery
 
 // Messages of the checks of the allocation on the tasks screen. An answer
-// carries the allocation it was asked of: one that arrives after the screen
-// moved on belongs to another.
+// carries the allocation it was requested for: one that arrives after the
+// screen switched to another allocation is ignored.
 type (
 	checksMsg struct {
 		allocID string
@@ -27,9 +28,8 @@ type (
 	pollChecksMsg struct{}
 )
 
-// checksOnce takes the first reading of the checks when the allocation of a
-// tasks screen is read, and only then: the timer keeps them coming after
-// that.
+// checksOnce requests the checks once, when the allocation of a tasks screen
+// is read: after that the timer requests them.
 func (p tasksPage) checksOnce(e env) (page, outcome, bool) {
 	if p.due || !p.runs() {
 		return p, outcome{}, true
@@ -71,9 +71,9 @@ func (p tasksPage) pollChecks(e env) (page, outcome, bool) {
 	return p, outcome{cmd: p.readChecks(e), reading: true}, true
 }
 
-// keepChecks puts what the checks said on the panel, and sets the timer for
-// the next reading. A client that did not answer says so and is asked again;
-// one that did takes what went wrong before off the status line.
+// keepChecks shows the checks on the panel, and sets the timer for the next
+// reading. A client that did not answer shows an error and is asked again;
+// an answer clears the previous error from the status line.
 func (p tasksPage) keepChecks(msg checksMsg) (page, outcome, bool) {
 	next := tea.Tick(checksEvery, func(time.Time) tea.Msg { return pollChecksMsg{} })
 

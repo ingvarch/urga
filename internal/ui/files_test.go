@@ -13,7 +13,7 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// allocFiles are the directories of an allocation of served, by path.
+// allocFiles are the directories of an allocation that runs server, by path.
 func allocFiles() map[string][]nomad.File {
 	then := time.Now().Add(-12 * time.Minute)
 
@@ -61,8 +61,8 @@ func TestTasks_BrowseTheDirectoryOfATask(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
 	m := browsed(t, client)
 
-	// The directory of the task under the cursor, asked of its allocation
-	// in its namespace.
+	// The directory of the task under the cursor, requested from its
+	// allocation in its namespace.
 	r.IsType(filesPage{}, m.screen.page)
 	r.Equal("/server", client.filesPath)
 	r.Equal("af1f37df-7b19-6b1c-da67-5e8f482b5a15", client.filesAllocID)
@@ -71,7 +71,8 @@ func TestTasks_BrowseTheDirectoryOfATask(t *testing.T) {
 	out := plain(m.render())
 	r.Contains(out, "Files (Allocation: af1f37df, /server)")
 
-	// Up first, then directories, then files, with how big each file is.
+	// The row that goes up first, then directories, then files, with how big
+	// each file is.
 	r.Contains(fileRow(t, m, 0), "..")
 	r.Contains(fileRow(t, m, 1), "local/")
 	r.Contains(fileRow(t, m, 2), "secrets/")
@@ -181,8 +182,8 @@ func TestFiles_TheListingOfADirectoryLeftIsDropped(t *testing.T) {
 	m, listing := m.update(enter())
 	m, _ = m.update(escape())
 
-	// What local holds arrives after it was left: it is not what the
-	// directory above holds.
+	// The listing of local arrives after the screen left it: it must not
+	// show as the content of the directory above.
 	m = drain(m, listing)
 
 	out := plain(m.render())
@@ -210,14 +211,14 @@ func TestFiles_ADirectoryShowsOnlyItsOwnRows(t *testing.T) {
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
-	// Back up, before the cluster has listed it again: what was listed of
-	// the directory below is not what this one holds.
+	// Back up, before the cluster has listed it again: the rows of the
+	// directory below must not show in this one.
 	m, _ = m.update(escape())
 	r.Contains(plain(m.render()), "Files (Allocation: af1f37df, /server)")
 	r.NotContains(plain(m.render()), "app.env")
 }
 
-// written is a stream that has said what it holds and ended.
+// written is a stream that has sent its text and ended.
 func written(text string) *nomad.LogStream {
 	lines := make(chan string, 1)
 	lines <- text
@@ -244,7 +245,7 @@ func onEnv(t *testing.T, client *fakeClient) Model {
 }
 
 // openedEnv is app.env of the task server, open on its screen and read to
-// the end of what it says.
+// its end.
 func openedEnv(t *testing.T, client *fakeClient) Model {
 	t.Helper()
 
@@ -254,7 +255,7 @@ func openedEnv(t *testing.T, client *fakeClient) Model {
 }
 
 // readingEnv is app.env open on its screen on a stream that stays open:
-// what it says is up to the test.
+// the test decides what it sends.
 func readingEnv(t *testing.T, client *fakeClient, stream *nomad.LogStream) Model {
 	t.Helper()
 
@@ -271,7 +272,7 @@ func TestFiles_OpenAFile(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), file: written("DB_HOST=10.0.0.5\nMODE=fast\n")}
 	m := openedEnv(t, client)
 
-	// Asked of its allocation in its namespace, read like a log.
+	// Requested from its allocation in its namespace, shown like a log.
 	r.IsType(filePage{}, m.screen.page)
 	r.Equal("/server/local/app.env", client.filePath)
 	r.Equal("af1f37df-7b19-6b1c-da67-5e8f482b5a15", client.fileAllocID)
@@ -282,8 +283,8 @@ func TestFiles_OpenAFile(t *testing.T) {
 	r.Contains(out, "DB_HOST=10.0.0.5")
 	r.Contains(out, "MODE=fast")
 
-	// A file is read from the top, and when urga read a line is nothing
-	// to it.
+	// A file is shown from the top, and the time urga read a line means
+	// nothing for it.
 	r.Contains(out, "Autoscroll:Off")
 	r.Contains(out, "Wrap:Off")
 	r.NotContains(out, "Timestamps")
@@ -303,7 +304,7 @@ func TestFile_EscapeLetsGoOfIt(t *testing.T) {
 	m := readingEnv(t, client, stream)
 	r.IsType(filePage{}, m.screen.page)
 
-	// A file that is still being read is let go of.
+	// The stream of a file that is still being read is closed.
 	m, _ = m.update(escape())
 	r.IsType(filesPage{}, m.screen.page)
 	r.True(closed)
@@ -324,7 +325,8 @@ func TestFile_CoveredLetsGoOfIt(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
 	m := readingEnv(t, client, stream)
 
-	// Nothing reads it under another screen, and escape reads it again.
+	// Under another screen nothing reads it, so it is closed; escape reads it
+	// again.
 	m, _ = m.show(jobsView)
 	r.IsType(jobsPage{}, m.screen.page)
 	r.True(*closed)
@@ -393,10 +395,10 @@ func TestFile_ANamespaceSwitchLeavesItAsItIs(t *testing.T) {
 	m.namespaceOrder = []string{"production", "staging"}
 	m, _ = m.update(logLineMsg{stream: stream, text: "DB_HOST=10.0.0.5\n"})
 
-	// The file belongs to its allocation: the namespace the lists look at
-	// changes nothing about it, and it is not read again.
-	// Played out with a deadline per command: a file opened again waits on
-	// its stream for good.
+	// The file is part of its allocation: switching the namespace of the
+	// lists does not change it, and it is not read again.
+	// Played out with a deadline per command: a file opened again would wait
+	// on its stream forever.
 	m, cmd := m.update(key('2'))
 	m = playOut(m, cmd)
 
@@ -447,7 +449,7 @@ func TestFile_WhatItGrowsByStaysBelowTheTop(t *testing.T) {
 	r.Contains(plain(m.render()), "Autoscroll:On")
 	r.NotContains(plain(m.render()), "first")
 
-	// Followed, what it grows by next is followed too.
+	// With autoscroll on, the lines added next are followed too.
 	for i := range 30 {
 		m, _ = m.update(logLineMsg{stream: stream, text: fmt.Sprintf("later-%02d\n", i)})
 	}
@@ -483,8 +485,8 @@ func TestFiles_APipeIsNotOpened(t *testing.T) {
 	m, cmd = m.update(enter())
 	m = drain(m, cmd)
 
-	// Asked what it holds, its client would wait on it for as long as the
-	// task writes nothing.
+	// Asked for its content, the client would wait for as long as the task
+	// writes nothing.
 	r.Zero(client.fileCalls)
 	r.IsType(filesPage{}, m.screen.page)
 	r.Contains(plain(m.render()), ".server.stdout.fifo is a pipe")

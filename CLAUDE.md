@@ -64,3 +64,7 @@ over decisions and lessons, write the code here from scratch.
 - No mention of other tools by name in code comments or commit messages.
 - Comments are short and say why, never what the line already says. Existing
   comments are not deleted.
+- Comments use plain words. Name what the code does ("closes the stream",
+  "drops the answer", "shows the error") instead of a figure of speech ("lets
+  go of it", "says so", "what it was left holding"). The terms of the code
+  stay as they are: page, screen, stack, ask, poll, stream, watch.

@@ -24,7 +24,7 @@ func TestAllocationUsage(t *testing.T) {
 	use, err := client.AllocationUsage(context.Background(), "production", "af1f37df")
 	r.NoError(err)
 
-	// What it takes, and how much of what it asked for that is: 125 of 500
+	// What it uses, and how much of what it reserved that is: 125 of 500
 	// ticks, 128 of 256 megabytes.
 	r.Equal(125, use.CPUTicks)
 	r.Equal(500, use.CPUTicksAllowed)
@@ -54,16 +54,15 @@ func TestNodeUsage(t *testing.T) {
 	// the machine.
 	r.Equal(50, use.CPUPercent)
 
-	// What the machine is doing in ticks, which reads next to the capacity
-	// the node list carries.
+	// CPU use in ticks, to show next to the capacity from the node list.
 	r.Equal(1500, use.CPUTicks)
 	r.Equal(50, use.MemoryPercent)
 	r.Equal(4096, use.MemoryMB)
 	r.Equal(8192, use.MemoryMBAllowed)
 }
 
-// statsServer answers the allocation and its stats, which is what a reading
-// takes.
+// statsServer answers the two requests a reading makes: the allocation and
+// its stats.
 func statsServer(t *testing.T, stats string) *nomad.Client {
 	t.Helper()
 

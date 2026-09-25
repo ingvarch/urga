@@ -15,7 +15,7 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// rowsWith is how many rows of the screen say it.
+// rowsWith is how many rows of the screen contain the text.
 func rowsWith(m Model, text string) int {
 	count := 0
 
@@ -61,8 +61,8 @@ func TestLogs_TheFilterShowsWhereItMatched(t *testing.T) {
 
 	out := m.render()
 
-	// Only the lines that say it are left, and the word itself stands out
-	// of them.
+	// Only the lines that contain it are left, and the match is highlighted
+	// in them.
 	r.Contains(plain(out), "ready to serve")
 	r.NotContains(plain(out), "connection refused")
 
@@ -76,7 +76,7 @@ func TestLogs_WrapLongLines(t *testing.T) {
 
 	m, _ := onLogs(t, long+"\n")
 
-	// Cut to the width of the screen, a long line says nothing of its tail.
+	// Cut to the width of the screen, a long line hides its tail.
 	r.Equal(1, rowsWith(m, "aaa"))
 
 	m, _ = m.update(key('w'))
@@ -85,8 +85,8 @@ func TestLogs_WrapLongLines(t *testing.T) {
 	r.Greater(rowsWith(m, "aaa"), 3)
 }
 
-// longLines are lines that each wrap over three rows of the screen, and say
-// which they are at both ends.
+// longLines are lines that each wrap over three rows of the screen, and carry
+// their number at both ends.
 func longLines(count int) []string {
 	lines := make([]string, 0, count)
 	for i := range count {
@@ -204,7 +204,7 @@ func TestLogs_SaveWhatIsOnTheScreen(t *testing.T) {
 	r.Contains(string(saved), "ready to serve")
 	r.Contains(string(saved), "connection refused")
 
-	// The screen says where it went.
+	// The screen shows the file it was saved to.
 	r.Contains(plain(m.render()), filepath.Base(files[0]))
 }
 
@@ -259,7 +259,7 @@ func TestLogs_WrapALineOfWideCharacters(t *testing.T) {
 	select {
 	case rows := <-done:
 		// A column too narrow for a character still takes it, rather than
-		// coming back with nothing to show for it.
+		// returning no rows at all.
 		r.NotEmpty(rows)
 	case <-time.After(2 * time.Second):
 		t.Fatal("wrapping a wide line did not finish")

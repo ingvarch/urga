@@ -50,7 +50,7 @@ func natural(titles []string, rows []tableRow) []int {
 }
 
 // Whatever the width of the terminal, the columns are laid out the same way:
-// the list fills the line when it fits, and gives way from the widest column
+// the list fills the line when it fits, and shrinks the widest column first
 // when it does not.
 func TestColumnWidths_AtEveryWidth(t *testing.T) {
 	rng := rand.New(rand.NewPCG(7, 11))

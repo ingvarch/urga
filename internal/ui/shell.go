@@ -47,7 +47,7 @@ func shell(p tasksPage, e env) (tasksPage, outcome) {
 	})
 }
 
-// openShell hands the terminal to a shell, when urga has one to hand it to.
+// openShell hands the terminal to a shell, or shows an error without one.
 func (m Model) openShell(cmd shellCommand) (Model, tea.Cmd) {
 	if m.opts.Shell == nil {
 		return m.fail(fmt.Errorf("no shell: urga was started without a terminal")), nil
@@ -94,8 +94,8 @@ func (s *shellSession) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// The task reads keys as they are typed, so the terminal stops cooking
-	// them. It is given back the way it was found.
+	// The task reads keys as they are typed, so the terminal goes into raw
+	// mode. Its old state is restored afterwards.
 	fd := int(os.Stdin.Fd())
 
 	if term.IsTerminal(fd) {
@@ -124,7 +124,7 @@ func (s *shellSession) Run() error {
 	return nil
 }
 
-// shellDone says the shell closed, or why it could not open.
+// shellDone shows that the shell closed, or why it could not open.
 func (m Model) shellDone(msg shellDoneMsg) Model {
 	if msg.err != nil {
 		return m.fail(msg.err)

@@ -25,8 +25,8 @@ type filesPage struct {
 	namespace, allocID, path string
 
 	// files are what the directory held when it was last listed, and listed
-	// says it has been: until then there are no rows, not even the one that
-	// goes up.
+	// is true once it has been: until then there are no rows, not even the
+	// one that goes up.
 	files  []nomad.File
 	listed bool
 }
@@ -67,7 +67,7 @@ func (p filesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 	case fileMsg:
 		// A file of this directory, opened to be read: it is read on a page
-		// of its own, on top. It is no answer to what the directory asked.
+		// of its own, on top. It is not an answer to the listing.
 		if msg.allocID != p.allocID || path.Dir(msg.path) != p.path {
 			return p, outcome{}, false
 		}
@@ -134,8 +134,9 @@ type fileMsg struct {
 	allocID, path string
 }
 
-// openFile reads the file under the cursor like a log. A pipe is not asked
-// about: its client would wait on it for as long as the task writes nothing.
+// openFile reads the file under the cursor like a log. A pipe is not
+// requested: its client would wait on it for as long as the task writes
+// nothing.
 func (p filesPage) openFile(entry nomad.File, e env) outcome {
 	if entry.Pipe() {
 		return then(warnMsg(fmt.Sprintf("%s is a pipe: only the task on its other end can read it", entry.Name)))
@@ -144,8 +145,8 @@ func (p filesPage) openFile(entry nomad.File, e env) outcome {
 	return outcome{cmd: readFile(e.client, p.namespace, p.allocID, path.Join(p.path, entry.Name))}
 }
 
-// readFile opens the stream of a file. What is not text comes back as the
-// reason it is not read, and the screen stays where it is.
+// readFile opens the stream of a file. A file that is not text returns an
+// error with the reason, and the screen stays where it is.
 func readFile(client filesClient, namespace, allocID, file string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -161,7 +162,7 @@ func readFile(client filesClient, namespace, allocID, file string) tea.Cmd {
 }
 
 // filePage is a file of an allocation, read like a log. A file is read from
-// its top: what it grows by stays below.
+// its top: what is added to it goes below, and the view stays where it is.
 type filePage struct {
 	namespace, allocID, path string
 
@@ -231,8 +232,8 @@ func (p filePage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, out, took
 }
 
-// fileKeys are the keys of a log that a file has: when urga read a line is
-// nothing to a file.
+// fileKeys are the keys of a log that apply to a file: the time urga read a
+// line means nothing for a file.
 var fileKeys = append([]pageKey[filePage]{followKey[filePage]()}, textKeys[filePage]()...)
 
 func (p filePage) keys(e env) []keyHint { return hintsOf(p, e, fileKeys) }

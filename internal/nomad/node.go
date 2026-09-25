@@ -19,7 +19,7 @@ type NodeEvent struct {
 	Details   map[string]string
 }
 
-// Driver is one task driver of a client and what the client makes of it.
+// Driver is one task driver of a client, as the client reports it.
 type Driver struct {
 	Name        string
 	Detected    bool
@@ -48,8 +48,8 @@ type MetaEntry struct {
 	Dynamic bool
 }
 
-// NodeDetail is what one machine says about itself beyond the list: what
-// happened to it, what it can run, what it lends out and how it is built.
+// NodeDetail is what one client reports beyond the list: its events, task
+// drivers, host volumes and attributes.
 type NodeDetail struct {
 	ID   string
 	Name string
@@ -60,16 +60,16 @@ type NodeDetail struct {
 	Attributes map[string]string
 }
 
-// Node is one machine of the cluster, asked of the cluster rather than read
-// out of the list, so that a screen open on it says what it is now.
+// Node reads one client from the cluster instead of from the list, so a
+// screen open on it shows its current state.
 func (c *Client) Node(ctx context.Context, nodeID string) (Node, error) {
 	node, _, err := c.api.Nodes().Info(nodeID, c.query(ctx, ""))
 	if err != nil {
 		return Node{}, err
 	}
 
-	// The machine answers with more than the list carries; cutting it down
-	// to what a list entry holds keeps the reading of one in one place.
+	// The answer holds more than a list entry; copying it into a list stub
+	// lets newNode build both.
 	return newNode(&api.NodeListStub{
 		ID:                    node.ID,
 		Name:                  node.Name,

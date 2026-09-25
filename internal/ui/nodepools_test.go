@@ -23,7 +23,7 @@ func TestNodePools_ListsThePoolsOfTheCluster(t *testing.T) {
 	m, cfg := sessionModel(t, &fakeClient{nodePools: twoPools()})
 	m = typeCommand(m, "nodepools")
 
-	// A pool belongs to the cluster, not to a namespace: the title says so.
+	// A pool belongs to the cluster, not to a namespace: the title names none.
 	out := plain(m.render())
 	r.Contains(out, "Node Pools [2]")
 	r.NotContains(out, "Node Pools (")
@@ -33,7 +33,7 @@ func TestNodePools_ListsThePoolsOfTheCluster(t *testing.T) {
 	r.Contains(fileRow(t, m, 0), "binpack")
 	r.Contains(fileRow(t, m, 1), "the ones with cards")
 
-	// The next run comes back to it, and it follows what pools do.
+	// The next run opens it again, and it watches the events of pools.
 	r.Equal("nodepools", cfg.Screen)
 	r.Equal([]string{nomad.TopicNodePool}, m.screen.page.topics())
 }
@@ -65,7 +65,7 @@ func TestNodePools_OfTheRegionLeftAreLetGo(t *testing.T) {
 	m = typeCommand(m, "nodepools")
 	r.Contains(plain(m.render()), "Node Pools [2]")
 
-	// The pools of eu must not stand under the name of us before us answers.
+	// The pools of eu must not be shown as those of us before us answers.
 	client.nodePools = nil
 	m, _ = runLine(m, "region us")
 

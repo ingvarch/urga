@@ -61,7 +61,7 @@ type logChoice struct {
 // it.
 type jobLogsState struct {
 	// reading counts the times the logs were opened: a stream opened for an
-	// earlier time is let go of.
+	// earlier time is closed.
 	reading int
 
 	// streams are the logs open now, by the allocation they read; tags say
@@ -75,8 +75,8 @@ type jobLogsState struct {
 	allocs []nomad.Alloc
 }
 
-// stop closes every stream, which stops the requests behind them. What
-// they still send is for no one.
+// stop closes every stream, which stops the requests behind them. Anything
+// they still send is dropped.
 func (l *jobLogsState) stop() {
 	for stream := range l.streams {
 		stream.Close()
@@ -107,7 +107,7 @@ func groupLogs(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
 }
 
 // askLogScope reads the allocations the logs are to come from: which of
-// them run, and which tasks. What they answer is for the screen that asked.
+// them run, and which tasks. The answer is dropped if the screen is left.
 func askLogScope(e env, scope logScope) outcome {
 	return then(requestMsg(request(allocsOf(e.client, scope), func(allocs []nomad.Alloc) tea.Msg {
 		return showLogScope(scope, allocs)
@@ -162,7 +162,7 @@ func choices(scope logScope, allocs []nomad.Alloc) []logChoice {
 	return out
 }
 
-// inScope says the allocation belongs to what the logs were asked of.
+// inScope says the allocation is in the job and the group of the scope.
 func inScope(scope logScope, alloc nomad.Alloc) bool {
 	return (scope.jobID == "" || alloc.JobID == scope.jobID) &&
 		(scope.group == "" || alloc.TaskGroup == scope.group)
@@ -198,8 +198,8 @@ func showLogScope(scope logScope, allocs []nomad.Alloc) tea.Msg {
 	return openMsg{logTasksPage{scope: scope, choices: found}}
 }
 
-// logTasksPage is the question which task to read: what it was asked
-// about, and the answers.
+// logTasksPage asks which task to read the logs of: the scope it asks
+// about, and the tasks to pick from.
 type logTasksPage struct {
 	noAnswers
 
@@ -379,9 +379,9 @@ func (p jobLogsPage) reload(client allocsClient) (jobLogsPage, tea.Cmd) {
 	})
 }
 
-// take keeps what the logs of the reading on the screen say. A stream
-// opened for another reading is not the page's: the session lets go of it.
-// None of it is an answer to what the page asked.
+// take keeps the output of the streams opened for the current reading. A
+// stream opened for another reading is not taken, and the session closes it.
+// None of these messages answers the request of the page.
 func (p jobLogsPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 	switch msg := msg.(type) {
 	case jobLogAllocsMsg:
@@ -424,7 +424,7 @@ func (p jobLogsPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 			return p, outcome{}, false
 		}
 
-		// A stream that ended is let go of, and says so: the others go on.
+		// An ended stream is dropped and shows "stopped": the others go on.
 		delete(p.logs.streams, msg.stream)
 
 		return p.lines(allocID, &styleMuted, "stopped"), outcome{reading: true}, true
@@ -461,8 +461,8 @@ func (p jobLogsPage) lines(allocID string, style *lipgloss.Style, lines ...strin
 // jobLogsKeys are the keys of the logs of a job.
 var jobLogsKeys = []pageKey[jobLogsPage]{
 	{press: "r", label: "Reload", do: reloadJobLogs},
-	// The key that opens stderr from the tasks switches to the other of
-	// the two here, and says which one it goes to.
+	// The key that opens stderr from the tasks switches between stdout and
+	// stderr here, and its label names the one it switches to.
 	{press: "ctrl+e", label: "Stderr", do: switchJobSource, offered: readsJobSource(nomad.LogStdout)},
 	{press: "ctrl+e", label: "Stdout", do: switchJobSource, offered: readsJobSource(nomad.LogStderr)},
 	followKey[jobLogsPage](),

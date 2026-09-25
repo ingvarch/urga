@@ -24,7 +24,7 @@ func ciLintVersion(t *testing.T) string {
 }
 
 // lintWith runs `make lint` with nothing on the PATH but the golangci-lint
-// the test put there, if any: what answers `version --short` with version.
+// the test put there, if any: one that prints version for `version --short`.
 func lintWith(t *testing.T, version string) (string, error) {
 	t.Helper()
 
@@ -65,7 +65,7 @@ func TestMakefile_LintFailsWithoutTheLinter(t *testing.T) {
 func TestMakefile_LintFailsWithAnotherVersion(t *testing.T) {
 	r := require.New(t)
 
-	// Another version finds other things, and the build in CI says otherwise.
+	// Another version finds other problems, and CI fails on what passed here.
 	out, err := lintWith(t, "2.0.0")
 	r.Error(err)
 	r.Contains(out, "2.0.0")

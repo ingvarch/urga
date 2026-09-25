@@ -76,7 +76,7 @@ func TestDeploymentPanel_GroupsThatDoNotFit(t *testing.T) {
 	}
 
 	// Room for the head, the table header and two groups: the rest are
-	// counted, and the tasks keep their rows.
+	// counted, and the allocations under the panel keep their rows.
 	lines := unstyled(t, deploymentPanel(many, 120, 8))
 	r.Len(lines, 8)
 	r.Equal("  + 4 more groups", lines[6])
@@ -127,7 +127,8 @@ func TestDeployments_EnterOpensTheDeployment(t *testing.T) {
 		}
 	}
 
-	// The groups over the allocations, the way a client sits over its own.
+	// The groups above the allocations, as the panel of a client is above
+	// its own.
 	r.Positive(panel)
 	r.Greater(header, panel)
 	r.Contains(fileRow(t, m, 0), "yes")
@@ -240,8 +241,8 @@ func TestDeployments_TheKeysOfTheList(t *testing.T) {
 		return out
 	}
 
-	// The key that pauses says what it does to the deployment under the
-	// cursor.
+	// The label of the pause key names what it does to the deployment under
+	// the cursor.
 	r.Equal([]string{"enter Details", "d Describe", "p Promote", "f Fail", "ctrl+s Pause"}, keys(m))
 
 	m, _ = m.update(down())
@@ -292,13 +293,13 @@ func TestDeployments_BackFromADeploymentToTheRowItWasOpenedFrom(t *testing.T) {
 	m = drain(m, cmd)
 	r.Contains(plain(m.render()), "Deployment 7e8f9a0b (Job: cron)")
 
-	// A list of deployments that arrives meanwhile is not the screen's.
+	// A list of deployments that arrives meanwhile is ignored by this screen.
 	m, _ = m.update(deploymentsMsg([]nomad.Deployment{{ID: "another", JobID: "batch"}}))
 	r.Contains(plain(m.render()), "Deployment 7e8f9a0b (Job: cron)")
 
 	m, _ = m.update(escape())
 
-	// The list holds the rows it had, with the cursor where it was.
+	// The list still shows the rows it had, with the cursor where it was.
 	r.Contains(plain(m.render()), "Deployments (production) [2]")
 	r.Equal("7e8f9a0b", cursorName(m))
 }
@@ -365,7 +366,7 @@ func TestDeployment_ReadsWhatItsAllocationsTake(t *testing.T) {
 
 	m = drain(m, m.fetchUsage())
 
-	// Each is asked where it lives.
+	// The usage of each is requested in its own namespace.
 	r.Equal("production", client.usageNamespace)
 	r.Contains(fileRow(t, m, 0), "42%")
 	r.Contains(fileRow(t, m, 0), "17%")

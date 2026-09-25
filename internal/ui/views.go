@@ -1,10 +1,10 @@
 package ui
 
 // view is a list the session opens by name: from the command line, or as
-// the list the next run comes back to.
+// the list the next run reopens.
 type view struct {
-	// stored is how the view is written down between runs. A view without
-	// one is not come back to.
+	// stored is the name the view is saved under between runs. A view
+	// without one is not reopened.
 	stored string
 
 	// aliases are the words the command line takes for it. The first one is

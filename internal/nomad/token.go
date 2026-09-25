@@ -27,15 +27,15 @@ type Token struct {
 	Refused   bool
 }
 
-// The accessor IDs the cluster answers with when there is no token of its
-// own to speak of.
+// The accessor IDs the cluster returns in place of a real token: none was
+// sent, or ACLs are off.
 const (
 	anonymousAccessor = "anonymous"
 	aclsOffAccessor   = "acls-disabled"
 )
 
-// Token asks the cluster whose token the session sends. A token it refuses
-// is an answer, not a failure to ask.
+// Token asks the cluster about the token the session sends. A token it
+// refuses sets Refused and returns no error.
 func (c *Client) Token(ctx context.Context) (Token, error) {
 	self, _, err := c.api.ACLTokens().Self(c.query(ctx, ""))
 	if Forbidden(err) {
@@ -60,7 +60,7 @@ func (c *Client) Token(ctx context.Context) (Token, error) {
 	return token, nil
 }
 
-// Forbidden says the cluster answered a request with no: the token may not
+// Forbidden says the cluster refused a request with 403: the token may not
 // do what was asked, or is not a token the cluster knows.
 func Forbidden(err error) bool {
 	var answer api.UnexpectedResponseError

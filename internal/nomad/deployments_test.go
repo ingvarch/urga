@@ -74,7 +74,7 @@ func TestDeploymentAllocations(t *testing.T) {
 	r.Equal("/v1/deployment/allocations/dep-1", asked.URL.Path)
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 
-	// Every one of them is in the deployment: one it has not judged yet is
+	// Every one of them is in the deployment: one with no health set yet is
 	// still being checked.
 	r.Len(allocs, 3)
 	r.Equal("checking", allocs[0].Health)
@@ -117,7 +117,7 @@ func TestDeployment_Active(t *testing.T) {
 		r.True(nomad.Deployment{Status: status}.Active(), status)
 	}
 
-	// What is over stays over.
+	// A deployment that has ended is not active.
 	for _, status := range []string{"successful", "failed", "cancelled"} {
 		r.False(nomad.Deployment{Status: status}.Active(), status)
 	}

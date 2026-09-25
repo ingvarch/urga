@@ -9,7 +9,7 @@ import (
 // update hands a message to whoever it is for: the page on top first, then
 // the root, by what the message is about.
 func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
-	// An answer the open page asked for is the page's to keep.
+	// The open page handles the answers to its own requests.
 	if next, out, ok := m.screen.page.take(msg, m.env()); ok {
 		return m.took(next, out)
 	}
@@ -134,7 +134,8 @@ func (m Model) fromAction(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return taken(m.done(msg))
 
 	case logStreamMsg, fileMsg, jobLogOpenedMsg:
-		// A stream no page took: the page it was opened for moved on.
+		// A stream no page took: the page it was opened for is gone, so it
+		// is closed.
 		letGo(msg)
 
 		return m, nil, true
@@ -143,8 +144,8 @@ func (m Model) fromAction(msg tea.Msg) (Model, tea.Cmd, bool) {
 	return m, nil, false
 }
 
-// fromSession takes where the session is asked to look, and what it keeps
-// knowing of the cluster wherever it looks.
+// fromSession takes a switch of region, datacenter or cluster, and what the
+// session keeps knowing about the cluster across switches.
 func (m Model) fromSession(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
 	case switchRegionMsg:

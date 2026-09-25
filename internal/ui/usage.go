@@ -13,7 +13,7 @@ import (
 
 const (
 	// usageEvery is how often the header reads the load of the cluster. It
-	// walks every node and allocation, so it is not asked for often.
+	// reads every node and allocation, so it is not requested often.
 	usageEvery = 15 * time.Second
 
 	// rowUsageEvery is how often the readings of the rows on the screen are
@@ -25,7 +25,7 @@ const (
 // Messages of the readings.
 type (
 	// usageMsg carries where it was read: numbers of a region or a
-	// datacenter the session has left must not stand under the new name.
+	// datacenter the session has left must not be shown under the new name.
 	usageMsg struct {
 		region     string
 		datacenter string
@@ -34,8 +34,8 @@ type (
 
 	pollUsageMsg struct{}
 
-	// rowUsageMsg is what the rows on the screen take, and what went wrong
-	// for the rows that said nothing.
+	// rowUsageMsg is what the rows on the screen take, and the error for the
+	// rows that returned no reading.
 	rowUsageMsg struct {
 		readings map[string]nomad.ResourceUse
 		missing  int
@@ -46,31 +46,31 @@ type (
 )
 
 // usageState is what the cluster and the rows on the screen are busy with,
-// and which readings have the next one on its way.
+// and which readings already have the next one pending.
 type usageState struct {
 	// cluster is what the header shows.
 	cluster nomad.Usage
 
-	// clusterDue says the timer for the next reading of the header is on its
-	// way. A switch reads at once, and its answer must not start a second
-	// timer next to the first.
+	// clusterDue is true while the timer for the next reading of the header
+	// is pending. A switch reads at once, and its answer must not start a
+	// second timer next to the first.
 	clusterDue bool
 
 	// rows is what each row on the screen takes, by its id, and why the
-	// rest of them said nothing.
+	// rest of them have no reading.
 	rows    map[string]nomad.ResourceUse
 	missing int
 	reason  error
 
-	// rowsDue says the readings of the rows or their timer are on their
-	// way. The list is answered on every poll, and none of those answers may
-	// start a second chain of readings next to the first.
+	// rowsDue is true while the readings of the rows or their timer are
+	// pending. The list arrives again on every poll, and none of those
+	// answers may start a second chain of readings next to the first.
 	rowsDue bool
 }
 
-// keepCluster puts up a reading of the header that was taken where the
-// session looks, and sets the timer for the next one unless it is already on
-// its way.
+// keepCluster shows a reading of the header that was taken where the
+// session is now, and sets the timer for the next one unless it is already
+// pending.
 func (u usageState) keepCluster(use nomad.Usage, here bool) (usageState, tea.Cmd) {
 	if here {
 		u.cluster = use
@@ -85,14 +85,14 @@ func (u usageState) keepCluster(use nomad.Usage, here bool) (usageState, tea.Cmd
 	return u, tea.Tick(usageEvery, func(time.Time) tea.Msg { return pollUsageMsg{} })
 }
 
-// keepRows puts up what the rows take.
+// keepRows stores the readings of the rows.
 func (u usageState) keepRows(msg rowUsageMsg) usageState {
 	u.rows, u.missing, u.reason = msg.readings, msg.missing, msg.reason
 
 	return u
 }
 
-// forgetRows lets go of the readings of the rows when a screen is put up.
+// forgetRows drops the readings of the rows when a new screen is shown.
 func (u usageState) forgetRows() usageState {
 	u.rows, u.missing, u.reason, u.rowsDue = nil, 0, nil, false
 
@@ -149,9 +149,9 @@ func (m Model) fetchUsage() tea.Cmd {
 		for _, ref := range refs {
 			use, err := read(ctx, client, ref)
 
-			// A machine that does not answer leaves its row empty, the rest
-			// of the list is still worth showing. What it said is kept, a
-			// dash in a column explains nothing by itself.
+			// A machine that does not answer leaves its row empty; the rest
+			// of the list is still worth showing. Its error is kept: a dash
+			// in a column explains nothing by itself.
 			if err != nil {
 				out.missing++
 
@@ -170,8 +170,8 @@ func (m Model) fetchUsage() tea.Cmd {
 }
 
 // usageOnce takes the readings when a screen that has them is filled, and
-// only then: the timer keeps them coming after that. They go out with what
-// filling the screen asked for.
+// only then: the timer keeps them coming after that. They are sent together
+// with the requests that fill the screen.
 func usageOnce(m Model, filled tea.Cmd) (Model, tea.Cmd) {
 	if m.usage.rowsDue {
 		return m, filled
@@ -182,7 +182,7 @@ func usageOnce(m Model, filled tea.Cmd) (Model, tea.Cmd) {
 	return m, tea.Batch(filled, read)
 }
 
-// readRows asks for the readings and writes down that they are on their way.
+// readRows requests the readings and records that they are pending.
 // A screen with nothing to read ends the chain, and the next one that has
 // readings starts its own.
 func (m Model) readRows() (Model, tea.Cmd) {
@@ -192,7 +192,7 @@ func (m Model) readRows() (Model, tea.Cmd) {
 	return m, read
 }
 
-// keepRowUsage puts up what the rows take and sets the timer for the next
+// keepRowUsage shows what the rows take and sets the timer for the next
 // reading. Like the reading, the timer belongs to the screen it was set on.
 func (m Model) keepRowUsage(msg rowUsageMsg) (Model, tea.Cmd) {
 	m.usage = m.usage.keepRows(msg)
@@ -201,7 +201,7 @@ func (m Model) keepRowUsage(msg rowUsageMsg) (Model, tea.Cmd) {
 	return m, askedFor(m.asked, tea.Tick(rowUsageEvery, func(time.Time) tea.Msg { return pollUsageRow{} }))
 }
 
-// keepClusterUsage puts up what the header reads.
+// keepClusterUsage shows the reading of the header.
 func (m Model) keepClusterUsage(msg usageMsg) (Model, tea.Cmd) {
 	var tick tea.Cmd
 

@@ -21,8 +21,8 @@ func TestInRegion_AsksInThatRegion(t *testing.T) {
 	_, err := client.InRegion("eu").Jobs(context.Background(), "default")
 	r.NoError(err)
 
-	// The region belongs to the request, the way the namespace does. The
-	// cluster forwards it to the servers of that region.
+	// The region is sent with the request, like the namespace. The cluster
+	// forwards it to the servers of that region.
 	r.Equal("eu", asked.URL.Query().Get("region"))
 }
 
@@ -49,8 +49,8 @@ func TestInRegion_LeavesTheClientItCameFrom(t *testing.T) {
 	eu := client.InRegion("eu")
 	r.Equal("eu", eu.Region())
 
-	// A request that is still out when the session switches keeps the
-	// region it was asked in.
+	// A request still running when the session switches keeps the region
+	// it was sent in.
 	_, err := client.Jobs(context.Background(), "default")
 	r.NoError(err)
 
@@ -111,7 +111,7 @@ func TestDatacenters_AreWhereTheClientsAre(t *testing.T) {
 	datacenters, err := client.InRegion("eu").Datacenters(context.Background())
 	r.NoError(err)
 
-	// Every datacenter once, in the order a list reads.
+	// Every datacenter once, sorted.
 	r.Equal("/v1/nodes", asked.URL.Path)
 	r.Equal("eu", asked.URL.Query().Get("region"))
 	r.Equal([]string{"dc1", "dc2"}, datacenters)
@@ -138,7 +138,7 @@ func TestJob_RunsIn(t *testing.T) {
 		{name: "another middle", datacenters: []string{"eu-*-a"}, datacenter: "eu-west-b", runs: false},
 		{name: "none named", datacenters: nil, datacenter: "dc1", runs: true},
 
-		// No datacenter chosen is every one of them.
+		// No datacenter chosen means every one of them.
 		{name: "no choice", datacenters: []string{"dc1"}, datacenter: "", runs: true},
 	}
 
@@ -189,13 +189,13 @@ func TestServers_MarkTheLeaderOfTheRegion(t *testing.T) {
 	_, err = client.InRegion("eu").Servers(context.Background())
 	r.NoError(err)
 
-	// Every region has a leader of its own; the one of the region in use is
-	// the one to mark.
+	// Every region has its own leader, so the leader is requested in the
+	// region in use.
 	r.Equal("eu", leaderAsked)
 }
 
-// federation is the gossip of two regions: the agent answering is a server
-// of global, and it knows the servers of eu as well.
+// federation is a member list of two regions: the agent answering is a
+// server of global, and it lists the servers of eu as well.
 const federation = `{
 	"ServerName": "server-01",
 	"ServerRegion": "global",
@@ -213,7 +213,7 @@ func TestServers_AreThoseOfTheRegionAskedIn(t *testing.T) {
 	servers, err := client.InRegion("eu").Servers(context.Background())
 	r.NoError(err)
 
-	// The gossip spans every region; the list is the region in use.
+	// The gossip spans every region; the list keeps the region in use.
 	r.Len(servers, 1)
 	r.Equal("server-01.eu", servers[0].Name)
 }
@@ -226,8 +226,8 @@ func TestServers_WithoutARegionAreThoseOfTheAgent(t *testing.T) {
 	servers, err := client.Servers(context.Background())
 	r.NoError(err)
 
-	// A client that names no region is answered in the one of the agent,
-	// which the same answer says.
+	// A client that names no region gets the servers of the agent's region,
+	// which the same response reports.
 	r.Len(servers, 1)
 	r.Equal("server-01.global", servers[0].Name)
 }

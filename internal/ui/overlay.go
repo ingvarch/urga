@@ -10,8 +10,8 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-// overlay is what took the keyboard from the screen. The root model decides
-// who gets a key, a component never installs a hook of its own.
+// overlay is what gets the keys in place of the screen. The root model
+// decides who gets a key, a component never installs a hook of its own.
 type overlay int
 
 const (
@@ -40,7 +40,7 @@ const (
 
 // promptModel is the line at the top: a prefix, what was typed, and the rest
 // of the word the prompt would complete. What the line is for is the overlay
-// it was opened as, it is not said twice.
+// it was opened as, and is not stored here again.
 type promptModel struct {
 	prefix string
 	text   string
@@ -54,16 +54,16 @@ type promptModel struct {
 	// command line does.
 	suggest bool
 
-	// matches are the resources the line could be about and at is the one
-	// it offers. A line with nothing typed offers nothing until the arrows
-	// ask it to: -1 is that.
+	// matches are the resources that fit the line and at is the one it
+	// offers. A line with nothing typed offers nothing until an arrow key
+	// is pressed: -1 means that.
 	matches []string
 	at      int
 }
 
-// choice is the resource the line offers, empty when it offers none. It is
-// only ever a word the line reads as: what is on the screen is what enter
-// opens, whatever order the keys were pressed in.
+// choice is the resource the line offers, empty when it offers none. It
+// always starts with the typed word: enter opens what is on the screen,
+// whatever order the keys were pressed in.
 func (p promptModel) choice() string {
 	if p.at < 0 || p.at >= len(p.matches) {
 		return ""
@@ -91,8 +91,8 @@ func (p promptModel) split() (word, tail, rest string) {
 		return word, "", rest
 	}
 
-	// The resource is spelled the way the cluster spells it, whatever the
-	// keyboard was in: the line has to read as one word.
+	// The resource is spelled the way the cluster spells it, whatever case
+	// was typed: the line has to show one word.
 	return offered[:len(word)], offered[len(word):], rest
 }
 
@@ -103,7 +103,7 @@ func (p promptModel) line() string {
 	return word + tail + rest
 }
 
-// walk moves through what the line could be about, and comes back around at
+// walk moves through the resources that fit the line, and wraps around at
 // either end.
 func (p promptModel) walk(by int) promptModel {
 	if len(p.matches) == 0 {
@@ -112,8 +112,8 @@ func (p promptModel) walk(by int) promptModel {
 		return p
 	}
 
-	// From nothing, a step forward lands on the first resource and a step
-	// back on the last.
+	// With nothing offered, a step forward goes to the first resource and a
+	// step back to the last.
 	if p.at < 0 {
 		p.at = -1
 		if by < 0 {
@@ -126,7 +126,7 @@ func (p promptModel) walk(by int) promptModel {
 	return p
 }
 
-// narrow keeps the resources the line still fits and offers the first of
+// narrow keeps the resources that still fit the line and offers the first of
 // them. A line with nothing typed offers nothing yet: pressing the key that
 // opened it must not put a resource in it.
 func (p promptModel) narrow() promptModel {
@@ -134,8 +134,8 @@ func (p promptModel) narrow() promptModel {
 		return p
 	}
 
-	// A resource that is still among them stays the one that is offered:
-	// typing where to look must not walk the resource back.
+	// A resource that still fits stays the one that is offered: typing the
+	// namespace after it must not move the offer back to the first match.
 	chosen := ""
 	if p.at >= 0 && p.at < len(p.matches) {
 		chosen = p.matches[p.at]
@@ -150,8 +150,8 @@ func (p promptModel) narrow() promptModel {
 		p.at = -1
 	}
 
-	// A word that is an alias of its own settles the question: typing it in
-	// full outranks whatever was walked to before.
+	// A word that is a whole alias wins: typing it in full outranks
+	// whatever the arrows chose before.
 	if _, exact := commandAliases[strings.ToLower(firstWord(p.text))]; exact {
 		return p
 	}
@@ -176,7 +176,7 @@ func (p promptModel) view(width int) string {
 	return frame("", line, width, promptHeight)
 }
 
-// openPrompt puts the command line up.
+// openPrompt opens the command line.
 func (m Model) openPrompt(prefix string) (Model, tea.Cmd) {
 	m.overlay = overlayPrompt
 	m.prompt = promptModel{prefix: prefix, suggest: true, at: -1}
@@ -221,14 +221,14 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		m.prompt = m.prompt.walk(1)
 
 	case "tab", "right", "ctrl+f":
-		// What the line offers is taken into it, and the line stays open:
-		// a namespace can follow the word. The word settles what fits it,
-		// like any other way of changing the line.
+		// The offered word is written into the line, and the line stays
+		// open: a namespace can follow the word. The matches are narrowed
+		// to the new word, as after any other change to the line.
 		m.prompt.text = m.prompt.line()
 		m.prompt = m.prompt.narrow()
 
 	// A terminal set to send ^H for backspace hands it over as ctrl+h. A
-	// letter can take more than one byte, and goes as a whole.
+	// letter can take more than one byte, and is erased whole.
 	case "backspace", "ctrl+h":
 		_, size := utf8.DecodeLastRuneInString(m.prompt.text)
 		m.prompt.text = m.prompt.text[:len(m.prompt.text)-size]
@@ -274,7 +274,7 @@ func (m Model) paste(content string) (Model, tea.Cmd) {
 
 // oneLine is pasted text as a line can hold it. A copied line brings its
 // break along, which is dropped; breaks and tabs inside become spaces, and
-// what would move the terminal around is left out.
+// control characters are left out.
 func oneLine(text string) string {
 	text = strings.TrimRight(text, "\r\n")
 	text = strings.ReplaceAll(text, "\r\n", "\n")
@@ -291,8 +291,7 @@ func oneLine(text string) string {
 	}, text)
 }
 
-// commit does what the line says, which is what it offers when it offers
-// anything.
+// commit runs the line, with the offered word in it when it offers one.
 func (m Model) commit() (Model, tea.Cmd) {
 	input := m.prompt.text
 	if m.overlay == overlayPrompt {
@@ -357,8 +356,8 @@ func firstWord(input string) string {
 	return fields[0]
 }
 
-// troubledRows keeps the rows that are painted as not right: the color a row
-// carries already says whether the cluster is happy with it.
+// troubledRows keeps the rows painted dead or attention: the color of a row
+// already shows whether something is wrong with it.
 func troubledRows(rows []tableRow, index []int) ([]tableRow, []int) {
 	kept := make([]tableRow, 0, len(rows))
 	keptIndex := make([]int, 0, len(index))
@@ -378,7 +377,7 @@ func troubledRows(rows []tableRow, index []int) ([]tableRow, []int) {
 	return kept, keptIndex
 }
 
-// filterRows keeps the rows that say the text somewhere, and remembers where
+// filterRows keeps the rows that match the filter, and remembers where
 // each of them came from, so that the cursor still points at the right
 // resource.
 func filterRows(rows []tableRow, filter string) ([]tableRow, []int) {
@@ -406,10 +405,10 @@ func filterRows(rows []tableRow, filter string) ([]tableRow, []int) {
 }
 
 // matchIn is where a filter matches in a line, or nil when it does not. An
-// empty match is nothing to light up.
+// empty match has nothing to highlight.
 func matchIn(line, filter string) []int {
-	// A line kept because it does not say the word has nothing in it to
-	// light up, and the letters of a fuzzy filter sit all over it.
+	// A line kept because it does not contain the word has nothing to
+	// highlight, and the letters of a fuzzy filter are spread all over it.
 	if strings.HasPrefix(filter, filterNot) || strings.HasPrefix(filter, filterFuzzy) {
 		return nil
 	}
@@ -432,9 +431,9 @@ func matchIn(line, filter string) []int {
 	return at
 }
 
-// How a filter can be written, after the way k9s writes them.
+// The prefixes a filter can start with, which change how it matches.
 const (
-	// filterNot keeps what does not say it.
+	// filterNot keeps what does not match it.
 	filterNot = "!"
 
 	// filterFuzzy keeps what has the letters in that order, with anything
@@ -442,8 +441,8 @@ const (
 	filterFuzzy = "-f "
 )
 
-// matcher reads the filter: what to keep out, what to find loosely, and
-// otherwise a pattern, or plain text when the pattern does not compile.
+// matcher parses the filter: a negation, a fuzzy match, otherwise a pattern,
+// or plain text when the pattern does not compile.
 func matcher(filter string) func(string) bool {
 	if rest, ok := strings.CutPrefix(filter, filterNot); ok {
 		if rest == "" {

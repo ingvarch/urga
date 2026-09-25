@@ -22,7 +22,7 @@ func TestDescribeJob(t *testing.T) {
 	r.Equal("/v1/job/web", asked.URL.Path)
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 
-	// What the cluster knows about it, laid out to be read.
+	// The job as the cluster returns it, indented for reading.
 	r.Contains(out, "\"ID\": \"web\"")
 	r.Contains(out, "\n")
 }
@@ -106,8 +106,8 @@ func TestJobSpec_WhenTheClusterAnswersThereIsNone(t *testing.T) {
 
 	out, err := client.JobSpec(context.Background(), "production", "web")
 
-	// That is no failure: the job is there, only its file is not, and the
-	// editor opens the job as JSON instead.
+	// The job exists, only its file does not: ErrNoSource tells the editor
+	// to open the job as JSON instead.
 	r.ErrorIs(err, nomad.ErrNoSource)
 	r.Empty(out)
 }
@@ -119,9 +119,9 @@ func TestJobSpec_WithoutASource(t *testing.T) {
 
 	out, err := client.JobSpec(context.Background(), "production", "web")
 
-	// A cluster that did not keep the source says so as an error. Handing a
-	// sentence back as if it were the job file puts English prose in front
-	// of an editor that submits what it is given.
+	// When the cluster did not keep the source, JobSpec returns an error.
+	// Returning a sentence as if it were the job file puts English prose in
+	// an editor that submits what it is given.
 	r.ErrorIs(err, nomad.ErrNoSource)
 	r.Empty(out)
 }

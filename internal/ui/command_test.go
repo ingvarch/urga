@@ -68,7 +68,7 @@ func TestParseCommand_Quit(t *testing.T) {
 func TestMatchingCommands(t *testing.T) {
 	r := require.New(t)
 
-	// What the line could still be about, in the order it walks through.
+	// The resources the line can still name, in the order they are offered.
 	r.Equal([]string{"jobs"}, matchingCommands("jo"))
 	r.Equal([]string{"servers", "services"}, matchingCommands("se"))
 	r.Equal([]string{
@@ -84,8 +84,8 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal("clients", matchingCommands("node")[0])
 	r.Contains(matchingCommands("no"), "nodepools")
 
-	// Where to look is not part of the name: the resource is still the
-	// first word, whatever follows it.
+	// The namespace after the name is not part of it: the resource is still
+	// the first word, whatever follows it.
 	r.Equal([]string{"jobs"}, matchingCommands("jo production"))
 
 	// Nothing fits a word that names nothing.

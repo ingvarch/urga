@@ -16,14 +16,14 @@ type (
 	regionsMsg []string
 
 	// datacentersMsg carries the region it was asked in: datacenters are
-	// named per region, and the same name can stand in two of them.
+	// named per region, and the same name can appear in two of them.
 	datacentersMsg struct {
 		region string
 		names  []string
 	}
 )
 
-// errNoRegions is a session that was given no way to ask another region.
+// errNoRegions means the session was given no way to ask another region.
 var errNoRegions = errors.New("this session cannot switch regions")
 
 // InRegionOf is how a session asks a cluster in another region.
@@ -93,8 +93,8 @@ func (s regionState) datacenterChoices() []string {
 	return append([]string{everyDatacenter}, s.datacenters...)
 }
 
-// pick switches to a name the cluster knows, and turns down one it does not
-// with the ones it does.
+// pick switches to a name the cluster knows, and rejects one it does not
+// with a list of the ones it does.
 func (m Model) pick(name string, known []string, kind string, to func(Model, string) (Model, tea.Cmd)) (Model, tea.Cmd) {
 	if !slices.Contains(known, name) {
 		return m.fail(fmt.Errorf("no such %s: %s (%s)", kind, name, listed(known))), nil
@@ -126,9 +126,9 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 	return next, tea.Batch(cmd, next.onConnection(fetchDatacenters(next.client)), next.fetchClusterUsage())
 }
 
-// forgetRegion lets go of what the cluster said in the region that was
+// forgetRegion drops what the cluster returned in the region that was
 // left. None of it holds in the next one, and a key on a row of it would act
-// there: an empty list until the next region answers is the truth.
+// there: an empty list until the next region answers is correct.
 func (m Model) forgetRegion() Model {
 	m.list.marks = nil
 	m.usage.cluster = nomad.Usage{}
@@ -147,8 +147,8 @@ func (m Model) switchDatacenter(datacenter string) (Model, tea.Cmd) {
 	return m.narrow(datacenter, Model.followSession)
 }
 
-// narrow points the lists and the header at a datacenter, and puts up the
-// screen that show gives.
+// narrow points the lists and the header at a datacenter, and shows the
+// screen that show returns.
 func (m Model) narrow(datacenter string, show func(Model) (Model, tea.Cmd)) (Model, tea.Cmd) {
 	m.datacenter = datacenter
 	m.usage.cluster = nomad.Usage{}

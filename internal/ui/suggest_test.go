@@ -26,7 +26,7 @@ func TestPrompt_ALetterOffersTheFirstResourceThatFitsIt(t *testing.T) {
 	m, _ = m.update(key(':'))
 	m = typeIn(m, "s")
 
-	// One letter is enough to be offered something, without walking to it.
+	// One letter is enough to get a suggestion, without pressing an arrow.
 	r.Equal(":servers", promptLine(m))
 }
 
@@ -40,7 +40,7 @@ func TestPrompt_TheArrowsWalkWhatFits(t *testing.T) {
 	m, _ = m.update(down())
 	r.Equal(":services", promptLine(m))
 
-	// Past the end it comes back to the first, and up walks the other way.
+	// Past the end it wraps to the first, and up moves the other way.
 	m, _ = m.update(down())
 	r.Equal(":servers", promptLine(m))
 
@@ -54,7 +54,7 @@ func TestPrompt_AnEmptyLineOffersNothingUntilTheArrows(t *testing.T) {
 	m := loadedModel(t)
 	m, _ = m.update(key(':'))
 
-	// An open line waits: it says nothing until it is asked.
+	// An empty line suggests nothing until an arrow is pressed.
 	r.Equal(":", promptLine(m))
 
 	m, _ = m.update(down())
@@ -106,8 +106,8 @@ func TestPrompt_ANamespaceAfterTheWordIsNotAResource(t *testing.T) {
 	m, _ = m.update(tab())
 	m = typeIn(m, " staging")
 
-	// The resource is settled once there is a second word: nothing is
-	// offered for it, and the arrows have nothing to walk.
+	// The resource is fixed once there is a second word: nothing is
+	// suggested for it, and the arrows do nothing.
 	r.Equal(":jobs staging", promptLine(m))
 
 	m, _ = m.update(down())
@@ -136,8 +136,8 @@ func TestPrompt_TakesNoRoomOfItsOwn(t *testing.T) {
 func TestPrompt_AShortFormOpensWhatItAlwaysDid(t *testing.T) {
 	r := require.New(t)
 
-	// `no` is Nomad's own word for a client. A name that merely starts the
-	// same way must not take the line over.
+	// `no` is Nomad's own word for a client. A longer name that starts the
+	// same way must not be picked instead.
 	for word, v := range map[string]*view{
 		"no":   nodesView,
 		"node": nodesView,
@@ -160,12 +160,11 @@ func TestFilter_OffersNothing(t *testing.T) {
 
 	m, _ = m.update(down())
 
-	// The filter takes any text there is; a resource has nothing to do
-	// with it.
+	// The filter accepts any text and suggests no resource.
 	r.Equal("/s", promptLine(m))
 }
 
-// walked runs a line of keys into an open command line.
+// walked presses keys, one after another, in an open command line.
 func walked(t *testing.T, keys ...tea.KeyPressMsg) Model {
 	t.Helper()
 
@@ -213,8 +212,8 @@ func TestPrompt_WhatTheLineReadsIsWhatEnterOpens(t *testing.T) {
 		line := m.prompt.line()
 		opened, _ := m.commit()
 
-		// The line is the promise: whatever it reads as is what enter
-		// opens, in every order the keys can be pressed.
+		// Whatever the line reads as is what enter opens, in every order
+		// the keys can be pressed.
 		wanted, ok := parseCommand(line)
 
 		switch {
@@ -232,7 +231,7 @@ func TestPrompt_TakingAWordOffersTheNextOneAfterIt(t *testing.T) {
 
 	m := walked(t, key('s'), tab())
 
-	// The word is settled, and the arrows walk on from it rather than from
+	// The word is taken, and the arrows move on from it rather than from
 	// what was typed before it.
 	r.Equal("servers", m.prompt.text)
 
@@ -261,8 +260,8 @@ func TestPrompt_TheOfferSurvivesTheNamespaceAfterIt(t *testing.T) {
 
 	m = typeIn(m, " staging")
 
-	// The word that was offered stands in the line with the namespace
-	// behind it, and enter opens exactly that.
+	// The suggested word stays in the line with the namespace after it,
+	// and enter opens exactly that.
 	r.Equal(":servers staging", promptLine(m))
 
 	opened, _ := m.commit()
@@ -278,7 +277,7 @@ func TestPrompt_AWalkedWordKeepsItsPlaceAfterASpace(t *testing.T) {
 
 	m = typeIn(m, " staging")
 
-	// Typing where to look does not walk the resource back to the first
+	// Typing a namespace does not move the resource back to the first
 	// one that fits.
 	r.Equal(":services staging", promptLine(m))
 }
@@ -288,8 +287,8 @@ func TestPrompt_UppercaseReadsAsOneWord(t *testing.T) {
 
 	m := walked(t, letters("SE")...)
 
-	// What is offered is a word of the cluster, not of the keyboard: the
-	// line reads as that word.
+	// The suggestion keeps the case of the resource name, not of what was
+	// typed: the line reads as that word.
 	r.Equal(":servers", promptLine(m))
 
 	m, _ = m.update(tab())
@@ -301,13 +300,13 @@ func TestPrompt_LeavingIsNotSomethingToWalkInto(t *testing.T) {
 
 	m := walked(t)
 
-	// Walking the resources must never land on the way out of urga.
+	// Stepping through the resources must never land on quit.
 	for range len(commandNames) + 2 {
 		m, _ = m.update(down())
 		r.NotEqual("quit", m.prompt.choice())
 	}
 
-	// Typed out, it still leaves.
+	// Typed in full, quit still exits.
 	typed := walked(t, letters("quit")...)
 	_, cmd := typed.commit()
 	r.NotNil(cmd)

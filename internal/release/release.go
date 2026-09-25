@@ -1,4 +1,4 @@
-// Package release asks where urga is published whether a newer one is out.
+// Package release checks whether a newer release of urga is published.
 package release
 
 import (
@@ -15,7 +15,7 @@ import (
 // in it.
 const LatestURL = "https://api.github.com/repos/ingvarch/urga/releases/latest"
 
-// tag is a release: a build from source says more after it, like
+// tag matches a release. A build from source adds a suffix to it, like
 // v0.5.0-3-gabc1234-dirty.
 var tag = regexp.MustCompile(`^v(\d+)\.(\d+)\.(\d+)$`)
 

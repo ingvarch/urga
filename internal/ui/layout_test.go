@@ -23,7 +23,7 @@ func TestFrame(t *testing.T) {
 	out := frame("Jobs (production) [2]", "web\ndatabase", 40, 4)
 	rows := lines(out)
 
-	// The title rides in the top border, the way a resource list is labelled.
+	// The title sits in the top border, the way a resource list is labelled.
 	r.Contains(rows[0], "Jobs (production) [2]")
 	r.True(strings.HasPrefix(rows[0], "╭"))
 	r.True(strings.HasSuffix(rows[0], "╮"))
@@ -47,7 +47,7 @@ func TestFrame_TitleLongerThanTheBox(t *testing.T) {
 	out := frame("Jobs (a-very-long-namespace-name) [128]", "web", 20, 3)
 	rows := lines(out)
 
-	// A title that does not fit is eaten, it never pushes the corner out.
+	// A title that does not fit is cut, it never pushes the corner out.
 	r.Equal(20, ansi.StringWidth(rows[0]))
 	r.True(strings.HasSuffix(rows[0], "╮"))
 }

@@ -73,8 +73,8 @@ func hclDiff(diff *api.JobDiff) []DiffLine {
 		parts = append(parts, block(fmt.Sprintf("group %q", group.Name), group.Type, group.Fields, group.Objects, tasks, 0))
 	}
 
-	// The job has no block of its own in a diff: its parts stand one under
-	// the other, a line apart.
+	// The job has no block of its own in a diff: its parts follow one
+	// another, with a blank line between them.
 	for _, part := range parts {
 		if len(lines) > 0 {
 			lines = append(lines, DiffLine{})
@@ -96,7 +96,7 @@ func block(open, kind string, fields []*api.FieldDiff, objects []*api.ObjectDiff
 	lines = append(lines, fieldLines(kind, fields, indent+1)...)
 
 	for _, inner := range append(objectBlocks(objects, indent+1), children...) {
-		// A line apart from what came before it inside the block.
+		// A blank line between it and what came before it inside the block.
 		if len(lines) > 1 {
 			lines = append(lines, DiffLine{})
 		}
@@ -156,7 +156,7 @@ func fieldLines(kind string, fields []*api.FieldDiff, indent int) []DiffLine {
 		lines = append(lines, DiffLine{Kind: edge, Indent: indent, Text: name + " {"})
 
 		// A key is written as it is: env and meta keys are the names a task
-		// reads, and they tell capitals apart. Their values are strings,
+		// reads, and they are case-sensitive. Their values are strings,
 		// whatever they hold.
 		for _, field := range keyed[name] {
 			lines = append(lines, valueLines(field, field.Name, strconv.Quote, indent+1)...)
@@ -200,8 +200,8 @@ func valueLines(field *api.FieldDiff, name string, write func(string) string, in
 	return lines
 }
 
-// blockKind is how the edges of a block are marked: an edited block leads to
-// its changes and is not a change itself.
+// blockKind is how the first and last line of a block are marked: an edited
+// block only contains changes and is not a change itself.
 func blockKind(kind string) DiffKind {
 	switch kind {
 	case diffAdded:
@@ -235,7 +235,7 @@ var (
 	wordBefore    = regexp.MustCompile(`([a-z\d])([A-Z])`)
 )
 
-// renamed are the fields a job file names other than by their words.
+// renamed are the fields a job file does not name by splitting their words.
 var renamed = map[string]string{
 	"MemoryMB":    "memory",
 	"MemoryMaxMB": "memory_max",

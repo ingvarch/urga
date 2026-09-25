@@ -7,8 +7,8 @@ import (
 )
 
 // Client is what the screens need from the cluster. Every call names the
-// namespace it asks in. It is the roles below together: a function asks for
-// the role it uses rather than for all of the cluster.
+// namespace it asks in. It combines the roles below: a function takes the
+// role it uses rather than the whole client.
 type Client interface {
 	clusterClient
 	eventsClient
@@ -38,7 +38,7 @@ type (
 		Usage(ctx context.Context, datacenter string) (nomad.Usage, error)
 	}
 
-	// eventsClient says when what is on a screen has changed.
+	// eventsClient opens the event stream that signals a screen is stale.
 	eventsClient interface {
 		Events(ctx context.Context, namespace string, topics []string) (*nomad.Changes, error)
 	}

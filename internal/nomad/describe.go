@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/nomad/api"
 )
 
-// ErrNoSource says the cluster does not have the file a job was submitted
+// ErrNoSource means the cluster does not have the file a job was submitted
 // with: it was registered before submissions were kept, or through the API
 // without one.
 var ErrNoSource = errors.New("the cluster kept no source for this job")
@@ -78,12 +78,12 @@ type JobVariables struct {
 	File  string
 }
 
-// JobSpec is the file the job was submitted with. A cluster that did not keep
-// it says so.
+// JobSpec is the file the job was submitted with, or ErrNoSource when the
+// cluster did not keep it.
 func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (JobSource, error) {
-	// Which version runs is asked first: a submission is kept per version,
-	// and version zero is the first file ever submitted, not the current
-	// one. Guessing it here would put an old job in front of the editor.
+	// The running version is requested first: a submission is kept per
+	// version, and version zero is the first file ever submitted, not the
+	// current one. Guessing it here would open an old job in the editor.
 	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
 	if err != nil {
 		return JobSource{}, err
@@ -114,8 +114,8 @@ func versionOf(job *api.Job) int {
 func (c *Client) submissionOf(ctx context.Context, namespace, jobID string, version int) (*api.JobSubmission, error) {
 	submission, _, err := c.api.Jobs().Submission(jobID, version, c.query(ctx, namespace))
 
-	// The job was read a moment ago, so a submission that is not found is a
-	// job that was registered without its file.
+	// The job was read a moment ago, so a submission that is not found means
+	// the job was registered without its file.
 	var answer api.UnexpectedResponseError
 	if errors.As(err, &answer) && answer.StatusCode() == http.StatusNotFound {
 		return nil, ErrNoSource

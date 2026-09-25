@@ -49,7 +49,7 @@ func TestRefusedEdit_ANamespaceOpensAgainUntilDropped(t *testing.T) {
 	first, second := "the namespace is not valid JSON: unexpected end of JSON input", "namespace name is not valid"
 	client := &fakeClient{refusals: []error{errors.New(first), errors.New(second)}}
 
-	// JSON has no comments: the reason is taken off before it is sent.
+	// JSON has no comments: the reason is removed before it is sent.
 	editor := &fakeEditor{edits: []string{`{"Name": "prod uction"`, reasonFor(first) + `{"Name": "prod uction"}`}}
 	m := onNamespaces(t, client, editor)
 
@@ -59,8 +59,8 @@ func TestRefusedEdit_ANamespaceOpensAgainUntilDropped(t *testing.T) {
 	r.Equal(2, client.submittedNamespaces)
 	r.Equal(`{"Name": "prod uction"}`, client.submittedSource)
 
-	// A reason takes the place of the one before, and a file left as it
-	// came back is dropped.
+	// A new reason replaces the one before, and a file saved unchanged is
+	// dropped.
 	r.Len(editor.seen, 3)
 	r.Equal(reasonFor(second)+`{"Name": "prod uction"}`, editor.seen[2])
 	r.Contains(plain(m.render()), "unchanged")

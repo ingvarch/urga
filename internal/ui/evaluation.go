@@ -108,7 +108,7 @@ func describeEvaluation(client evaluationsClient, namespace, id string) tea.Cmd 
 }
 
 // jobWaits and groupWaits say the row under the cursor has allocations that
-// wait for a place: there is a why to ask only then.
+// wait to be placed: only then is there a reason to show.
 func jobWaits(p jobsPage, e env) bool {
 	job, ok := p.picked(e)
 
@@ -121,9 +121,9 @@ func groupWaits(p taskGroupsPage, e env) bool {
 	return ok && group.Queued > 0
 }
 
-// jobPlacement and groupPlacement say why what waits of the job is not
-// placed. A group has no evaluation of its own: the one of its job holds
-// every group.
+// jobPlacement and groupPlacement show why the waiting allocations of the
+// job are not placed. A group has no evaluation of its own: the evaluation
+// of its job covers every group.
 func jobPlacement(p jobsPage, e env) (jobsPage, outcome) {
 	job, ok := p.picked(e)
 	if !ok {
@@ -147,8 +147,8 @@ func placementOf(client evaluationsClient, namespace, jobID string) tea.Cmd {
 	return describe(fmt.Sprintf("Placement (Job: %s)", jobID), func(ctx context.Context) (string, error) {
 		eval, err := client.FailedPlacement(ctx, namespace, jobID)
 
-		// Saying so is the page: the scheduler may not have got to the job
-		// yet, or its evaluations were collected.
+		// Then the page explains the missing evaluation: the scheduler may not
+		// have got to the job yet, or its evaluations were collected.
 		if errors.Is(err, nomad.ErrNoFailures) {
 			return fmt.Sprintf(
 				"No evaluation of %s says why it waits.\n\n"+
@@ -232,9 +232,9 @@ func placementLines(failures []nomad.PlacementFailure) []string {
 }
 
 // placementReasons are the reasons one group was not placed: first the
-// nodes that were never in the running, then the ones that ran out of room.
-// A map is read in the order of its keys, so the lines stay where they are
-// from one reading to the next.
+// nodes that were excluded, then the ones that ran out of room. Map keys
+// are read in sorted order, so the lines keep their places from one
+// reading to the next.
 func placementReasons(failure nomad.PlacementFailure) []string {
 	reasons := []string{}
 

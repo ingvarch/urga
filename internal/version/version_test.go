@@ -11,7 +11,7 @@ import (
 func TestHuman(t *testing.T) {
 	r := require.New(t)
 
-	// A build from source says so instead of pretending to be a release.
+	// A build from source shows as dev instead of as a release.
 	r.Equal("dev", version.Human("dev", ""))
 	r.Equal("v0.1.0", version.Human("v0.1.0", ""))
 	r.Equal("v0.1.0 (a1b2c3d)", version.Human("v0.1.0", "a1b2c3d"))
@@ -30,7 +30,7 @@ func TestLong(t *testing.T) {
 	r.Equal("v0.1.0 (a1b2c3d), built 2026-09-22T21:35:21Z",
 		version.Long("v0.1.0", "a1b2c3d", "2026-09-22T21:35:21Z"))
 
-	// A build from source has nothing to say about the date.
+	// A build from source shows no date.
 	r.Equal("dev", version.Long("dev", "none", "unknown"))
 	r.Equal("dev", version.Long("", "", ""))
 }

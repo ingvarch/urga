@@ -17,9 +17,8 @@ const (
 	TopicService    = "Service"
 )
 
-// Change is the cluster saying that something is no longer what it was. What
-// it now is, is asked for the usual way: the stream says when, the request
-// says what.
+// Change reports that something in the cluster changed. It carries no new
+// state: the screen reads that with its usual request.
 type Change struct {
 	Topic string
 	Type  string
@@ -30,8 +29,8 @@ type Change struct {
 	Key string
 }
 
-// Changes is the cluster talking. Changes arrive on C until Close is called
-// or the stream ends; Err says why it ended.
+// Changes is a stream of changes from the cluster. They arrive on C until
+// Close is called or the stream ends; Err says why it ended.
 type Changes struct {
 	C   <-chan Change
 	Err <-chan error
@@ -46,8 +45,8 @@ func (c *Changes) Close() {
 	}
 }
 
-// NewChanges is a stream of changes that did not come from a cluster, which
-// is how a test stands in for one.
+// NewChanges is a stream of changes that did not come from a cluster, so a
+// test can use it in place of one.
 func NewChanges(c <-chan Change, errs <-chan error, onClose func()) *Changes {
 	return &Changes{C: c, Err: errs, cancel: onClose}
 }
@@ -55,8 +54,8 @@ func NewChanges(c <-chan Change, errs <-chan error, onClose func()) *Changes {
 // Events follows what happens in the cluster. The caller closes the stream
 // when it stops reading, otherwise the request stays open.
 //
-// A cluster that will not stream says so at once: the caller then goes on
-// asking the way it did before.
+// A cluster that does not stream returns an error at once: the caller then
+// keeps polling the way it did before.
 func (c *Client) Events(ctx context.Context, namespace string, topics []string) (*Changes, error) {
 	watch := map[api.Topic][]string{}
 	for _, topic := range topics {
@@ -65,8 +64,8 @@ func (c *Client) Events(ctx context.Context, namespace string, topics []string) 
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	// The stream starts at what is happening now: what came before it is
-	// what the list already holds.
+	// The stream starts with the next change: anything before it is already
+	// in the list the screen read.
 	events, err := c.api.EventStream().Stream(ctx, watch, 0, c.query(ctx, namespace))
 	if err != nil {
 		cancel()

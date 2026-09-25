@@ -222,7 +222,7 @@ func TestPrompt_APasteStaysOnOneLine(t *testing.T) {
 	m, _ = m.update(key(':'))
 
 	// The line is one line. Breaks and tabs inside a paste are spaces, and
-	// what would move the terminal around is left out.
+	// control characters are left out.
 	m, _ = m.update(tea.PasteMsg{Content: "jobs\tproduction\r\nnow\x1b[2J"})
 
 	r.Equal("jobs production now[2J", m.prompt.text)

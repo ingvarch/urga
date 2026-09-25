@@ -9,12 +9,12 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// textModel is a block of text with a window over it: what a description or
-// a job file is read through.
+// textModel is a block of text with a window over it, used to read a
+// description or a job file.
 type textModel struct {
 	textContent
 
-	// filter keeps only the lines that say it.
+	// filter keeps only the lines that match it.
 	filter string
 
 	// wrap lays a long line over as many rows as it takes, instead of
@@ -34,19 +34,19 @@ type textModel struct {
 	height int
 }
 
-// textContent is what a text holds, apart from how it is read: a page of
-// text keeps it, the window over it is the root's.
+// textContent is what a text holds, apart from how it is shown: a text page
+// keeps it, and the root model keeps the window over it.
 type textContent struct {
 	lines []string
 
-	// stamps are when each line arrived, for the lines that were watched
-	// arriving. A line that was already there when the screen opened has
-	// none: what a task writes carries no time of its own.
+	// stamps are when each line arrived, for the lines that arrived while
+	// the screen was open. A line that was already there when the screen
+	// opened has none: what a task writes carries no time of its own.
 	stamps map[int]time.Time
 
 	// paint is the style of the lines urga drew in a colour of their own,
-	// by line. The lines stay words: the filter reads them and a file keeps
-	// them, and the colour goes on only when they are drawn.
+	// by line. The lines stay plain text: the filter matches them and a
+	// saved file keeps them, and the colour is added only when drawn.
 	paint map[int]lipgloss.Style
 
 	// tags go in front of lines to say where each came from, in a colour
@@ -84,8 +84,8 @@ func (t *textContent) add(lines []string, arrived time.Time, label *tag, style *
 	}
 }
 
-// tag is a label in front of a line: the allocation it came from. It is
-// read with the line, and drawn in a style of its own.
+// tag is a label in front of a line: the allocation it came from. The
+// filter matches it with the line, and it is drawn in a style of its own.
 type tag struct {
 	text  string
 	style lipgloss.Style
@@ -99,8 +99,8 @@ type textRow struct {
 
 	// tagFrom and tagTo are where the tag of the line is in text, and
 	// tagStyle what it is drawn in. A row without one has them empty. They
-	// count cells, not bytes: the edge of the screen cuts a row by what it
-	// looks like.
+	// count cells, not bytes: the edge of the screen cuts a row by its
+	// width on screen.
 	tagFrom, tagTo int
 	tagStyle       lipgloss.Style
 }
@@ -127,8 +127,8 @@ func paintedText(lines []paintedLine) textModel {
 	return t
 }
 
-// visible are the lines the filter leaves, as they are read: with the time
-// they arrived when that is asked for, and in their own colour.
+// visible are the lines the filter keeps, as they are shown: with the time
+// they arrived when times are on, and in their own colour.
 func (t textModel) visible() []textRow {
 	match := func(string) bool { return true }
 	if t.filter != "" {
@@ -206,9 +206,8 @@ func (t textModel) rows() []textRow {
 	return out
 }
 
-// wrapLine breaks a line into rows of the given width, by what the line
-// looks like rather than by the bytes it takes: the colour a task writes in
-// is not width.
+// wrapLine breaks a line into rows of the given width, counted in cells on
+// screen, not in bytes: the colour codes a task writes take no width.
 func wrapLine(line string, width int) []string {
 	if width < 1 || ansi.StringWidth(line) <= width {
 		return []string{line}
@@ -217,7 +216,7 @@ func wrapLine(line string, width int) []string {
 	return strings.Split(ansi.Hardwrap(line, width, true), "\n")
 }
 
-// newTextModel holds content as lines. Nothing is no line at all, not one
+// newTextModel holds content as lines. Empty content is no line, not one
 // empty line: a log that starts empty starts with what the task writes next.
 func newTextModel(content string) textModel {
 	if content == "" {
@@ -246,8 +245,7 @@ func (t *textModel) toEnd() {
 	t.move(t.length())
 }
 
-// follow pulls the window back over the lines, which is what a move of
-// nothing does.
+// follow moves the window back inside the lines: a move by zero does that.
 func (t *textModel) follow() {
 	t.move(0)
 }
@@ -264,22 +262,20 @@ func (t textModel) view() string {
 	return strings.Join(rows, "\n")
 }
 
-// line draws one row in its colour, with what the filter matched lit up in
-// it.
+// line draws one row in its colour, with the filter matches highlighted.
 func (t textModel) line(row textRow) string {
 	line := truncate(row.text, t.width)
 	gap := strings.Repeat(" ", max(t.width-ansi.StringWidth(line), 0))
 
-	// The tag may be cut at the edge, in the middle of the mark that says
-	// so: splitting the row by cells ends every piece where a character
-	// does.
+	// The edge may cut the row inside the tag, in the middle of the "…"
+	// mark: splitting the row by cells ends every piece on a whole
+	// character.
 	return t.lit(ansi.Cut(line, 0, row.tagFrom), row.style) +
 		t.lit(ansi.Cut(line, row.tagFrom, row.tagTo), row.tagStyle) +
 		t.lit(ansi.TruncateLeft(line, row.tagTo, ""), row.style) + row.style.Render(gap)
 }
 
-// lit is a piece of a row in its style, with what the filter matched lit up
-// in it.
+// lit is a piece of a row in its style, with the filter matches highlighted.
 func (t textModel) lit(piece string, style lipgloss.Style) string {
 	if piece == "" {
 		return ""

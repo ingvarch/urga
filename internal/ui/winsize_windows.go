@@ -35,8 +35,8 @@ func watchSize(ctx context.Context, fd int, sizes chan<- nomad.TerminalSize) {
 	}
 }
 
-// sendSize hands over how big the terminal is, when that is not what was
-// last said.
+// sendSize sends the size of the terminal when it differs from the last one
+// sent.
 func sendSize(ctx context.Context, fd int, sizes chan<- nomad.TerminalSize, last nomad.TerminalSize) nomad.TerminalSize {
 	width, height, err := term.GetSize(fd)
 	if err != nil {

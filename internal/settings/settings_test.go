@@ -56,7 +56,7 @@ func TestLoad(t *testing.T) {
 
 	r.Equal(settings.Cluster{Address: "http://127.0.0.1:4646", Namespace: "default"}, s.Clusters["dev"])
 
-	// A path that starts at home is read from home.
+	// A path that starts with ~ is expanded to the home directory.
 	r.Equal(settings.Cluster{
 		Address:       "https://nomad.prod:4646",
 		Region:        "eu",
@@ -135,7 +135,7 @@ func TestToken(t *testing.T) {
 	r.NoError(err)
 	r.Equal("from-command", token)
 
-	// No source is no token, not the one of the environment.
+	// No source means no token; NOMAD_TOKEN is not read.
 	t.Setenv("NOMAD_TOKEN", "the-environment")
 	token, err = settings.Cluster{}.ReadToken()
 	r.NoError(err)
@@ -150,7 +150,7 @@ func TestToken_ThatCannotBeRead(t *testing.T) {
 	_, err := settings.Cluster{TokenEnv: "NOMAD_TOKEN_NOWHERE"}.ReadToken()
 	r.ErrorContains(err, "NOMAD_TOKEN_NOWHERE is not set")
 
-	// A command that fails says what it said.
+	// The error of a failing command carries what it printed.
 	_, err = settings.Cluster{TokenCommand: []string{"sh", "-c", "echo locked >&2; exit 1"}}.ReadToken()
 	r.ErrorContains(err, "locked")
 }

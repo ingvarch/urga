@@ -36,8 +36,8 @@ func TestStartJob(t *testing.T) {
 	r.Equal("/v1/jobs", asked.URL.Path)
 }
 
-// stoppedJob is what the cluster holds of a job after it was stopped: a
-// version of its own, with the scaling policy turned off.
+// stoppedJob is a job as the cluster returns it after a stop: a new
+// version, with the scaling policy turned off.
 const stoppedJob = `{
 	"ID": "web",
 	"Name": "web",
@@ -77,7 +77,7 @@ func TestStartJob_KeepsTheSource(t *testing.T) {
 
 	r.NoError(client.StartJob(context.Background(), "production", "web"))
 
-	// Starting a job makes a version of its own. Without the file it was
+	// Starting a job makes a new version. Without the file it was
 	// submitted with, that version has no source to show or to edit.
 	r.Equal("1", (*asked)[1].query.Get("version"))
 
@@ -122,8 +122,8 @@ func TestStartJob_TurnsTheScalingPoliciesBackOn(t *testing.T) {
 
 	r.NoError(client.StartJob(context.Background(), "production", "web"))
 
-	// Stopping a job turns its scaling policies off. What the file says they
-	// were is what they are again, or the autoscaler leaves the job alone.
+	// Stopping a job turns its scaling policies off. Starting sets them back
+	// to what the file says, or the autoscaler ignores the job.
 	parse := (*asked)[2]
 	r.Equal("/v1/jobs/parse", parse.path)
 	r.Equal("production", parse.namespace)
@@ -220,8 +220,8 @@ func TestDrainNode_Stop(t *testing.T) {
 
 	body := drainRequest(t, false)
 
-	// Stopping a drain cancels it and puts the node back to taking work,
-	// otherwise it sits there empty and nobody notices.
+	// Stopping a drain cancels it and marks the node eligible again,
+	// otherwise it stays empty and nobody notices.
 	r.Nil(body["DrainSpec"])
 	r.Equal(true, body["MarkEligible"])
 }
@@ -264,7 +264,7 @@ func TestRestartTask(t *testing.T) {
 
 	r.NoError(client.RestartTask(context.Background(), "production", "af1f37df", "server"))
 
-	// One task of the allocation, the rest keep running.
+	// Only one task of the allocation restarts, the rest keep running.
 	r.Len(*asked, 1)
 	r.Equal("production", (*asked)[0].namespace)
 	r.Equal("server", (*asked)[0].body["TaskName"])

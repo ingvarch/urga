@@ -110,8 +110,8 @@ func TestHeader_LeavesTheNamespaceToTheKeys(t *testing.T) {
 		namespaces: []namespaceKey{{Key: "<1>", Name: "production", Active: true}},
 	}, 140)
 
-	// The namespace in use is the lit up key, saying it twice in one header
-	// is a line wasted.
+	// The namespace in use is the highlighted key; showing it again in the
+	// header would waste a line.
 	r.NotContains(plain(out), "Namespace:")
 	r.Contains(plain(out), "<1> production")
 }
@@ -139,7 +139,7 @@ func TestHeader_ShowsWhatTheClusterIsUsing(t *testing.T) {
 func TestHeader_BeforeTheClusterAnswers(t *testing.T) {
 	r := require.New(t)
 
-	// Nothing is known yet, and the header says that rather than zero.
+	// Nothing is known yet, and the header shows n/a rather than zero.
 	out := renderHeader(header{}, 140)
 
 	r.Contains(lines(out)[5], "n/a")
@@ -171,8 +171,8 @@ func TestHeader_BeforeARegionIsKnown(t *testing.T) {
 
 	rows := lines(renderHeader(header{}, 80))
 
-	// The region is the agent's until it has said which one that is; no
-	// datacenter chosen is every one of them.
+	// The region is n/a until the agent reports it; with no datacenter
+	// chosen, the header shows "all".
 	r.Contains(rows[1], "n/a")
 	r.Contains(rows[2], "all")
 }
@@ -238,6 +238,6 @@ func TestHeader_ShowsTheClusterOfTheSession(t *testing.T) {
 	m := New(&fakeClient{}, Options{Cluster: "prod", Version: "v-test"})
 	m, _ = m.update(sizeMsg())
 
-	// The address gives way to the name when the column is short of room.
+	// When the column is too narrow, the address is cut and the name stays.
 	r.Contains(plain(m.render()), "Cluster:   prod  https://nomad.example")
 }

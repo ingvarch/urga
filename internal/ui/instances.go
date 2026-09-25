@@ -22,7 +22,7 @@ var instanceTitles = []string{"Address", "Allocation", "Node", "Tags", "Checks",
 type (
 	instancesMsg []nomad.ServiceInstance
 
-	// instanceChecksMsg is what the checks of the instances said, by the
+	// instanceChecksMsg carries the check results of the instances, by the
 	// allocation that runs them, for the service they were read for.
 	instanceChecksMsg struct {
 		service string
@@ -102,8 +102,8 @@ func openServiceInstances(p servicesPage, e env) (servicesPage, outcome) {
 	return p, then(openMsg{serviceInstancesPage{namespace: service.Namespace, service: service.Name}})
 }
 
-// describeService asks for the service under the cursor, in the words of
-// the cluster.
+// describeService asks for the service under the cursor, as the cluster
+// describes it.
 func describeService(p servicesPage, e env) (servicesPage, outcome) {
 	service, ok := pickedFrom(e, p.services)
 	if !ok {
@@ -117,16 +117,16 @@ func describeService(p servicesPage, e env) (servicesPage, outcome) {
 	})}
 }
 
-// serviceInstancesPage is the instances of one service, and what their
-// checks last said, by the allocation that runs them.
+// serviceInstancesPage is the instances of one service, and the last
+// results of their checks, by the allocation that runs them.
 type serviceInstancesPage struct {
 	namespace, service string
 
 	instances []nomad.ServiceInstance
 	byAlloc   map[string][]nomad.Check
 
-	// due says the next reading or its timer is on its way: the list is read
-	// again on every change, and none of those may start a second chain.
+	// due says a read of the checks, or its timer, is pending: the list is
+	// read again on every change, and none of those may start a second chain.
 	due bool
 }
 
@@ -167,8 +167,8 @@ func (p serviceInstancesPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 			return p, outcome{}, false
 		}
 
-		// What the checks said goes on the rows, and the timer is set for
-		// the next reading.
+		// The check results go on the rows, and the timer is set for the
+		// next reading.
 		p.byAlloc = msg.byAlloc
 		next := tea.Tick(checksEvery, func(time.Time) tea.Msg { return pollInstanceChecksMsg{} })
 
@@ -182,8 +182,8 @@ func (p serviceInstancesPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 	return p, outcome{}, false
 }
 
-// restart lets go of the reading the page thinks is on its way: it belonged
-// to an ask that is over.
+// restart forgets the read of the checks the page is waiting for: it was
+// for a request that is over.
 func (p serviceInstancesPage) restart() page {
 	p.due = false
 
@@ -366,8 +366,8 @@ func openInstanceAlloc(p serviceInstancesPage, e env) (serviceInstancesPage, out
 	return p, then(openMsg{tasksPage{namespace: instance.Namespace, jobID: instance.JobID, allocID: instance.AllocID}})
 }
 
-// deleteRegistration takes a registration that outlived its allocation out
-// of the catalog, once it is asked about. The key is offered on no other:
+// deleteRegistration deletes a registration that outlived its allocation
+// from the catalog, after the user confirms. The key is offered on no other:
 // one that still takes traffic is left alone.
 func deleteRegistration(p serviceInstancesPage, e env) (serviceInstancesPage, outcome) {
 	instance, ok := p.picked(e)

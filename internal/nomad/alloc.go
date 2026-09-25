@@ -33,9 +33,9 @@ type Alloc struct {
 
 	JobVersion uint64
 
-	// Health is what its deployment made of it: healthy, unhealthy, or
-	// checking while it has not judged yet. Outside a deployment there is
-	// none.
+	// Health is what its deployment reports: healthy, unhealthy, or
+	// checking until the deployment decides. Outside a deployment it is
+	// empty.
 	Health string
 	Canary bool
 
@@ -81,7 +81,7 @@ type TaskEvent struct {
 	Type    string
 	Message string
 
-	// Failed says this event is what took the task down.
+	// Failed says this event is what made the task fail.
 	Failed bool
 }
 
@@ -119,9 +119,8 @@ func (c *Client) NodeAllocations(ctx context.Context, nodeID string) ([]Alloc, e
 		return nil, err
 	}
 
-	// The node answers with whole allocations where the other lists answer
-	// with stubs. Cutting one down to a stub keeps the reading of a list in
-	// one place.
+	// The node returns full allocations where the other lists return
+	// stubs. Copying each into a stub lets newAlloc build every list.
 	allocs := make([]Alloc, 0, len(stubs))
 	for _, stub := range stubs {
 		allocs = append(allocs, newAlloc(stubOf(stub)))
@@ -140,8 +139,8 @@ func (c *Client) Allocation(ctx context.Context, namespace, allocID string) (All
 	return withDetail(newAlloc(stubOf(alloc)), alloc), nil
 }
 
-// withDetail adds what only the full reading of an allocation holds: what
-// it is to its job and its deployment, where it listens, and what came
+// withDetail adds the fields only a full allocation has: its job version,
+// its deployment health, its ports, and the allocations and evaluation
 // before and after it.
 func withDetail(out Alloc, alloc *api.Allocation) Alloc {
 	if alloc.Job != nil && alloc.Job.Version != nil {
@@ -172,8 +171,8 @@ func withDetail(out Alloc, alloc *api.Allocation) Alloc {
 	return out
 }
 
-// healthOf is what the deployment of an allocation made of it. One it has
-// not judged yet carries no verdict.
+// healthOf is the health the deployment reports for an allocation. One the
+// deployment has not decided on yet is checking.
 func healthOf(deploymentID string, status *api.AllocDeploymentStatus) string {
 	switch {
 	case deploymentID == "":
@@ -187,9 +186,8 @@ func healthOf(deploymentID string, status *api.AllocDeploymentStatus) string {
 	return "unhealthy"
 }
 
-// stubOf cuts a whole allocation down to what a list holds of it. The stub
-// the API builds itself reads the type of the job without asking whether the
-// job is there.
+// stubOf copies a full allocation into a list stub. The Stub method of the
+// API reads the type of the job without a nil check.
 func stubOf(alloc *api.Allocation) *api.AllocationListStub {
 	return &api.AllocationListStub{
 		ID:            alloc.ID,
@@ -319,8 +317,8 @@ func (c *Client) AllocationChecks(ctx context.Context, namespace, allocID string
 		checks = append(checks, check)
 	}
 
-	// What fails is what the list is read for; a map would shuffle the rest
-	// between two readings.
+	// Failing checks come first, they are what the list is for. The rest are
+	// sorted, since a map returns them in a new order on every read.
 	sort.Slice(checks, func(i, j int) bool {
 		a, b := checks[i], checks[j]
 

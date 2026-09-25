@@ -68,11 +68,11 @@ var ErrNotText = errors.New("not text")
 
 // File follows a file of an allocation as it grows: from its start, or when
 // it is big, from its last MiB. The caller closes the stream when it stops
-// reading, otherwise the request stays open. A pipe must not be asked about:
-// the client reads the first of it to say what it holds, and waits.
+// reading, otherwise the request stays open. Do not call it for a pipe: the
+// client reads its first bytes to detect the content type, and waits.
 func (c *Client) File(ctx context.Context, namespace, allocID, name string) (*LogStream, error) {
-	// The stream is asked of the node that runs the allocation when it can
-	// be reached, and of the servers when it cannot.
+	// The stream is requested from the node that runs the allocation when it
+	// can be reached, and from the servers when it cannot.
 	alloc, _, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))
 	if err != nil {
 		return nil, err
@@ -97,8 +97,8 @@ func (c *Client) File(ctx context.Context, namespace, allocID, name string) (*Lo
 	return &LogStream{Lines: lines, Err: failures(errs, cancel), Size: info.Size, From: from, cancel: cancel}, nil
 }
 
-// failures passes on what went wrong with a stream. The end of it is not a
-// failure: the stream of a file says so where the stream of a log does not.
+// failures passes on the errors of a stream. Its end is not a failure: the
+// stream of a file reports it as an error, the stream of a log does not.
 func failures(errs <-chan error, cancel <-chan struct{}) <-chan error {
 	out := make(chan error, 1)
 

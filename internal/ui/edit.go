@@ -14,8 +14,8 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// Editor hands a file to the editor of the user and comes back when it is
-// closed.
+// Editor opens a file in the user's editor and returns when the editor
+// exits.
 type Editor interface {
 	Edit(path string) tea.Cmd
 }
@@ -34,7 +34,7 @@ type (
 	}
 )
 
-// terminalEditor runs what EDITOR names, with the terminal handed over to it.
+// terminalEditor runs VISUAL or EDITOR and gives it the terminal.
 type terminalEditor struct{}
 
 // NewEditor is the editor of the user.
@@ -82,9 +82,9 @@ func editMeta(p nodeMetaPage, e env) (nodeMetaPage, outcome) {
 	return p, outcome{cmd: openEditor(metaFile(e.client, p.nodeID, p.name))}
 }
 
-// file is what the editor is given: the name to save it under and what is in
-// it, and how what comes back goes to the cluster. How it goes back is decided
-// when it is read: a job goes back with the values its variables had.
+// file is what the editor is given: the extension to save it with, its
+// content, and how the edited source is sent to the cluster. That is set when
+// the file is read: a job is sent back with the values its variables had.
 type file struct {
 	extension string
 	content   string
@@ -94,8 +94,8 @@ type file struct {
 // load reads a resource as a file.
 type load func(ctx context.Context) (file, error)
 
-// jobFile is the job as a file: what it was submitted with, and what the
-// cluster does have of it when that was not kept.
+// jobFile is the job as a file: the source it was submitted with or, when
+// that was not kept, the job as JSON from the cluster.
 func jobFile(client jobsClient, job nomad.Job) load {
 	return func(ctx context.Context) (file, error) {
 		spec, err := client.JobSpec(ctx, job.Namespace, job.ID)
@@ -108,8 +108,8 @@ func jobFile(client jobsClient, job nomad.Job) load {
 			return file{}, err
 		}
 
-		// The editor holds the file only, the values of the variables are
-		// sent back beside it. What comes back is planned first: a changed
+		// The editor gets the file only, the values of the variables are
+		// sent back with it. The edited job is planned first: a changed
 		// file can restart every allocation of the job.
 		extension := jobExtension(spec.Format)
 
@@ -124,8 +124,8 @@ func jobFile(client jobsClient, job nomad.Job) load {
 	}
 }
 
-// jobExtension names a job file after how it is written, which is what an
-// editor colors and checks it by.
+// jobExtension picks the extension from the format of the job: an editor
+// uses it to highlight and check the file.
 func jobExtension(format string) string {
 	if format == nomad.FormatJSON {
 		return "json"
@@ -177,9 +177,9 @@ func reopening(extension string, send func(source string) tea.Cmd) func(source s
 	return submit
 }
 
-// reopenEdit opens a refused edit again, with why at the top. The reason
-// comes off before the file is sent: JSON has no comments, and the comments
-// at the top of a job are part of it.
+// reopenEdit opens a refused edit again, with the reason at the top. The
+// reason is removed before the file is sent: JSON has no comments, and the
+// comments at the top of a job are part of it.
 func (m Model) reopenEdit(msg refusedEditMsg) tea.Cmd {
 	reason, ok := m.refusedBecause(msg.err)
 	if !ok {
@@ -195,8 +195,8 @@ func (m Model) reopenEdit(msg refusedEditMsg) tea.Cmd {
 	return openEditor(func(context.Context) (file, error) { return again, nil })
 }
 
-// refusal is why an edit was refused, as comment lines. A file that comes
-// back as it went out changes nothing, so saving it again takes a change.
+// refusal is why an edit was refused, as comment lines. A file saved
+// unchanged sends nothing, so saving it again needs a change.
 func refusal(reason, advice string) string {
 	lines := strings.Split("Not saved: "+reason+".", "\n")
 	if advice != "" {
@@ -213,7 +213,7 @@ func refusal(reason, advice string) string {
 	return b.String()
 }
 
-// openEditor puts what the cluster has in a file and hands it over.
+// openEditor writes the resource to a temporary file for the editor.
 func openEditor(read load) tea.Cmd {
 	return request(func(ctx context.Context) (editFileMsg, error) {
 		loaded, err := read(ctx)
@@ -238,7 +238,7 @@ func openEditor(read load) tea.Cmd {
 	}, func(msg editFileMsg) tea.Msg { return msg })
 }
 
-// startEdit hands the file over to the editor.
+// startEdit opens the file in the editor.
 func (m Model) startEdit(msg editFileMsg) (Model, tea.Cmd) {
 	if m.opts.Editor == nil {
 		return m.fail(errors.New("no editor: set EDITOR or VISUAL")), nil
@@ -249,8 +249,8 @@ func (m Model) startEdit(msg editFileMsg) (Model, tea.Cmd) {
 	return m, m.opts.Editor.Edit(msg.path)
 }
 
-// finishEdit reads what came back. A file that was not touched changes
-// nothing, and saving is the decision, so nothing is asked again.
+// finishEdit reads the edited file. An unchanged file sends nothing, and
+// saving is the user's answer, so nothing is asked again.
 func (m Model) finishEdit(msg editedMsg) (Model, tea.Cmd) {
 	edit := m.editing
 	m.editing = editFileMsg{}

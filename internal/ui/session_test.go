@@ -119,7 +119,7 @@ func TestSession_ANamespaceGivenOnTheCommandLineWins(t *testing.T) {
 func TestSession_WithoutAConfig(t *testing.T) {
 	r := require.New(t)
 
-	// urga runs with nothing to remember it by.
+	// urga runs without a config to save the session in.
 	m := newTestModel(&fakeClient{})
 
 	m, cmd := m.update(key('0'))

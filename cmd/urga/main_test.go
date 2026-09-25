@@ -27,12 +27,13 @@ func flagsFrom(t *testing.T, args ...string) *flag.FlagSet {
 func TestGiven(t *testing.T) {
 	r := require.New(t)
 
-	// A default is not a choice: it comes from the environment of every run.
+	// A default does not count as given: it comes from the environment of
+	// every run.
 	r.False(given(flagsFrom(t), "namespace"))
 
 	r.True(given(flagsFrom(t, "-namespace", "production"), "namespace"))
 
-	// Naming the default is a choice all the same.
+	// Naming the default on the command line counts as given.
 	r.True(given(flagsFrom(t, "-namespace", "from-env"), "namespace"))
 }
 
@@ -53,7 +54,7 @@ func TestParseFlags(t *testing.T) {
 }
 
 func TestParseFlags_Help(t *testing.T) {
-	// run exits quietly on help, so the error has to come back as it is.
+	// run exits quietly on help, so parseFlags must return flag.ErrHelp.
 	_, err := parseFlags([]string{"-h"})
 	require.ErrorIs(t, err, flag.ErrHelp)
 }
@@ -96,7 +97,7 @@ func TestStartOn_TheEnvironment(t *testing.T) {
 func TestStartOn_TheDefaultCluster(t *testing.T) {
 	r := require.New(t)
 
-	// The environment is for the cluster urga runs without settings.
+	// NOMAD_NAMESPACE is only for a run without settings.
 	t.Setenv("NOMAD_NAMESPACE", "from-env")
 
 	st, err := startFrom(t, twoClusters())
@@ -123,7 +124,7 @@ func TestStartOn_AClusterByName(t *testing.T) {
 		TLS:     nomad.TLS{CACert: "/ca.pem"},
 	}, st.nomad)
 
-	// Read-only is the settings or the command line, whichever says so.
+	// Read-only is on when the settings or the command line turn it on.
 	r.True(st.readOnly)
 	r.Empty(st.namespace)
 	r.Equal("red", st.color)
@@ -177,8 +178,8 @@ func TestConnect(t *testing.T) {
 	conn, err := connectWith(cl, s)("prod")
 	r.NoError(err)
 
-	// prod as the settings say it is: the address of the command line was
-	// for the cluster urga started on.
+	// prod as the settings define it: the address on the command line was
+	// only for the cluster urga started on.
 	r.Equal("prod", conn.Name)
 	r.Equal("red", conn.Color)
 	r.True(conn.ReadOnly)
@@ -193,7 +194,8 @@ func TestConnect_ReadOnlyForEveryCluster(t *testing.T) {
 	cl, err := parseFlags([]string{"-readonly"})
 	r.NoError(err)
 
-	// Asked for on the command line, it holds wherever the session goes.
+	// Set on the command line, it applies to every cluster the session
+	// switches to.
 	conn, err := connectWith(cl, twoClusters())("dev")
 	r.NoError(err)
 	r.True(conn.ReadOnly)

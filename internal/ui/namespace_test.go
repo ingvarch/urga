@@ -19,8 +19,8 @@ func TestNamespaceKeys_SwitchTheSession(t *testing.T) {
 	m := newTestModel(client)
 	m, _ = m.update(namespacesMsg(threeNamespaces()))
 
-	// The keys are in the header, numbered from one, with all of them on
-	// zero.
+	// The keys are in the header, numbered from one; zero selects every
+	// namespace.
 	head := headerOf(m)
 	r.Contains(head, "<0> all")
 	r.Contains(head, "<1> default")
@@ -32,7 +32,7 @@ func TestNamespaceKeys_SwitchTheSession(t *testing.T) {
 	m = drain(m, cmd)
 	r.Equal("staging", client.askedNamespace)
 
-	// Zero brings every namespace back, and the key says so.
+	// Zero selects every namespace, and its key is highlighted.
 	m, _ = m.update(key('0'))
 	r.Equal(nomad.AllNamespaces, m.namespace)
 	r.Contains(renderHeader(m.headerData(), m.width-2*headerPadX), styleKey.Render(pad("all", len("production"))))
@@ -68,7 +68,7 @@ func TestNamespaceKeys_MarkTheOneInUse(t *testing.T) {
 
 	r.Contains(headerOf(m), "<2> production")
 
-	// The one in use is the only one lit up, the rest are quiet.
+	// The one in use is the only one highlighted; the rest are muted.
 	head := renderHeader(m.headerData(), m.width-2*headerPadX)
 	r.Contains(head, styleKey.Render("production"))
 	r.Contains(head, styleMuted.Render(pad("default", len("production"))))
@@ -86,8 +86,8 @@ func TestNamespaceKeys_OnlyNine(t *testing.T) {
 	m := newTestModel(&fakeClient{namespaces: many})
 	m, _ = m.update(namespacesMsg(many))
 
-	// There are nine keys to give away, the rest of the namespaces are
-	// reached through the command line.
+	// There are only nine keys; the rest of the namespaces are reached
+	// through the command line.
 	head := headerOf(m)
 	r.Contains(head, "<9> i")
 	r.NotContains(head, "<10>")
@@ -112,13 +112,14 @@ func TestNamespaceKeys_DropTheAnswerAskedBefore(t *testing.T) {
 	m := newTestModel(&fakeClient{jobs: twoJobs(), namespaces: threeNamespaces()})
 	m, _ = m.update(namespacesMsg(threeNamespaces()))
 
-	// The jobs of production are on their way when the session moves on.
+	// The request for the jobs of production still runs when the session
+	// switches.
 	late := m.fetch()
 
 	m, _ = m.update(key('3'))
 	m, _ = m.update(late())
 
-	// They must not stand under the name of staging.
+	// They must not show under the name of staging.
 	out := plain(m.render())
 	r.Contains(out, "Jobs (staging) [0]")
 	r.NotContains(out, "cron")
@@ -154,8 +155,8 @@ func TestNamespaceKey_AScreenOpenedForAJobStaysInItsNamespace(t *testing.T) {
 	m = playOut(m, cmd)
 	r.Contains(plain(m.render()), "Allocations (Job: web)")
 
-	// The job lives in production: what is asked about it, and what the
-	// cluster is asked to say about it, stay there.
+	// The job is in production: the requests about it, and the stream that
+	// watches it, stay there.
 	m, cmd = m.update(key('2'))
 	m = playOut(m, cmd)
 

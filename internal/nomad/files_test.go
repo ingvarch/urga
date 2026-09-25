@@ -68,7 +68,7 @@ func streamed(t *testing.T, offset int64, data string) string {
 // its files are read through the servers.
 const allocInfo = `{"ID": "af1f37df", "Namespace": "production", "NodeID": "n1"}`
 
-// sentTo is the request asked of a path.
+// sentTo is the request sent to a path.
 func sentTo(t *testing.T, asked []sent, path string) sent {
 	t.Helper()
 
@@ -83,7 +83,7 @@ func sentTo(t *testing.T, asked []sent, path string) sent {
 	return sent{}
 }
 
-// read is everything a stream says until it ends.
+// read is every line a stream sends until it ends.
 func read(stream *nomad.LogStream) string {
 	var out strings.Builder
 	for line := range stream.Lines {
@@ -128,7 +128,7 @@ func TestFile_ReadFromItsStart(t *testing.T) {
 	r.Equal("0", follow.query.Get("offset"))
 	r.Equal("production", follow.namespace)
 
-	// The node it runs on is asked for by its name, not an empty one.
+	// The node it runs on is requested by its ID, never by an empty one.
 	for _, req := range *asked {
 		r.NotEqual("/v1/node/", req.path)
 	}

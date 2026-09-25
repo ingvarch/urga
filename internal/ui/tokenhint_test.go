@@ -124,7 +124,7 @@ func TestPermissionDenied_SaysWhy(t *testing.T) {
 		})
 	}
 
-	// What a management token is refused, the cluster says best itself.
+	// When a management token is refused, the cluster's error explains why.
 	m := jobsSeenWith(nomad.Token{Name: "ops", Type: "management"}, twoJobs())
 	m, _ = m.update(errMsg{err: err})
 	require.Contains(t, plain(statusLine(m)), "403")

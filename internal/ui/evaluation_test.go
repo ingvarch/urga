@@ -50,8 +50,8 @@ func shortOfRoom() nomad.EvaluationDetail {
 func TestPlacementLines(t *testing.T) {
 	r := require.New(t)
 
-	// In the words of the nomad command, which is where people have read
-	// them before, with one node said as one node.
+	// In the words of the nomad command, which people already know, with
+	// the singular for one node or one allocation.
 	r.Equal([]string{
 		`Task group "api" failed to place 1 allocation:`,
 		`  * No nodes were eligible for evaluation`,
@@ -80,7 +80,7 @@ func TestEvaluation_OpensFromTheList(t *testing.T) {
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
-	// The evaluation is asked for where it lives.
+	// The evaluation is requested in its own namespace.
 	r.Equal("production", client.askedNamespace)
 	r.Equal("1ad88fd0-6b1c-da67-5e8f-482b5a15af1f", client.askedID)
 
@@ -88,7 +88,7 @@ func TestEvaluation_OpensFromTheList(t *testing.T) {
 
 	r.Contains(plain(m.render()), "Evaluation 1ad88fd0")
 
-	// The page runs past the screen; what is on it is what the text holds.
+	// The page is longer than the screen, so the test checks its text.
 	page := strings.Join(m.text.lines, "\n")
 	r.Contains(page, "blocked: created to place remaining allocations")
 	r.Contains(page, "queued-allocs")
@@ -128,7 +128,7 @@ func TestEvaluationText(t *testing.T) {
 	r.Contains(text, "Related evaluations")
 	r.Contains(text, "15d164c9  complete  job-register")
 
-	// A field the evaluation does not have is not a line of blanks.
+	// A field the evaluation does not have gets no line.
 	r.NotContains(text, "Blocked by")
 	r.NotContains(text, "Next  ")
 }
@@ -170,7 +170,7 @@ func TestPlacement_FromAJobThatWaits(t *testing.T) {
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(waiting()))
 
-	// A job with an allocation that waits for a place offers to say why.
+	// A job with an allocation that waits for a place offers to show why.
 	r.True(offers(m, "p"))
 
 	m, cmd := m.update(key('p'))
@@ -190,7 +190,7 @@ func TestPlacement_NotOfferedWhenNothingWaits(t *testing.T) {
 	m := newTestModel(&fakeClient{jobs: twoJobs()})
 	m, _ = m.update(jobsMsg(twoJobs()))
 
-	// Everything of web is placed: there is no why to ask.
+	// Every allocation of web is placed: there is nothing to explain.
 	r.False(offers(m, "p"))
 }
 
@@ -225,8 +225,8 @@ func TestPlacement_WhenNoEvaluationSaysWhy(t *testing.T) {
 	m, cmd := m.update(key('p'))
 	m = drain(m, cmd)
 
-	// Saying so is the page, not an error: the scheduler may not have got
-	// to the job yet.
+	// The page shows that message, and no error: the scheduler may not
+	// have got to the job yet.
 	r.IsType(describePage{}, m.screen.page)
 	r.Contains(plain(m.render()), "No evaluation of web says why")
 }
@@ -237,7 +237,7 @@ func TestEvaluations_TheListOfTheNamespaceAndItsKeys(t *testing.T) {
 	client := &fakeClient{evaluations: []nomad.Evaluation{shortOfRoom().Evaluation}}
 	m := typeCommand(newTestModel(client), "evaluations")
 
-	// Asked in the namespace of the session, and titled with it.
+	// Requested in the namespace of the session, which the title shows.
 	r.Equal("production", client.askedNamespace)
 	r.Contains(plain(m.render()), "Evaluations (production) [1]")
 
@@ -275,7 +275,7 @@ func TestEvaluations_AListThatAnswersLateIsDropped(t *testing.T) {
 	m, _ = m.update(evaluationsMsg{{ID: "b1111111-0000-0000-0000-000000000000", JobID: "billing", Namespace: "production"}})
 	r.Contains(plain(m.render()), "Evaluation 1ad88fd0")
 
-	// Back on the list, it shows what it held.
+	// Back on the list, it shows the rows it had.
 	m, _ = m.update(escape())
 
 	out := plain(m.render())
@@ -292,8 +292,8 @@ func TestEvaluations_OfTheRegionLeftAreLetGo(t *testing.T) {
 	m = typeCommand(m, "evaluations")
 	r.Contains(fileRow(t, m, 0), "1ad88fd0")
 
-	// The evaluations of eu must not stand under the name of us before us
-	// answers.
+	// The evaluations of eu must not be shown under the name of us before
+	// us answers.
 	client.evaluations = nil
 	m, _ = runLine(m, "region us")
 

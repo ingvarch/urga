@@ -6,9 +6,9 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// mark takes the row under the cursor, or lets it go. The cursor stays where
-// it is: a mark is a toggle, and taking one back must not need the cursor
-// walked back to it.
+// mark marks the row under the cursor, or unmarks it. The cursor stays where
+// it is: a mark is a toggle, and removing one must not need the cursor moved
+// back to it.
 func mark(m Model) (Model, tea.Cmd) {
 	all := m.ids()
 
@@ -23,8 +23,8 @@ func mark(m Model) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// markAll takes every row of the screen, or lets them all go when they are
-// already taken.
+// markAll marks every row of the screen, or unmarks them all when they are
+// already marked.
 func markAll(m Model) (Model, tea.Cmd) {
 	ids := m.ids()
 	if ids == nil {
@@ -37,8 +37,8 @@ func markAll(m Model) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// ids name the rows of the open screen, nil for a screen whose rows take no
-// mark.
+// ids name the rows of the open screen, nil for a screen whose rows cannot
+// be marked.
 func (m Model) ids() []string {
 	if p, ok := m.screen.page.(marking); ok {
 		return p.ids(m.env())
@@ -55,8 +55,8 @@ func allocLabel(allocs []nomad.Alloc) string {
 
 // What names a resource of a screen, so that a mark belongs to the job, the
 // allocation or the machine rather than to the row it sits on. The marks and
-// the actions that take them read the same name, or a mark would outlive the
-// thing it was put on.
+// the actions that use them read the same name, or a mark would stay after
+// the thing it was put on is gone.
 func jobMark(job nomad.Job) string { return job.Namespace + "/" + job.ID }
 
 func allocMark(alloc nomad.Alloc) string { return alloc.ID }

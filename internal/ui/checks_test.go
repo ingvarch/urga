@@ -11,7 +11,7 @@ import (
 )
 
 // servedChecks are the checks of an allocation of served, failures first as
-// the cluster layer puts them.
+// the nomad package sorts them.
 func servedChecks() []nomad.Check {
 	return []nomad.Check{
 		{Service: "served-admin", Name: "admin-up", Status: "failure",
@@ -44,8 +44,8 @@ func unstyled(t *testing.T, rows []string) []string {
 func TestAllocPanel_Checks(t *testing.T) {
 	r := require.New(t)
 
-	// A check that fails says why under it; one that passes or has not run
-	// yet needs no more than its name.
+	// A check that fails shows its output under it; one that passes or has
+	// not run yet shows only its name.
 	r.Equal([]string{
 		" Status running   Desired run   Client node-01   Version 0",
 		"",
@@ -174,7 +174,7 @@ func TestTasks_ChecksGoWhenTheAllocationStops(t *testing.T) {
 	m, _ = m.update(checksMsg{allocID: running().ID, checks: servedChecks()})
 	r.Contains(plain(m.render()), "Checks")
 
-	// What its client said while it ran is not what it is now.
+	// Checks reported while it ran no longer apply once it has stopped.
 	stopped := running()
 	stopped.Status = "complete"
 	m, _ = m.update(allocMsg(stopped))
@@ -201,7 +201,7 @@ func TestTasks_AReadingOfTheChecksTakesAnErrorDown(t *testing.T) {
 	m, _ = m.update(errMsg{err: errTest})
 	r.Contains(plain(m.render()), errTest.Error())
 
-	// The client that runs the checks answered: what went wrong is over.
+	// The client that runs the checks answered, so the error is cleared.
 	m, _ = m.update(checksMsg{allocID: running().ID, checks: servedChecks()})
 
 	r.NotContains(plain(m.render()), errTest.Error())
@@ -215,7 +215,8 @@ func TestTasks_ChecksOfTasksThatWereLeftAreDropped(t *testing.T) {
 	m, _ = m.update(allocMsg(running()))
 	m, _ = m.update(escape())
 
-	// The reading and the timer of the tasks answer on the allocations.
+	// The reading and the timer of the tasks arrive on the allocations and
+	// are ignored.
 	m, cmd := m.update(checksMsg{allocID: running().ID, checks: servedChecks()})
 	r.Nil(cmd)
 
@@ -234,8 +235,8 @@ func TestTasks_TheChecksAreReadAgainOnEveryVisit(t *testing.T) {
 	m = drain(m, cmd)
 	r.Equal(1, client.checksCalls)
 
-	// The timer of the checks ended with the visit; coming back starts
-	// another one.
+	// The timer of the checks stopped when the screen was left; coming back
+	// starts another one.
 	m, _ = m.update(key('e'))
 	m, _ = m.update(escape())
 

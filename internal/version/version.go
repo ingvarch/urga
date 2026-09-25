@@ -3,7 +3,7 @@ package version
 
 import "fmt"
 
-// What a build says when the linker stamped nothing in.
+// What a build shows when the linker stamped nothing in.
 const (
 	noVersion = "dev"
 	noCommit  = "none"
@@ -27,7 +27,7 @@ func Full() string {
 	return Long(Version, Commit, Date)
 }
 
-// Human reads a version and a commit as one line.
+// Human formats a version and a commit as one line.
 func Human(version, commit string) string {
 	if version == "" {
 		version = noVersion

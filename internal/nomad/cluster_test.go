@@ -43,8 +43,8 @@ func TestClusterUsage(t *testing.T) {
 	usage, err := client.Usage(context.Background(), "")
 	r.NoError(err)
 
-	// Only what is ready counts as capacity, and only what runs claims it:
-	// 1000 of 4000 shares, 2000 of 8000 megabytes.
+	// Only ready nodes count as capacity, and only running allocations use
+	// it: 1000 of 4000 shares, 2000 of 8000 megabytes.
 	r.True(askedResources)
 	r.Equal(25, usage.CPUPercent)
 	r.Equal(25, usage.MemoryPercent)
@@ -76,14 +76,14 @@ func TestClusterUsage_OfOneDatacenter(t *testing.T) {
 	client, err := nomad.New(nomad.Config{Address: server.URL})
 	r.NoError(err)
 
-	// One datacenter is its own machines and what runs on them: 1000 of
-	// 4000 shares, 2000 of 8000 megabytes.
+	// One datacenter counts only its own nodes and the allocations on them:
+	// 1000 of 4000 shares, 2000 of 8000 megabytes.
 	usage, err := client.Usage(context.Background(), "dc1")
 	r.NoError(err)
 	r.Equal(25, usage.CPUPercent)
 	r.Equal(25, usage.MemoryPercent)
 
-	// Every datacenter is the whole region: 4000 of 8000, 8000 of 16000.
+	// An empty datacenter is the whole region: 4000 of 8000, 8000 of 16000.
 	usage, err = client.Usage(context.Background(), "")
 	r.NoError(err)
 	r.Equal(50, usage.CPUPercent)

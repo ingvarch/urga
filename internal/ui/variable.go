@@ -14,8 +14,8 @@ import (
 // variableItemTitles are the columns of the values of a variable.
 var variableItemTitles = []string{"Key", "Value"}
 
-// hiddenValue stands for a value that is not shown. It is the same for
-// every value, so it gives away no length.
+// hiddenValue replaces a value that is not shown. It is the same for
+// every value, so it does not reveal the length.
 const hiddenValue = "••••••••"
 
 // variableMsg is a variable read with its values.
@@ -98,7 +98,7 @@ func (p variablesPage) press(k string, e env) (page, outcome, bool) {
 }
 
 // openVariable opens the variable under the cursor with its values hidden:
-// a screen someone else can see is no place for a password until asked.
+// someone else may see the screen, so a password shows only when asked for.
 func openVariable(p variablesPage, e env) (variablesPage, outcome) {
 	v, ok := p.picked(e)
 	if !ok {
@@ -147,8 +147,8 @@ func (p variablePage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 func (p variablePage) rows(env) []tableRow { return variableItemRows(p.detail.Items, p.shown) }
 
-// variable is the one the page is open on, with the lock it last said it
-// has.
+// variable is the one the page is open on, with the lock from its last
+// read.
 func (p variablePage) variable(env) (nomad.Variable, bool) {
 	v := p.detail.Variable
 	v.Namespace, v.Path = p.namespace, p.path
@@ -217,8 +217,8 @@ func valueCell(value string, shown bool) string {
 	return first
 }
 
-// panel says who holds the variable as a lock, when someone does, and why
-// it has no Edit then.
+// panel shows who holds the variable as a lock, when someone does, and why
+// Edit is not offered then.
 func (p variablePage) panel(_ env, width, room int) []string {
 	lock := p.detail.Lock
 	if lock == nil {
@@ -233,8 +233,8 @@ func (p variablePage) panel(_ env, width, room int) []string {
 	return fitPanel(head, panelBlock{}, room)
 }
 
-// editVariableKey edits the variable a key acts on, which acted names: the
-// one under the cursor of the list, or the one the page is open on.
+// editVariableKey edits the variable that acted returns: the one under
+// the cursor of the list, or the one the page is open on.
 func editVariableKey[P any](acted func(p P, e env) (nomad.Variable, bool)) pageKey[P] {
 	return pageKey[P]{
 		press: "e", label: "Edit", writes: true,
@@ -244,8 +244,8 @@ func editVariableKey[P any](acted func(p P, e env) (nomad.Variable, bool)) pageK
 			return p, outcome{cmd: openEditor(variableFile(e.client, v.Namespace, v.Path))}
 		},
 
-		// The variable can be changed from here: Nomad refuses a change of
-		// a locked one to anyone but the holder.
+		// Edit is offered only for a variable without a lock: Nomad refuses
+		// a change of a locked one to anyone but the holder.
 		offered: func(p P, e env) bool {
 			v, ok := acted(p, e)
 
@@ -266,8 +266,9 @@ func variableFile(client variablesClient, namespace, path string) load {
 
 // saveVariable sends an edit of a variable read at index. What the cluster
 // refuses goes back to the editor instead of being lost. A variable changed
-// or deleted since it was read is saved over the next time, and the file
-// says so; a locked one is asked at the old version again.
+// or deleted since it was read is overwritten by the next save, and the
+// header of the file warns about it; a locked one is sent at the old index
+// again.
 func saveVariable(client variablesClient, namespace, path string, index uint64) func(source string) tea.Cmd {
 	return func(source string) tea.Cmd {
 		return func() tea.Msg {

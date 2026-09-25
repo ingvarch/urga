@@ -62,8 +62,8 @@ func TestToken_Refused(t *testing.T) {
 	client, err := nomad.New(nomad.Config{Address: server.URL})
 	r.NoError(err)
 
-	// A token the cluster does not know, or no longer: that is the answer,
-	// not a failure to ask.
+	// A token the cluster does not know, or no longer knows: that is an
+	// answer, not a failed request.
 	token, err := client.Token(context.Background())
 	r.NoError(err)
 	r.True(token.Refused)
@@ -80,7 +80,7 @@ func TestForbidden(t *testing.T) {
 	client, err := nomad.New(nomad.Config{Address: server.URL})
 	r.NoError(err)
 
-	// The token may not do it: the cluster answered, and said no.
+	// The token lacks the permission: the cluster answered and refused.
 	_, err = client.Jobs(context.Background(), "default")
 	r.True(nomad.Forbidden(err))
 

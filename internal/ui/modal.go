@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
-// modalPadX is the air between the words of a dialog and its border.
+// modalPadX is the space between the text of a dialog and its border.
 const modalPadX = 3
 
 // modal draws a box over what is already on the screen, under the line it is

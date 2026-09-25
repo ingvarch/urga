@@ -56,7 +56,7 @@ func TestFrame_ADialogKeepsItsOwn(t *testing.T) {
 	m := paintedIn("red")
 	m, _ = m.update(key(':'))
 
-	// The line and the questions are urga's, not the cluster's.
+	// The border of a dialog keeps urga's colour, not the cluster's.
 	r.Equal(1, countOf(m.render(), opening(styleBorder)+"╭"))
 }
 

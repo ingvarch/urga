@@ -108,8 +108,8 @@ func newPlan(answer *api.JobPlanResponse) Plan {
 }
 
 // jobChanged says the cluster refused a change planned on a job that has
-// moved on since: a register at an index, or a revert from a version, that
-// are no longer the job's.
+// changed since: a register at an index, or a revert from a version, that
+// the job no longer has.
 func jobChanged(err error) bool {
 	var answer api.UnexpectedResponseError
 	if !errors.As(err, &answer) {
@@ -122,8 +122,8 @@ func jobChanged(err error) bool {
 }
 
 // PlanRevert asks the cluster what going back to a version of the job would
-// do, which is submitting that version again. No version given is the one
-// before the version that runs.
+// do, which is submitting that version again. Without a version, it plans
+// the one before the version that runs.
 func (c *Client) PlanRevert(ctx context.Context, namespace, jobID string, to *uint64) (Plan, error) {
 	versions, _, err := c.versions(ctx, namespace, jobID)
 	if err != nil {
