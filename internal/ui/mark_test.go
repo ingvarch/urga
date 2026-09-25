@@ -165,11 +165,11 @@ func TestMarks_MarkEveryRowAndNoneAgain(t *testing.T) {
 	m, _ = m.update(ctrlKey('a'))
 
 	// Both are taken; the one under the cursor is drawn as the cursor.
-	r.Len(m.marks, 2)
+	r.Len(m.list.marks, 2)
 	r.Len(markedRows(m), 1)
 
 	m, _ = m.update(ctrlKey('a'))
-	r.Empty(m.marks)
+	r.Empty(m.list.marks)
 	r.Empty(markedRows(m))
 }
 
@@ -213,7 +213,7 @@ func TestMarks_AreLetGoOfWhenTheActionIsDone(t *testing.T) {
 	m, _ := onAllocations(t)
 
 	m, _ = m.update(space())
-	r.Len(m.marks, 1)
+	r.Len(m.list.marks, 1)
 
 	m, _ = m.update(key('r'))
 
@@ -222,7 +222,7 @@ func TestMarks_AreLetGoOfWhenTheActionIsDone(t *testing.T) {
 
 	// What was marked has been acted on; leaving the marks up would take
 	// them along into the next action by surprise.
-	r.Empty(m.marks)
+	r.Empty(m.list.marks)
 	r.Empty(markedRows(m))
 }
 
@@ -282,7 +282,7 @@ func TestMarks_AreKeptWhenTheActionFails(t *testing.T) {
 	m = drain(m, cmd)
 
 	// What did not happen is still marked, so the same key tries it again.
-	r.Len(m.marks, 1)
+	r.Len(m.list.marks, 1)
 }
 
 func TestMarks_MarkingAllUnderAFilterTakesWhatIsShown(t *testing.T) {
@@ -300,7 +300,7 @@ func TestMarks_MarkingAllUnderAFilterTakesWhatIsShown(t *testing.T) {
 
 	// One row is shown and one mark is hidden: marking all of what is shown
 	// adds it, rather than clearing what is not.
-	r.Len(m.marks, 2)
+	r.Len(m.list.marks, 2)
 }
 
 func TestMarks_StopEveryMarkedJob(t *testing.T) {
@@ -434,7 +434,7 @@ func TestMarks_OnlyWhatDidNotHappenStaysMarked(t *testing.T) {
 	// the one that did not, and leave alone the one that did: it is in the
 	// other state now, and the same key would put it back.
 	r.Equal([]string{"stop web"}, client.acted)
-	r.Len(m.marks, 1)
+	r.Len(m.list.marks, 1)
 
 	m, _ = m.update(jobsMsg([]nomad.Job{
 		{ID: "web", Name: "web", Namespace: "production", Status: "dead"},

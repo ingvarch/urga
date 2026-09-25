@@ -155,7 +155,7 @@ func TestPrompt_TakesTheKeysFromTheScreen(t *testing.T) {
 
 	m = typeIn(m, "j")
 	r.Equal("qj", m.prompt.text)
-	r.Zero(m.table.cursor)
+	r.Zero(m.list.table.cursor)
 }
 
 func TestPrompt_Backspace(t *testing.T) {
@@ -240,7 +240,7 @@ func TestPaste_WithNoLineOpenChangesNothing(t *testing.T) {
 	r.Nil(cmd)
 	r.Equal(overlayNone, next.overlay)
 	r.Equal(m.screen.kind, next.screen.kind)
-	r.Empty(next.filter)
+	r.Empty(next.list.filter)
 }
 
 func TestFilter_NarrowsTheList(t *testing.T) {
@@ -319,7 +319,7 @@ func TestHelp_TakesTheKeys(t *testing.T) {
 
 	// The list does not move under an open help window.
 	m, _ = m.update(key('j'))
-	r.Zero(m.table.cursor)
+	r.Zero(m.list.table.cursor)
 
 	// Any of the three ways out closes it.
 	for _, out := range []tea.KeyPressMsg{escape(), enter(), key('?')} {

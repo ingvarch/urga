@@ -32,7 +32,7 @@ func TestCursor_StaysInTheListWhenItShrinks(t *testing.T) {
 
 	// The cursor is on the last row of a list longer than the window.
 	m, _ = m.update(key('G'))
-	r.Equal(19, m.table.cursor)
+	r.Equal(19, m.list.table.cursor)
 
 	// The list shrinks under it, which is what a filter, a namespace switch
 	// or a cluster with fewer jobs does.
@@ -43,7 +43,7 @@ func TestCursor_StaysInTheListWhenItShrinks(t *testing.T) {
 	// the window past it and the table looks empty.
 	out := plain(m.render())
 	r.Contains(out, "job-03")
-	r.Less(m.table.cursor, len(m.table.rows))
+	r.Less(m.list.table.cursor, len(m.list.table.rows))
 }
 
 func TestCursor_ShrinkingClusterKeepsTheRowsVisible(t *testing.T) {

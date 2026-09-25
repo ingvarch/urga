@@ -219,8 +219,8 @@ func allocListRows(m Model) []tableRow { return allocRows(m.visibleAllocs(), m.u
 func allocReadings(m Model) []rowRef {
 	allocs := m.visibleAllocs()
 
-	refs := make([]rowRef, 0, len(m.index))
-	for _, at := range m.index {
+	refs := make([]rowRef, 0, len(m.list.index))
+	for _, at := range m.list.index {
 		// Only what runs has anything to report.
 		if at < len(allocs) && allocs[at].Status == statusRunning {
 			refs = append(refs, rowRef{namespace: allocs[at].Namespace, id: allocs[at].ID})

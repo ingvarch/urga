@@ -416,7 +416,7 @@ func drawnPanel(m Model) int {
 	width := m.width - 2*screenPadX - 2
 	_, content := m.body(width)
 
-	return strings.Count(content, "\n") - strings.Count(m.withHint(m.table.view(), width), "\n")
+	return strings.Count(content, "\n") - strings.Count(m.withHint(m.list.table.view(), width), "\n")
 }
 
 func TestClient_ThePanelTakesWhatTheBoxHasRoomFor(t *testing.T) {
@@ -447,7 +447,7 @@ func TestClient_ThePanelTakesWhatTheBoxHasRoomFor(t *testing.T) {
 
 		r.Equal(tc.panel, sized.panelHeight(), "%dx%d", tc.width, tc.box)
 		r.Equal(tc.panel, drawnPanel(sized), "%dx%d", tc.width, tc.box)
-		r.Equal(max(tc.box-3-tc.panel, 1), sized.table.height, "%dx%d", tc.width, tc.box)
+		r.Equal(max(tc.box-3-tc.panel, 1), sized.list.table.height, "%dx%d", tc.width, tc.box)
 		r.Equal(tc.panel > 0, strings.Contains(body, "ready"), "%dx%d", tc.width, tc.box)
 		r.Equal(tc.charts, strings.Contains(body, "100%"), "%dx%d", tc.width, tc.box)
 	}

@@ -546,12 +546,12 @@ func TestRegionCommand_LetsGoOfTheMarks(t *testing.T) {
 	m := regionalModel(t, &fakeClient{jobs: twoJobs()})
 	m, _ = m.update(jobsMsg(twoJobs()))
 	m, _ = m.update(space())
-	r.NotEmpty(m.marks)
+	r.NotEmpty(m.list.marks)
 
 	m, _ = runLine(m, "region us")
 
 	// A mark names a job of eu; in us the same name is another job.
-	r.Empty(m.marks)
+	r.Empty(m.list.marks)
 }
 
 func TestRegionCommand_TheNumbersOfTheRegionLeftAreGone(t *testing.T) {

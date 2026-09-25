@@ -25,16 +25,7 @@ func mark(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.marks == nil {
-		m.marks = map[string]bool{}
-	}
-
-	if m.marks[all[at]] {
-		delete(m.marks, all[at])
-	} else {
-		m.marks[all[at]] = true
-	}
-
+	m.list = m.list.toggle(all[at])
 	m.layout()
 
 	return m, nil
@@ -48,72 +39,10 @@ func markAll(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	shown := m.shownIDs(ids(m))
-	if len(shown) == 0 {
-		return m, nil
-	}
-
-	// All of them already taken means let them go; otherwise take the rest.
-	// Counting would clear a mark the filter is hiding.
-	if m.allMarked(shown) {
-		m.marks = nil
-		m.layout()
-
-		return m, nil
-	}
-
-	if m.marks == nil {
-		m.marks = map[string]bool{}
-	}
-
-	for _, id := range shown {
-		m.marks[id] = true
-	}
-
+	m.list = m.list.toggleAll(ids(m))
 	m.layout()
 
 	return m, nil
-}
-
-// showMarks puts the mark of each resource on the row that shows it.
-func (m Model) showMarks(rows []tableRow) {
-	res := m.screen.of()
-	if len(m.marks) == 0 || res.ids == nil {
-		return
-	}
-
-	all := res.ids(m)
-
-	for i := range rows {
-		if i < len(m.index) && m.index[i] < len(all) {
-			rows[i].marked = m.marks[all[m.index[i]]]
-		}
-	}
-}
-
-// allMarked says every row on the screen is taken.
-func (m Model) allMarked(shown []string) bool {
-	for _, id := range shown {
-		if !m.marks[id] {
-			return false
-		}
-	}
-
-	return true
-}
-
-// shownIDs are the ids of the rows that are on the screen, which is what a
-// filter narrows.
-func (m Model) shownIDs(all []string) []string {
-	out := make([]string, 0, len(m.index))
-
-	for _, at := range m.index {
-		if at < len(all) {
-			out = append(out, all[at])
-		}
-	}
-
-	return out
 }
 
 // marked are the resources that carry a mark. A mark is on the resource, not
@@ -125,11 +54,11 @@ func marked[T any](m Model, kind screenKind, items []T) []T {
 
 	out := []T{}
 
-	if len(m.marks) > 0 && res.ids != nil && m.screen.kind == kind {
+	if len(m.list.marks) > 0 && res.ids != nil && m.screen.kind == kind {
 		all := res.ids(m)
 
 		for at := range items {
-			if at < len(all) && m.marks[all[at]] {
+			if at < len(all) && m.list.marks[all[at]] {
 				out = append(out, items[at])
 			}
 		}

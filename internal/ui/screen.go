@@ -178,7 +178,7 @@ func (m Model) binding(press string) (binding, bool) {
 // title labels the box with what it holds and how much of it. The count is
 // what is on the screen, which the filter narrows.
 func (m Model) title() string {
-	count := len(m.table.rows)
+	count := len(m.list.table.rows)
 	res := m.screen.of()
 
 	if res.title != nil {
@@ -298,11 +298,7 @@ func selectedOf[T any](m Model, kind screenKind, items []T) (T, bool) {
 // selectedIndex is the resource the cursor is on. The filter shifts the rows,
 // so the row number is not the number of the resource.
 func (m Model) selectedIndex() (int, bool) {
-	if m.table.cursor < 0 || m.table.cursor >= len(m.index) {
-		return 0, false
-	}
-
-	return m.index[m.table.cursor], true
+	return m.list.selected()
 }
 
 // show switches to a resource, which is what the command prompt does. Either
@@ -326,13 +322,13 @@ func (m Model) push(next screen) (Model, tea.Cmd) {
 // was left for escape to come back to. What belonged to it, its filter and
 // the order of its rows, says nothing about the screen that is opening.
 func (m Model) stack(next screen) Model {
-	m.screen.left = place{cursor: m.table.cursor, top: m.table.top, filter: m.filter, sort: m.sort}
+	m.screen.left = place{cursor: m.list.table.cursor, top: m.list.table.top, filter: m.list.filter, sort: m.list.sort}
 	m.history = append(m.history, m.screen)
 	m.screen = next
 	m = m.forget()
-	m.filter = ""
-	m.sort = newSortState()
-	m.marks = nil
+	m.list.filter = ""
+	m.list.sort = newSortState()
+	m.list.marks = nil
 
 	return m
 }
@@ -349,7 +345,7 @@ func (m Model) back() (Model, tea.Cmd) {
 	m.screen = m.history[len(m.history)-1]
 	m.history = m.history[:len(m.history)-1]
 	m = m.forget()
-	m.marks = nil
+	m.list.marks = nil
 
 	arrived, cmd := m.arrive()
 
@@ -373,11 +369,11 @@ func (m Model) back() (Model, tea.Cmd) {
 // there, so the cursor lands on the same one; the answer that follows keeps
 // it there the way any refresh does.
 func (m Model) returnTo(left place) Model {
-	m.filter, m.sort = left.filter, left.sort
+	m.list.filter, m.list.sort = left.filter, left.sort
 	m.layout()
 
-	m.table.cursor, m.table.top = left.cursor, left.top
-	m.table.follow()
+	m.list.table.cursor, m.list.table.top = left.cursor, left.top
+	m.list.table.follow()
 
 	return m
 }
@@ -403,9 +399,9 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m.checks.due = false
 	m.instanceChecks.due = false
 
-	m.table = newTableModel(m.screen.titles())
-	m.filter = ""
-	m.sort = newSortState()
+	m.list.table = newTableModel(m.screen.titles())
+	m.list.filter = ""
+	m.list.sort = newSortState()
 	m.layout()
 
 	// A screen that can be opened by name shows the namespace of the

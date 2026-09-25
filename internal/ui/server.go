@@ -30,7 +30,7 @@ func copyField(m Model) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	row, ok := m.table.selected()
+	row, ok := m.list.table.selected()
 	if !ok || len(row.cells) < 2 {
 		return m, nil
 	}

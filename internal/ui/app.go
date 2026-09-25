@@ -146,7 +146,6 @@ type Model struct {
 	overlay overlay
 	prompt  promptModel
 	confirm confirmModel
-	filter  string
 
 	// flash is the one thing the status line has to say: what came of an
 	// action, something worth knowing, or something that went wrong.
@@ -155,24 +154,8 @@ type Model struct {
 	// editing is the file that is open in the editor.
 	editing editFileMsg
 
-	// index maps a row of the table back to the resource it came from, which
-	// the filter and the sort order shift.
-	index []int
-
-	// sort is the column the list is ordered by.
-	sort sortState
-
-	// marks are the resources of the open screen that an action is to take,
-	// by the ids the screen names them with.
-	marks map[string]bool
-
 	// troubled leaves only what the cluster is not happy with.
 	troubled bool
-
-	// shown and held are how many rows are on the screen out of how many
-	// the cluster answered with.
-	shown int
-	held  int
 
 	clusterData
 
@@ -181,10 +164,12 @@ type Model struct {
 	// keeps it.
 	newer string
 
-	table tableModel
-	text  textModel
-	logs  logState
-	plan  planState
+	// list is how the rows of the open screen are read.
+	list list
+
+	text textModel
+	logs logState
+	plan planState
 
 	// jobLogs are the logs of a task in every allocation that runs it.
 	// Not an answer of the cluster: requests held open, closed on leaving.
@@ -292,8 +277,7 @@ func New(client Client, opts Options) Model {
 		opts:      opts,
 		namespace: opts.Namespace,
 		screen:    screen{kind: screenJobs, namespace: opts.Namespace},
-		table:     newTableModel(jobTitles),
-		sort:      newSortState(),
+		list:      newList(jobTitles),
 	}
 
 	return m.restore()
@@ -501,7 +485,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case doneMsg:
 		// What did not happen stays marked, so the same key tries it again;
 		// what did happen is let go of, so the key does not undo it.
-		m.marks = msg.kept
+		m.list.marks = msg.kept
 
 		if msg.err != nil {
 			m = m.fail(msg.err)
@@ -724,7 +708,7 @@ func (m Model) sortKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.sort = m.sort.by(column)
+	m.list.sort = m.list.sort.by(column)
 	m.layout()
 
 	return m, nil
@@ -823,7 +807,7 @@ func (m Model) cursorLine() int {
 		return -1
 	}
 
-	return 2 + m.panelHeight() + m.table.cursor - m.table.top
+	return 2 + m.panelHeight() + m.list.table.cursor - m.list.table.top
 }
 
 // body is what fills the box: what took the screen, or what the screen
@@ -850,10 +834,10 @@ func (m Model) body(width int) (title, content string) {
 	}
 
 	if panel := m.panelHeight(); panel > 0 {
-		return m.title(), strings.Join(append(m.panel(width), m.withHint(m.table.view(), width)), "\n")
+		return m.title(), strings.Join(append(m.panel(width), m.withHint(m.list.table.view(), width)), "\n")
 	}
 
-	return m.title(), m.withHint(m.table.view(), width)
+	return m.title(), m.withHint(m.list.table.view(), width)
 }
 
 func (m Model) status() string {
@@ -885,7 +869,7 @@ func (m Model) statusLeft(width int) string {
 
 	if m.troubled {
 		return styleWarn.Render(truncate(
-			fmt.Sprintf("only what needs attention, %d of %d   <!> all of them", m.shown, m.held), width))
+			fmt.Sprintf("only what needs attention, %d of %d   <!> all of them", m.list.shown, m.list.held), width))
 	}
 
 	if missing := m.usage.missingNote(); missing != "" {
@@ -922,27 +906,18 @@ func (m *Model) layout() {
 
 	// The table sits inside the box: the margin, its two border lines and the
 	// header row of the table itself are not rows.
-	m.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3-m.panelHeight(), 1))
+	m.list.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3-m.panelHeight(), 1))
 	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2-m.toggleRows()-m.barRows(), 1))
 
-	m.text.filter = m.filter
+	m.text.filter = m.list.filter
 	m.text.follow()
 
-	all := m.rows()
-	m.held = len(all)
-
-	rows, index := filterRows(all, m.filter)
-
-	if m.troubled {
-		rows, index = troubledRows(rows, index)
+	var ids []string
+	if res := m.screen.of(); res.ids != nil {
+		ids = res.ids(*m)
 	}
 
-	rows, index = sortRows(rows, index, m.sort, m.screen.titles())
-	m.shown = len(rows)
-
-	m.index = index
-	m.showMarks(rows)
-	m.table.show(rows, m.sort)
+	m.list = m.list.read(m.rows(), m.screen.titles(), ids, m.troubled)
 }
 
 // schedulePoll asks for the next poll, unless one is already on its way.

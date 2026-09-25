@@ -40,7 +40,7 @@ func openAndBack(t *testing.T, m Model, press tea.KeyPressMsg) Model {
 
 // cursorName is the first cell of the row under the cursor.
 func cursorName(m Model) string {
-	row, ok := m.table.selected()
+	row, ok := m.list.table.selected()
 	if !ok {
 		return ""
 	}
@@ -84,7 +84,7 @@ func TestBack_ComesBackToTheRowADescriptionWasAskedFrom(t *testing.T) {
 			m = openAndBack(t, m, test.press)
 
 			// The cursor is where it was left, not on the first row.
-			r.Equal(1, m.table.cursor)
+			r.Equal(1, m.list.table.cursor)
 			r.Equal(left, cursorName(m))
 		})
 	}
@@ -95,7 +95,7 @@ func TestBack_ComesBackToTheRowOfEveryKeyThatOpensAScreen(t *testing.T) {
 	t.Setenv("TMPDIR", t.TempDir())
 
 	for name, m := range everyScreen(t) {
-		if len(m.table.rows) < 2 || m.readsAsText() {
+		if len(m.list.table.rows) < 2 || m.readsAsText() {
 			continue
 		}
 
@@ -157,8 +157,8 @@ func TestBack_KeepsTheFilterAndTheOrderOfTheList(t *testing.T) {
 
 	// The list reads as it did: a row number means nothing in a list that
 	// lost its filter or its order.
-	r.Equal("web", m.filter)
-	r.Equal([]string{"web-a", "web-b"}, []string{m.table.rows[0].cells[0], m.table.rows[1].cells[0]})
+	r.Equal("web", m.list.filter)
+	r.Equal([]string{"web-a", "web-b"}, []string{m.list.table.rows[0].cells[0], m.list.table.rows[1].cells[0]})
 	r.Equal("web-b", cursorName(m))
 }
 
@@ -175,13 +175,13 @@ func TestBack_KeepsTheWindowWhereItWas(t *testing.T) {
 		m, _ = m.update(down())
 	}
 
-	top := m.table.top
+	top := m.list.table.top
 	r.Positive(top, "the window has moved down the list")
 
 	m = openAndBack(t, m, key('d'))
 
 	r.Equal(fmt.Sprintf("job-%02d", 25), cursorName(m))
-	r.Equal(top, m.table.top)
+	r.Equal(top, m.list.table.top)
 }
 
 func TestBack_ComesBackToTheRowOfEveryScreenOfAClient(t *testing.T) {

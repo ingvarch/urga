@@ -68,7 +68,7 @@ func (m Model) switchNamespace(namespace string) (Model, tea.Cmd) {
 
 	m.namespace = namespace
 	m.screen.namespace = namespace
-	m.filter = ""
+	m.list.filter = ""
 
 	next, cmd := m.enter()
 
