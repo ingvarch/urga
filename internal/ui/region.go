@@ -156,7 +156,7 @@ func (m Model) narrow(datacenter string, show func(Model) (Model, tea.Cmd)) (Mod
 
 	// What is held is narrowed at once: until the cluster answers, and when
 	// it does not, nothing of another datacenter stands under the new name.
-	m.jobs, m.nodes, m.servers = m.jobsInView(m.jobs), m.nodesInView(m.nodes), m.serversInView(m.servers)
+	m.jobs, m.nodes = m.jobsInView(m.jobs), m.nodesInView(m.nodes)
 
 	next, cmd := show(m)
 
@@ -219,7 +219,10 @@ func (s regionState) nodesInView(nodes []nomad.Node) []nomad.Node {
 	return keep(nodes, func(node nomad.Node) bool { return s.inDatacenter(node.Datacenter) })
 }
 
-func (s regionState) serversInView(servers []nomad.Server) []nomad.Server {
+// serversIn are the servers of a datacenter, every one of them for none.
+func serversIn(datacenter string, servers []nomad.Server) []nomad.Server {
+	s := regionState{datacenter: datacenter}
+
 	return keep(servers, func(server nomad.Server) bool { return s.inDatacenter(server.Datacenter) })
 }
 

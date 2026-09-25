@@ -62,8 +62,6 @@ var (
 		{press: "ctrl+a", label: "Mark All", do: markAll},
 	}
 
-	serverBindings = []binding{{press: "enter", label: "Details", do: openServer}}
-
 	fieldBindings = []binding{{press: "c", label: "Copy", do: copyField}}
 
 	serviceBindings = []binding{
@@ -416,47 +414,16 @@ func init() {
 			open:    func() page { return namespacesPage{} },
 		},
 
+		screenServers: {
+			stored:  "servers",
+			aliases: []string{"servers", "server", "srv"},
+			open:    func() page { return serversPage{} },
+		},
+
 		screenNodePools: {
 			stored:  "nodepools",
 			aliases: []string{"nodepools", "nodepool", "np"},
 			open:    func() page { return nodePoolsPage{} },
-		},
-
-		screenServers: {
-			name:    "Servers",
-			stored:  "servers",
-			aliases: []string{"servers", "server", "srv"},
-			titles:  serverTitles,
-			keys:    serverBindings,
-			cluster: true,
-			fetch: func(m Model) tea.Cmd {
-				return fetchList(m.client.Servers, func(items []nomad.Server) tea.Msg { return serversMsg(items) })
-			},
-			rows: func(m Model) []tableRow { return serverRows(m.servers) },
-		},
-
-		screenServer: {
-			titles:  fieldTitles,
-			keys:    fieldBindings,
-			cluster: true,
-			fields:  true,
-
-			title: func(m Model, _ int) string {
-				return sprintf("Server %s", m.screen.label)
-			},
-			fetch: func(m Model) tea.Cmd {
-				client, name := m.client, m.screen.label
-
-				// The agent answers for itself, the raft says whether the rest
-				// of the cluster still counts it.
-				return tea.Batch(
-					request(func(ctx context.Context) (nomad.Server, error) {
-						return client.Server(ctx, name)
-					}, func(server nomad.Server) tea.Msg { return serverMsg(server) }),
-					fetchRaft(client),
-				)
-			},
-			rows: func(m Model) []tableRow { return serverDetailRows(m.server, m.raft, m.raftErr) },
 		},
 
 		screenNodeEvents: {

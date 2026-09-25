@@ -197,15 +197,100 @@ func yesNo(yes bool) string {
 	return "no"
 }
 
-// openServer opens what the agent of the server under the cursor says about
-// itself.
-func openServer(m Model) (Model, tea.Cmd) {
-	server, ok := selectedOf(m, screenServers, m.servers)
+// serversPage is the servers of the region in use.
+type serversPage struct {
+	servers []nomad.Server
+}
+
+func (serversPage) title(_ env, count int) string { return sprintf("Servers [%d]", count) }
+func (serversPage) titles() []string              { return serverTitles }
+func (serversPage) topics() []string              { return nil }
+
+func (serversPage) fetch(e env) tea.Cmd {
+	return fetchList(e.client.Servers, func(items []nomad.Server) tea.Msg { return serversMsg(items) })
+}
+
+func (p serversPage) take(msg tea.Msg) (page, bool) {
+	servers, ok := msg.(serversMsg)
 	if !ok {
-		return m, nil
+		return p, false
 	}
 
-	m.server, m.raft, m.raftErr = server, nil, nil
+	p.servers = servers
 
-	return m.push(screen{kind: screenServer, label: server.Name})
+	return p, true
+}
+
+// visible are the servers of the datacenter the session is narrowed to. The
+// rows and the keys that find a row by its place read the same list, so a
+// key finds the server on the screen.
+func (p serversPage) visible(e env) []nomad.Server { return serversIn(e.datacenter, p.servers) }
+
+func (p serversPage) rows(e env) []tableRow { return serverRows(p.visible(e)) }
+
+var serversKeys = []pageKey[serversPage]{{press: "enter", label: "Details", do: openServer}}
+
+func (p serversPage) keys(e env) []keyHint { return hintsOf(p, e, serversKeys) }
+
+func (p serversPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, serversKeys, k)
+}
+
+// openServer opens what the agent of the server under the cursor says about
+// itself.
+func openServer(p serversPage, e env) (serversPage, outcome) {
+	server, ok := pickedFrom(e, p.visible(e))
+	if !ok {
+		return p, outcome{}
+	}
+
+	return p, then(openMsg(screen{kind: screenServer, page: serverPage{server: server}}))
+}
+
+// serverPage is what the agent of one server says about itself, and what
+// the raft of the cluster makes of it.
+type serverPage struct {
+	server  nomad.Server
+	peers   []nomad.RaftPeer
+	raftErr error
+}
+
+func (p serverPage) title(env, int) string { return sprintf("Server %s", p.server.Name) }
+func (serverPage) titles() []string        { return fieldTitles }
+func (serverPage) topics() []string        { return nil }
+
+func (p serverPage) fetch(e env) tea.Cmd {
+	client, name := e.client, p.server.Name
+
+	// The agent answers for itself, the raft says whether the rest of the
+	// cluster still counts it.
+	return tea.Batch(
+		request(func(ctx context.Context) (nomad.Server, error) {
+			return client.Server(ctx, name)
+		}, func(server nomad.Server) tea.Msg { return serverMsg(server) }),
+		fetchRaft(client),
+	)
+}
+
+func (p serverPage) take(msg tea.Msg) (page, bool) {
+	switch msg := msg.(type) {
+	case serverMsg:
+		p.server = nomad.Server(msg)
+	case raftMsg:
+		p.peers, p.raftErr = msg.peers, msg.err
+	default:
+		return p, false
+	}
+
+	return p, true
+}
+
+func (p serverPage) rows(env) []tableRow { return serverDetailRows(p.server, p.peers, p.raftErr) }
+
+var serverKeys = []pageKey[serverPage]{copyKey[serverPage]()}
+
+func (p serverPage) keys(e env) []keyHint { return hintsOf(p, e, serverKeys) }
+
+func (p serverPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, serverKeys, k)
 }

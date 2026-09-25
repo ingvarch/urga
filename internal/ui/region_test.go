@@ -102,7 +102,35 @@ func TestDatacenter_NarrowsTheServers(t *testing.T) {
 		{Name: "eu-2", Region: "eu", Datacenter: "dc2"},
 	}))
 
-	r.Equal([]string{"eu-1"}, idsOf(m.servers, func(s nomad.Server) string { return s.Name }))
+	out := plain(m.render())
+	r.Contains(out, "Servers [1]")
+	r.Contains(out, "eu-1")
+	r.NotContains(out, "eu-2")
+}
+
+func TestDatacenter_NarrowsTheServersOnTheScreen(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{region: "eu", datacenters: []string{"dc1", "dc2"}, servers: []nomad.Server{
+		{Name: "eu-1", Region: "eu", Datacenter: "dc1"},
+		{Name: "eu-2", Region: "eu", Datacenter: "dc2"},
+	}}
+	m := newTestModel(client)
+	m, _ = m.update(datacentersMsg{region: "eu", names: client.datacenters})
+	m = typeCommand(m, "servers")
+	r.Contains(plain(m.render()), "Servers [2]")
+
+	// What is on the screen is narrowed at once, before the cluster answers.
+	m, _ = runLine(m, "dc dc2")
+
+	out := plain(m.render())
+	r.Contains(out, "Servers [1]")
+	r.Contains(out, "eu-2")
+	r.NotContains(out, "eu-1")
+
+	// The key opens the server on the screen, not the one left out of it.
+	m, _ = m.update(enter())
+	r.Contains(plain(m.render()), "Server eu-2")
 }
 
 func TestDatacenter_EveryOneOfThem(t *testing.T) {
@@ -117,7 +145,7 @@ func TestDatacenter_EveryOneOfThem(t *testing.T) {
 	}))
 
 	// No datacenter chosen: nothing is left out.
-	r.Len(m.servers, 2)
+	r.Contains(plain(m.render()), "Servers [2]")
 }
 
 // idsOf names what a list holds, in its order.
@@ -525,12 +553,9 @@ func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
 	m.evaluations = []nomad.Evaluation{{ID: "e1"}}
 	m.nodes = []nomad.Node{{ID: "n1"}}
 	m.variables = []nomad.Variable{{Path: "app/db"}}
-	m.servers = []nomad.Server{{Name: "eu-1"}}
 	m.host = hostModel{node: nomad.Node{ID: "n1"}, trail: []nomad.ResourceUse{{CPUPercent: 40}}}
 	m.nodeDetail = nomad.NodeDetail{ID: "n1", Name: "node-01"}
 	m.nodeMeta = []nomad.MetaEntry{{Key: "rack", Value: "r1"}}
-	m.server = nomad.Server{Name: "eu-1"}
-	m.raft, m.raftErr = []nomad.RaftPeer{{Node: "eu-1", Leader: true}}, errors.New("Permission denied")
 
 	m, _ = runLine(m, "region us")
 
@@ -579,7 +604,6 @@ func TestDatacenterCommand_NarrowsWhatIsOnTheScreenAtOnce(t *testing.T) {
 
 	// What the other screens held when they were left.
 	m.nodes = []nomad.Node{{ID: "n1", Datacenter: "dc1"}, {ID: "n2", Datacenter: "dc2"}}
-	m.servers = []nomad.Server{{Name: "s1", Datacenter: "dc1"}, {Name: "s2", Datacenter: "dc2"}}
 
 	client.err = errors.New("connection refused")
 
@@ -590,7 +614,6 @@ func TestDatacenterCommand_NarrowsWhatIsOnTheScreenAtOnce(t *testing.T) {
 	// cluster answers.
 	r.Equal([]string{"api"}, idsOf(m.jobs, func(j nomad.Job) string { return j.ID }))
 	r.Equal([]string{"n2"}, idsOf(m.nodes, func(n nomad.Node) string { return n.ID }))
-	r.Equal([]string{"s2"}, idsOf(m.servers, func(s nomad.Server) string { return s.Name }))
 }
 
 func TestDatacenterCommand_TheNumbersOfTheDatacenterLeftAreGone(t *testing.T) {
@@ -622,9 +645,10 @@ func TestRegionState_NarrowsToItsDatacenter(t *testing.T) {
 	nodes := s.nodesInView([]nomad.Node{{ID: "n1", Datacenter: "dc1"}, {ID: "n2", Datacenter: "dc2"}})
 	r.Equal([]string{"n2"}, names(nodes, nodeMark))
 
-	servers := s.serversInView([]nomad.Server{{Name: "s1", Datacenter: "dc1"}, {Name: "s2", Datacenter: "dc2"}})
+	servers := serversIn("dc2", []nomad.Server{{Name: "s1", Datacenter: "dc1"}, {Name: "s2", Datacenter: "dc2"}})
 	r.Len(servers, 1)
 	r.Equal("s2", servers[0].Name)
+	r.Len(serversIn("", servers), 1)
 
 	// No datacenter chosen is every one of them.
 	r.True(regionState{}.inDatacenter("dc1"))
