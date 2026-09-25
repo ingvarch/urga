@@ -251,6 +251,7 @@ when the group under the cursor has canaries waiting to be promoted.
 | Key | What it does | Changes |
 | --- | --- | --- |
 | `enter` | Open the variable on its values | |
+| `e` | Edit the variable in your editor. Not shown on a locked one. | yes |
 
 ### A variable
 
@@ -258,6 +259,7 @@ when the group under the cursor has canaries waiting to be promoted.
 | --- | --- | --- |
 | `v` | Show or hide the values | |
 | `c` | Copy the value under the cursor, even when it is hidden | |
+| `e` | Edit the variable in your editor. Not shown on a locked one. | yes |
 
 ### Clients
 

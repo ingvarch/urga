@@ -17,18 +17,36 @@ type fakeEditor struct {
 	opened  string
 	replace string
 	err     error
+
+	// edits are typed one per open, in turn; once they run out the file is
+	// left as it is. seen is what each open found in the file.
+	edits []string
+	seen  []string
 }
 
 func (e *fakeEditor) Edit(path string) tea.Cmd {
 	return func() tea.Msg {
 		e.opened = path
 
+		if data, err := os.ReadFile(path); err == nil {
+			e.seen = append(e.seen, string(data))
+		}
+
 		if e.err != nil {
 			return editedMsg{path: path, err: e.err}
 		}
 
-		if e.replace != "" {
-			if err := os.WriteFile(path, []byte(e.replace), 0o600); err != nil {
+		replace := e.replace
+		if e.edits != nil {
+			replace = ""
+
+			if len(e.edits) > 0 {
+				replace, e.edits = e.edits[0], e.edits[1:]
+			}
+		}
+
+		if replace != "" {
+			if err := os.WriteFile(path, []byte(replace), 0o600); err != nil {
 				return editedMsg{path: path, err: err}
 			}
 		}

@@ -30,7 +30,7 @@ One binary, no config to write, no browser.
   grow. Shows the log of a task from every allocation of a job at once.
 - Edits a job in your editor and shows the plan before it submits anything.
 - Shows the values of variables, hidden until you ask for them, and who holds
-  a variable as a lock.
+  a variable as a lock. Edits a variable in your editor with check-and-set.
 - Shows the versions of a job and reverts to any of them.
 - Explains why a job is not placed.
 - Starts, stops, scales and restarts jobs and allocations, restarts and

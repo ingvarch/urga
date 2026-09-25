@@ -17,7 +17,7 @@ import (
 // a key that reaches a write is a key read-only mode has to take away.
 var (
 	clientWrites = []string{
-		"SubmitJob", "SubmitNamespace", "SubmitNodeMeta",
+		"SubmitJob", "SubmitNamespace", "SubmitNodeMeta", "SubmitVariable",
 		"StartJob", "StopJob", "RevertJobTo", "ScaleJob",
 		"RestartAllocation", "StopAllocation", "RestartTask", "SignalTask", "PromoteGroups", "PauseDeployment", "DeleteServiceRegistration",
 		"DrainNode", "SetNodeEligible",
@@ -31,7 +31,7 @@ var (
 		"Allocations", "NodeAllocations", "Allocation", "Logs",
 		"Usage", "AllocationUsage", "NodeUsage",
 		"Node", "NodeDetail", "NodeMeta", "NodeMetaSpec", "Nodes", "NodePools",
-		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "FailedPlacement", "Variables", "Variable",
+		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "FailedPlacement", "Variables", "Variable", "VariableSpec",
 		"Servers", "Server", "RaftPeers", "Events",
 	}
 )

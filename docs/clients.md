@@ -98,6 +98,46 @@ hidden.
 When the variable is held as a lock, a line above the values shows the ID of
 the lock, its TTL and its lock delay, as Nomad reports them.
 
+### Editing a variable
+
+`e` opens the variable in your editor, on the variable screen and on the
+list. The file is TOML, one key per line:
+
+```toml
+# Variable nomad/jobs/web in namespace default.
+CERT = """
+-----BEGIN CERTIFICATE-----
+MIIBfake
+-----END CERTIFICATE-----
+"""
+DB_HOST = "10.0.0.5"
+LIMITS = '{"cpu": 500}'
+```
+
+A value of several lines is written between `"""`, and a value with double
+quotes, such as JSON, between single quotes, so both read as they are. Every
+value is text: write a number in quotes, like `PORT = "5432"`. Comments are
+not saved.
+
+When you save and close the editor, urga saves the variable with
+check-and-set: the cluster takes it only if the variable is still the version
+you opened. If you close the editor without a change, nothing is saved.
+
+If the cluster refuses the save, urga opens the editor again with your edit
+and the reason at the top:
+
+- The file is not valid TOML, or a value is not text: fix it and save.
+- The variable changed since you opened it: saving again replaces that
+  change.
+- The variable was deleted since you opened it: saving again creates it.
+- The variable is locked: only the holder of the lock can change it.
+- The token may not write the variable.
+
+To save again, change the file, at least by deleting the lines of the
+reason. To drop your edit, close the editor without saving.
+
+`e` is not offered on a variable held as a lock.
+
 ## Node pools
 
 `:nodepools` lists the node pools and their schedulers.

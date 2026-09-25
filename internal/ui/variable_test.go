@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -160,4 +162,168 @@ func TestVariables_ListSaysWhoHoldsTheLock(t *testing.T) {
 	r.Contains(fileRow(t, m, 0), "874ae5d0")
 	r.NotContains(fileRow(t, m, 0), leaderLock)
 	r.NotContains(fileRow(t, m, 1), "874ae5d0")
+}
+
+// webFile is the web variable as the editor gets it.
+const webFile = "# Variable nomad/jobs/web in namespace default.\nDB_HOST = \"10.0.0.5\"\n"
+
+// editingWeb is the web variable open, the editor at hand, and the cluster
+// ready to hand it over as a file read at 769. What the editor types is
+// given in turn.
+func editingWeb(t *testing.T, client *fakeClient, edits ...string) (Model, *fakeEditor) {
+	t.Helper()
+
+	t.Setenv("TMPDIR", t.TempDir())
+
+	client.variableSpec = nomad.VariableSource{Source: webFile, Index: 769}
+
+	m := onVariable(t, client, webVariable())
+	editor := &fakeEditor{edits: edits}
+	m.opts.Editor = editor
+
+	return m, editor
+}
+
+func TestVariable_EditSavesWithCheckAndSet(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m, editor := editingWeb(t, client, "DB_HOST = \"10.0.0.6\"\n")
+
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 8)
+
+	r.Equal([]string{webFile}, editor.seen)
+	r.True(strings.HasSuffix(editor.opened, ".toml"))
+
+	// Saved over the version it was read at, and nothing else.
+	r.Equal([]string{"SubmitVariable"}, client.writes)
+	r.Equal("default", client.askedNamespace)
+	r.Equal("nomad/jobs/web", client.variablePath)
+	r.Equal("DB_HOST = \"10.0.0.6\"\n", client.submittedSource)
+	r.Equal(uint64(769), client.submittedIndex)
+	r.Contains(plain(m.render()), "Variable nomad/jobs/web saved.")
+}
+
+func TestVariables_EditFromTheList(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m, _ := editingWeb(t, client, "DB_HOST = \"10.0.0.6\"\n")
+
+	m, _ = m.update(escape())
+	r.Equal(screenVariables, m.screen.kind)
+
+	m, cmd := m.update(key('e'))
+	follow(m, cmd, 8)
+
+	r.Equal("nomad/jobs/web", client.variablePath)
+	r.Equal("DB_HOST = \"10.0.0.6\"\n", client.submittedSource)
+}
+
+func TestVariable_NoEditOfALockedVariable(t *testing.T) {
+	r := require.New(t)
+
+	// Nomad refuses a change to anyone but the holder of the lock.
+	m := onVariable(t, &fakeClient{}, leaderVariable())
+
+	r.False(offers(m, "e"))
+	r.Contains(plain(m.render()), "Only the holder of the lock can change it.")
+
+	m, _ = m.update(escape())
+	r.False(offers(m, "e"))
+
+	m = onVariable(t, &fakeClient{}, webVariable())
+	r.True(offers(m, "e"))
+	r.NotContains(plain(m.render()), "Only the holder")
+}
+
+func TestVariable_ARefusedSaveOpensTheEditAgain(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{submitErrs: []error{errors.New("the variable is not valid TOML: line 2: expected value")}}
+	m, editor := editingWeb(t, client, webFile+"DB_PORT = \n")
+
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 12)
+
+	// The edit comes back with why at the top, in place of the comments it
+	// had there.
+	r.Len(editor.seen, 2)
+	r.Equal(`# Not saved: the variable is not valid TOML: line 2: expected value.
+# To save, change the file: delete these lines at least.
+# To drop your edit, quit without saving.
+DB_HOST = "10.0.0.5"
+DB_PORT = 
+`, editor.seen[1])
+
+	// Left as it came back, it is dropped.
+	r.Equal([]string{"SubmitVariable"}, client.writes)
+	r.Contains(plain(m.render()), "unchanged")
+}
+
+func TestVariable_AChangedVariableIsSavedOverWhenAsked(t *testing.T) {
+	r := require.New(t)
+
+	edit := "DB_HOST = \"10.0.0.6\"\n"
+	client := &fakeClient{submitErrs: []error{&nomad.VariableConflict{Path: "nomad/jobs/web", Index: 800}}}
+
+	// The second time, the lines of the refusal are deleted.
+	m, editor := editingWeb(t, client, edit, edit)
+
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 16)
+
+	r.Len(editor.seen, 2)
+	r.Contains(editor.seen[1], "# Not saved: variable nomad/jobs/web changed since it was read.\n# Saving again replaces that change.\n")
+
+	r.Equal([]string{"SubmitVariable", "SubmitVariable"}, client.writes)
+	r.Equal(uint64(800), client.submittedIndex)
+	r.Contains(plain(m.render()), "Variable nomad/jobs/web saved.")
+}
+
+func TestVariable_ADeletedVariableIsCreatedWhenAsked(t *testing.T) {
+	r := require.New(t)
+
+	edit := "DB_HOST = \"10.0.0.6\"\n"
+	client := &fakeClient{submitErrs: []error{&nomad.VariableConflict{Path: "nomad/jobs/web", Deleted: true}}}
+	m, editor := editingWeb(t, client, edit, edit)
+
+	m, cmd := m.update(key('e'))
+	follow(m, cmd, 16)
+
+	r.Contains(editor.seen[1], "# Saving again creates it.\n")
+
+	// Index 0 creates it, and only if nobody did meanwhile.
+	r.Equal(uint64(0), client.submittedIndex)
+}
+
+func TestVariable_ALockedVariableIsNotSavedOver(t *testing.T) {
+	r := require.New(t)
+
+	lock := &nomad.VariableLock{ID: leaderLock}
+	edit := "DB_HOST = \"10.0.0.6\"\n"
+	client := &fakeClient{submitErrs: []error{&nomad.VariableConflict{Path: "nomad/jobs/web", Lock: lock, Index: 800}}}
+	m, editor := editingWeb(t, client, edit, edit)
+
+	m, cmd := m.update(key('e'))
+	follow(m, cmd, 16)
+
+	// Saved again, it asks at the version it was read at: the lock may be
+	// gone by then, the reason to keep out of a change may not.
+	r.NotContains(editor.seen[1], "Saving again")
+	r.Equal(uint64(769), client.submittedIndex)
+}
+
+func TestVariable_ARefusedSaveSaysWhoseTokenWasRefused(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{submitErrs: []error{forbidden(t)}}
+	m, editor := editingWeb(t, client, "DB_HOST = \"10.0.0.6\"\n")
+	m, _ = m.update(tokenMsg(nomad.Token{Name: "deploy-bot", Type: "client"}))
+
+	m, cmd := m.update(key('e'))
+	follow(m, cmd, 12)
+
+	r.Contains(editor.seen[1], "# Not saved: Permission denied: deploy-bot may not do this.\n")
 }
