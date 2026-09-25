@@ -89,9 +89,8 @@ func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
 	}
 
 	return m.push(screen{
-		kind:  screenDescribe,
-		label: msg.label,
-		page:  describePage{label: msg.label, content: text.textContent},
+		kind: screenDescribe,
+		page: describePage{label: msg.label, content: text.textContent},
 	})
 }
 
@@ -106,13 +105,14 @@ type describePage struct {
 
 var describeKeys = textKeys[describePage]()
 
-func (p describePage) title(env, int) string { return p.label }
-func (describePage) titles() []string        { return nil }
-func (describePage) topics() []string        { return nil }
-func (describePage) fetch(env) tea.Cmd       { return nil }
-func (describePage) rows(env) []tableRow     { return nil }
-func (p describePage) text(env) textContent  { return p.content }
-func (p describePage) keys(e env) []keyHint  { return hintsOf(p, e, describeKeys) }
+func (p describePage) title(env, int) string    { return p.label }
+func (describePage) titles() []string           { return nil }
+func (describePage) topics() []string           { return nil }
+func (describePage) fetch(env) tea.Cmd          { return nil }
+func (describePage) rows(env) []tableRow        { return nil }
+func (p describePage) text(env) textContent     { return p.content }
+func (p describePage) saveAs() (string, string) { return p.label, "txt" }
+func (p describePage) keys(e env) []keyHint     { return hintsOf(p, e, describeKeys) }
 
 func (p describePage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, describeKeys, k)
