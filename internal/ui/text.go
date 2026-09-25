@@ -24,6 +24,10 @@ type textModel struct {
 	// times puts the time a line arrived in front of it.
 	times bool
 
+	// following keeps the window at the end of a stream as it grows.
+	// Scrolling by hand stops it.
+	following bool
+
 	top int
 
 	width  int

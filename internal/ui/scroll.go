@@ -35,7 +35,7 @@ func (m Model) scroll(by int) Model {
 
 		// Scrolling by hand means the end of the output is no longer being
 		// watched.
-		m.logs.following = false
+		m.text.following = false
 
 		return m
 	}

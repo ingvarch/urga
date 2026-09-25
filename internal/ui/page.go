@@ -207,13 +207,24 @@ type (
 	// openMsg opens a screen on top of the page.
 	openMsg screen
 
-	// sayMsg puts what came of a key on the status line.
-	sayMsg string
+	// sayMsg puts what came of a key on the status line; warnMsg puts
+	// something worth knowing there.
+	sayMsg  string
+	warnMsg string
 
 	// wrapMsg and saveMsg are the window over a text: wrap its lines, or
-	// write what it shows to a file.
-	wrapMsg struct{}
-	saveMsg struct{}
+	// write what it shows to a file. followMsg follows the end of a stream,
+	// or stops following it, and timesMsg puts when each line arrived in
+	// front of it.
+	wrapMsg   struct{}
+	saveMsg   struct{}
+	followMsg struct{}
+	timesMsg  struct{}
+
+	// reopenMsg reads the stream of the page again, the way entering the
+	// page does, in the window it is read in: the page reads another
+	// stream now.
+	reopenMsg struct{}
 
 	// switchRegionMsg, narrowMsg and switchClusterMsg move the session to
 	// another region, datacenter (empty is every one) or cluster.
@@ -253,9 +264,6 @@ type (
 
 	// shellMsg opens a shell in a task, with the terminal handed over.
 	shellMsg shellCommand
-
-	// logsMsg follows what a task writes: the screen of its log.
-	logsMsg screen
 )
 
 // copyKey copies the value of the field under the cursor, on a page that
@@ -319,10 +327,40 @@ type reader interface {
 
 // textKeys are the keys of a page that reads as text.
 func textKeys[P page]() []pageKey[P] {
-	return []pageKey[P]{
-		{press: "w", label: "Toggle Wrap", do: func(p P, _ env) (P, outcome) { return p, then(wrapMsg{}) }},
-		{press: "ctrl+s", label: "Save", do: func(p P, _ env) (P, outcome) { return p, then(saveMsg{}) }},
-	}
+	return []pageKey[P]{wrapKey[P](), saveKey[P]()}
+}
+
+func wrapKey[P page]() pageKey[P] { return windowKey[P]("w", "Toggle Wrap", wrapMsg{}) }
+
+func saveKey[P page]() pageKey[P] { return windowKey[P]("ctrl+s", "Save", saveMsg{}) }
+
+// followKey follows the end of what a stream writes, or stops following it
+// where it stands; timesKey puts when each line of it arrived in front of
+// the line.
+func followKey[P page]() pageKey[P] { return windowKey[P]("s", "Toggle Autoscroll", followMsg{}) }
+
+func timesKey[P page]() pageKey[P] { return windowKey[P]("t", "Toggle Timestamps", timesMsg{}) }
+
+// windowKey is a key of the window over a text, which the root holds.
+func windowKey[P page](press, label string, msg tea.Msg) pageKey[P] {
+	return pageKey[P]{press: press, label: label, do: func(p P, _ env) (P, outcome) { return p, then(msg) }}
+}
+
+// saving is a page of text that says what a file of it is called: what it
+// is of, and the extension.
+type saving interface {
+	saveAs() (what, extension string)
+}
+
+// streamer is a page that reads what something writes as it is written: a
+// log, or a file. The root opens the stream every time the page is entered,
+// since every ask of the session ends the reading it had, and closes it
+// whenever the page stops being the one on top. follows says the window
+// keeps to the end of what arrives from the start.
+type streamer interface {
+	open(e env) (page, tea.Cmd)
+	close() page
+	follows() bool
 }
 
 // restarter is a page with timers of its own. Every ask of the session ends

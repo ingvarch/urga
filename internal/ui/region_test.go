@@ -622,7 +622,6 @@ func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
 	m := regionalModel(t, &fakeClient{})
 
 	// What the screens of eu held when they were left.
-	m.dir = dirState{path: "/local", files: []nomad.File{{Name: "app.env"}}}
 	m.logPick = logPick{title: "Logs of which task?", choices: []logChoice{{task: "server"}}}
 
 	m, _ = runLine(m, "region us")

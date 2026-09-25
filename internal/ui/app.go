@@ -168,7 +168,6 @@ type Model struct {
 	list list
 
 	text textModel
-	logs logState
 	plan planState
 
 	// jobLogs are the logs of a task in every allocation that runs it.
@@ -215,9 +214,6 @@ type Model struct {
 // clusterData is what the cluster last said in the region the session asks
 // in, kept in one place so that leaving the region lets go of all of it.
 type clusterData struct {
-	// dir is the directory of an allocation the files screen last listed.
-	dir dirState
-
 	// logPick is the question which task to read the logs of.
 	logPick logPick
 }
@@ -286,6 +282,8 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case answerMsg:
 		if msg.asked != m.asked {
+			letGo(msg.msg)
+
 			return m, nil
 		}
 
@@ -310,8 +308,20 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case sayMsg:
 		return m.say(string(msg)), nil
 
+	case warnMsg:
+		return m.warn(string(msg)), nil
+
 	case wrapMsg:
 		return wrapLines(m)
+
+	case followMsg:
+		return toggleAutoscroll(m)
+
+	case timesMsg:
+		return showTimes(m)
+
+	case reopenMsg:
+		return m.openStream()
 
 	case saveMsg:
 		return saveScreen(m)
@@ -336,9 +346,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case shellMsg:
 		return m.openShell(shellCommand(msg))
-
-	case logsMsg:
-		return m.followLog(screen(msg))
 
 	case failMsg:
 		return m.fail(msg.err), nil
@@ -426,30 +433,22 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 		return m.say(fmt.Sprintf("Shell in %s closed.", msg.task)), nil
 
-	case logStreamMsg:
-		return m.openedLog(msg)
+	case logStreamMsg, fileMsg:
+		// A stream no page took: the page it was opened for moved on.
+		letGo(msg)
 
-	case fileMsg:
-		return m.openedFile(msg)
+		return m, nil
 
 	case logLineMsg:
 		if allocID, ok := m.jobLogs.streams[msg.stream]; ok && m.screen.kind == screenJobLogs {
 			return m.appendJobLog(msg.stream, allocID, msg.text)
 		}
 
-		if !m.fromOpenStream(msg.stream) {
-			return m, nil
-		}
-
-		return m.appendLog(msg.text)
+		return m, nil
 
 	case logEndMsg:
 		if allocID, ok := m.jobLogs.streams[msg.stream]; ok {
 			return m.endJobLog(msg.stream, allocID), nil
-		}
-
-		if m.fromOpenStream(msg.stream) {
-			m.logs = m.logs.ended()
 		}
 
 		return m, nil
@@ -490,9 +489,6 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case refusedEditMsg:
 		return m, m.reopenEdit(msg)
-
-	case filesMsg:
-		return m.applyList(screenFiles, func(m *Model) { m.dir = dirState(msg) })
 
 	case watchingMsg:
 		var cmd tea.Cmd
@@ -839,14 +835,23 @@ func (m *Model) layout() {
 	// The table sits inside the box: the margin, its two border lines and the
 	// header row of the table itself are not rows.
 	m.list.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3-m.panelHeight(), 1))
+
+	grew := false
 	if r, ok := m.screen.page.(reader); ok {
-		m.text.textContent = r.text(m.env())
+		content := r.text(m.env())
+		grew = len(content.lines) > len(m.text.lines)
+		m.text.textContent = content
 	}
 
 	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2-m.toggleRows()-m.barRows(), 1))
 
 	m.text.filter = m.list.filter
 	m.text.follow()
+
+	// A window that follows a stream goes down with what arrived.
+	if grew && m.text.following {
+		m.text.toEnd()
+	}
 
 	m.list = m.list.read(m.rows(), m.screen.titles(), m.ids(), m.troubled)
 }

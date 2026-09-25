@@ -90,9 +90,10 @@ func (l *jobLogsState) stop() {
 	l.reading++
 }
 
-// stopLogs closes every log the session follows, of one task or of a job.
+// stopLogs closes every log the session follows: what the page on top
+// reads, and the logs of a job.
 func (m Model) stopLogs() Model {
-	m.logs.stop()
+	m = m.closeStream()
 	m.jobLogs.stop()
 
 	return m
@@ -269,8 +270,7 @@ func (m Model) openJobLogs(scope screen, choice logChoice) (Model, tea.Cmd) {
 	next.kind, next.jobID, next.taskGroup = screenJobLogs, choice.job, choice.group
 	next.task, next.source = choice.task, nomad.LogStdout
 
-	m = m.stackText(next, textModel{})
-	m.logs = logState{following: true}
+	m = m.stackText(next, textModel{following: true})
 
 	return m.readJobLogs(choice.allocs)
 }
@@ -401,6 +401,11 @@ func switchJobSource(m Model) (Model, tea.Cmd) {
 	m.layout()
 
 	return m.readJobLogs(m.jobLogs.all)
+}
+
+// onSource says the log screen reads the source.
+func onSource(source string) func(m Model) bool {
+	return func(m Model) bool { return m.screen.source == source }
 }
 
 // jobLogBindings are the keys of the logs of a job.

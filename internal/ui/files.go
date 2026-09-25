@@ -16,19 +16,26 @@ var fileTitles = []string{"Name", "Size", "Modified"}
 // parentDir is the row that goes to the directory above.
 const parentDir = ".."
 
-// filesMsg is a directory of an allocation, and which one it is.
-type filesMsg struct {
-	path  string
-	files []nomad.File
+// filesMsg is what a directory of an allocation holds.
+type filesMsg []nomad.File
+
+// filesPage is a directory of an allocation: what its tasks share, or what
+// one of them holds.
+type filesPage struct {
+	namespace, allocID, path string
+
+	// files are what the directory held when it was last listed, and listed
+	// says it has been: until then there are no rows, not even the one that
+	// goes up.
+	files  []nomad.File
+	listed bool
 }
 
-// dirState is the directory the files screen last listed.
-type dirState struct {
-	path  string
-	files []nomad.File
+// filesScreen opens a directory of an allocation where the allocation
+// lives.
+func filesScreen(p filesPage) screen {
+	return screen{kind: screenFiles, namespace: p.namespace, page: p}
 }
-
-var fileBindings = []binding{{press: "enter", label: "Open", do: openEntry}}
 
 // browse opens the directory of the task under the cursor: what its
 // templates rendered is in local/ there.
@@ -38,157 +45,211 @@ func browse(p tasksPage, e env) (tasksPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg(screen{
-		kind:      screenFiles,
-		namespace: p.namespace,
-		jobID:     p.jobID,
-		allocID:   p.allocID,
-		path:      path.Join("/", task.Name),
-	}))
+	return p, then(openMsg(filesScreen(filesPage{namespace: p.namespace, allocID: p.allocID, path: path.Join("/", task.Name)})))
 }
 
-// openDir lists a directory of the same allocation, on top of what is open:
-// escape comes back to it.
-func (m Model) openDir(dir string) (Model, tea.Cmd) {
-	s := m.screen
-
-	return m.push(screen{kind: screenFiles, namespace: s.namespace, jobID: s.jobID, allocID: s.allocID, path: dir})
+func (p filesPage) title(_ env, count int) string {
+	return sprintf("Files (Allocation: %s, %s) [%d]", shortID(p.allocID), p.path, count)
 }
 
-// fetchFiles lists the directory the screen is open on.
-func fetchFiles(m Model) tea.Cmd {
-	client, screen := m.client, m.screen
+func (filesPage) titles() []string { return fileTitles }
+func (filesPage) topics() []string { return nil }
+
+// fetch lists the directory the page is open on.
+func (p filesPage) fetch(e env) tea.Cmd {
+	client, namespace, allocID, dir := e.client, p.namespace, p.allocID, p.path
 
 	return fetchList(func(ctx context.Context) ([]nomad.File, error) {
-		return client.Files(ctx, screen.namespace, screen.allocID, screen.path)
-	}, func(files []nomad.File) tea.Msg { return filesMsg{path: screen.path, files: files} })
+		return client.Files(ctx, namespace, allocID, dir)
+	}, func(files []nomad.File) tea.Msg { return filesMsg(files) })
 }
 
-// entries are the rows of the directory on the screen, the one above it
-// first when there is one. Until the directory is listed there are none: what
-// was listed last may be the directory that was left.
-func (m Model) entries() []nomad.File {
-	if m.dir.path != m.screen.path {
+func (p filesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	switch msg := msg.(type) {
+	case filesMsg:
+		p.files, p.listed = msg, true
+
+		return p, outcome{}, true
+
+	case fileMsg:
+		// A file of this directory, opened to be read: it is read on a page
+		// of its own, on top. It is no answer to what the directory asked.
+		if msg.allocID != p.allocID || path.Dir(msg.path) != p.path {
+			return p, outcome{}, false
+		}
+
+		file := filePage{namespace: p.namespace, allocID: p.allocID, path: msg.path, first: msg.stream}
+
+		return p, outcome{now: []tea.Msg{openMsg(fileScreen(file))}, reading: true}, true
+	}
+
+	return p, outcome{}, false
+}
+
+func (p filesPage) rows(env) []tableRow { return fileRows(p.entries()) }
+
+// entries are the rows of the directory, the one above it first when there
+// is one.
+func (p filesPage) entries() []nomad.File {
+	switch {
+	case !p.listed:
 		return nil
+	case p.path == "/":
+		return p.files
 	}
 
-	if m.screen.path == "/" {
-		return m.dir.files
-	}
-
-	return append([]nomad.File{{Name: parentDir, Dir: true}}, m.dir.files...)
+	return append([]nomad.File{{Name: parentDir, Dir: true}}, p.files...)
 }
 
-// openEntry goes into the directory under the cursor, or up.
-func openEntry(m Model) (Model, tea.Cmd) {
-	entry, ok := selectedOf(m, screenFiles, m.entries())
+var filesKeys = []pageKey[filesPage]{{press: "enter", label: "Open", do: openEntry}}
+
+func (p filesPage) keys(e env) []keyHint { return hintsOf(p, e, filesKeys) }
+
+func (p filesPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, filesKeys, k)
+}
+
+// openEntry goes into the directory under the cursor, or up, or opens the
+// file.
+func openEntry(p filesPage, e env) (filesPage, outcome) {
+	entry, ok := pickedFrom(e, p.entries())
 	if !ok {
-		return m, nil
+		return p, outcome{}
 	}
 
 	switch {
 	case entry.Name == parentDir:
-		return m.openDir(path.Dir(m.screen.path))
+		return p, p.openDir(path.Dir(p.path))
 
 	case entry.Dir:
-		return m.openDir(path.Join(m.screen.path, entry.Name))
+		return p, p.openDir(path.Join(p.path, entry.Name))
 	}
 
-	return m.openFile(entry)
+	return p, p.openFile(entry, e)
 }
 
-// fileMsg is a file opened to be read, and the screen it is read on.
+// openDir lists a directory of the same allocation, on top of this one:
+// escape comes back to it.
+func (p filesPage) openDir(dir string) outcome {
+	return then(openMsg(filesScreen(filesPage{namespace: p.namespace, allocID: p.allocID, path: dir})))
+}
+
+// fileMsg is a file of an allocation, opened to be read.
 type fileMsg struct {
-	stream *nomad.LogStream
-	file   screen
-}
-
-// fileTextBindings are the keys of a file that is read: the ones of a log
-// that a file has.
-var fileTextBindings = []binding{
-	{press: "s", label: "Toggle Autoscroll", do: toggleAutoscroll},
-	{press: "w", label: "Toggle Wrap", do: wrapLines},
-	{press: "ctrl+s", label: "Save", do: saveScreen},
+	stream        *nomad.LogStream
+	allocID, path string
 }
 
 // openFile reads the file under the cursor like a log. A pipe is not asked
 // about: its client would wait on it for as long as the task writes nothing.
-func (m Model) openFile(entry nomad.File) (Model, tea.Cmd) {
+func (p filesPage) openFile(entry nomad.File, e env) outcome {
 	if entry.Pipe() {
-		return m.warn(fmt.Sprintf("%s is a pipe: only the task on its other end can read it", entry.Name)), nil
+		return then(warnMsg(fmt.Sprintf("%s is a pipe: only the task on its other end can read it", entry.Name)))
 	}
 
-	s := m.screen
-
-	return m, readFile(m.client, screen{
-		kind:      screenFile,
-		namespace: s.namespace,
-		jobID:     s.jobID,
-		allocID:   s.allocID,
-		path:      path.Join(s.path, entry.Name),
-	})
+	return outcome{cmd: readFile(e.client, p.namespace, p.allocID, path.Join(p.path, entry.Name))}
 }
 
 // readFile opens the stream of a file. What is not text comes back as the
 // reason it is not read, and the screen stays where it is.
-func readFile(client filesClient, file screen) tea.Cmd {
+func readFile(client filesClient, namespace, allocID, file string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		stream, err := client.File(ctx, file.namespace, file.allocID, file.path)
+		stream, err := client.File(ctx, namespace, allocID, file)
 		if err != nil {
 			return errMsg{err: err}
 		}
 
-		return fileMsg{stream: stream, file: file}
+		return fileMsg{stream: stream, allocID: allocID, path: file}
 	}
 }
 
-// openedFile puts a file on the screen it was opened from: on top of its
-// directory, or on its own screen come back to. One that arrives after the
-// screen moved on is let go of: nothing else would ever close it.
-func (m Model) openedFile(msg fileMsg) (Model, tea.Cmd) {
-	s, file := m.screen, msg.file
+// filePage is a file of an allocation, read like a log. A file is read from
+// its top: what it grows by stays below.
+type filePage struct {
+	namespace, allocID, path string
 
-	onFile := s.kind == screenFile && s.allocID == file.allocID && s.path == file.path
-	inDir := s.kind == screenFiles && s.allocID == file.allocID && s.path == path.Dir(file.path)
+	// first is the stream its directory opened the file with, read when the
+	// page is entered the first time: a file that is not text never opens a
+	// page of its own.
+	first *nomad.LogStream
 
-	if !onFile && !inDir || m.logs.stream != nil {
-		msg.stream.Close()
-
-		return m, nil
-	}
-
-	// A file is read from its top: what it grows by stays below.
-	if inDir {
-		m = m.stackText(file, textModel{})
-		m.logs = logState{}
-	}
-
-	var cmd tea.Cmd
-	m.logs, cmd = m.logs.opened(msg.stream)
-
-	return m, cmd
+	read logState
 }
 
-// readFileAgain opens the stream of a file screen that is come back to.
-func (m Model) readFileAgain() (Model, tea.Cmd) {
-	m.text = m.text.emptied()
-	m.logs = logState{}
-
-	return m, readFile(m.client, m.screen)
+// fileScreen opens a file where its allocation lives.
+func fileScreen(p filePage) screen {
+	return screen{kind: screenFile, namespace: p.namespace, page: p}
 }
 
-// fileTitle says which file of which allocation it is, and when only its end
+// title says which file of which allocation it is, and when only its end
 // was read, how much of it.
-func fileTitle(s screen, logs logState) string {
-	what := s.path
-	if logs.from > 0 {
-		what += fmt.Sprintf(", last %s of %s", sizeOf(logs.size-logs.from), sizeOf(logs.size))
+func (p filePage) title(env, int) string {
+	what := p.path
+	if p.read.from > 0 {
+		what += fmt.Sprintf(", last %s of %s", sizeOf(p.read.size-p.read.from), sizeOf(p.read.size))
 	}
 
-	return fmt.Sprintf("File (Allocation: %s) [%s]", shortID(s.allocID), what)
+	return fmt.Sprintf("File (Allocation: %s) [%s]", shortID(p.allocID), what)
+}
+
+func (filePage) titles() []string           { return nil }
+func (filePage) topics() []string           { return nil }
+func (filePage) fetch(env) tea.Cmd          { return nil }
+func (filePage) rows(env) []tableRow        { return nil }
+func (filePage) follows() bool              { return false }
+func (p filePage) text(env) textContent     { return p.read.content }
+func (p filePage) saveAs() (string, string) { return path.Base(p.path), "txt" }
+
+// open reads the file through the stream its directory opened, the first
+// time. Every time after that the file is asked for again, and read again
+// from its top.
+func (p filePage) open(e env) (page, tea.Cmd) {
+	if p.first != nil {
+		var cmd tea.Cmd
+		p.read, cmd = logState{}.opened(p.first)
+		p.first = nil
+
+		return p, cmd
+	}
+
+	p.read.stop()
+	p.read = logState{}
+
+	return p, readFile(e.client, p.namespace, p.allocID, p.path)
+}
+
+func (p filePage) close() page {
+	p.read.stop()
+
+	return p
+}
+
+func (p filePage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+	var (
+		out  outcome
+		took bool
+	)
+
+	if opened, ok := msg.(fileMsg); ok {
+		p.read, out, took = p.read.keep(opened.stream, opened.allocID == p.allocID && opened.path == p.path)
+	} else {
+		p.read, out, took = p.read.take(msg)
+	}
+
+	return p, out, took
+}
+
+// fileKeys are the keys of a log that a file has: when urga read a line is
+// nothing to a file.
+var fileKeys = append([]pageKey[filePage]{followKey[filePage]()}, textKeys[filePage]()...)
+
+func (p filePage) keys(e env) []keyHint { return hintsOf(p, e, fileKeys) }
+
+func (p filePage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, fileKeys, k)
 }
 
 func fileRows(files []nomad.File) []tableRow {
