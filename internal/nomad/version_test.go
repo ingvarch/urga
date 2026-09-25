@@ -148,6 +148,70 @@ func TestJobVersions_CountsAValueOnManyLinesOnce(t *testing.T) {
 	r.Equal(1, versions[0].Changes)
 }
 
+// contextualVersions is a diff as the cluster sends it for versions: what did
+// not change comes along as None, from a single field up to a whole group.
+const contextualVersions = `{
+	"Versions": [
+		{"ID": "web", "Name": "web", "Version": 2},
+		{"ID": "web", "Name": "web", "Version": 1}
+	],
+	"Diffs": [{
+		"Type": "Edited", "ID": "web",
+		"Fields": [
+			{"Type": "Edited", "Name": "Priority", "Old": "50", "New": "70"},
+			{"Type": "None", "Name": "Region", "Old": "global", "New": "global"}
+		],
+		"Objects": [{
+			"Type": "None", "Name": "Update",
+			"Fields": [{"Type": "None", "Name": "MaxParallel", "Old": "1", "New": "1"}]
+		}],
+		"TaskGroups": [
+			{
+				"Type": "None", "Name": "api",
+				"Fields": [{"Type": "None", "Name": "Count", "Old": "2", "New": "2"}],
+				"Tasks": [{
+					"Type": "None", "Name": "api",
+					"Fields": [{"Type": "None", "Name": "Driver", "Old": "docker", "New": "docker"}]
+				}]
+			},
+			{
+				"Type": "Edited", "Name": "bot",
+				"Fields": [{"Type": "None", "Name": "Count", "Old": "1", "New": "1"}],
+				"Tasks": [
+					{
+						"Type": "Edited", "Name": "bot",
+						"Fields": [{"Type": "None", "Name": "Driver", "Old": "docker", "New": "docker"}],
+						"Objects": [{
+							"Type": "Edited", "Name": "Resources",
+							"Fields": [
+								{"Type": "Edited", "Name": "CPU", "Old": "100", "New": "200"},
+								{"Type": "None", "Name": "MemoryMB", "Old": "128", "New": "128"}
+							]
+						}]
+					},
+					{
+						"Type": "None", "Name": "sidecar",
+						"Fields": [{"Type": "None", "Name": "Driver", "Old": "exec", "New": "exec"}]
+					}
+				]
+			}
+		]
+	}]
+}`
+
+func TestJobVersions_CountsOnlyWhatChanged(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, contextualVersions)
+
+	versions, err := client.JobVersions(context.Background(), "production", "web")
+	r.NoError(err)
+
+	// Priority and CPU, the two changes the diff of this version shows. What
+	// came along unchanged is not a change.
+	r.Equal(2, versions[0].Changes)
+}
+
 func TestJobVersionDiff_ReadsAsTheJobFile(t *testing.T) {
 	r := require.New(t)
 
