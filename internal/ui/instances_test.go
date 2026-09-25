@@ -143,5 +143,5 @@ func TestServiceInstances_TheirChecks(t *testing.T) {
 
 	// What does not run has no checks to read.
 	checks := slices.Index(instanceTitles, "Checks")
-	r.Equal("-", m.table.rows[1].cells[checks])
+	r.Equal("-", m.list.table.rows[1].cells[checks])
 }

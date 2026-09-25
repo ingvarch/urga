@@ -35,7 +35,7 @@ func allocFiles() map[string][]nomad.File {
 func fileRow(t *testing.T, m Model, i int) string {
 	t.Helper()
 
-	rows := lines(plain(m.table.view()))
+	rows := lines(plain(m.list.table.view()))
 	require.Greater(t, len(rows), i+1)
 
 	return rows[i+1]

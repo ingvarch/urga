@@ -196,12 +196,12 @@ func TestSort_ByTheFirstLetterOfAColumn(t *testing.T) {
 
 	// Shift and the letter a column starts with, the way k9s does it.
 	m, _ = m.update(key('S'))
-	r.Equal(4, m.sort.column, "Status")
+	r.Equal(4, m.list.sort.column, "Status")
 
 	m, _ = m.update(key('T'))
-	r.Equal(2, m.sort.column, "Type")
+	r.Equal(2, m.list.sort.column, "Type")
 
 	// A letter no column starts with leaves the list alone.
 	m, _ = m.update(key('X'))
-	r.Equal(2, m.sort.column)
+	r.Equal(2, m.list.sort.column)
 }

@@ -133,7 +133,7 @@ func TestClient_DriversGoByWhenTheyWereUpdated(t *testing.T) {
 	m, _ = m.update(key('U'))
 
 	// Read as text, "1h" comes before "30m" and is older.
-	r.Equal([]string{"30m", "1h"}, cellsOf(m.table, 3))
+	r.Equal([]string{"30m", "1h"}, cellsOf(m.list.table, 3))
 }
 
 func TestClient_ShowsWhatItLendsOut(t *testing.T) {

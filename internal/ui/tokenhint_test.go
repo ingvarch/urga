@@ -81,7 +81,7 @@ func TestEmptyList_AFilterIsNotTheToken(t *testing.T) {
 	r := require.New(t)
 
 	m := jobsSeenWith(deployBot, twoJobs())
-	m.filter = "nothing-matches-this"
+	m.list.filter = "nothing-matches-this"
 	m.layout()
 
 	r.NotContains(plain(m.render()), "Nothing here")

@@ -186,7 +186,7 @@ func (m Model) openPrompt(prefix string) (Model, tea.Cmd) {
 
 	if prefix == filterPrefix {
 		m.overlay = overlayFilter
-		m.prompt = promptModel{prefix: prefix, text: m.filter}
+		m.prompt = promptModel{prefix: prefix, text: m.list.filter}
 	}
 
 	m.layout()
@@ -208,7 +208,7 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		if m.overlay == overlayFilter {
-			m.filter = ""
+			m.list.filter = ""
 		}
 
 		return m.closePrompt()
@@ -254,7 +254,7 @@ func (m Model) promptKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 // changes what is on the table under the line.
 func (m Model) followFilter() Model {
 	if m.overlay == overlayFilter {
-		m.filter = m.prompt.text
+		m.list.filter = m.prompt.text
 		m.layout()
 	}
 
@@ -304,7 +304,7 @@ func (m Model) commit() (Model, tea.Cmd) {
 	asked, group, task := m.overlay, m.prompt.group, m.prompt.task
 
 	if asked == overlayFilter {
-		m.filter = input
+		m.list.filter = input
 
 		return m.closePrompt()
 	}

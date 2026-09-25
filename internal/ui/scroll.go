@@ -40,7 +40,7 @@ func (m Model) scroll(by int) Model {
 		return m
 	}
 
-	m.table.move(by)
+	m.list.table.move(by)
 
 	return m
 }
@@ -55,7 +55,7 @@ func (m Model) pageHeight() int {
 		return m.text.height
 	}
 
-	return m.table.height
+	return m.list.table.height
 }
 
 func (m Model) contentLength() int {
@@ -63,5 +63,5 @@ func (m Model) contentLength() int {
 		return m.text.length()
 	}
 
-	return len(m.table.rows)
+	return len(m.list.table.rows)
 }

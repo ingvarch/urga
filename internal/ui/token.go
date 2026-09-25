@@ -100,7 +100,7 @@ func timeLeft(left time.Duration) string {
 // empty list for the others, and no error. Until the list is answered, or
 // when the filter hid what it holds, there is nothing to say.
 func (m Model) tokenHint() string {
-	if !m.answered || m.held > 0 || m.token == nil || m.readsAsText() {
+	if !m.answered || m.list.held > 0 || m.token == nil || m.readsAsText() {
 		return ""
 	}
 

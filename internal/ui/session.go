@@ -39,7 +39,7 @@ func (m Model) restore() Model {
 
 	if kind, ok := screenOfName[cfg.Screen]; ok {
 		m.screen.kind = kind
-		m.table = newTableModel(m.screen.titles())
+		m.list.table = newTableModel(m.screen.titles())
 	}
 
 	return m

@@ -382,8 +382,8 @@ func init() {
 			cluster: true,
 
 			readings: func(m Model) []rowRef {
-				refs := make([]rowRef, 0, len(m.index))
-				for _, at := range m.index {
+				refs := make([]rowRef, 0, len(m.list.index))
+				for _, at := range m.list.index {
 					if at < len(m.nodes) {
 						refs = append(refs, rowRef{id: m.nodes[at].ID})
 					}

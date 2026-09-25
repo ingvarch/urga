@@ -73,7 +73,7 @@ func toggleValues(m Model) (Model, tea.Cmd) {
 // copyValue copies the value under the cursor as the variable holds it: the
 // row may show it hidden or cut to one line.
 func copyValue(m Model) (Model, tea.Cmd) {
-	row, ok := m.table.selected()
+	row, ok := m.list.table.selected()
 	if !ok || len(row.cells) == 0 {
 		return m, nil
 	}

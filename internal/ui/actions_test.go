@@ -173,5 +173,5 @@ func TestAction_ConfirmTakesTheKeys(t *testing.T) {
 	r.Equal(overlayConfirm, m.overlay)
 
 	m, _ = m.update(key('j'))
-	r.Zero(m.table.cursor)
+	r.Zero(m.list.table.cursor)
 }

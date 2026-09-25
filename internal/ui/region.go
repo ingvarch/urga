@@ -188,7 +188,7 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 // there: an empty list until the next region answers is the truth.
 func (m Model) forgetRegion() Model {
 	m.clusterData = clusterData{}
-	m.marks = nil
+	m.list.marks = nil
 	m.usage.cluster = nomad.Usage{}
 	m.datacenter, m.datacenters = "", nil
 

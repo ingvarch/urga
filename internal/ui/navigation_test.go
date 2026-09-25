@@ -187,16 +187,16 @@ func TestNavigation_AScreenStartsWithoutTheLastOnesFilter(t *testing.T) {
 	m, _ = m.update(key('/'))
 	m = typeIn(m, "frontend")
 	m, _ = m.update(enter())
-	r.Equal("frontend", m.filter)
+	r.Equal("frontend", m.list.filter)
 
 	// Into the tasks, and a filter of that list as well.
 	m, _ = m.update(enter())
-	r.Empty(m.filter)
+	r.Empty(m.list.filter)
 
 	m, _ = m.update(key('/'))
 	m = typeIn(m, "server")
 	m, _ = m.update(enter())
-	r.Equal("server", m.filter)
+	r.Equal("server", m.list.filter)
 
 	// The output of a task is not filtered by what the task list was
 	// filtered to.
@@ -204,7 +204,7 @@ func TestNavigation_AScreenStartsWithoutTheLastOnesFilter(t *testing.T) {
 	m = drain(m, cmd)
 	m = drain(m, m.logs.waitForLog())
 
-	r.Empty(m.filter)
+	r.Empty(m.list.filter)
 	r.Contains(plain(m.render()), "the task says something")
 }
 
@@ -225,7 +225,7 @@ func TestNavigation_DescribeStartsWithoutTheFilter(t *testing.T) {
 
 	// The description is shown whole, not narrowed by what the list was
 	// filtered to.
-	r.Empty(m.filter)
+	r.Empty(m.list.filter)
 	r.Contains(plain(m.render()), "\"ID\": \"web\"")
 }
 
