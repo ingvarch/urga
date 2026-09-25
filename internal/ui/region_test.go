@@ -525,7 +525,6 @@ func TestRegionCommand_LetsGoOfEveryAnswerOfTheRegionItLeft(t *testing.T) {
 	m.evaluations = []nomad.Evaluation{{ID: "e1"}}
 	m.nodes = []nomad.Node{{ID: "n1"}}
 	m.variables = []nomad.Variable{{Path: "app/db"}}
-	m.nodePools = []nomad.NodePool{{Name: "default"}}
 	m.servers = []nomad.Server{{Name: "eu-1"}}
 	m.host = hostModel{node: nomad.Node{ID: "n1"}, trail: []nomad.ResourceUse{{CPUPercent: 40}}}
 	m.nodeDetail = nomad.NodeDetail{ID: "n1", Name: "node-01"}

@@ -38,7 +38,7 @@ func (m Model) restore() Model {
 	m.namespaceOrder = cfg.Namespaces
 
 	if kind, ok := screenOfName[cfg.Screen]; ok {
-		m.screen.kind = kind
+		m.screen = m.screenOf(kind)
 		m.list.table = newTableModel(m.screen.titles())
 	}
 
