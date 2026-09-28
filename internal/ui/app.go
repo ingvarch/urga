@@ -16,6 +16,7 @@ import (
 
 	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
+	"github.com/ingvarch/urga/internal/release"
 )
 
 // Options are what the session starts with.
@@ -63,6 +64,19 @@ type Options struct {
 	// NewerRelease checks for a newer release of urga: its version, or
 	// empty. Nil skips the check.
 	NewerRelease func(ctx context.Context) (string, error)
+
+	// Commit and Built are the commit urga was built from and when. Either
+	// may be empty.
+	Commit string
+	Built  time.Time
+
+	// UpdateHint is how to update urga, shown when a newer release is out.
+	UpdateHint string
+
+	// Releases reads the notes of the releases of urga. Nil skips it, and
+	// Unchecked says why.
+	Releases  func(ctx context.Context) ([]release.Notes, error)
+	Unchecked string
 }
 
 const (

@@ -2,6 +2,7 @@ package version_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -33,4 +34,20 @@ func TestLong(t *testing.T) {
 	// A build from source shows no date.
 	r.Equal("dev", version.Long("dev", "none", "unknown"))
 	r.Equal("dev", version.Long("", "", ""))
+}
+
+func TestStamped(t *testing.T) {
+	r := require.New(t)
+
+	commit, date := version.Commit, version.Date
+	t.Cleanup(func() { version.Commit, version.Date = commit, date })
+
+	version.Commit, version.Date = "adb6c04", "2026-09-28T13:33:04Z"
+	r.Equal("adb6c04", version.StampedCommit())
+	r.Equal(time.Date(2026, 9, 28, 13, 33, 4, 0, time.UTC), version.StampedDate().UTC())
+
+	// What the linker did not stamp is not there.
+	version.Commit, version.Date = "none", "unknown"
+	r.Empty(version.StampedCommit())
+	r.True(version.StampedDate().IsZero())
 }

@@ -1,7 +1,10 @@
 // Package version is what the build stamps into the binary.
 package version
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // What a build shows when the linker stamped nothing in.
 const (
@@ -16,11 +19,6 @@ var (
 	Commit  = noCommit
 	Date    = noDate
 )
-
-// Current is this build, the way the header shows it.
-func Current() string {
-	return Human(Version, Commit)
-}
 
 // Full is this build with the date it was made, the way --version prints it.
 func Full() string {
@@ -49,4 +47,24 @@ func Long(version, commit, date string) string {
 	}
 
 	return fmt.Sprintf("%s, built %s", built, date)
+}
+
+// StampedCommit is the commit the build stamped in, empty when it stamped
+// none.
+func StampedCommit() string {
+	if Commit == noCommit {
+		return ""
+	}
+
+	return Commit
+}
+
+// StampedDate is when the build was made, zero when it stamped no date.
+func StampedDate() time.Time {
+	date, err := time.Parse(time.RFC3339, Date)
+	if err != nil {
+		return time.Time{}
+	}
+
+	return date
 }

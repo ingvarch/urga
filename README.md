@@ -39,6 +39,7 @@ One binary, no config to write, no browser.
   signals single tasks, and opens a shell in a task.
 - Drains clients and shows their CPU and memory over time.
 - Works in read-only mode, and with several named clusters.
+- Says when a newer urga is out, what it changed and how to update.
 
 ## Install
 
