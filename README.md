@@ -104,7 +104,8 @@ see [SECURITY.md](SECURITY.md).
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](LICENSE). The release archives and packages also carry
+`THIRD_PARTY_NOTICES`, the licenses of the modules urga is built from.
 
 ## About the name
 

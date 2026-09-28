@@ -36,6 +36,13 @@ jobs:
         with:
           version: v2.13.2
 
+      # A module urga links, on any platform it ships for, may only have a
+      # license internal/licenses allows. It runs after a lint failure too, so
+      # one failure does not hide the other; the job fails if either does.
+      - name: licenses
+        if: success() || failure()
+        run: go run ./internal/licenses/cmd/licenses ./cmd/urga
+
   test:
     name: test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
