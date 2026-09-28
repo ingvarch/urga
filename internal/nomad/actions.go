@@ -18,6 +18,13 @@ func (c *Client) StopJob(ctx context.Context, namespace, jobID string) error {
 	return err
 }
 
+// LaunchJob launches a periodic job now, out of its schedule.
+func (c *Client) LaunchJob(ctx context.Context, namespace, jobID string) error {
+	_, _, err := c.api.Jobs().PeriodicForce(jobID, c.write(ctx, namespace))
+
+	return err
+}
+
 // StartJob submits a stopped job again. The new version keeps the file the
 // job was submitted with, and gets back the scaling policies that stopping
 // turned off.

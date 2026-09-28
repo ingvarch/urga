@@ -108,6 +108,16 @@ type Job struct {
 	// Queued are the allocations that wait for a place.
 	Queued int
 
+	// Failed says a task group ended with an allocation failed or lost and
+	// none complete. A group that completed on a retry did not fail.
+	Failed bool
+
+	// Periodic and Parameterized jobs run nothing themselves: each launch is
+	// a job of its own, whose ParentID names the job that launched it.
+	Periodic      bool
+	Parameterized bool
+	ParentID      string
+
 	SubmitTime time.Time
 
 	// Datacenters are where the job may be placed, stars included.
@@ -156,17 +166,21 @@ func (c *Client) query(ctx context.Context, namespace string) *api.QueryOptions 
 
 func newJob(stub *api.JobListStub) Job {
 	job := Job{
-		ID:          stub.ID,
-		Name:        stub.Name,
-		Namespace:   stub.Namespace,
-		Type:        stub.Type,
-		Status:      stub.Status,
-		Datacenters: stub.Datacenters,
+		ID:            stub.ID,
+		Name:          stub.Name,
+		Namespace:     stub.Namespace,
+		Type:          stub.Type,
+		Status:        stub.Status,
+		Datacenters:   stub.Datacenters,
+		Periodic:      stub.Periodic,
+		Parameterized: stub.ParameterizedJob,
+		ParentID:      stub.ParentID,
 	}
 
 	job.SubmitTime = unixTime(stub.SubmitTime)
 
 	job.Running, job.Desired, job.Queued = allocationCounts(stub.JobSummary)
+	job.Failed = groupFailed(stub.JobSummary)
 
 	return job
 }
@@ -195,4 +209,21 @@ func allocationCounts(summary *api.JobSummary) (running, desired, queued int) {
 	}
 
 	return running, desired, queued
+}
+
+// groupFailed says a task group of the job ended with an allocation failed or
+// lost and none complete.
+func groupFailed(summary *api.JobSummary) bool {
+	if summary == nil {
+		return false
+	}
+
+	for _, group := range summary.Summary {
+		ended := group.Running+group.Starting+group.Queued == 0
+		if ended && group.Complete == 0 && group.Failed+group.Lost > 0 {
+			return true
+		}
+	}
+
+	return false
 }
