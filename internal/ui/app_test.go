@@ -198,6 +198,12 @@ type fakeClient struct {
 	// last claim released.
 	detached string
 	released string
+
+	// found is what a search finds, findText what it was last asked for and
+	// findCalls how often.
+	found     nomad.Found
+	findText  string
+	findCalls int
 }
 
 // wrote keeps a call that changes the cluster.
@@ -428,6 +434,13 @@ func (f *fakeClient) StopJob(_ context.Context, namespace, jobID string) error {
 	f.stopped++
 
 	return f.actionErr
+}
+
+func (f *fakeClient) Find(_ context.Context, text string) (nomad.Found, error) {
+	f.findText = text
+	f.findCalls++
+
+	return f.found, f.err
 }
 
 func (f *fakeClient) Volumes(_ context.Context, namespace string) ([]nomad.Volume, error) {

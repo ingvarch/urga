@@ -252,11 +252,13 @@ type (
 	// page does, in the same window: the page now reads another stream.
 	reopenMsg struct{}
 
-	// switchRegionMsg, narrowMsg and switchClusterMsg move the session to
-	// another region, datacenter (empty is every one) or cluster.
-	switchRegionMsg  string
-	narrowMsg        string
-	switchClusterMsg string
+	// switchRegionMsg, narrowMsg, switchClusterMsg and switchNamespaceMsg
+	// move the session to another region, datacenter (empty is every one),
+	// cluster or namespace.
+	switchRegionMsg    string
+	narrowMsg          string
+	switchClusterMsg   string
+	switchNamespaceMsg string
 
 	// askMsg shows a question; yes runs apply.
 	askMsg struct {

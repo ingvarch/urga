@@ -17,9 +17,10 @@ var jobTitles = []string{"ID", "Name", "Type", "Namespace", "Status", "Allocs", 
 // jobsPage is the jobs of the namespace the session looks at, or the
 // launches of one periodic or parameterized job.
 type jobsPage struct {
-	// parent is the job whose launches the page lists. Without one, it lists
-	// the jobs of the session.
-	parent nomad.Job
+	// parent is the job whose launches the page lists, and only the one job
+	// it lists, found by a search. Without either, it lists the jobs of the
+	// session.
+	parent, only nomad.Job
 
 	// next is when a periodic parent launches next, zero for never.
 	next time.Time
@@ -32,21 +33,30 @@ func (p jobsPage) title(e env, count int) string {
 		return sprintf("Launches (Job: %s%s) [%d]", p.parent.ID, nextIn(p.next), count)
 	}
 
+	if p.alone() {
+		return sprintf("Job %s (%s) [%d]", p.only.ID, p.only.Namespace, count)
+	}
+
 	return sprintf("Jobs (%s) [%d]", namespaceLabel(e.namespace), count)
 }
 
-// ofParent says the page lists the launches of a job.
+// ofParent says the page lists the launches of a job; alone, that it lists
+// one job.
 func (p jobsPage) ofParent() bool { return p.parent.ID != "" }
+func (p jobsPage) alone() bool    { return p.only.ID != "" }
 
-// followsSession: the jobs of the session follow it; the launches of a job
-// stay where the job lives.
-func (p jobsPage) followsSession() bool { return !p.ofParent() }
+// followsSession: the jobs of the session follow it; the launches of a job,
+// and a job alone, stay where the job lives.
+func (p jobsPage) followsSession() bool { return !p.ofParent() && !p.alone() }
 
-// where is the namespace the jobs are asked in: the one of the parent, or
-// the session's.
+// where is the namespace the jobs are asked in: the one of the job the page
+// is about, or the session's.
 func (p jobsPage) where(e env) string {
-	if p.ofParent() {
+	switch {
+	case p.ofParent():
 		return p.parent.Namespace
+	case p.alone():
+		return p.only.Namespace
 	}
 
 	return e.namespace
@@ -97,14 +107,18 @@ func (p jobsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 // read the same list, so a key finds the job on the screen.
 func (p jobsPage) visible(e env) []nomad.Job { return keep(jobsIn(e.datacenter, p.jobs), p.lists) }
 
-// lists says the page shows a job: a launch of its parent, or, without one,
-// a job that is not a launch. The job that launches them stands for them.
+// lists says the page shows a job: a launch of its parent, the one job it is
+// about, or, without either, a job that is not a launch. The job that
+// launches them stands for them.
 func (p jobsPage) lists(job nomad.Job) bool {
-	if !p.ofParent() {
-		return job.ParentID == ""
+	switch {
+	case p.ofParent():
+		return job.ParentID == p.parent.ID && job.Namespace == p.parent.Namespace
+	case p.alone():
+		return job.ID == p.only.ID && job.Namespace == p.only.Namespace
 	}
 
-	return job.ParentID == p.parent.ID && job.Namespace == p.parent.Namespace
+	return job.ParentID == ""
 }
 
 func (p jobsPage) rows(e env) []tableRow { return jobRows(p.visible(e), lastLaunches(p.jobs)) }

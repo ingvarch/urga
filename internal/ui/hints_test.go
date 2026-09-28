@@ -92,6 +92,9 @@ func everyScreenClient() *fakeClient {
 		volume:  csiDetail(),
 		plugins: onePlugin(),
 		plugin:  pluginDetail(),
+
+		// What a search for "web" finds.
+		found: foundWeb(),
 	}
 }
 
@@ -125,6 +128,9 @@ func listsByName(client *fakeClient) map[string]Model {
 
 	// This urga, which has no rows.
 	open["about"] = typeCommand(newTestModel(client), "about")
+
+	// What a search found, opened by the words of the search.
+	open["find"] = typeCommand(newTestModel(client), "find web")
 
 	return open
 }

@@ -41,6 +41,7 @@ One binary, no config to write, no browser.
 - Drains clients and shows their CPU and memory over time.
 - Works in read-only mode, and with several named clusters.
 - Says when a newer urga is out, what it changed and how to update.
+- Finds anything in the cluster by its name or ID, in every namespace.
 
 ## Install
 

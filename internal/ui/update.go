@@ -157,6 +157,9 @@ func (m Model) fromSession(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case switchClusterMsg:
 		return taken(m.switchCluster(string(msg)))
 
+	case switchNamespaceMsg:
+		return taken(m.switchNamespace(string(msg)))
+
 	case connectedMsg:
 		return taken(m.connected(Connection(msg)))
 
