@@ -179,9 +179,18 @@ func TestHeader_BeforeARegionIsKnown(t *testing.T) {
 
 // jobKeys are the keys of the job list as the header shows them, more than
 // one column of them.
+// jobKeys are the keys of the job list, one label per key: the header shows
+// the one the job under the cursor is offered.
 func jobKeys() []hint {
 	keys := []hint{}
+	seen := map[string]bool{}
+
 	for _, k := range jobsKeys {
+		if seen[k.press] {
+			continue
+		}
+
+		seen[k.press] = true
 		keys = append(keys, keyHint{press: k.press, label: k.label}.hint())
 	}
 

@@ -33,6 +33,8 @@ One binary, no config to write, no browser.
   a variable as a lock. Edits a variable in your editor with check-and-set.
 - Shows the versions of a job and reverts to any of them.
 - Explains why a job is not placed.
+- Lists the launches of periodic and parameterized jobs, shows when a
+  periodic job runs next, and runs it now.
 - Starts, stops, scales and restarts jobs and allocations, restarts and
   signals single tasks, and opens a shell in a task.
 - Drains clients and shows their CPU and memory over time.

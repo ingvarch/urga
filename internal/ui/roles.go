@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"time"
 
 	"github.com/ingvarch/urga/internal/nomad"
 )
@@ -53,6 +54,8 @@ type (
 		SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error
 		StartJob(ctx context.Context, namespace, jobID string) error
 		StopJob(ctx context.Context, namespace, jobID string) error
+		LaunchJob(ctx context.Context, namespace, jobID string) error
+		NextLaunch(ctx context.Context, namespace, jobID string) (time.Time, error)
 		JobVersions(ctx context.Context, namespace, jobID string) ([]nomad.JobVersion, error)
 		JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) ([]nomad.DiffLine, error)
 		RevertJobTo(ctx context.Context, namespace, jobID string, version, from uint64) error

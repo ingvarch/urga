@@ -27,6 +27,7 @@ func everyScreen(t *testing.T) map[string]Model {
 
 	open := listsByName(client)
 	openOfAJob(open)
+	openOfAPeriodicJob(open)
 	openOfATask(open)
 	openOfAClient(open)
 	openOfTheLists(open)
@@ -150,6 +151,20 @@ func openOfAJob(open map[string]Model) {
 	editing.opts.Editor = &fakeEditor{replace: "job \"web\" {\n  type = \"batch\"\n}"}
 	edited, cmd := editing.update(key('e'))
 	open["plan"] = follow(edited, cmd, 6)
+}
+
+// openOfAPeriodicJob adds the job list on a periodic job, and its launches.
+func openOfAPeriodicJob(open map[string]Model) {
+	client := everyScreenClient()
+	client.jobs = periodicJobs()
+
+	jobs := newTestModel(client)
+	jobs, _ = jobs.update(jobsMsg(client.jobs))
+	jobs, _ = jobs.update(key('j'))
+	open["periodicjob"] = jobs
+
+	launches, cmd := jobs.update(enter())
+	open["launches"] = drain(launches, cmd)
 }
 
 // openOfATask adds the screens that hang off a task.

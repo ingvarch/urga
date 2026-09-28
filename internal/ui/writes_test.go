@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 	"testing"
@@ -18,7 +19,7 @@ import (
 var (
 	clientWrites = []string{
 		"SubmitJob", "SubmitNamespace", "SubmitNodeMeta", "SubmitVariable",
-		"StartJob", "StopJob", "RevertJobTo", "ScaleJob",
+		"StartJob", "StopJob", "LaunchJob", "RevertJobTo", "ScaleJob",
 		"RestartAllocation", "StopAllocation", "RestartTask", "SignalTask", "PromoteGroups", "PauseDeployment", "DeleteServiceRegistration",
 		"DrainNode", "SetNodeEligible",
 		"PromoteDeployment", "FailDeployment",
@@ -26,7 +27,7 @@ var (
 
 	clientReads = []string{
 		"Address", "Region", "Agent", "Regions", "Datacenters", "AllocationChecks", "Files", "File", "Deployment", "DeploymentAllocations", "Token", "ServiceInstances",
-		"Jobs", "JobSpec", "JobVersions", "JobVersionDiff", "TaskGroups", "PlanJob", "PlanRevert",
+		"Jobs", "NextLaunch", "JobSpec", "JobVersions", "JobVersionDiff", "TaskGroups", "PlanJob", "PlanRevert",
 		"DescribeJob", "DescribeAllocation", "DescribeDeployment", "DescribeService",
 		"Allocations", "NodeAllocations", "Allocation", "Logs",
 		"Usage", "AllocationUsage", "NodeUsage",
@@ -178,8 +179,23 @@ func TestBindings_TheKeysThatChangeTheCluster(t *testing.T) {
 	t.Chdir(t.TempDir())
 	t.Setenv("TMPDIR", t.TempDir())
 
+	// A key the page does not offer now does nothing when pressed. It is
+	// checked on a screen that offers it, and some screen has to.
+	marked, pressed := map[string]bool{}, map[string]bool{}
+
 	for name, open := range everyScreen(t) {
 		for _, k := range open.pageKeys() {
+			of := fmt.Sprintf("%T %s", open.screen.page, k.press)
+			if k.writes {
+				marked[of] = true
+			}
+
+			if !k.offered {
+				continue
+			}
+
+			pressed[of] = true
+
 			fake, ok := open.client.(*fakeClient)
 			require.True(t, ok)
 
@@ -204,6 +220,12 @@ func TestBindings_TheKeysThatChangeTheCluster(t *testing.T) {
 				t.Errorf("%s on the %s screen: marked writes=%t, changed the cluster: %t %v",
 					k.press, name, k.writes, wrote, fake.writes)
 			}
+		}
+	}
+
+	for of := range marked {
+		if !pressed[of] {
+			t.Errorf("%s changes the cluster and no screen offers it", of)
 		}
 	}
 }

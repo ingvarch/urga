@@ -43,7 +43,7 @@ func TestJobRows(t *testing.T) {
 		{ID: "cron", Name: "cron", Namespace: "default", Type: "batch", Status: "dead"},
 	}
 
-	rows := jobRows(jobs)
+	rows := jobRows(jobs, nil)
 	r.Len(rows, 2)
 
 	r.Equal([]string{"web", "web", "service", "production", "running", "3/4", "2h"}, rows[0].cells)
@@ -65,6 +65,9 @@ func TestJobColor(t *testing.T) {
 
 	// A batch job that ended did its work, it is not a failure.
 	r.Equal(colorSpent, jobColor(nomad.Job{Type: "batch", Status: "dead"}))
+
+	// One that ended with a group that failed is.
+	r.Equal(colorDead, jobColor(nomad.Job{Type: "batch", Status: "dead", Failed: true}))
 }
 
 func TestJobs_TheKeysOfAJob(t *testing.T) {
