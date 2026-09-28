@@ -91,14 +91,15 @@ start, stop, restart or drain then applies to every marked row.
 
 | Key | What it does | Changes |
 | --- | --- | --- |
-| `enter` | Allocations of the job | |
+| `enter` | Allocations of the job, or the launches of a periodic or parameterized job | |
 | `t` | Task groups | |
 | `d` | Describe | |
 | `h` | Job file the job was submitted with | |
 | `v` | Versions | |
-| `l` | Logs of a task in every allocation of the job | |
+| `l` | Logs of a task in every allocation of the job. Not shown for a periodic or parameterized job. | |
 | `e` | Edit the job in your editor | yes |
 | `ctrl-s` | Start a stopped job, or stop a running one | yes |
+| `r` | Run a periodic job now, out of its schedule. Shown for a periodic job. | yes |
 | `u` | Revert to the previous version | yes |
 | `p` | Why the job is not placed. Shown when allocations are waiting. | |
 | `space`, `ctrl-a` | Mark | |

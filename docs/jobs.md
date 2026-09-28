@@ -7,15 +7,38 @@ deployments. For the keys of each screen, see [Keys and commands](keys.md).
 
 The job list shows the ID, name, type, namespace, status, running and desired
 allocations, and age of each job. The color of a row shows the state of the
-job, for example running, pending or dead.
+job, for example running, pending or dead. A batch job that ended is grey, or
+red when a task group of it failed: it ended with allocations failed or lost
+and none complete.
 
 From the list:
 
-- `enter` opens the allocations of the job;
+- `enter` opens the allocations of the job, or the launches of a periodic or
+  parameterized job;
 - `t` opens its task groups;
 - `d` shows the job as the cluster describes it;
 - `h` shows the job file it was submitted with;
 - `v` opens its versions.
+
+## Periodic and parameterized jobs
+
+A periodic or parameterized job runs nothing itself. Each time it runs, Nomad
+launches a job of its own, such as `backup/periodic-1758499200` or
+`report/dispatch-1758499200-3f1c`. The job list does not show these launches;
+the job that launched them stands for them.
+
+While a periodic or parameterized job runs, its row takes the color of its
+newest launch: red when that launch failed, yellow while it waits to be
+placed. A launch that runs or did its work leaves the color of the job as it
+is. `!` keeps a job whose newest launch failed.
+
+`enter` on such a job opens its launches. They are jobs like any other: the
+keys of the job list work on them. For a periodic job, the title says when it
+launches next, for example `Launches (Job: backup, next in 4h) [2]`.
+
+`r` runs a periodic job now, out of its schedule, after you confirm. The launch
+appears among its launches. A parameterized job is not run this way: it runs
+when it is dispatched, with what the dispatch gives it.
 
 ## Starting and stopping
 

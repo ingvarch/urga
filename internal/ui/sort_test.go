@@ -99,7 +99,7 @@ func TestSort_EveryAgeColumnGoesByTime(t *testing.T) {
 		rows   func(at time.Time) []tableRow
 	}{
 		{"jobs", jobTitles, "Age", func(at time.Time) []tableRow {
-			return jobRows([]nomad.Job{{SubmitTime: at}})
+			return jobRows([]nomad.Job{{SubmitTime: at}}, nil)
 		}},
 		{"allocations", allocTitles, "Age", func(at time.Time) []tableRow {
 			return allocRows([]nomad.Alloc{{Created: at}}, nil)

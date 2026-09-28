@@ -177,6 +177,12 @@ type fakeClient struct {
 	instancesNamespace  string
 	instancesName       string
 	deletedRegistration string
+
+	// next is when a periodic job launches next, and nextOf the job it was
+	// asked for, by namespace and ID.
+	next    time.Time
+	nextErr error
+	nextOf  string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -405,6 +411,19 @@ func (f *fakeClient) StopJob(_ context.Context, namespace, jobID string) error {
 	f.wrote("StopJob")
 	f.askedNamespace, f.askedID = namespace, jobID
 	f.stopped++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) NextLaunch(_ context.Context, namespace, jobID string) (time.Time, error) {
+	f.nextOf = namespace + "/" + jobID
+
+	return f.next, f.nextErr
+}
+
+func (f *fakeClient) LaunchJob(_ context.Context, namespace, jobID string) error {
+	f.wrote("LaunchJob")
+	f.askedNamespace, f.askedID = namespace, jobID
 
 	return f.actionErr
 }
