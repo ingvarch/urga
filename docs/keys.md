@@ -135,6 +135,7 @@ start, stop, restart or drain then applies to every marked row.
 | `l` | Logs of a task in every allocation of the job. Not shown for a periodic or parameterized job. | |
 | `e` | Edit the job in your editor | yes |
 | `ctrl-s` | Start a stopped job, or stop a running one | yes |
+| `ctrl-e` | Evaluate the job again: the scheduler places what it can now | yes |
 | `r` | Run a periodic job now, out of its schedule, or dispatch a parameterized one. Shown for those jobs. | yes |
 | `u` | Revert to the previous version | yes |
 | `p` | Why the job is not placed. Shown when allocations are waiting. | |

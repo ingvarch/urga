@@ -139,6 +139,9 @@ var jobsKeys = []pageKey[jobsPage]{
 	{press: "ctrl+s", label: "Start/Stop", do: startStopJob, writes: true},
 	{press: "r", label: "Run Now", do: runNow, writes: true, offered: runsOnSchedule},
 	{press: "r", label: "Dispatch", do: dispatchJob, writes: true, offered: dispatchable},
+	// The cluster evaluates the launches of a job, not the job that makes
+	// them.
+	{press: "ctrl+e", label: "Evaluate", do: evaluateJobs, writes: true, offered: runsItself},
 	// The list of jobs reverts to the version before the one that runs;
 	// the list of versions reverts to the one under the cursor.
 	{press: "u", label: "Revert", do: revertJob, writes: true},

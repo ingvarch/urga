@@ -57,6 +57,7 @@ type (
 		StartJob(ctx context.Context, namespace, jobID string) error
 		StopJob(ctx context.Context, namespace, jobID string) error
 		LaunchJob(ctx context.Context, namespace, jobID string) error
+		EvaluateJob(ctx context.Context, namespace, jobID string) error
 		DispatchForm(ctx context.Context, namespace, jobID string) (nomad.DispatchForm, error)
 		DispatchJob(ctx context.Context, namespace, jobID string, meta map[string]string, payload []byte) (string, error)
 		NextLaunch(ctx context.Context, namespace, jobID string) (time.Time, error)
@@ -146,6 +147,7 @@ type (
 		Servers(ctx context.Context) ([]nomad.Server, error)
 		Server(ctx context.Context, name string) (nomad.Server, error)
 		RaftPeers(ctx context.Context) ([]nomad.RaftPeer, error)
+		ServerHealth(ctx context.Context) (nomad.ClusterHealth, error)
 	}
 
 	// volumesClient is the storage of the cluster: CSI and host volumes,

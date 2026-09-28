@@ -2,6 +2,7 @@ package ui
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -43,7 +44,7 @@ func TestServers_Screen(t *testing.T) {
 func TestServers_LeaderStandsOut(t *testing.T) {
 	r := require.New(t)
 
-	rows := serverRows(twoServers())
+	rows := serverRows(twoServers(), nomad.ClusterHealth{}, false)
 
 	r.Len(rows, 2)
 	r.Equal("", rows[0].cells[len(rows[0].cells)-1])
@@ -54,7 +55,7 @@ func TestServers_LeaderStandsOut(t *testing.T) {
 func TestServers_AServerThatIsNotAlive(t *testing.T) {
 	r := require.New(t)
 
-	rows := serverRows([]nomad.Server{{Name: "server-03.global", Status: "failed"}})
+	rows := serverRows([]nomad.Server{{Name: "server-03.global", Status: "failed"}}, nomad.ClusterHealth{}, false)
 
 	// A server that is not alive is the one to look at.
 	r.Equal(colorDead, rows[0].color)
@@ -255,4 +256,117 @@ func TestServer_AnAnswerAfterTheServerWasLeftIsDropped(t *testing.T) {
 
 	r.Nil(cmd)
 	r.Equal(before, plain(m.render()))
+}
+
+// twoHealthy is how the servers of twoServers stand: both healthy voters,
+// the follower three entries behind the leader.
+func twoHealthy() nomad.ClusterHealth {
+	return nomad.ClusterHealth{Healthy: true, FailureTolerance: 1, Servers: []nomad.ServerHealth{
+		{
+			Name: "server-01.global", Address: "10.0.0.5:4647", Healthy: true, Voter: true,
+			LastContact: 12 * time.Millisecond, LastIndex: 117,
+		},
+		{Name: "server-02.global", Address: "10.0.0.6:4647", Healthy: true, Voter: true, Leader: true, LastIndex: 120},
+	}}
+}
+
+// onServers is the server list.
+func onServers(t *testing.T, client *fakeClient) Model {
+	t.Helper()
+
+	return typeCommand(newTestModel(client), "servers")
+}
+
+func TestServers_TheirHealth(t *testing.T) {
+	r := require.New(t)
+
+	m := onServers(t, &fakeClient{servers: twoServers(), health: twoHealthy()})
+
+	// How many servers the cluster can lose is the first question of an
+	// outage.
+	r.Equal("Servers (healthy, can lose 1) [2]", m.title())
+
+	rows := m.rows()
+	r.Equal([]string{"healthy", "yes", "12ms", "3", ""}, rows[0].cells[7:])
+	r.Equal([]string{"healthy", "yes", "-", "-", "leader"}, rows[1].cells[7:])
+}
+
+func TestServers_AnUnhealthyServer(t *testing.T) {
+	r := require.New(t)
+
+	health := twoHealthy()
+	health.Healthy, health.FailureTolerance = false, 0
+	health.Servers[0].Healthy = false
+
+	m := onServers(t, &fakeClient{servers: twoServers(), health: health})
+
+	r.Equal("Servers (unhealthy, can lose 0) [2]", m.title())
+
+	rows := m.rows()
+	r.Equal("unhealthy", rows[0].cells[7])
+	r.Equal(colorDead, rows[0].color)
+}
+
+func TestServers_WhenHealthIsNotAllowed(t *testing.T) {
+	r := require.New(t)
+
+	m := onServers(t, &fakeClient{servers: twoServers(), healthErr: errTest})
+
+	// The list stays as it was, without the health an ACL keeps back.
+	r.Equal("Servers [2]", m.title())
+	r.Equal([]string{"-", "-", "-", "-", ""}, m.rows()[0].cells[7:])
+	r.NotEqual(flashErr, m.flash.level)
+}
+
+func TestServer_ItsHealth(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := serverScreen(t)
+
+	// The server of the screen follows a leader three entries ahead.
+	health := twoHealthy()
+	health.Servers[0].Leader, health.Servers[1].Leader = true, false
+	health.Servers[0].LastIndex, health.Servers[1].LastIndex = 120, 117
+	health.Servers[1].LastContact = 40 * time.Millisecond
+	health.Servers[1].StableSince = time.Now().Add(-3 * time.Hour)
+
+	m, _ = m.update(serverHealthMsg{health: health})
+
+	out := plain(m.render())
+	r.Contains(out, "healthy")
+	r.Contains(out, "40ms")
+	r.Contains(out, "117, 3 behind the leader")
+	r.Contains(out, "3h")
+}
+
+func TestServer_WhenHealthIsNotAllowed(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := serverScreen(t)
+
+	m, _ = m.update(serverHealthMsg{err: errTest})
+
+	r.Contains(plain(m.render()), "unknown: no answer from the client")
+	r.NotEqual(flashErr, m.flash.level)
+}
+
+func TestServers_AHealthThatNamesNoServer(t *testing.T) {
+	r := require.New(t)
+
+	// Autopilot that has not looked yet says nothing about any server; it
+	// is not a cluster that can lose none.
+	m := onServers(t, &fakeClient{servers: twoServers(), health: nomad.ClusterHealth{}})
+
+	r.Equal("Servers [2]", m.title())
+}
+
+func TestEntriesBehind(t *testing.T) {
+	r := require.New(t)
+
+	r.Equal(uint64(3), entriesBehind(nomad.ServerHealth{LastIndex: 117}, 120))
+
+	// Read a moment after the leader, a server can be ahead of what the
+	// answer says the leader holds; it is not behind by the rest of the
+	// numbers there are.
+	r.Zero(entriesBehind(nomad.ServerHealth{LastIndex: 121}, 120))
 }

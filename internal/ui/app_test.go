@@ -210,6 +210,13 @@ type fakeClient struct {
 	dispatchForm      nomad.DispatchForm
 	dispatchedMeta    map[string]string
 	dispatchedPayload []byte
+
+	// health is how the servers stand, or healthErr why it is not known.
+	health    nomad.ClusterHealth
+	healthErr error
+
+	// evaluated are the jobs evaluated, in turn.
+	evaluated []string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -513,6 +520,18 @@ func (f *fakeClient) DispatchJob(_ context.Context, namespace, jobID string, met
 	f.dispatchedMeta, f.dispatchedPayload = meta, payload
 
 	return jobID + "/dispatch-1790611292-1fcb1371", f.refused(f.actionErr)
+}
+
+func (f *fakeClient) EvaluateJob(_ context.Context, namespace, jobID string) error {
+	f.wrote("EvaluateJob")
+	f.askedNamespace = namespace
+	f.evaluated = append(f.evaluated, jobID)
+
+	return f.actionErr
+}
+
+func (f *fakeClient) ServerHealth(context.Context) (nomad.ClusterHealth, error) {
+	return f.health, f.healthErr
 }
 
 func (f *fakeClient) LaunchJob(_ context.Context, namespace, jobID string) error {
