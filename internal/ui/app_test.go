@@ -183,6 +183,21 @@ type fakeClient struct {
 	next    time.Time
 	nextErr error
 	nextOf  string
+
+	// volumes and plugins are the storage of the cluster; volume and plugin
+	// any one of them read, and volumeOf the last one asked for, by
+	// namespace, kind and ID.
+	volumes  []nomad.Volume
+	volume   nomad.VolumeDetail
+	volumeOf string
+	plugins  []nomad.Plugin
+	plugin   nomad.PluginDetail
+	pluginOf string
+
+	// detached is the volume and the node of the last detach, released the
+	// last claim released.
+	detached string
+	released string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -411,6 +426,52 @@ func (f *fakeClient) StopJob(_ context.Context, namespace, jobID string) error {
 	f.wrote("StopJob")
 	f.askedNamespace, f.askedID = namespace, jobID
 	f.stopped++
+
+	return f.actionErr
+}
+
+func (f *fakeClient) Volumes(_ context.Context, namespace string) ([]nomad.Volume, error) {
+	f.askedNamespace = namespace
+
+	return f.volumes, f.err
+}
+
+func (f *fakeClient) Volume(_ context.Context, namespace, kind, id string) (nomad.VolumeDetail, error) {
+	f.volumeOf = namespace + "/" + kind + "/" + id
+
+	return f.volume, f.err
+}
+
+func (f *fakeClient) DescribeVolume(_ context.Context, namespace, kind, id string) (string, error) {
+	f.volumeOf = namespace + "/" + kind + "/" + id
+
+	return f.describe, f.err
+}
+
+func (f *fakeClient) Plugins(context.Context) ([]nomad.Plugin, error) { return f.plugins, f.err }
+
+func (f *fakeClient) Plugin(_ context.Context, id string) (nomad.PluginDetail, error) {
+	f.pluginOf = id
+
+	return f.plugin, f.err
+}
+
+func (f *fakeClient) DescribePlugin(_ context.Context, id string) (string, error) {
+	f.pluginOf = id
+
+	return f.describe, f.err
+}
+
+func (f *fakeClient) DetachVolume(_ context.Context, namespace, volumeID, nodeID string) error {
+	f.wrote("DetachVolume")
+	f.askedNamespace, f.detached = namespace, volumeID+"@"+nodeID
+
+	return f.actionErr
+}
+
+func (f *fakeClient) ReleaseClaim(_ context.Context, namespace, claimID string) error {
+	f.wrote("ReleaseClaim")
+	f.askedNamespace, f.released = namespace, claimID
 
 	return f.actionErr
 }

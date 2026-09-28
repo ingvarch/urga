@@ -24,6 +24,8 @@ Press `:` to open the command line, type a command and press `enter`.
 | `clients` | `nodes`, `node`, `no` | Clients |
 | `nodepools` | `np` | Node pools |
 | `servers` | `srv` | Servers |
+| `volumes` | `volume`, `vol` | CSI and host volumes |
+| `plugins` | `plugin` | CSI plugins |
 | `about` | `version` | This urga: its version, a newer release and what changed. See [Newer releases](configuration.md#newer-releases). |
 
 You do not have to type the whole word. The line completes the command that
@@ -294,6 +296,36 @@ metadata, `e` edits it in your editor.
 | Key | What it does |
 | --- | --- |
 | `enter` | Details of the server |
+
+### Volumes
+
+| Key | What it does |
+| --- | --- |
+| `enter` | Open the volume |
+| `d` | Describe |
+
+### A volume
+
+The volume screen lists the allocations that use the volume. It has the keys
+of [Allocations](#allocations), and these:
+
+| Key | What it does | Changes |
+| --- | --- | --- |
+| `ctrl-d` | Detach a CSI volume from the node of the allocation under the cursor | yes |
+| `ctrl-r` | Release the claim of a task group on a host volume. Shown when the volume is claimed. | yes |
+
+### Plugins
+
+| Key | What it does |
+| --- | --- |
+| `enter` | Open the plugin |
+| `d` | Describe |
+
+### A plugin
+
+| Key | What it does |
+| --- | --- |
+| `enter` | Tasks of the allocation that runs the instance under the cursor |
 
 ### Text screens
 

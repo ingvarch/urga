@@ -21,6 +21,7 @@ var clientRoles = []reflect.Type{
 	reflect.TypeFor[variablesClient](),
 	reflect.TypeFor[serversClient](),
 	reflect.TypeFor[filesClient](),
+	reflect.TypeFor[volumesClient](),
 }
 
 // Every method of Client belongs to one role and only one: a method added to

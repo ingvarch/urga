@@ -23,6 +23,7 @@ type Client interface {
 	evaluationsClient
 	variablesClient
 	serversClient
+	volumesClient
 }
 
 // The roles the cluster plays for the screens, one per kind of resource.
@@ -142,5 +143,18 @@ type (
 		Servers(ctx context.Context) ([]nomad.Server, error)
 		Server(ctx context.Context, name string) (nomad.Server, error)
 		RaftPeers(ctx context.Context) ([]nomad.RaftPeer, error)
+	}
+
+	// volumesClient is the storage of the cluster: CSI and host volumes,
+	// and the CSI plugins that provide them.
+	volumesClient interface {
+		Volumes(ctx context.Context, namespace string) ([]nomad.Volume, error)
+		Volume(ctx context.Context, namespace, kind, id string) (nomad.VolumeDetail, error)
+		DescribeVolume(ctx context.Context, namespace, kind, id string) (string, error)
+		Plugins(ctx context.Context) ([]nomad.Plugin, error)
+		Plugin(ctx context.Context, id string) (nomad.PluginDetail, error)
+		DescribePlugin(ctx context.Context, id string) (string, error)
+		DetachVolume(ctx context.Context, namespace, volumeID, nodeID string) error
+		ReleaseClaim(ctx context.Context, namespace, claimID string) error
 	}
 )
