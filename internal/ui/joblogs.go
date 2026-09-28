@@ -49,6 +49,10 @@ type logScope struct {
 	// nodeID and deploymentID read the allocations of a client or of a
 	// deployment rather than those of the job; label names the client.
 	nodeID, deploymentID, label string
+
+	// volumeKind and volumeID read the allocations that use a volume; label
+	// names it.
+	volumeKind, volumeID string
 }
 
 // logChoice is a task and the allocations that run it.
@@ -114,11 +118,22 @@ func askLogScope(e env, scope logScope) outcome {
 	})))
 }
 
-// allocsOf reads the allocations of a list: of a deployment, of a client, of
-// a job, or of the namespace.
-func allocsOf(client allocsClient, s logScope) func(ctx context.Context) ([]nomad.Alloc, error) {
+// logsClient is what reads the allocations of a list: those of a volume come
+// with the volume.
+type logsClient interface {
+	allocsClient
+	volumesClient
+}
+
+// allocsOf reads the allocations of a list: of a volume, of a deployment, of
+// a client, of a job, or of the namespace.
+func allocsOf(client logsClient, s logScope) func(ctx context.Context) ([]nomad.Alloc, error) {
 	return func(ctx context.Context) ([]nomad.Alloc, error) {
 		switch {
+		case s.volumeID != "":
+			v, err := client.Volume(ctx, s.namespace, s.volumeKind, s.volumeID)
+
+			return v.Allocs, err
 		case s.deploymentID != "":
 			return client.DeploymentAllocations(ctx, s.namespace, s.deploymentID)
 		case s.nodeID != "":
@@ -214,6 +229,8 @@ func (p logTasksPage) title(env, int) string {
 		return fmt.Sprintf("Logs of which task? (Job: %s)", p.scope.jobID)
 	case p.scope.nodeID != "":
 		return fmt.Sprintf("Logs of which task? (Client: %s)", p.scope.label)
+	case p.scope.volumeID != "":
+		return fmt.Sprintf("Logs of which task? (Volume: %s)", p.scope.label)
 	}
 
 	return "Logs of which task?"
@@ -368,7 +385,7 @@ func (p jobLogsPage) read(client filesClient, allocs []nomad.Alloc) (jobLogsPage
 
 // reload reads the allocations again, to open the logs of the ones that
 // run the task now.
-func (p jobLogsPage) reload(client allocsClient) (jobLogsPage, tea.Cmd) {
+func (p jobLogsPage) reload(client logsClient) (jobLogsPage, tea.Cmd) {
 	p.logs.stop()
 	p.content = textContent{}
 

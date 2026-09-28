@@ -28,6 +28,7 @@ func everyScreen(t *testing.T) map[string]Model {
 	open := listsByName(client)
 	openOfAJob(open)
 	openOfAPeriodicJob(open)
+	openOfStorage(open)
 	openOfATask(open)
 	openOfAClient(open)
 	openOfTheLists(open)
@@ -85,6 +86,12 @@ func everyScreenClient() *fakeClient {
 			Variable: nomad.Variable{Path: "nomad/jobs/web", Namespace: "production"},
 			Items:    map[string]string{"DB_HOST": "10.0.0.5"},
 		},
+
+		// The storage: a CSI volume read in full, and a plugin.
+		volumes: twoVolumes(),
+		volume:  csiDetail(),
+		plugins: onePlugin(),
+		plugin:  pluginDetail(),
 	}
 }
 
@@ -100,6 +107,8 @@ func listsByName(client *fakeClient) map[string]Model {
 		"variables":   variablesMsg(client.variables),
 		"nodepools":   nodePoolsMsg(client.nodePools),
 		"servers":     serversMsg(client.servers),
+		"volumes":     volumesMsg(client.volumes),
+		"plugins":     pluginsMsg(client.plugins),
 	}
 
 	open := map[string]Model{}
@@ -170,6 +179,24 @@ func openOfAPeriodicJob(open map[string]Model) {
 	open["launches"] = drain(launches, cmd)
 }
 
+// openOfStorage adds a volume of each kind and a plugin. The host volume is
+// claimed, so both keys of a volume are offered somewhere.
+func openOfStorage(open map[string]Model) {
+	csi, cmd := open["volumes"].update(enter())
+	open["csivolume"] = drain(csi, cmd)
+
+	client := everyScreenClient()
+	client.volume = hostDetail()
+
+	host := typeCommand(newTestModel(client), "volumes")
+	host, _ = host.update(key('j'))
+	host, cmd = host.update(enter())
+	open["hostvolume"] = drain(host, cmd)
+
+	plugin, cmd := open["plugins"].update(enter())
+	open["plugin"] = drain(plugin, cmd)
+}
+
 // openOfATask adds the screens that hang off a task.
 func openOfATask(open map[string]Model) {
 	events, _ := open["tasks"].update(key('e'))
@@ -195,11 +222,11 @@ func openOfAClient(open map[string]Model) {
 	open["client"] = machine
 
 	for name, press := range map[string]tea.KeyPressMsg{
-		"events":     key('e'),
-		"drivers":    ctrlKey('d'),
-		"volumes":    ctrlKey('h'),
-		"attributes": key('a'),
-		"meta":       key('m'),
+		"events":      key('e'),
+		"drivers":     ctrlKey('d'),
+		"nodevolumes": ctrlKey('h'),
+		"attributes":  key('a'),
+		"meta":        key('m'),
 	} {
 		next, cmd := machine.update(press)
 		open[name] = drain(next, cmd)

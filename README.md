@@ -24,7 +24,8 @@ One binary, no config to write, no browser.
 ## What it does
 
 - Lists jobs, allocations, tasks, task groups, deployments, evaluations,
-  services, namespaces, variables, clients, node pools and servers.
+  services, namespaces, variables, clients, node pools, servers, volumes and
+  CSI plugins.
 - Updates the screen when the cluster changes, using the Nomad event stream.
 - Shows task logs and the files of an allocation, and follows them as they
   grow. Shows the log of a task from every allocation of a job at once.
@@ -98,6 +99,8 @@ quit.
   actions, logs and files.
 - [Clients, servers and other resources](docs/clients.md): clients,
   servers, namespaces, services, variables and node pools.
+- [Storage](docs/storage.md): CSI volumes, dynamic host volumes and CSI
+  plugins.
 
 ## Contributing
 
