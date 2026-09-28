@@ -87,7 +87,7 @@ func TestDeploymentAllocations(t *testing.T) {
 func TestPromoteGroups(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/deployment/promote/dep-1": `{}`})
+	client, asked := clusterServer(t, map[string]string{"/v1/deployment/promote/dep-1": `{}`})
 
 	r.NoError(client.PromoteGroups(context.Background(), "production", "dep-1", []string{"web"}))
 
@@ -100,7 +100,7 @@ func TestPromoteGroups(t *testing.T) {
 func TestPauseDeployment(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/deployment/pause/dep-1": `{}`})
+	client, asked := clusterServer(t, map[string]string{"/v1/deployment/pause/dep-1": `{}`})
 
 	r.NoError(client.PauseDeployment(context.Background(), "production", "dep-1", true))
 	r.NoError(client.PauseDeployment(context.Background(), "production", "dep-1", false))

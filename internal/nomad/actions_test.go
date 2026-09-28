@@ -77,7 +77,7 @@ func register(t *testing.T, asked []sent) sent {
 func TestStartJob_KeepsTheSource(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/job/web": `{"ID": "web", "Name": "web", "Version": 1, "Stop": true}`,
 		"/v1/job/web/submission": `{
 			"Source": "job \"web\" {}",
@@ -108,7 +108,7 @@ func TestStartJob_KeepsTheSource(t *testing.T) {
 func TestStartJob_WithoutASource(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/job/web": `{"ID": "web", "Name": "web", "Version": 1, "Stop": true}`,
 		"/v1/jobs":    `{"EvalID": "eval-1"}`,
 	})
@@ -122,7 +122,7 @@ func TestStartJob_WithoutASource(t *testing.T) {
 func TestStartJob_TurnsTheScalingPoliciesBackOn(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/job/web": stoppedJob,
 		"/v1/job/web/submission": `{
 			"Source": "job \"web\" {}",
@@ -150,7 +150,7 @@ func TestStartJob_TurnsTheScalingPoliciesBackOn(t *testing.T) {
 func TestStartJob_WithoutScalingParsesNothing(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/job/web":            `{"ID": "web", "Name": "web", "Version": 1, "Stop": true, "TaskGroups": [{"Name": "g"}]}`,
 		"/v1/job/web/submission": `{"Source": "job \"web\" {}", "Format": "hcl2"}`,
 		"/v1/jobs":               `{"EvalID": "eval-1"}`,
@@ -273,7 +273,7 @@ func TestFailDeployment(t *testing.T) {
 func TestRestartTask(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/client/allocation/af1f37df/restart": `{}`})
+	client, asked := clusterServer(t, map[string]string{"/v1/client/allocation/af1f37df/restart": `{}`})
 
 	r.NoError(client.RestartTask(context.Background(), "production", "af1f37df", "server"))
 
@@ -287,7 +287,7 @@ func TestRestartTask(t *testing.T) {
 func TestSignalTask(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/client/allocation/af1f37df/signal": `{}`})
+	client, asked := clusterServer(t, map[string]string{"/v1/client/allocation/af1f37df/signal": `{}`})
 
 	r.NoError(client.SignalTask(context.Background(), "production", "af1f37df", "server", "SIGHUP"))
 

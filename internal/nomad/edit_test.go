@@ -21,10 +21,12 @@ type sent struct {
 	body      map[string]any
 }
 
-// jobServer answers each path with a body of its own and keeps every request
-// in the order it came. A path it has no answer for returns 404, which is
-// how the cluster reports that a job has no submission.
-func jobServer(t *testing.T, answers map[string]string) (*nomad.Client, *[]sent) {
+// clusterServer answers each path with a body of its own and keeps every
+// request in the order it came. A request with a type is answered by its
+// path and type, "/v1/volumes?type=host": one path lists two kinds. A path it
+// has no answer for returns 404, which is how the cluster reports that a job
+// has no submission.
+func clusterServer(t *testing.T, answers map[string]string) (*nomad.Client, *[]sent) {
 	t.Helper()
 
 	var asked []sent
@@ -36,7 +38,12 @@ func jobServer(t *testing.T, answers map[string]string) (*nomad.Client, *[]sent)
 		query := req.URL.Query()
 		asked = append(asked, sent{path: req.URL.Path, namespace: query.Get("namespace"), query: query, body: body})
 
-		answer, ok := answers[req.URL.Path]
+		route := req.URL.Path
+		if kind := query.Get("type"); kind != "" {
+			route += "?type=" + kind
+		}
+
+		answer, ok := answers[route]
 		if !ok {
 			http.Error(w, "not found", http.StatusNotFound)
 
@@ -69,7 +76,7 @@ func submission(t *testing.T, register sent) map[string]any {
 func TestSubmitJob_JSON(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/jobs": `{"EvalID": "eval-1"}`})
+	client, asked := clusterServer(t, map[string]string{"/v1/jobs": `{"EvalID": "eval-1"}`})
 
 	source := `{"ID": "web", "Name": "web"}`
 	r.NoError(client.SubmitJob(context.Background(), "production", source, nomad.JobVariables{}, 0))
@@ -86,7 +93,7 @@ func TestSubmitJob_JSON(t *testing.T) {
 func TestSubmitJob_JSONUnderAJobKey(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/jobs": `{"EvalID": "eval-1"}`})
+	client, asked := clusterServer(t, map[string]string{"/v1/jobs": `{"EvalID": "eval-1"}`})
 
 	source := `{"Job": {"ID": "web", "Name": "web"}}`
 	r.NoError(client.SubmitJob(context.Background(), "production", source, nomad.JobVariables{}, 0))
@@ -104,7 +111,7 @@ func TestSubmitJob_JSONUnderAJobKey(t *testing.T) {
 func TestSubmitJob_HCLGoesThroughTheCluster(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/jobs/parse": `{"ID": "web", "Name": "web"}`,
 		"/v1/jobs":       `{"EvalID": "eval-1"}`,
 	})
@@ -120,7 +127,7 @@ func TestSubmitJob_HCLGoesThroughTheCluster(t *testing.T) {
 func TestSubmitJob_ParsesInTheNamespace(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/jobs/parse": `{"ID": "web", "Name": "web"}`,
 		"/v1/jobs":       `{"EvalID": "eval-1"}`,
 	})
@@ -135,7 +142,7 @@ func TestSubmitJob_ParsesInTheNamespace(t *testing.T) {
 func TestSubmitJob_HCLKeepsTheSourceAndVariables(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/jobs/parse": `{"ID": "web", "Name": "web"}`,
 		"/v1/jobs":       `{"EvalID": "eval-1"}`,
 	})
@@ -165,7 +172,7 @@ func TestSubmitJob_HCLKeepsTheSourceAndVariables(t *testing.T) {
 func TestSubmitJob_FlagValuesStayText(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/jobs/parse": `{"ID": "web", "Name": "web"}`,
 		"/v1/jobs":       `{"EvalID": "eval-1"}`,
 	})
