@@ -18,6 +18,13 @@ func (c *Client) StopJob(ctx context.Context, namespace, jobID string) error {
 	return err
 }
 
+// EvaluateJob asks the scheduler to evaluate a job again as it stands.
+func (c *Client) EvaluateJob(ctx context.Context, namespace, jobID string) error {
+	_, _, err := c.api.Jobs().ForceEvaluate(jobID, c.write(ctx, namespace))
+
+	return err
+}
+
 // LaunchJob launches a periodic job now, out of its schedule.
 func (c *Client) LaunchJob(ctx context.Context, namespace, jobID string) error {
 	_, _, err := c.api.Jobs().PeriodicForce(jobID, c.write(ctx, namespace))
