@@ -77,6 +77,9 @@ type env struct {
 
 	// readOnly takes away every key that changes the cluster.
 	readOnly bool
+
+	// build is this urga, for the about screen.
+	build buildInfo
 }
 
 // env is the session as the pages see it.
@@ -99,6 +102,14 @@ func (m Model) env() env {
 		clusters:    m.opts.Clusters,
 		namespaces:  m.namespaces,
 		readOnly:    m.opts.ReadOnly,
+		build: buildInfo{
+			version:    m.opts.Version,
+			commit:     m.opts.Commit,
+			built:      m.opts.Built,
+			updateHint: m.opts.UpdateHint,
+			releases:   m.opts.Releases,
+			unchecked:  m.opts.Unchecked,
+		},
 	}
 }
 

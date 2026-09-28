@@ -90,7 +90,7 @@ func open(cl cmdline) (ui.Model, error) {
 		connect = connectWith(cl, s)
 	}
 
-	return ui.New(client, ui.Options{
+	return ui.New(client, withBuild(ui.Options{
 		Cluster:        st.cluster,
 		Color:          st.color,
 		Clusters:       s.Names(),
@@ -98,13 +98,11 @@ func open(cl cmdline) (ui.Model, error) {
 		Namespace:      ui.NamespaceOrAll(st.namespace),
 		NamespaceGiven: st.namespaceGiven,
 		ReadOnly:       st.readOnly,
-		Version:        version.Current(),
 		Config:         cfg,
 		Editor:         ui.NewEditor(),
 		Shell:          ui.NewShell(client),
 		InRegion:       ui.InRegionOf(client),
-		NewerRelease:   newerRelease(os.Getenv, version.Version),
-	}), nil
+	}, os.Getenv, executable())), nil
 }
 
 // cmdline is what the command line says.
@@ -256,11 +254,82 @@ func given(flags *flag.FlagSet, name string) bool {
 // release, for a network that cannot or should not reach it.
 const noUpdateCheck = "URGA_NO_UPDATE_CHECK"
 
+// The ways to update urga: Homebrew for a copy it installed, the release
+// page for the rest. A package or an archive cannot be told apart by where
+// it lies.
+const (
+	brewUpdate    = "brew upgrade ingvarch/tap/urga"
+	releasesPage  = "https://github.com/ingvarch/urga/releases/latest"
+	brewInstalled = "/Caskroom/urga/"
+)
+
+// updateHint is how to update the urga at path.
+func updateHint(path string) string {
+	if strings.Contains(filepath.ToSlash(path), brewInstalled) {
+		return brewUpdate
+	}
+
+	return releasesPage
+}
+
+// executable is where this urga lies, links followed: Homebrew links it from
+// its bin. Empty when that cannot be read.
+func executable() string {
+	path, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+
+	return resolved
+}
+
+// unchecked says why urga must not ask for its releases: the check is turned
+// off, or current was built from source and has no release to be behind.
+// Empty means it may ask.
+func unchecked(getenv func(string) string, current string) string {
+	switch {
+	case getenv(noUpdateCheck) != "":
+		return noUpdateCheck + " is set"
+	case !release.IsRelease(current):
+		return "a build from source"
+	}
+
+	return ""
+}
+
+// releasesOf reads the releases of urga, or says why it must not.
+func releasesOf(getenv func(string) string, current string) (func(ctx context.Context) ([]release.Notes, error), string) {
+	if why := unchecked(getenv, current); why != "" {
+		return nil, why
+	}
+
+	return func(ctx context.Context) ([]release.Notes, error) {
+		return release.Releases(ctx, http.DefaultClient, release.ReleasesURL)
+	}, ""
+}
+
+// withBuild adds what the build knows about itself to the options: the
+// version for the header, the rest for the about screen.
+func withBuild(opts ui.Options, getenv func(string) string, path string) ui.Options {
+	opts.Version = version.Version
+	opts.Commit = version.StampedCommit()
+	opts.Built = version.StampedDate()
+	opts.UpdateHint = updateHint(path)
+	opts.Releases, opts.Unchecked = releasesOf(getenv, version.Version)
+	opts.NewerRelease = newerRelease(getenv, version.Version)
+
+	return opts
+}
+
 // newerRelease asks whether a release newer than current is out. It is nil
-// when it must not ask: the check is turned off, or current was built from
-// source and has no release to be behind.
+// when it must not ask.
 func newerRelease(getenv func(string) string, current string) func(ctx context.Context) (string, error) {
-	if getenv(noUpdateCheck) != "" || !release.IsRelease(current) {
+	if unchecked(getenv, current) != "" {
 		return nil
 	}
 

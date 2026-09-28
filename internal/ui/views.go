@@ -83,6 +83,13 @@ var (
 		aliases: []string{"nodepools", "nodepool", "np"},
 		open:    func() page { return nodePoolsPage{} },
 	}
+
+	// aboutView is this urga. It is not a list of the cluster, so the next
+	// run does not reopen it.
+	aboutView = &view{
+		aliases: []string{"about", "version"},
+		open:    func() page { return aboutPage{} },
+	}
 )
 
 // views is the one place that knows which lists urga opens by name, so that
@@ -90,7 +97,7 @@ var (
 var views = []*view{
 	jobsView, allocationsView, deploymentsView, servicesView, evaluationsView,
 	nodesView, variablesView, regionsView, datacentersView, clustersView,
-	namespacesView, serversView, nodePoolsView,
+	namespacesView, serversView, nodePoolsView, aboutView,
 }
 
 // opened is the list as a screen just opened, with nothing read into it yet.

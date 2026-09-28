@@ -24,6 +24,7 @@ Press `:` to open the command line, type a command and press `enter`.
 | `clients` | `nodes`, `node`, `no` | Clients |
 | `nodepools` | `np` | Node pools |
 | `servers` | `srv` | Servers |
+| `about` | `version` | This urga: its version, a newer release and what changed. See [Newer releases](configuration.md#newer-releases). |
 
 You do not have to type the whole word. The line completes the command that
 matches what you typed. `up` and `down` go through the other matches, `tab`

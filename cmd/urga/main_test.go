@@ -5,11 +5,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
 	"github.com/ingvarch/urga/internal/settings"
+	"github.com/ingvarch/urga/internal/ui"
+	"github.com/ingvarch/urga/internal/version"
 )
 
 // flagsFrom parses a command line with a namespace flag whose default came
@@ -252,4 +255,55 @@ address = "http://127.0.0.1:4646"
 
 	_, err = open(cmdline{cluster: "stage"})
 	r.ErrorContains(err, `no cluster "stage": dev`)
+}
+
+func TestUpdateHint(t *testing.T) {
+	r := require.New(t)
+
+	// Homebrew keeps what it installed in its Caskroom, wherever it lives.
+	r.Equal("brew upgrade ingvarch/tap/urga", updateHint("/opt/homebrew/Caskroom/urga/0.7.2/urga"))
+	r.Equal("brew upgrade ingvarch/tap/urga", updateHint("/usr/local/Caskroom/urga/0.7.2/urga"))
+
+	// A package, an archive, or a path that could not be read.
+	r.Equal("https://github.com/ingvarch/urga/releases/latest", updateHint("/usr/bin/urga"))
+	r.Equal("https://github.com/ingvarch/urga/releases/latest", updateHint(""))
+}
+
+func TestReleasesOf(t *testing.T) {
+	r := require.New(t)
+
+	read, why := releasesOf(environment(nil), "v0.5.0")
+	r.NotNil(read)
+	r.Empty(why)
+
+	// The same rule as the check for a newer release, with the reason.
+	read, why = releasesOf(environment(map[string]string{"URGA_NO_UPDATE_CHECK": "1"}), "v0.5.0")
+	r.Nil(read)
+	r.Equal("URGA_NO_UPDATE_CHECK is set", why)
+
+	read, why = releasesOf(environment(nil), "v0.5.0-3-gabc1234-dirty")
+	r.Nil(read)
+	r.Equal("a build from source", why)
+}
+
+func TestWithBuild(t *testing.T) {
+	r := require.New(t)
+
+	stamped := []string{version.Version, version.Commit, version.Date}
+	t.Cleanup(func() { version.Version, version.Commit, version.Date = stamped[0], stamped[1], stamped[2] })
+
+	version.Version, version.Commit, version.Date = "v0.7.2", "adb6c04", "2026-09-28T13:33:04Z"
+
+	opts := withBuild(ui.Options{ReadOnly: true}, environment(nil), "/opt/homebrew/Caskroom/urga/0.7.2/urga")
+
+	// The header shows the version alone; the commit is on the about screen.
+	r.Equal("v0.7.2", opts.Version)
+	r.Equal("adb6c04", opts.Commit)
+	r.Equal(time.Date(2026, 9, 28, 13, 33, 4, 0, time.UTC), opts.Built.UTC())
+	r.Equal("brew upgrade ingvarch/tap/urga", opts.UpdateHint)
+	r.NotNil(opts.Releases)
+	r.NotNil(opts.NewerRelease)
+
+	// What was set before stays.
+	r.True(opts.ReadOnly)
 }

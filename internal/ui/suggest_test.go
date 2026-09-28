@@ -58,13 +58,13 @@ func TestPrompt_AnEmptyLineOffersNothingUntilTheArrows(t *testing.T) {
 	r.Equal(":", promptLine(m))
 
 	m, _ = m.update(down())
-	r.Equal(":allocations", promptLine(m))
+	r.Equal(":about", promptLine(m))
 
 	m, _ = m.update(down())
-	r.Equal(":clients", promptLine(m))
+	r.Equal(":allocations", promptLine(m))
 
 	m, _ = m.update(up())
-	r.Equal(":allocations", promptLine(m))
+	r.Equal(":about", promptLine(m))
 }
 
 func TestPrompt_TabTakesWhatIsOffered(t *testing.T) {
