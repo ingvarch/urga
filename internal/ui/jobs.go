@@ -138,6 +138,7 @@ var jobsKeys = []pageKey[jobsPage]{
 	{press: "h", label: "Job Spec", do: showJobSpec},
 	{press: "ctrl+s", label: "Start/Stop", do: startStopJob, writes: true},
 	{press: "r", label: "Run Now", do: runNow, writes: true, offered: runsOnSchedule},
+	{press: "r", label: "Dispatch", do: dispatchJob, writes: true, offered: dispatchable},
 	// The list of jobs reverts to the version before the one that runs;
 	// the list of versions reverts to the one under the cursor.
 	{press: "u", label: "Revert", do: revertJob, writes: true},

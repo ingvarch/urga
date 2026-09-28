@@ -57,6 +57,8 @@ type (
 		StartJob(ctx context.Context, namespace, jobID string) error
 		StopJob(ctx context.Context, namespace, jobID string) error
 		LaunchJob(ctx context.Context, namespace, jobID string) error
+		DispatchForm(ctx context.Context, namespace, jobID string) (nomad.DispatchForm, error)
+		DispatchJob(ctx context.Context, namespace, jobID string, meta map[string]string, payload []byte) (string, error)
 		NextLaunch(ctx context.Context, namespace, jobID string) (time.Time, error)
 		JobVersions(ctx context.Context, namespace, jobID string) ([]nomad.JobVersion, error)
 		JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) ([]nomad.DiffLine, error)

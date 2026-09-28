@@ -37,8 +37,30 @@ keys of the job list work on them. For a periodic job, the title says when it
 launches next, for example `Launches (Job: backup, next in 4h) [2]`.
 
 `r` runs a periodic job now, out of its schedule, after you confirm. The launch
-appears among its launches. A parameterized job is not run this way: it runs
-when it is dispatched, with what the dispatch gives it.
+appears among its launches.
+
+On a parameterized job, `r` dispatches it. A job that takes no meta and no
+payload is dispatched after you confirm. For any other, urga opens a file in
+your editor:
+
+```
+# Dispatch report in production.
+# Required meta: day. Optional meta: region.
+# Payload: optional. It is everything below the line "--- payload ---", as it is.
+# Save a change to dispatch: at least delete this line. Quit without saving to drop it.
+day = monday
+region =
+--- payload ---
+{"rows": 100}
+```
+
+Each line above the marker is a meta key and its value. A key left empty is
+not sent. Everything below `--- payload ---` is the payload, as you typed it;
+a job that takes no payload has no marker. Save and close the editor to
+dispatch; the status line names the job the dispatch launched. A file saved
+unchanged dispatches nothing. When a line does not read as `key = value`, or
+the cluster refuses the dispatch, for example because a required key is
+missing, the file opens again with the reason at the top.
 
 ## Starting and stopping
 

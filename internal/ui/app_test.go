@@ -204,6 +204,12 @@ type fakeClient struct {
 	found     nomad.Found
 	findText  string
 	findCalls int
+
+	// dispatchForm is what a dispatch may give any parameterized job;
+	// dispatchedMeta and dispatchedPayload what the last dispatch gave.
+	dispatchForm      nomad.DispatchForm
+	dispatchedMeta    map[string]string
+	dispatchedPayload []byte
 }
 
 // wrote keeps a call that changes the cluster.
@@ -493,6 +499,20 @@ func (f *fakeClient) NextLaunch(_ context.Context, namespace, jobID string) (tim
 	f.nextOf = namespace + "/" + jobID
 
 	return f.next, f.nextErr
+}
+
+func (f *fakeClient) DispatchForm(_ context.Context, namespace, jobID string) (nomad.DispatchForm, error) {
+	f.askedNamespace, f.askedID = namespace, jobID
+
+	return f.dispatchForm, f.err
+}
+
+func (f *fakeClient) DispatchJob(_ context.Context, namespace, jobID string, meta map[string]string, payload []byte) (string, error) {
+	f.wrote("DispatchJob")
+	f.askedNamespace, f.askedID = namespace, jobID
+	f.dispatchedMeta, f.dispatchedPayload = meta, payload
+
+	return jobID + "/dispatch-1790611292-1fcb1371", f.refused(f.actionErr)
 }
 
 func (f *fakeClient) LaunchJob(_ context.Context, namespace, jobID string) error {

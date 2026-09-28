@@ -23,7 +23,7 @@ var (
 		"RestartAllocation", "StopAllocation", "RestartTask", "SignalTask", "PromoteGroups", "PauseDeployment", "DeleteServiceRegistration",
 		"DrainNode", "SetNodeEligible",
 		"PromoteDeployment", "FailDeployment",
-		"DetachVolume", "ReleaseClaim",
+		"DetachVolume", "ReleaseClaim", "DispatchJob",
 	}
 
 	clientReads = []string{
@@ -36,7 +36,7 @@ var (
 		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "FailedPlacement", "Variables", "Variable", "VariableSpec",
 		"Servers", "Server", "RaftPeers", "Events",
 		"Volumes", "Volume", "DescribeVolume", "Plugins", "Plugin", "DescribePlugin",
-		"Find",
+		"Find", "DispatchForm",
 	}
 )
 
