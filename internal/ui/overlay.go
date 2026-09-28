@@ -325,6 +325,10 @@ func (m Model) commit() (Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
+	if cmd.finding {
+		return m.find(cmd.text)
+	}
+
 	switch cmd.switching {
 	case scopeRegion:
 		return m.regionCommand(cmd.name)

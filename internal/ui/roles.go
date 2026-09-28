@@ -24,6 +24,7 @@ type Client interface {
 	variablesClient
 	serversClient
 	volumesClient
+	searchClient
 }
 
 // The roles the cluster plays for the screens, one per kind of resource.
@@ -156,5 +157,10 @@ type (
 		DescribePlugin(ctx context.Context, id string) (string, error)
 		DetachVolume(ctx context.Context, namespace, volumeID, nodeID string) error
 		ReleaseClaim(ctx context.Context, namespace, claimID string) error
+	}
+
+	// searchClient finds anything in the cluster by its name or its ID.
+	searchClient interface {
+		Find(ctx context.Context, text string) (nomad.Found, error)
 	}
 )

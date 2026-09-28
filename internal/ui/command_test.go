@@ -74,7 +74,7 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal([]string{
 		"about", "allocations", "clients", "deployments", "evaluations", "jobs",
 		"namespaces", "nodepools", "plugins", "servers", "services", "variables",
-		"volumes", "ctx", "dc", "region",
+		"volumes", "ctx", "dc", "region", "find",
 	}, matchingCommands(""))
 
 	// A word that is an alias of its own comes first, whatever other names
@@ -136,4 +136,25 @@ func TestMatchingCommands_OfferTheSwitchesAfterTheResources(t *testing.T) {
 	r.Equal([]string{"dc"}, matchingCommands("dc"))
 	r.Equal([]string{"region"}, matchingCommands("r"))
 	r.Equal([]string{"region"}, matchingCommands("region eu"))
+}
+
+func TestParseCommand_Find(t *testing.T) {
+	r := require.New(t)
+
+	// The rest of the line is what to find, spaces and all.
+	for input, text := range map[string]string{
+		"find web":       "web",
+		"search web":     "web",
+		"find web http":  "web http",
+		"  find   web  ": "web",
+		"find":           "",
+		"FIND Web":       "Web",
+	} {
+		cmd, ok := parseCommand(input)
+		r.True(ok, input)
+		r.True(cmd.finding, input)
+		r.Equal(text, cmd.text, input)
+	}
+
+	r.Equal([]string{"find"}, matchingCommands("f"))
 }

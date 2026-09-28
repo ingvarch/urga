@@ -66,6 +66,10 @@ const (
 // offers them: after the resources, so that `d` stays the deployments.
 var scopeNames = []string{"ctx", "dc", "region"}
 
+// findNames are the words that search the cluster. The prompt offers the
+// first, after the scopes.
+var findNames = []string{"find", "search"}
+
 var scopeAliases = map[string]scope{
 	"ctx":     scopeCluster,
 	"cluster": scopeCluster,
@@ -82,6 +86,10 @@ type command struct {
 	// switching is the scope the line switches, name what it switches to.
 	switching scope
 	name      string
+
+	// finding says the line searches the cluster, text for what.
+	finding bool
+	text    string
 }
 
 // parseCommand reads "<resource> [namespace]", for example "jobs production",
@@ -102,6 +110,13 @@ func parseCommand(input string) (command, bool) {
 
 	if bailAliases[word] {
 		return command{bail: true}, true
+	}
+
+	// What to find is the rest of the line, spaces and all.
+	if slices.Contains(findNames, word) {
+		rest := strings.TrimPrefix(strings.TrimSpace(input), fields[0])
+
+		return command{finding: true, text: strings.TrimSpace(rest)}, true
 	}
 
 	if switching, ok := scopeAliases[word]; ok {
@@ -174,7 +189,7 @@ func matchingCommands(typed string) []string {
 		matches = append(matches, nameOf(named))
 	}
 
-	for _, name := range append(slices.Clone(commandNames), scopeNames...) {
+	for _, name := range slices.Concat(commandNames, scopeNames, findNames[:1]) {
 		if strings.HasPrefix(name, word) && !slices.Contains(matches, name) {
 			matches = append(matches, name)
 		}

@@ -45,11 +45,44 @@ Other commands:
 | `dc` | List the datacenters and pick one. |
 | `ctx prod` | Switch to another cluster from the settings file. See [Named clusters](clusters.md). |
 | `ctx` | List the clusters and pick one. |
+| `find web` | Find anything in the cluster by its name or ID. `search` works too. See [Find](#find). |
 | `q`, `quit`, `exit` | Quit. |
 
 In a list of regions, datacenters or clusters, the current one is marked.
 `enter` switches to the one under the cursor, `esc` goes back without a
 change.
+
+## Find
+
+`:find web` searches the whole cluster, every namespace your token can read,
+for names that contain `web`, or come close: jobs, their groups, tasks,
+services, images and commands, allocations, clients, node pools, namespaces,
+variables, volumes and CSI plugins. Text that can begin an ID, such as
+`bb19f`, also finds the allocation, evaluation, deployment or client whose ID
+begins with it. The rest of the line is what to find, spaces included. The
+cluster needs at least 2 characters.
+
+The screen lists what was found: its type, its name, its namespace, and where
+it is, such as the job and group of a service or the ID of an allocation. It
+is the search as the cluster answered it; run `:find` again to search again.
+When the cluster cut a list short, the status line says to type more.
+
+`enter` opens what is under the cursor:
+
+| Found | Opens |
+| --- | --- |
+| job | The job list with only this job, and every key of a job |
+| group, task, image, command | The allocations of the group |
+| service | The instances of the service |
+| allocation | Its tasks |
+| client | The client screen |
+| namespace | The job list of that namespace, which the session switches to |
+| variable, volume, plugin | Its screen |
+| evaluation | The evaluation |
+| deployment | The deployment |
+
+A node pool or a node class has no screen of its own, so `enter` does nothing
+on it.
 
 ## Filter
 
