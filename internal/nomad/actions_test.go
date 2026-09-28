@@ -24,6 +24,19 @@ func TestStopJob(t *testing.T) {
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 }
 
+func TestLaunchJob(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{"EvalID": "eval-1"}`)
+
+	r.NoError(client.LaunchJob(context.Background(), "production", "backup"))
+
+	// A launch out of the schedule of a periodic job.
+	r.Equal(http.MethodPut, asked.Method)
+	r.Equal("/v1/job/backup/periodic/force", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+}
+
 func TestStartJob(t *testing.T) {
 	r := require.New(t)
 

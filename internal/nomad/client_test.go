@@ -101,6 +101,64 @@ func TestJobs_ReadsTheList(t *testing.T) {
 	r.Equal(1, job.Queued)
 }
 
+func TestJobs_ReadsWhatLaunchedAJob(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[
+		{"ID": "backup", "Type": "batch", "Status": "running", "Periodic": true},
+		{"ID": "backup/periodic-1758499200", "ParentID": "backup", "Type": "batch", "Status": "dead"},
+		{"ID": "report", "Type": "batch", "Status": "running", "ParameterizedJob": true}
+	]`)
+
+	jobs, err := client.Jobs(context.Background(), "production")
+	r.NoError(err)
+	r.Len(jobs, 3)
+
+	r.True(jobs[0].Periodic)
+	r.False(jobs[0].Parameterized)
+	r.Empty(jobs[0].ParentID)
+
+	// A launch names the job that launched it.
+	r.Equal("backup", jobs[1].ParentID)
+	r.False(jobs[1].Periodic)
+
+	r.True(jobs[2].Parameterized)
+	r.False(jobs[2].Periodic)
+}
+
+func TestJobs_ReadsWhetherAJobFailed(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[
+		{"ID": "failed", "JobSummary": {"Summary": {"g": {"Failed": 1}}}},
+		{"ID": "lost", "JobSummary": {"Summary": {"g": {"Lost": 1}}}},
+		{"ID": "retried", "JobSummary": {"Summary": {"g": {"Failed": 1, "Complete": 1}}}},
+		{"ID": "one-group-failed", "JobSummary": {"Summary": {"a": {"Complete": 1}, "b": {"Failed": 1}}}},
+		{"ID": "still-running", "JobSummary": {"Summary": {"g": {"Failed": 1, "Running": 1}}}},
+		{"ID": "done", "JobSummary": {"Summary": {"g": {"Complete": 1}}}}
+	]`)
+
+	jobs, err := client.Jobs(context.Background(), "production")
+	r.NoError(err)
+
+	failed := map[string]bool{}
+	for _, job := range jobs {
+		failed[job.ID] = job.Failed
+	}
+
+	// A group failed when it ended with an allocation failed or lost and
+	// none complete. One that completed on a retry did not fail, nor did
+	// one that still runs.
+	r.Equal(map[string]bool{
+		"failed":           true,
+		"lost":             true,
+		"retried":          false,
+		"one-group-failed": true,
+		"still-running":    false,
+		"done":             false,
+	}, failed)
+}
+
 func TestJobs_WithoutASummary(t *testing.T) {
 	r := require.New(t)
 
