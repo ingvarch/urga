@@ -103,12 +103,20 @@ func (c *Client) Allocations(ctx context.Context, namespace, jobID string) ([]Al
 		return nil, err
 	}
 
-	allocs := make([]Alloc, 0, len(stubs))
+	return allocsOf(stubs), nil
+}
+
+// allocsOf are the allocations of a list the cluster answered with.
+func allocsOf(stubs []*api.AllocationListStub) []Alloc {
+	out := make([]Alloc, 0, len(stubs))
+
 	for _, stub := range stubs {
-		allocs = append(allocs, newAlloc(stub))
+		if stub != nil {
+			out = append(out, newAlloc(stub))
+		}
 	}
 
-	return allocs, nil
+	return out
 }
 
 // NodeAllocations lists what one machine of the cluster runs, whichever

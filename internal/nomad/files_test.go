@@ -96,7 +96,7 @@ func read(stream *nomad.LogStream) string {
 func TestFile_ReadFromItsStart(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/allocation/af1f37df":       allocInfo,
 		"/v1/client/fs/stat/af1f37df":   `{"Name": "app.env", "Size": 29, "FileMode": "-rw-r--r--", "ContentType": "text/plain; charset=utf-8"}`,
 		"/v1/client/fs/stream/af1f37df": streamed(t, 29, "DB_HOST=10.0.0.5\nMODE=fast\n"),
@@ -140,7 +140,7 @@ func TestFile_OnlyTheEndOfABigOne(t *testing.T) {
 	size := int64(3 << 20)
 	from := size - 1<<20
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/allocation/af1f37df":       allocInfo,
 		"/v1/client/fs/stat/af1f37df":   fmt.Sprintf(`{"Name": "big.txt", "Size": %d, "ContentType": "text/plain; charset=utf-8"}`, size),
 		"/v1/client/fs/stream/af1f37df": streamed(t, from+25, "the rest of a line\nnext\n"),
@@ -160,7 +160,7 @@ func TestFile_OnlyTheEndOfABigOne(t *testing.T) {
 func TestFile_WhatIsNotText(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/allocation/af1f37df":     allocInfo,
 		"/v1/client/fs/stat/af1f37df": `{"Name": "blob.bin", "Size": 4000, "ContentType": "application/octet-stream"}`,
 	})

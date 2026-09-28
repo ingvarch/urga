@@ -33,7 +33,7 @@ const webPlan = `{
 func TestPlanJob(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/job/web/plan": webPlan})
+	client, asked := clusterServer(t, map[string]string{"/v1/job/web/plan": webPlan})
 
 	plan, err := client.PlanJob(context.Background(), "production", `{"ID": "web", "Name": "web"}`, nomad.JobVariables{})
 	r.NoError(err)
@@ -67,7 +67,7 @@ func TestPlanJob(t *testing.T) {
 func TestPlanJob_HCLIsReadByTheClusterFirst(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/jobs/parse":   `{"ID": "web", "Name": "web"}`,
 		"/v1/job/web/plan": webPlan,
 	})
@@ -87,7 +87,7 @@ func TestPlanJob_HCLIsReadByTheClusterFirst(t *testing.T) {
 func TestSubmitJob_AtTheIndexOfItsPlan(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/jobs": `{"EvalID": "eval-1"}`})
+	client, asked := clusterServer(t, map[string]string{"/v1/jobs": `{"EvalID": "eval-1"}`})
 
 	r.NoError(client.SubmitJob(context.Background(), "production", `{"ID": "web"}`, nomad.JobVariables{}, 42))
 
@@ -143,7 +143,7 @@ func plannedJob(t *testing.T, asked []sent) map[string]any {
 func TestPlanRevert_ToTheVersionBefore(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/job/web/versions": webVersions, "/v1/job/web/plan": webPlan})
+	client, asked := clusterServer(t, map[string]string{"/v1/job/web/versions": webVersions, "/v1/job/web/plan": webPlan})
 
 	plan, err := client.PlanRevert(context.Background(), "production", "web", nil)
 	r.NoError(err)
@@ -162,7 +162,7 @@ func TestPlanRevert_ToTheVersionBefore(t *testing.T) {
 func TestPlanRevert_ToTheVersionGiven(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/job/web/versions": webVersions, "/v1/job/web/plan": webPlan})
+	client, asked := clusterServer(t, map[string]string{"/v1/job/web/versions": webVersions, "/v1/job/web/plan": webPlan})
 
 	to := uint64(3)
 	plan, err := client.PlanRevert(context.Background(), "production", "web", &to)
@@ -175,7 +175,7 @@ func TestPlanRevert_ToTheVersionGiven(t *testing.T) {
 func TestPlanRevert_AtTheFirstVersion(t *testing.T) {
 	r := require.New(t)
 
-	client, _ := jobServer(t, map[string]string{
+	client, _ := clusterServer(t, map[string]string{
 		"/v1/job/web/versions": `{"Versions": [{"ID": "web", "Version": 0}]}`,
 	})
 
@@ -188,7 +188,7 @@ func TestPlanRevert_AtTheFirstVersion(t *testing.T) {
 func TestPlanRevert_ToAVersionThatIsGone(t *testing.T) {
 	r := require.New(t)
 
-	client, _ := jobServer(t, map[string]string{"/v1/job/web/versions": webVersions})
+	client, _ := clusterServer(t, map[string]string{"/v1/job/web/versions": webVersions})
 
 	to := uint64(1)
 	_, err := client.PlanRevert(context.Background(), "production", "web", &to)
@@ -198,7 +198,7 @@ func TestPlanRevert_ToAVersionThatIsGone(t *testing.T) {
 func TestRevertJobTo_FromTheVersionItWasPlannedAt(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/job/web/revert": `{"EvalID": "eval-1"}`})
+	client, asked := clusterServer(t, map[string]string{"/v1/job/web/revert": `{"EvalID": "eval-1"}`})
 
 	r.NoError(client.RevertJobTo(context.Background(), "production", "web", 4, 5))
 

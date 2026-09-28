@@ -29,7 +29,7 @@ const servedAllocs = `[
 func TestServiceInstances(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{
+	client, asked := clusterServer(t, map[string]string{
 		"/v1/service/served":         servedRegistrations,
 		"/v1/job/served/allocations": servedAllocs,
 	})
@@ -70,7 +70,7 @@ func TestServiceInstance_Stale(t *testing.T) {
 func TestDeleteServiceRegistration(t *testing.T) {
 	r := require.New(t)
 
-	client, asked := jobServer(t, map[string]string{"/v1/service/served/reg-c": `{}`})
+	client, asked := clusterServer(t, map[string]string{"/v1/service/served/reg-c": `{}`})
 
 	r.NoError(client.DeleteServiceRegistration(context.Background(), "default", "served", "reg-c"))
 
@@ -81,7 +81,7 @@ func TestDeleteServiceRegistration(t *testing.T) {
 func TestServiceInstances_InTheOrderOfTheirAddresses(t *testing.T) {
 	r := require.New(t)
 
-	client, _ := jobServer(t, map[string]string{
+	client, _ := clusterServer(t, map[string]string{
 		"/v1/service/served": `[
 			{"ID": "a", "JobID": "served", "Address": "10.0.0.10", "Port": 80},
 			{"ID": "b", "JobID": "served", "Address": "10.0.0.9", "Port": 8080},
