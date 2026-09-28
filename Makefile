@@ -9,9 +9,9 @@ LDFLAGS := -s -w \
 	-X $(PKG)/internal/version.Commit=$(COMMIT) \
 	-X $(PKG)/internal/version.Date=$(DATE)
 
-.PHONY: check fmt vet lint test build dist run clean
+.PHONY: check fmt vet lint licenses notices test build dist run clean
 
-check: fmt vet lint test build
+check: fmt vet lint licenses test build
 
 fmt:
 	gofmt -l -w .
@@ -35,6 +35,15 @@ lint:
 	fi
 	golangci-lint run ./...
 
+# licenses fails when a module urga links, on any platform the release
+# builds for, has a license outside internal/licenses.Allowed. notices checks
+# the same and writes THIRD_PARTY_NOTICES, which the release ships.
+licenses:
+	go run ./internal/licenses/cmd/licenses ./cmd/urga
+
+notices:
+	go run ./internal/licenses/cmd/licenses -notices THIRD_PARTY_NOTICES ./cmd/urga
+
 test:
 	go test ./...
 
@@ -50,4 +59,4 @@ run: build
 	./bin/$(BINARY)
 
 clean:
-	rm -rf bin
+	rm -rf bin THIRD_PARTY_NOTICES

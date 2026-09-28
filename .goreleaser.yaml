@@ -3,6 +3,12 @@ version: 2
 
 project_name: urga
 
+# The licenses of what urga links ask for their texts in every copy. This also
+# fails on a license urga does not allow.
+before:
+  hooks:
+    - go run ./internal/licenses/cmd/licenses -notices THIRD_PARTY_NOTICES ./cmd/urga
+
 builds:
   - main: ./cmd/urga
     binary: urga
@@ -47,6 +53,10 @@ archives:
       - goos: windows
         formats:
           - zip
+    files:
+      - LICENSE
+      - README.md
+      - THIRD_PARTY_NOTICES
 
 changelog:
   use: github-native
@@ -64,6 +74,8 @@ nfpms:
     contents:
       - src: LICENSE
         dst: /usr/share/doc/urga/LICENSE
+      - src: THIRD_PARTY_NOTICES
+        dst: /usr/share/doc/urga/THIRD_PARTY_NOTICES
 
 homebrew_casks:
   - homepage: *homepage

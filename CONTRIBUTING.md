@@ -20,12 +20,15 @@ make run
 ```
 
 ```sh
-make check   # fmt, vet, lint, test, build
+make check   # fmt, vet, lint, licenses, test, build
 make dist    # the whole release, published nowhere
 ```
 
 `make lint` runs golangci-lint when it is installed; CI always runs it.
 `make dist` needs goreleaser, the version named in `.tool-versions`.
+`make licenses` fails when a module urga links has a license outside the
+list in `internal/licenses`; `make notices` also writes `THIRD_PARTY_NOTICES`,
+which the release ships.
 
 ## How a change is made
 

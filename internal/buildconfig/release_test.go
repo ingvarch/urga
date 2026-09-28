@@ -12,11 +12,15 @@ import (
 
 // releaseConfig is the part of the release config the tests look at.
 type releaseConfig struct {
+	Before struct {
+		Hooks []any
+	}
 	Builds []struct {
 		Targets []string
 		Ldflags []string
 	}
 	Archives []struct {
+		Files           []any
 		Formats         []string
 		FormatOverrides []struct {
 			Goos    string
@@ -26,10 +30,7 @@ type releaseConfig struct {
 	Nfpms []struct {
 		Formats    []string
 		Maintainer string
-		Contents   []struct {
-			Src string
-			Dst string
-		}
+		Contents   []packageFile
 	}
 	HomebrewCasks []struct {
 		SkipUpload string `yaml:"skip_upload"`
@@ -62,6 +63,12 @@ type releaseConfig struct {
 	Release struct {
 		Draft bool
 	}
+}
+
+// packageFile is a file the deb and rpm packages install.
+type packageFile struct {
+	Src string
+	Dst string
 }
 
 // release reads the config that turns a tag into a release.
@@ -131,14 +138,11 @@ func TestRelease_PacksDebAndRpm(t *testing.T) {
 	r.ElementsMatch([]string{"deb", "rpm"}, pkg.Formats)
 	r.NotEmpty(pkg.Maintainer)
 
-	// MIT asks for the license in every copy, and a package is a copy.
-	var license string
-	for _, file := range pkg.Contents {
-		if file.Src == "LICENSE" {
-			license = file.Dst
-		}
+	// MIT asks for the license in every copy, and a package is a copy; the
+	// licenses of what urga links ask for their notices too.
+	for _, file := range []string{"LICENSE", noticesFile} {
+		r.Contains(pkg.Contents, packageFile{Src: file, Dst: "/usr/share/doc/urga/" + file})
 	}
-	r.Equal("/usr/share/doc/urga/LICENSE", license)
 }
 
 func TestRelease_ZipsForWindows(t *testing.T) {

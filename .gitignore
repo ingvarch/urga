@@ -152,4 +152,5 @@ Temporary Items
 # urga
 /bin/
 /dist/
+/THIRD_PARTY_NOTICES
 *.out
