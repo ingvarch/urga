@@ -118,7 +118,7 @@ func scaleGroup(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(scaleMsg(groupRef{namespace: p.namespace, TaskGroup: group}))
+	return p, then(scaleLine(groupRef{namespace: p.namespace, TaskGroup: group}))
 }
 
 // groupRef is a task group with the namespace of its job, where a count is
@@ -128,18 +128,14 @@ type groupRef struct {
 	nomad.TaskGroup
 }
 
-// askScale shows the prompt for the new count of a group, filled with the
-// count it runs now.
-func (m Model) askScale(group groupRef) (Model, tea.Cmd) {
-	m.overlay = overlayScale
-	m.prompt = promptModel{
+// scaleLine asks for the new count of a group, filled with the count it runs
+// now.
+func scaleLine(group groupRef) lineMsg {
+	return lineMsg{
 		prefix: fmt.Sprintf("scale %s to: ", group.Name),
 		text:   strconv.Itoa(group.Count),
-		group:  group,
+		answer: func(m Model, typed string) (Model, tea.Cmd) { return m.scaleTo(group, typed) },
 	}
-	m.layout()
-
-	return m, nil
 }
 
 // scaleTo sets the count of a group, when the answer is a count and the

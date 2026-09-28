@@ -29,6 +29,7 @@ func everyScreen(t *testing.T) map[string]Model {
 	openOfAJob(open)
 	openOfAPeriodicJob(open)
 	openOfStorage(open)
+	openOfALock(open)
 	openOfATask(open)
 	openOfAClient(open)
 	openOfTheLists(open)
@@ -201,6 +202,20 @@ func openOfStorage(open map[string]Model) {
 
 	plugin, cmd := open["plugins"].update(enter())
 	open["plugin"] = drain(plugin, cmd)
+}
+
+// openOfALock adds the variables with one held as a lock, and that one
+// opened, where a lock is offered to release.
+func openOfALock(open map[string]Model) {
+	client := everyScreenClient()
+	client.variables = []nomad.Variable{leaderVariable().Variable}
+	client.variable = leaderVariable()
+
+	locked := typeCommand(newTestModel(client), "variables")
+	open["lockedvariables"] = locked
+
+	variable, cmd := locked.update(enter())
+	open["lockedvariable"] = drain(variable, cmd)
 }
 
 // openOfATask adds the screens that hang off a task.

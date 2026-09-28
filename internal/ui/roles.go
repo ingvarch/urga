@@ -58,6 +58,8 @@ type (
 		StopJob(ctx context.Context, namespace, jobID string) error
 		LaunchJob(ctx context.Context, namespace, jobID string) error
 		EvaluateJob(ctx context.Context, namespace, jobID string) error
+		TagVersion(ctx context.Context, namespace, jobID string, version uint64, name string) error
+		UntagVersion(ctx context.Context, namespace, jobID, name string) error
 		DispatchForm(ctx context.Context, namespace, jobID string) (nomad.DispatchForm, error)
 		DispatchJob(ctx context.Context, namespace, jobID string, meta map[string]string, payload []byte) (string, error)
 		NextLaunch(ctx context.Context, namespace, jobID string) (time.Time, error)
@@ -99,6 +101,7 @@ type (
 		PromoteGroups(ctx context.Context, namespace, deploymentID string, groups []string) error
 		PauseDeployment(ctx context.Context, namespace, deploymentID string, pause bool) error
 		FailDeployment(ctx context.Context, namespace, deploymentID string) error
+		SetAllocHealth(ctx context.Context, namespace, deploymentID string, allocIDs []string, healthy bool) error
 	}
 
 	// nodesClient is the clients of the cluster, the machines, and the pools
@@ -141,6 +144,7 @@ type (
 		Variable(ctx context.Context, namespace, path string) (nomad.VariableDetail, error)
 		VariableSpec(ctx context.Context, namespace, path string) (nomad.VariableSource, error)
 		SubmitVariable(ctx context.Context, namespace, path, source string, index uint64) error
+		ReleaseLock(ctx context.Context, namespace, path, lockID string) error
 	}
 
 	serversClient interface {

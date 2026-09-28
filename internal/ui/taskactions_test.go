@@ -52,7 +52,7 @@ func TestTasks_SendASignal(t *testing.T) {
 	m, _ = m.update(key('x'))
 
 	// The line opens filled with the signal a task most often reloads on.
-	r.Equal(overlaySignal, m.overlay)
+	r.Equal(overlayAnswer, m.overlay)
 	r.True(m.overlay.asksForALine())
 	r.Contains(plain(m.render()), "signal server with:")
 	r.Equal("SIGHUP", m.prompt.text)

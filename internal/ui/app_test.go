@@ -217,6 +217,15 @@ type fakeClient struct {
 
 	// evaluated are the jobs evaluated, in turn.
 	evaluated []string
+
+	// tagged is the last tag put on a version, as "job@version=name", and
+	// untagged the last one taken off; marked the allocations last marked
+	// and whether healthy; releasedLock the last lock released.
+	tagged       string
+	untagged     string
+	marked       []string
+	markedHealth bool
+	releasedLock string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -532,6 +541,34 @@ func (f *fakeClient) EvaluateJob(_ context.Context, namespace, jobID string) err
 
 func (f *fakeClient) ServerHealth(context.Context) (nomad.ClusterHealth, error) {
 	return f.health, f.healthErr
+}
+
+func (f *fakeClient) TagVersion(_ context.Context, namespace, jobID string, version uint64, name string) error {
+	f.wrote("TagVersion")
+	f.askedNamespace, f.tagged = namespace, fmt.Sprintf("%s@%d=%s", jobID, version, name)
+
+	return f.actionErr
+}
+
+func (f *fakeClient) UntagVersion(_ context.Context, namespace, jobID, name string) error {
+	f.wrote("UntagVersion")
+	f.askedNamespace, f.untagged = namespace, jobID+"="+name
+
+	return f.actionErr
+}
+
+func (f *fakeClient) SetAllocHealth(_ context.Context, namespace, _ string, allocIDs []string, healthy bool) error {
+	f.wrote("SetAllocHealth")
+	f.askedNamespace, f.marked, f.markedHealth = namespace, allocIDs, healthy
+
+	return f.actionErr
+}
+
+func (f *fakeClient) ReleaseLock(_ context.Context, namespace, path, lockID string) error {
+	f.wrote("ReleaseLock")
+	f.askedNamespace, f.releasedLock = namespace, path+"@"+lockID
+
+	return f.actionErr
 }
 
 func (f *fakeClient) LaunchJob(_ context.Context, namespace, jobID string) error {

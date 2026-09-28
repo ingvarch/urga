@@ -288,7 +288,9 @@ func TestAllocations_EachListAnswersItsOwnKeys(t *testing.T) {
 		"client": slices.Concat([]string{"e Events", "ctrl+d Drivers", "ctrl+h Host Volumes", "a Attributes", "m Meta"}, allocKeys),
 
 		// The deployment first, then what it placed.
-		"deployment": slices.Concat([]string{"p Promote Group", "ctrl+p Promote All", "f Fail", "ctrl+s Pause", "ctrl+s Resume"}, allocKeys),
+		"deployment": slices.Concat([]string{
+			"p Promote Group", "ctrl+p Promote All", "f Fail", "ctrl+s Pause", "ctrl+s Resume", "h Healthy", "u Unhealthy",
+		}, allocKeys),
 	}
 
 	for name, m := range allocationLists(t) {

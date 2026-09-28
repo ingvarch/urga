@@ -284,11 +284,12 @@ type (
 // What a page asks of the session that the session still does with code of
 // its own.
 type (
-	// scaleMsg asks for the count of a group, and then whether to set it.
-	scaleMsg groupRef
-
-	// signalMsg asks which signal to send to a task, and then whether to.
-	signalMsg taskRef
+	// lineMsg asks a question on the line at the top: prefix says what for,
+	// text fills the line, and answer takes what was typed.
+	lineMsg struct {
+		prefix, text string
+		answer       func(m Model, typed string) (Model, tea.Cmd)
+	}
 
 	// shellMsg opens a shell in a task, with the terminal handed over.
 	shellMsg shellCommand
