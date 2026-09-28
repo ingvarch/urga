@@ -270,6 +270,10 @@ type (
 	// the screen is left, the way the answer to its fetch is.
 	requestMsg tea.Cmd
 
+	// copyMsg puts a value on the clipboard, over OSC52 so that it works
+	// through ssh, and says which field was copied.
+	copyMsg struct{ field, value string }
+
 	// markMsg marks the row under the cursor for an action, or unmarks it;
 	// markAllMsg does that for every row on the screen.
 	markMsg    struct{}
@@ -313,9 +317,7 @@ func copyKey[P page]() pageKey[P] {
 }
 
 // copying puts a value on the clipboard and shows which field was copied.
-func copying(field, value string) outcome {
-	return outcome{now: []tea.Msg{sayMsg(sprintf("Copied %s.", field))}, cmd: tea.SetClipboard(value)}
-}
+func copying(field, value string) outcome { return then(copyMsg{field: field, value: value}) }
 
 // markKey and markAllKey mark rows for an action, on a page whose rows name
 // what they show.

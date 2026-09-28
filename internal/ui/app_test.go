@@ -226,6 +226,12 @@ type fakeClient struct {
 	marked       []string
 	markedHealth bool
 	releasedLock string
+
+	// acl are the ACL objects of each kind; aclOf the last one asked for,
+	// as "kind/id"; secret the secret of any token.
+	acl    map[string][]nomad.ACLObject
+	aclOf  string
+	secret string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -569,6 +575,22 @@ func (f *fakeClient) ReleaseLock(_ context.Context, namespace, path, lockID stri
 	f.askedNamespace, f.releasedLock = namespace, path+"@"+lockID
 
 	return f.actionErr
+}
+
+func (f *fakeClient) ACLObjects(_ context.Context, kind string) ([]nomad.ACLObject, error) {
+	return f.acl[kind], f.err
+}
+
+func (f *fakeClient) DescribeACL(_ context.Context, kind, id string) (string, error) {
+	f.aclOf = kind + "/" + id
+
+	return f.describe, f.err
+}
+
+func (f *fakeClient) TokenSecret(_ context.Context, accessorID string) (string, error) {
+	f.aclOf = nomad.ACLToken + "/" + accessorID
+
+	return f.secret, f.err
 }
 
 func (f *fakeClient) LaunchJob(_ context.Context, namespace, jobID string) error {

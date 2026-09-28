@@ -26,6 +26,11 @@ Press `:` to open the command line, type a command and press `enter`.
 | `servers` | `srv` | Servers |
 | `volumes` | `volume`, `vol` | CSI and host volumes |
 | `plugins` | `plugin` | CSI plugins |
+| `tokens` | `token` | ACL tokens |
+| `policies` | `policy`, `pol` | ACL policies |
+| `roles` | `role` | ACL roles |
+| `authmethods` | `authmethod`, `auth` | ACL auth methods |
+| `bindingrules` | `bindingrule`, `br` | ACL binding rules |
 | `about` | `version` | This urga: its version, a newer release and what changed. See [Newer releases](configuration.md#newer-releases). |
 
 You do not have to type the whole word. The line completes the command that
@@ -366,6 +371,15 @@ of [Allocations](#allocations), and these:
 | Key | What it does |
 | --- | --- |
 | `enter` | Tasks of the allocation that runs the instance under the cursor |
+
+### ACL lists
+
+On every list of ACL objects:
+
+| Key | What it does |
+| --- | --- |
+| `d` | Describe; a token without its secret, a policy as its file |
+| `c` | Copy the secret of the token under the cursor. On the token list only. |
 
 ### Text screens
 

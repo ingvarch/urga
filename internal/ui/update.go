@@ -60,6 +60,9 @@ func (m Model) fromPage(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case sayMsg:
 		return m.say(string(msg)), nil, true
 
+	case copyMsg:
+		return m.say(sprintf("Copied %s.", msg.field)), tea.SetClipboard(msg.value), true
+
 	case warnMsg:
 		return m.warn(string(msg)), nil, true
 
