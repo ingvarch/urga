@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -59,6 +60,8 @@ func (p versionsPage) picked(e env) (nomad.JobVersion, bool) { return pickedFrom
 var versionKeys = []pageKey[versionsPage]{
 	{press: "enter", label: "Diff", do: openVersionDiff},
 	{press: "u", label: "Revert", do: revertToVersion, writes: true},
+	{press: "t", label: "Tag", do: tagVersion, writes: true},
+	{press: "ctrl+t", label: "Untag", do: untagVersion, writes: true, offered: versionTagged},
 }
 
 func (p versionsPage) keys(e env) []keyHint { return hintsOf(p, e, versionKeys) }
@@ -161,4 +164,58 @@ func revertToVersion(p versionsPage, e env) (versionsPage, outcome) {
 	to := version.Version
 
 	return p, outcome{cmd: planFor(e.client, planState{revert: true, to: &to, namespace: p.namespace, jobID: p.jobID})}
+}
+
+// tagVersion asks for the name to give the version under the cursor, filled
+// with the one it has: a version carries one tag, and tagging it again
+// renames it. The name typed is the answer; nothing is asked after it.
+func tagVersion(p versionsPage, e env) (versionsPage, outcome) {
+	version, ok := p.picked(e)
+	if !ok {
+		return p, outcome{}
+	}
+
+	namespace, jobID := p.namespace, p.jobID
+
+	return p, then(lineMsg{
+		prefix: fmt.Sprintf("tag version %d as: ", version.Version),
+		text:   version.Tag,
+		answer: func(m Model, typed string) (Model, tea.Cmd) {
+			name := strings.TrimSpace(typed)
+			if name == "" {
+				return m.warn("A tag needs a name."), nil
+			}
+
+			client := m.client
+
+			return m, act(fmt.Sprintf("Version %d of %s tagged %s.", version.Version, jobID, name), func(ctx context.Context) error {
+				return client.TagVersion(ctx, namespace, jobID, version.Version, name)
+			})
+		},
+	})
+}
+
+// untagVersion takes the tag off the version under the cursor, after the
+// user confirms.
+func untagVersion(p versionsPage, e env) (versionsPage, outcome) {
+	version, ok := p.picked(e)
+	if !ok || version.Tag == "" {
+		return p, outcome{}
+	}
+
+	client, namespace, jobID := e.client, p.namespace, p.jobID
+
+	return p, then(askMsg{
+		question: fmt.Sprintf("Really take the tag %s off version %d of %s?", version.Tag, version.Version, jobID),
+		apply: act(fmt.Sprintf("Tag %s taken off version %d of %s.", version.Tag, version.Version, jobID), func(ctx context.Context) error {
+			return client.UntagVersion(ctx, namespace, jobID, version.Tag)
+		}),
+	})
+}
+
+// versionTagged says the version under the cursor carries a tag.
+func versionTagged(p versionsPage, e env) bool {
+	version, ok := p.picked(e)
+
+	return ok && version.Tag != ""
 }

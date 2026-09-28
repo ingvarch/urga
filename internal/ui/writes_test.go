@@ -24,6 +24,7 @@ var (
 		"DrainNode", "SetNodeEligible",
 		"PromoteDeployment", "FailDeployment",
 		"DetachVolume", "ReleaseClaim", "DispatchJob", "EvaluateJob",
+		"TagVersion", "UntagVersion", "SetAllocHealth", "ReleaseLock",
 	}
 
 	clientReads = []string{
@@ -128,8 +129,8 @@ func playOut(m Model, cmd tea.Cmd) Model {
 	return m
 }
 
-// answer says yes to a question and to a plan, gives the scale line a
-// count, and sends the signal the signal line offers.
+// answer says yes to a question and to a plan, and answers a line with what
+// it offers, or with a word when it offers nothing.
 func answer(m Model) (Model, tea.Cmd, bool) {
 	if _, onPlan := m.screen.page.(planPage); onPlan && m.overlay == overlayNone {
 		next, cmd := m.update(key('y'))
@@ -143,14 +144,11 @@ func answer(m Model) (Model, tea.Cmd, bool) {
 
 		return next, cmd, true
 
-	case overlayScale:
-		m, _ = m.update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
-		m = typeIn(m, "5")
-		next, cmd := m.update(enter())
+	case overlayAnswer:
+		if m.prompt.text == "" {
+			m = typeIn(m, "answer")
+		}
 
-		return next, cmd, true
-
-	case overlaySignal:
 		next, cmd := m.update(enter())
 
 		return next, cmd, true

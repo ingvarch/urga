@@ -182,8 +182,9 @@ func TestVariables_TheListOfTheNamespaceAndItsKeys(t *testing.T) {
 	r.Contains(fileRow(t, m, 1), "nomad/jobs/web")
 	r.Contains(fileRow(t, m, 1), "default")
 
-	// The locked one has no edit, the other one has.
-	r.Equal([]hint{{Key: "<enter>", Description: "Values"}}, m.hints())
+	// The locked one has no edit, and its lock can be released; the other
+	// one is the other way round.
+	r.Equal([]hint{{Key: "<enter>", Description: "Values"}, {Key: "<ctrl-r>", Description: "Release Lock"}}, m.hints())
 
 	m, _ = m.update(key('j'))
 	r.Equal([]hint{{Key: "<enter>", Description: "Values"}, {Key: "<e>", Description: "Edit"}}, m.hints())
@@ -200,7 +201,11 @@ func TestVariable_TheKeysOfTheValues(t *testing.T) {
 	}, m.hints())
 
 	m = onVariable(t, &fakeClient{}, leaderVariable())
-	r.Equal([]hint{{Key: "<v>", Description: "Toggle Values"}, {Key: "<c>", Description: "Copy"}}, m.hints())
+	r.Equal([]hint{
+		{Key: "<v>", Description: "Toggle Values"},
+		{Key: "<c>", Description: "Copy"},
+		{Key: "<ctrl-r>", Description: "Release Lock"},
+	}, m.hints())
 }
 
 func TestVariables_AListThatAnswersLateIsDropped(t *testing.T) {

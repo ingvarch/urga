@@ -122,6 +122,12 @@ version changed, in the same format as the Changes part of a plan.
 
 A revert shows a plan first, like an edit. Its button says **Revert**.
 
+`t` on the versions screen tags the version under the cursor: urga asks for
+the name on the line at the top, and the name you type is the answer. A
+version carries one tag, so on a tagged version the line starts with its tag,
+and a new name renames it. `ctrl-t` takes the tag off, after you confirm.
+Tags need Nomad 1.9 or later.
+
 ## Why a job is not placed
 
 When a job or task group has allocations waiting to be placed, `p` opens the
@@ -176,6 +182,10 @@ On the deployment screen:
 - `f` fails the deployment. If Auto Revert is on, the job goes back to its
   last stable version.
 - `ctrl-s` pauses a running deployment, or resumes a paused one.
+- `h` and `u` mark the allocation under the cursor, or the marked ones,
+  healthy or unhealthy. A group whose update block sets `health_check =
+  "manual"` waits for this to go on. An unhealthy allocation fails the
+  deployment.
 
 Each of these asks you to confirm first. They are shown only while the
 deployment is active: a deployment that succeeded, failed or was cancelled has

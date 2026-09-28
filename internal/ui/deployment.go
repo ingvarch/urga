@@ -305,6 +305,8 @@ var deploymentKeys = append([]pageKey[deploymentPage]{
 	{press: "f", label: "Fail", do: failDeployment[deploymentPage], writes: true, offered: deploymentActive},
 	{press: "ctrl+s", label: "Pause", do: pauseDeployment[deploymentPage], writes: true, offered: deploymentIs[deploymentPage]("running")},
 	{press: "ctrl+s", label: "Resume", do: pauseDeployment[deploymentPage], writes: true, offered: deploymentIs[deploymentPage]("paused")},
+	{press: "h", label: "Healthy", do: markHealth(true), writes: true, offered: deploymentActive},
+	{press: "u", label: "Unhealthy", do: markHealth(false), writes: true, offered: deploymentActive},
 }, allocKeys[deploymentPage]()...)
 
 func (p deploymentPage) keys(e env) []keyHint { return hintsOf(p, e, deploymentKeys) }
@@ -507,4 +509,40 @@ func deploymentAllocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUs
 	}
 
 	return rows
+}
+
+// markHealth marks the marked allocations, or the one under the cursor,
+// healthy or unhealthy by hand, after the user confirms: what a group that
+// checks its health by hand waits for. An unhealthy one fails the
+// deployment.
+func markHealth(healthy bool) func(p deploymentPage, e env) (deploymentPage, outcome) {
+	return func(p deploymentPage, e env) (deploymentPage, outcome) {
+		allocs := markedFrom(e, p.allocs, allocMark)
+		if len(allocs) == 0 {
+			return p, outcome{}
+		}
+
+		ids := names(allocs, allocMark)
+		label := many(len(allocs), "the allocation "+shortID(allocs[0].ID), "allocations")
+		word := healthWord(healthy)
+
+		question := fmt.Sprintf("Really mark %s %s?", label, word)
+		if !healthy {
+			them := "it"
+			if len(allocs) > 1 {
+				them = "them"
+			}
+
+			question += fmt.Sprintf(" The deployment counts %s as failed.", them)
+		}
+
+		client, namespace, id := e.client, p.namespace, p.deploymentID
+
+		return p, then(askMsg{
+			question: question,
+			apply: act(fmt.Sprintf("Marked %s %s.", label, word), func(ctx context.Context) error {
+				return client.SetAllocHealth(ctx, namespace, id, ids, healthy)
+			}),
+		})
+	}
 }

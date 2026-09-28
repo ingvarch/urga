@@ -78,7 +78,7 @@ func TestScale_AsksForACount(t *testing.T) {
 	m, _ = m.update(key('s'))
 
 	// The prompt opens with the count that runs now, ready to be changed.
-	r.Equal(overlayScale, m.overlay)
+	r.Equal(overlayAnswer, m.overlay)
 	r.True(m.overlay.asksForALine())
 	r.Contains(plain(m.render()), "scale frontend to:")
 	r.Equal("3", m.prompt.text)

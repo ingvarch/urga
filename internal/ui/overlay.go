@@ -18,8 +18,7 @@ const (
 	overlayNone overlay = iota
 	overlayPrompt
 	overlayFilter
-	overlayScale
-	overlaySignal
+	overlayAnswer
 	overlayHelp
 	overlayConfirm
 )
@@ -27,7 +26,7 @@ const (
 // asksForALine says the overlay is the line at the top, whatever it is
 // asking for.
 func (o overlay) asksForALine() bool {
-	return o == overlayPrompt || o == overlayFilter || o == overlayScale || o == overlaySignal
+	return o == overlayPrompt || o == overlayFilter || o == overlayAnswer
 }
 
 // promptHeight is the line plus the border around it.
@@ -45,10 +44,9 @@ type promptModel struct {
 	prefix string
 	text   string
 
-	// group is the task group a count belongs to, as it was when the count
-	// was asked for; task is the task a signal is for.
-	group groupRef
-	task  taskRef
+	// answer takes what was typed on a line that asks a question, with the
+	// session as it is then.
+	answer func(m Model, typed string) (Model, tea.Cmd)
 
 	// suggest says whether the rest of a word is offered, which only the
 	// command line does.
@@ -298,7 +296,7 @@ func (m Model) commit() (Model, tea.Cmd) {
 		input = m.prompt.line()
 	}
 
-	asked, group, task := m.overlay, m.prompt.group, m.prompt.task
+	asked, answer := m.overlay, m.prompt.answer
 
 	if asked == overlayFilter {
 		m.list.filter = input
@@ -308,12 +306,8 @@ func (m Model) commit() (Model, tea.Cmd) {
 
 	m, _ = m.closePrompt()
 
-	if asked == overlayScale {
-		return m.scaleTo(group, input)
-	}
-
-	if asked == overlaySignal {
-		return m.signalTask(task, input)
+	if asked == overlayAnswer {
+		return answer(m, input)
 	}
 
 	cmd, ok := parseCommand(input)
@@ -493,4 +487,14 @@ func fuzzy(letters string) func(string) bool {
 
 		return at == len(wanted)
 	}
+}
+
+// askLine opens the line of a question. Enter gives what was typed to its
+// answer.
+func (m Model) askLine(line lineMsg) (Model, tea.Cmd) {
+	m.overlay = overlayAnswer
+	m.prompt = promptModel{prefix: line.prefix, text: line.text, answer: line.answer}
+	m.layout()
+
+	return m, nil
 }

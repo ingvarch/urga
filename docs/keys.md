@@ -156,6 +156,8 @@ start, stop, restart or drain then applies to every marked row.
 | --- | --- | --- |
 | `enter` | What this version changed | |
 | `u` | Revert to this version | yes |
+| `t` | Tag the version, or rename its tag | yes |
+| `ctrl-t` | Take the tag off the version. Shown on a tagged one. | yes |
 
 ### Plan
 
@@ -265,6 +267,8 @@ keys of [Allocations](#allocations), and these:
 | `ctrl-p` | Promote the canaries of every group | yes |
 | `f` | Fail the deployment | yes |
 | `ctrl-s` | Pause or resume the deployment | yes |
+| `h` | Mark the allocation under the cursor, or the marked ones, healthy | yes |
+| `u` | Mark the allocation under the cursor, or the marked ones, unhealthy | yes |
 
 These keys are shown only while the deployment is active. `p` is shown only
 when the group under the cursor has canaries waiting to be promoted.
@@ -290,6 +294,7 @@ when the group under the cursor has canaries waiting to be promoted.
 | --- | --- | --- |
 | `enter` | Open the variable on its values | |
 | `e` | Edit the variable in your editor. Not shown on a locked one. | yes |
+| `ctrl-r` | Release the lock held on the variable. Shown on a locked one. | yes |
 
 ### A variable
 
@@ -298,6 +303,7 @@ when the group under the cursor has canaries waiting to be promoted.
 | `v` | Show or hide the values | |
 | `c` | Copy the value under the cursor, even when it is hidden | |
 | `e` | Edit the variable in your editor. Not shown on a locked one. | yes |
+| `ctrl-r` | Release the lock held on the variable. Shown on a locked one. | yes |
 
 ### Clients
 

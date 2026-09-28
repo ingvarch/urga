@@ -330,7 +330,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 // overlayKey passes the key to the overlay that has the keyboard.
 func (m Model) overlayKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 	switch m.overlay {
-	case overlayPrompt, overlayFilter, overlayScale, overlaySignal:
+	case overlayPrompt, overlayFilter, overlayAnswer:
 		return m.promptKey(msg)
 
 	case overlayHelp:

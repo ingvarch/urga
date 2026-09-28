@@ -48,21 +48,17 @@ func askSignal(p tasksPage, e env) (tasksPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(signalMsg{namespace: p.namespace, allocID: p.allocID, name: task.Name})
+	return p, then(signalLine(taskRef{namespace: p.namespace, allocID: p.allocID, name: task.Name}))
 }
 
-// askForSignal opens the line that asks which signal to send to a task. It
-// is filled with the one a task most often reloads on.
-func (m Model) askForSignal(task taskRef) (Model, tea.Cmd) {
-	m.overlay = overlaySignal
-	m.prompt = promptModel{
+// signalLine asks which signal to send to a task. It is filled with the one a
+// task most often reloads on.
+func signalLine(task taskRef) lineMsg {
+	return lineMsg{
 		prefix: fmt.Sprintf("signal %s with: ", task.name),
 		text:   "SIGHUP",
-		task:   task,
+		answer: func(m Model, typed string) (Model, tea.Cmd) { return m.signalTask(task, typed) },
 	}
-	m.layout()
-
-	return m, nil
 }
 
 // signalTask sends the signal typed to the task, when it is a signal and the

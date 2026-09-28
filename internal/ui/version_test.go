@@ -160,7 +160,13 @@ func TestVersions_TheKeysOfAVersion(t *testing.T) {
 
 	m, _ := onVersions(t)
 
-	r.Equal([]hint{{Key: "<enter>", Description: "Diff"}, {Key: "<u>", Description: "Revert"}}, m.hints())
+	// Version 3 carries a tag, which can be taken off.
+	r.Equal([]hint{
+		{Key: "<enter>", Description: "Diff"},
+		{Key: "<u>", Description: "Revert"},
+		{Key: "<t>", Description: "Tag"},
+		{Key: "<ctrl-t>", Description: "Untag"},
+	}, m.hints())
 }
 
 func TestVersions_AreAskedWhereTheJobLives(t *testing.T) {

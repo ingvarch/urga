@@ -31,8 +31,9 @@ One binary, no config to write, no browser.
   grow. Shows the log of a task from every allocation of a job at once.
 - Edits a job in your editor and shows the plan before it submits anything.
 - Shows the values of variables, hidden until you ask for them, and who holds
-  a variable as a lock. Edits a variable in your editor with check-and-set.
-- Shows the versions of a job and reverts to any of them.
+  a variable as a lock, and releases a lock left held. Edits a variable in
+  your editor with check-and-set.
+- Shows the versions of a job, reverts to any of them, and tags them.
 - Explains why a job is not placed, and has the scheduler evaluate it again.
 - Lists the launches of periodic and parameterized jobs, shows when a
   periodic job runs next, runs it now, and dispatches a parameterized job

@@ -103,11 +103,8 @@ func (m Model) fromPage(msg tea.Msg) (Model, tea.Cmd, bool) {
 // fromAction takes what a key started, and how it ended.
 func (m Model) fromAction(msg tea.Msg) (Model, tea.Cmd, bool) {
 	switch msg := msg.(type) {
-	case scaleMsg:
-		return taken(m.askScale(groupRef(msg)))
-
-	case signalMsg:
-		return taken(m.askForSignal(taskRef(msg)))
+	case lineMsg:
+		return taken(m.askLine(msg))
 
 	case shellMsg:
 		return taken(m.openShell(shellCommand(msg)))

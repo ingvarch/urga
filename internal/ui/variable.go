@@ -89,6 +89,7 @@ func (p variablesPage) picked(e env) (nomad.Variable, bool) { return pickedFrom(
 var variablesKeys = []pageKey[variablesPage]{
 	{press: "enter", label: "Values", do: openVariable},
 	editVariableKey(variablesPage.picked),
+	releaseLockKey(variablesPage.picked),
 }
 
 func (p variablesPage) keys(e env) []keyHint { return hintsOf(p, e, variablesKeys) }
@@ -160,6 +161,7 @@ var variableKeys = []pageKey[variablePage]{
 	{press: "v", label: "Toggle Values", do: toggleValues},
 	{press: "c", label: "Copy", do: copyValue},
 	editVariableKey(variablePage.variable),
+	releaseLockKey(variablePage.variable),
 }
 
 func (p variablePage) keys(e env) []keyHint { return hintsOf(p, e, variableKeys) }
@@ -250,6 +252,35 @@ func editVariableKey[P any](acted func(p P, e env) (nomad.Variable, bool)) pageK
 			v, ok := acted(p, e)
 
 			return ok && v.Lock == nil
+		},
+	}
+}
+
+// releaseLockKey releases the lock held on the variable that acted returns,
+// after the user confirms: a holder that is gone leaves it held until its
+// TTL runs out. Offered only for a variable with a lock.
+func releaseLockKey[P any](acted func(p P, e env) (nomad.Variable, bool)) pageKey[P] {
+	return pageKey[P]{
+		press: "ctrl+r", label: "Release Lock", writes: true,
+		do: func(p P, e env) (P, outcome) {
+			v, ok := acted(p, e)
+			if !ok || v.Lock == nil {
+				return p, outcome{}
+			}
+
+			client, lock := e.client, v.Lock.ID
+
+			return p, then(askMsg{
+				question: fmt.Sprintf("Really release the lock on %s? Whoever holds it loses it.", v.Path),
+				apply: act(fmt.Sprintf("Lock on %s released.", v.Path), func(ctx context.Context) error {
+					return client.ReleaseLock(ctx, v.Namespace, v.Path, lock)
+				}),
+			})
+		},
+		offered: func(p P, e env) bool {
+			v, ok := acted(p, e)
+
+			return ok && v.Lock != nil
 		},
 	}
 }
