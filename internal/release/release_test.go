@@ -55,9 +55,19 @@ func TestNewer(t *testing.T) {
 	}
 }
 
-// published answers as the releases of the repository do, and records the
-// request.
+// published answers as the latest release of the repository does, and
+// records the request.
 func published(t *testing.T, status int, body string) (string, *http.Request) {
+	t.Helper()
+
+	url, asked := releases(t, status, body)
+
+	return url + "/latest", asked
+}
+
+// releases answers as the releases of the repository do, and records the
+// request.
+func releases(t *testing.T, status int, body string) (string, *http.Request) {
 	t.Helper()
 
 	asked := &http.Request{}
@@ -71,7 +81,7 @@ func published(t *testing.T, status int, body string) (string, *http.Request) {
 	}))
 	t.Cleanup(server.Close)
 
-	return server.URL + "/repos/ingvarch/urga/releases/latest", asked
+	return server.URL + "/repos/ingvarch/urga/releases", asked
 }
 
 func TestLatest(t *testing.T) {

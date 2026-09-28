@@ -62,33 +62,43 @@ func parts(version string) ([]int, bool) {
 // Latest asks url for the tag of the latest release: the name of a release
 // is free text, the tag is the version.
 func Latest(ctx context.Context, client *http.Client, url string) (string, error) {
+	var latest struct {
+		Tag string `json:"tag_name"`
+	}
+
+	if err := get(ctx, client, url, "latest release", &latest); err != nil {
+		return "", err
+	}
+
+	return latest.Tag, nil
+}
+
+// get reads the answer of the releases at url into answer. what names the
+// request in an error.
+func get(ctx context.Context, client *http.Client, url, what string, answer any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	req.Header.Set("Accept", "application/vnd.github+json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("latest release: %s", resp.Status)
+		return fmt.Errorf("%s: %s", what, resp.Status)
 	}
 
-	var latest struct {
-		Tag string `json:"tag_name"`
+	if err := json.NewDecoder(resp.Body).Decode(answer); err != nil {
+		return fmt.Errorf("%s: %w", what, err)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&latest); err != nil {
-		return "", fmt.Errorf("latest release: %w", err)
-	}
-
-	return latest.Tag, nil
+	return nil
 }
 
 // NewerThan is the latest release when it came after current, and empty
