@@ -380,6 +380,9 @@ On every list of ACL objects:
 | --- | --- |
 | `d` | Describe; a token without its secret, a policy as its file |
 | `c` | Copy the secret of the token under the cursor. On the token list only. |
+| `n` | Create one in your editor; a policy is named first. Changes the cluster. |
+| `e` | Edit the one under the cursor in your editor. Changes the cluster. |
+| `ctrl-d` | Delete the one under the cursor. Changes the cluster. |
 
 ### Text screens
 

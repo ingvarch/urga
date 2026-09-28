@@ -232,6 +232,14 @@ type fakeClient struct {
 	acl    map[string][]nomad.ACLObject
 	aclOf  string
 	secret string
+
+	// aclWritten is how the cluster answers any ACL write; submittedACL the
+	// last object written, as "kind/id", with aclSource its file, and
+	// deletedACL the last one deleted.
+	aclWritten   nomad.ACLWritten
+	submittedACL string
+	aclSource    string
+	deletedACL   string
 }
 
 // wrote keeps a call that changes the cluster.
@@ -591,6 +599,20 @@ func (f *fakeClient) TokenSecret(_ context.Context, accessorID string) (string, 
 	f.aclOf = nomad.ACLToken + "/" + accessorID
 
 	return f.secret, f.err
+}
+
+func (f *fakeClient) SubmitACL(_ context.Context, kind, id, source string) (nomad.ACLWritten, error) {
+	f.wrote("SubmitACL")
+	f.submittedACL, f.aclSource = kind+"/"+id, source
+
+	return f.aclWritten, f.refused(f.actionErr)
+}
+
+func (f *fakeClient) DeleteACL(_ context.Context, kind, id string) error {
+	f.wrote("DeleteACL")
+	f.deletedACL = kind + "/" + id
+
+	return f.actionErr
 }
 
 func (f *fakeClient) LaunchJob(_ context.Context, namespace, jobID string) error {

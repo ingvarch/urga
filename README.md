@@ -45,6 +45,8 @@ One binary, no config to write, no browser.
 - Works in read-only mode, and with several named clusters.
 - Says when a newer urga is out, what it changed and how to update.
 - Finds anything in the cluster by its name or ID, in every namespace.
+- Creates, edits and deletes ACL tokens, policies, roles, auth methods and
+  binding rules.
 
 ## Install
 
