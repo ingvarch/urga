@@ -37,6 +37,20 @@ func TestLaunchJob(t *testing.T) {
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 }
 
+func TestEvaluateJob(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{"EvalID": "eval-1"}`)
+
+	r.NoError(client.EvaluateJob(context.Background(), "production", "web"))
+
+	// A new evaluation of the job as it stands: the scheduler places what
+	// it can now.
+	r.Equal(http.MethodPut, asked.Method)
+	r.Equal("/v1/job/web/evaluate", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+}
+
 func TestStartJob(t *testing.T) {
 	r := require.New(t)
 
