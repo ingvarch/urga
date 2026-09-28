@@ -25,6 +25,7 @@ var (
 		"PromoteDeployment", "FailDeployment",
 		"DetachVolume", "ReleaseClaim", "DispatchJob", "EvaluateJob",
 		"TagVersion", "UntagVersion", "SetAllocHealth", "ReleaseLock",
+		"SubmitACL", "DeleteACL",
 	}
 
 	clientReads = []string{
