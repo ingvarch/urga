@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -23,6 +24,25 @@ const (
 	tokenSoon  = 14 * 24 * time.Hour
 	tokenClose = 5 * 24 * time.Hour
 )
+
+// tokenColor is how close a token is to its end, by the measure the header
+// uses for the token of the session: none for a token that never expires.
+func tokenColor(expires, now time.Time) color.Color {
+	if expires.IsZero() {
+		return nil
+	}
+
+	switch left := expires.Sub(now); {
+	case left < tokenClose:
+		return colorDead
+	case left < tokenSoon:
+		return colorAttention
+	case left < tokenCalm:
+		return colorPending
+	}
+
+	return nil
+}
 
 // fetchToken asks the cluster whose token the session sends.
 func fetchToken(client clusterClient) tea.Cmd {
@@ -68,18 +88,19 @@ func tokenStatus(token nomad.Token, now time.Time) (string, lipgloss.Style, bool
 
 	left := token.Expires.Sub(now)
 
-	switch {
-	case left <= 0:
-		return "expired", styleError, true
-	case left < tokenClose:
-		return "expires in " + timeLeft(left), styleError, true
-	case left < tokenSoon:
-		return token.Name, styleWarn, true
-	case left < tokenCalm:
-		return token.Name, stylePending, true
+	style := styleValue
+	if c := tokenColor(token.Expires, now); c != nil {
+		style = lipgloss.NewStyle().Foreground(c)
 	}
 
-	return token.Name, styleValue, true
+	switch {
+	case left <= 0:
+		return "expired", style, true
+	case left < tokenClose:
+		return "expires in " + timeLeft(left), style, true
+	}
+
+	return token.Name, style, true
 }
 
 // timeLeft is how long is left, in the largest whole unit: days, hours, or

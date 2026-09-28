@@ -25,6 +25,7 @@ type Client interface {
 	serversClient
 	volumesClient
 	searchClient
+	aclClient
 }
 
 // The roles the cluster plays for the screens, one per kind of resource.
@@ -170,5 +171,13 @@ type (
 	// searchClient finds anything in the cluster by its name or its ID.
 	searchClient interface {
 		Find(ctx context.Context, text string) (nomad.Found, error)
+	}
+
+	// aclClient is the access control of the cluster: tokens, policies,
+	// roles, auth methods and binding rules.
+	aclClient interface {
+		ACLObjects(ctx context.Context, kind string) ([]nomad.ACLObject, error)
+		DescribeACL(ctx context.Context, kind, id string) (string, error)
+		TokenSecret(ctx context.Context, accessorID string) (string, error)
 	}
 )

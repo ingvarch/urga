@@ -1,5 +1,7 @@
 package ui
 
+import "github.com/ingvarch/urga/internal/nomad"
+
 // view is a list the session opens by name: from the command line, or as
 // the list the next run reopens.
 type view struct {
@@ -96,6 +98,13 @@ var (
 		open:    func() page { return pluginsPage{} },
 	}
 
+	// The access control of the cluster, a list for each kind.
+	tokensView       = aclView(nomad.ACLToken, "tokens", "token")
+	policiesView     = aclView(nomad.ACLPolicy, "policies", "policy", "pol")
+	rolesView        = aclView(nomad.ACLRole, "roles", "role")
+	authMethodsView  = aclView(nomad.ACLAuthMethod, "authmethods", "authmethod", "auth")
+	bindingRulesView = aclView(nomad.ACLBindingRule, "bindingrules", "bindingrule", "br")
+
 	// aboutView is this urga. It is not a list of the cluster, so the next
 	// run does not reopen it.
 	aboutView = &view{
@@ -109,8 +118,14 @@ var (
 var views = []*view{
 	jobsView, allocationsView, deploymentsView, servicesView, evaluationsView,
 	nodesView, variablesView, regionsView, datacentersView, clustersView,
-	namespacesView, serversView, nodePoolsView, volumesView, pluginsView, aboutView,
+	namespacesView, serversView, nodePoolsView, volumesView, pluginsView,
+	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, aboutView,
 }
 
 // opened is the list as a screen just opened, with nothing read into it yet.
 func (v *view) opened() screen { return screen{page: v.open(), view: v} }
+
+// aclView is the list of a kind of ACL object, stored under its first alias.
+func aclView(kind string, aliases ...string) *view {
+	return &view{stored: aliases[0], aliases: aliases, open: func() page { return aclPage{kind: kind} }}
+}

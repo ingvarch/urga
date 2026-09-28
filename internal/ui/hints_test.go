@@ -96,6 +96,9 @@ func everyScreenClient() *fakeClient {
 
 		// What a search for "web" finds.
 		found: foundWeb(),
+
+		// One ACL object of each kind.
+		acl: aclObjects(),
 	}
 }
 
@@ -113,6 +116,14 @@ func listsByName(client *fakeClient) map[string]Model {
 		"servers":     serversMsg(client.servers),
 		"volumes":     volumesMsg(client.volumes),
 		"plugins":     pluginsMsg(client.plugins),
+	}
+
+	// The lists of the access control, a kind each.
+	for command, kind := range map[string]string{
+		"tokens": nomad.ACLToken, "policies": nomad.ACLPolicy, "roles": nomad.ACLRole,
+		"authmethods": nomad.ACLAuthMethod, "bindingrules": nomad.ACLBindingRule,
+	} {
+		rows[command] = aclMsg{kind: kind, objects: client.acl[kind]}
 	}
 
 	open := map[string]Model{}

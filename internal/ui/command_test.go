@@ -72,9 +72,9 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal([]string{"jobs"}, matchingCommands("jo"))
 	r.Equal([]string{"servers", "services"}, matchingCommands("se"))
 	r.Equal([]string{
-		"about", "allocations", "clients", "deployments", "evaluations", "jobs",
-		"namespaces", "nodepools", "plugins", "servers", "services", "variables",
-		"volumes", "ctx", "dc", "region", "find",
+		"about", "allocations", "authmethods", "bindingrules", "clients", "deployments",
+		"evaluations", "jobs", "namespaces", "nodepools", "plugins", "policies", "roles",
+		"servers", "services", "tokens", "variables", "volumes", "ctx", "dc", "region", "find",
 	}, matchingCommands(""))
 
 	// A word that is an alias of its own comes first, whatever other names
@@ -134,7 +134,7 @@ func TestMatchingCommands_OfferTheSwitchesAfterTheResources(t *testing.T) {
 
 	r.Equal([]string{"deployments", "dc"}, matchingCommands("d"))
 	r.Equal([]string{"dc"}, matchingCommands("dc"))
-	r.Equal([]string{"region"}, matchingCommands("r"))
+	r.Equal([]string{"roles", "region"}, matchingCommands("r"))
 	r.Equal([]string{"region"}, matchingCommands("region eu"))
 }
 

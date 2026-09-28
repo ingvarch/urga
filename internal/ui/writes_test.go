@@ -38,6 +38,7 @@ var (
 		"Servers", "Server", "RaftPeers", "Events",
 		"Volumes", "Volume", "DescribeVolume", "Plugins", "Plugin", "DescribePlugin",
 		"Find", "DispatchForm", "ServerHealth",
+		"ACLObjects", "DescribeACL", "TokenSecret",
 	}
 )
 
