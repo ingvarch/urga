@@ -107,6 +107,9 @@ see [SECURITY.md](SECURITY.md).
 MIT, see [LICENSE](LICENSE). The release archives and packages also carry
 `THIRD_PARTY_NOTICES`, the licenses of the modules urga is built from.
 
+Nomad is a trademark of HashiCorp. urga is an independent project and is not
+affiliated with or endorsed by HashiCorp.
+
 ## About the name
 
 An urga is a Mongolian catch pole: a long wooden shaft with a loop of rope at
