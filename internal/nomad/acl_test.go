@@ -2,6 +2,9 @@ package nomad_test
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -125,4 +128,104 @@ func TestTokenSecret(t *testing.T) {
 	secret, err := client.TokenSecret(context.Background(), "a1b2c3d4-0000-0000-0000-000000000000")
 	r.NoError(err)
 	r.Equal("s3cr3t", secret)
+}
+
+func TestSubmitACL_ANewToken(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/acl/token": `{"AccessorID": "a9", "SecretID": "s3cr3t", "Name": "ci"}`,
+	})
+
+	written, err := client.SubmitACL(context.Background(), nomad.ACLToken, "", `{"Name": "ci", "Type": "client", "Policies": ["read"]}`)
+	r.NoError(err)
+
+	// Created where the kind is created, as typed, and back with its secret.
+	r.Equal("/v1/acl/token", (*asked)[0].path)
+	r.Equal("ci", (*asked)[0].body["Name"])
+	r.Equal(nomad.ACLWritten{ID: "a9", Name: "ci", Secret: "s3cr3t"}, written)
+}
+
+func TestSubmitACL_AnObjectChanged(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/acl/role/r1": `{"ID": "r1", "Name": "ops"}`,
+	})
+
+	written, err := client.SubmitACL(context.Background(), nomad.ACLRole, "r1", `{"ID": "r1", "Name": "ops", "Policies": [{"Name": "read"}]}`)
+	r.NoError(err)
+
+	r.Equal("/v1/acl/role/r1", (*asked)[0].path)
+	r.Equal(nomad.ACLWritten{ID: "r1", Name: "ops"}, written)
+}
+
+func TestSubmitACL_APolicyIsItsFile(t *testing.T) {
+	r := require.New(t)
+
+	// The cluster answers a policy with nothing.
+	client, asked := clusterServer(t, map[string]string{"/v1/acl/policy/read": ``})
+
+	written, err := client.SubmitACL(context.Background(), nomad.ACLPolicy, "read",
+		"# Description: Read everything\nnamespace \"*\" {\n  policy = \"read\"\n}\n")
+	r.NoError(err)
+
+	r.Equal(map[string]any{
+		"Name": "read", "Description": "Read everything", "Rules": "namespace \"*\" {\n  policy = \"read\"\n}\n",
+	}, subset((*asked)[0].body, "Name", "Description", "Rules"))
+	r.Equal(nomad.ACLWritten{ID: "read", Name: "read"}, written)
+}
+
+func TestSubmitACL_APolicyWithoutADescription(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{"/v1/acl/policy/read": ``})
+
+	_, err := client.SubmitACL(context.Background(), nomad.ACLPolicy, "read", "namespace \"*\" {}\n")
+	r.NoError(err)
+
+	r.Empty((*asked)[0].body["Description"])
+	r.Equal("namespace \"*\" {}\n", (*asked)[0].body["Rules"])
+}
+
+func TestSubmitACL_NotJSON(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{})
+
+	_, err := client.SubmitACL(context.Background(), nomad.ACLRole, "r1", `{"Name": "ops",`)
+	r.ErrorContains(err, "the role is not valid JSON")
+	r.Empty(*asked)
+}
+
+func TestDeleteACL(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{}`)
+
+	r.NoError(client.DeleteACL(context.Background(), nomad.ACLBindingRule, "b1"))
+
+	r.Equal(http.MethodDelete, asked.Method)
+	r.Equal("/v1/acl/binding-rule/b1", asked.URL.Path)
+}
+
+func TestACLTemplate(t *testing.T) {
+	r := require.New(t)
+
+	// Every kind starts from the fields it takes; all but a policy as JSON.
+	for _, kind := range []string{nomad.ACLToken, nomad.ACLRole, nomad.ACLAuthMethod, nomad.ACLBindingRule} {
+		r.True(json.Valid([]byte(nomad.ACLTemplate(kind))), kind)
+	}
+
+	r.True(strings.HasPrefix(nomad.ACLTemplate(nomad.ACLPolicy), "# Description: \n"))
+}
+
+// subset is what a body holds of these keys.
+func subset(body map[string]any, keys ...string) map[string]any {
+	out := map[string]any{}
+	for _, key := range keys {
+		out[key] = body[key]
+	}
+
+	return out
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -233,7 +234,7 @@ func (c *Client) DescribeACL(ctx context.Context, kind, id string) (string, erro
 
 // policyFile is a policy as it is written: its description, then its rules.
 func policyFile(policy *api.ACLPolicy) string {
-	return "# Description: " + policy.Description + "\n" + policy.Rules
+	return descriptionLine + " " + policy.Description + "\n" + policy.Rules
 }
 
 // TokenSecret is the secret of a token, which is what signs requests with
@@ -246,3 +247,123 @@ func (c *Client) TokenSecret(ctx context.Context, accessorID string) (string, er
 
 	return token.SecretID, nil
 }
+
+// ACLWritten is an ACL object as the cluster answers a write: its ID and
+// name, and the secret of a token.
+type ACLWritten struct {
+	ID, Name, Secret string
+}
+
+// SubmitACL writes an ACL object from its file: a new one when id is empty,
+// the one id names otherwise. A policy is named by id either way, and is its
+// file; the rest are JSON, sent as typed.
+func (c *Client) SubmitACL(ctx context.Context, kind, id, source string) (ACLWritten, error) {
+	path, err := pathOf(kind)
+	if err != nil {
+		return ACLWritten{}, err
+	}
+
+	if kind == ACLPolicy {
+		description, rules := parsePolicyFile(source)
+		policy := api.ACLPolicy{Name: id, Description: description, Rules: rules}
+
+		// The cluster answers a policy with nothing.
+		if _, err := c.api.Raw().Write(path.one+url.PathEscape(id), policy, nil, c.write(ctx, "")); err != nil {
+			return ACLWritten{}, err
+		}
+
+		return ACLWritten{ID: id, Name: id}, nil
+	}
+
+	var object map[string]any
+	if err := json.Unmarshal([]byte(source), &object); err != nil {
+		return ACLWritten{}, fmt.Errorf("the %s is not valid JSON: %w", kind, err)
+	}
+
+	// A new one is written where the kind is created, one that is there by
+	// its ID.
+	endpoint := strings.TrimSuffix(path.one, "/")
+	if id != "" {
+		endpoint = path.one + url.PathEscape(id)
+	}
+
+	var answer struct{ AccessorID, ID, Name, SecretID string }
+	if _, err := c.api.Raw().Write(endpoint, object, &answer, c.write(ctx, "")); err != nil {
+		return ACLWritten{}, err
+	}
+
+	return ACLWritten{ID: cmp.Or(answer.AccessorID, answer.ID, answer.Name), Name: answer.Name, Secret: answer.SecretID}, nil
+}
+
+// descriptionLine starts the first line of a policy file, which holds the
+// description of the policy.
+const descriptionLine = "# Description:"
+
+// parsePolicyFile reads a policy file: its description from the first line,
+// when that line holds one, and its rules as they are written.
+func parsePolicyFile(source string) (description, rules string) {
+	first, rest, _ := strings.Cut(source, "\n")
+	if said, ok := strings.CutPrefix(first, descriptionLine); ok {
+		return strings.TrimSpace(said), rest
+	}
+
+	return "", source
+}
+
+// DeleteACL deletes an ACL object.
+func (c *Client) DeleteACL(ctx context.Context, kind, id string) error {
+	path, err := pathOf(kind)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.api.Raw().Delete(path.one+url.PathEscape(id), nil, c.write(ctx, ""))
+
+	return err
+}
+
+// aclTemplates are the files new ACL objects start from: the fields each
+// kind takes, to fill in. A token takes "ExpirationTTL": "24h" to expire.
+var aclTemplates = map[string]string{
+	ACLPolicy: descriptionLine + " \nnamespace \"default\" {\n  policy = \"read\"\n}\n",
+	ACLToken: `{
+  "Name": "",
+  "Type": "client",
+  "Policies": [],
+  "Roles": [],
+  "Global": false
+}
+`,
+	ACLRole: `{
+  "Name": "",
+  "Description": "",
+  "Policies": [{"Name": ""}]
+}
+`,
+	ACLAuthMethod: `{
+  "Name": "",
+  "Type": "OIDC",
+  "TokenLocality": "local",
+  "MaxTokenTTL": "1h",
+  "Default": false,
+  "Config": {
+    "OIDCDiscoveryURL": "",
+    "OIDCClientID": "",
+    "OIDCClientSecret": "",
+    "BoundAudiences": [],
+    "AllowedRedirectURIs": []
+  }
+}
+`,
+	ACLBindingRule: `{
+  "Description": "",
+  "AuthMethod": "",
+  "Selector": "",
+  "BindType": "role",
+  "BindName": ""
+}
+`,
+}
+
+// ACLTemplate is the file a new ACL object of a kind starts from.
+func ACLTemplate(kind string) string { return aclTemplates[kind] }
