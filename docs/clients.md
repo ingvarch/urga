@@ -38,10 +38,27 @@ From the client screen:
 
 ## Servers
 
-`:servers` lists the servers and shows which one is the leader. `enter` on a
-server shows what its agent reports: its addresses and ports, its gossip
-settings, whether it is a voter in the Raft cluster, and the tags the cluster
-was built with.
+`:servers` lists the servers and shows which one is the leader, and how each
+stands in the Raft cluster:
+
+| Column | Description |
+| --- | --- |
+| Health | Whether the server is healthy. An unhealthy server is red. |
+| Voter | Whether it votes in the Raft cluster. |
+| Contact | How long ago it heard from the leader. |
+| Behind | How many Raft entries it lacks, compared with the leader. |
+
+The title says whether the cluster is healthy, and how many servers it can
+lose without an outage: `Servers (healthy, can lose 1) [3]`.
+
+`enter` on a server shows what its agent reports: its addresses and ports, its
+gossip settings, whether it is a voter in the Raft cluster, its health, when it
+last heard from the leader, its Raft index, for how long it has been as
+healthy as it is, and the tags the cluster was built with.
+
+The health comes from the operator endpoint, which a token needs
+`operator:read` for. Without it, the columns show `-` and the title leaves the
+health out; the rest of the screen stays as it is.
 
 ## Copying a value
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"slices"
 	"sort"
 	"strconv"
 
@@ -20,6 +21,25 @@ var fieldTitles = []string{"Field", "Value"}
 // them are shown as they are: they tell how the cluster was set up.
 var serverTags = map[string]bool{
 	"dc": true, "region": true, "build": true, "port": true, "rpc_addr": true, "id": true,
+}
+
+// serverHealthMsg is how the servers stand, or why that is not known.
+type serverHealthMsg struct {
+	health nomad.ClusterHealth
+	err    error
+}
+
+// fetchHealth requests how the servers stand. An ACL may refuse it, as it
+// may the raft: the screens show what they can without it.
+func fetchHealth(client serversClient) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+
+		health, err := client.ServerHealth(ctx)
+
+		return serverHealthMsg{health: health, err: err}
+	}
 }
 
 // fetchRaft requests the raft configuration of the cluster. An ACL may
@@ -179,23 +199,42 @@ type serversPage struct {
 	ofTheSession
 
 	servers []nomad.Server
+
+	// health is how the servers stand; known says the cluster told.
+	health nomad.ClusterHealth
+	known  bool
 }
 
-func (serversPage) title(_ env, count int) string { return sprintf("Servers [%d]", count) }
-func (serversPage) titles() []string              { return serverTitles }
-func (serversPage) topics() []string              { return nil }
+// title says how many servers the cluster can lose, the first question of
+// an outage, when it is known.
+func (p serversPage) title(_ env, count int) string {
+	if !p.known {
+		return sprintf("Servers [%d]", count)
+	}
+
+	return sprintf("Servers (%s, can lose %d) [%d]", healthWord(p.health.Healthy), p.health.FailureTolerance, count)
+}
+
+func (serversPage) titles() []string { return serverTitles }
+func (serversPage) topics() []string { return nil }
 
 func (serversPage) fetch(e env) tea.Cmd {
-	return fetchList(e.client.Servers, func(items []nomad.Server) tea.Msg { return serversMsg(items) })
+	return tea.Batch(
+		fetchList(e.client.Servers, func(items []nomad.Server) tea.Msg { return serversMsg(items) }),
+		fetchHealth(e.client),
+	)
 }
 
 func (p serversPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
-	servers, ok := msg.(serversMsg)
-	if !ok {
+	switch msg := msg.(type) {
+	case serversMsg:
+		p.servers = msg
+	case serverHealthMsg:
+		// An answer that names no server says nothing of their health.
+		p.health, p.known = msg.health, msg.err == nil && len(msg.health.Servers) > 0
+	default:
 		return p, outcome{}, false
 	}
-
-	p.servers = servers
 
 	return p, outcome{}, true
 }
@@ -205,7 +244,7 @@ func (p serversPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 // key finds the server on the screen.
 func (p serversPage) visible(e env) []nomad.Server { return serversIn(e.datacenter, p.servers) }
 
-func (p serversPage) rows(e env) []tableRow { return serverRows(p.visible(e)) }
+func (p serversPage) rows(e env) []tableRow { return serverRows(p.visible(e), p.health, p.known) }
 
 var serversKeys = []pageKey[serversPage]{{press: "enter", label: "Details", do: openServer}}
 
@@ -226,12 +265,17 @@ func openServer(p serversPage, e env) (serversPage, outcome) {
 	return p, then(openMsg{serverPage{server: server}})
 }
 
-// serverPage is what the agent of one server reports, and its role in the
-// raft of the cluster.
+// serverPage is what the agent of one server reports, its role in the raft
+// of the cluster, and how it stands.
 type serverPage struct {
 	server  nomad.Server
 	peers   []nomad.RaftPeer
 	raftErr error
+
+	// health is how the servers stand, once read; healthErr why not.
+	health     nomad.ClusterHealth
+	healthRead bool
+	healthErr  error
 }
 
 func (p serverPage) title(env, int) string { return sprintf("Server %s", p.server.Name) }
@@ -248,6 +292,7 @@ func (p serverPage) fetch(e env) tea.Cmd {
 			return client.Server(ctx, name)
 		}, func(server nomad.Server) tea.Msg { return serverMsg(server) }),
 		fetchRaft(client),
+		fetchHealth(client),
 	)
 }
 
@@ -257,6 +302,8 @@ func (p serverPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 		p.server = nomad.Server(msg)
 	case raftMsg:
 		p.peers, p.raftErr = msg.peers, msg.err
+	case serverHealthMsg:
+		p.health, p.healthRead, p.healthErr = msg.health, true, msg.err
 	default:
 		return p, outcome{}, false
 	}
@@ -264,7 +311,63 @@ func (p serverPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, true
 }
 
-func (p serverPage) rows(env) []tableRow { return serverDetailRows(p.server, p.peers, p.raftErr) }
+func (p serverPage) rows(env) []tableRow {
+	rows := serverDetailRows(p.server, p.peers, p.raftErr)
+
+	return slices.Insert(rows, raftRow(rows)+1, p.standingRows()...)
+}
+
+// standingRows are how the server stands, after its role in the raft: its
+// health, how long ago it heard from the leader, how far behind it is, and
+// for how long it has been as healthy as it is. Nothing before the cluster
+// answers.
+func (p serverPage) standingRows() []tableRow {
+	if !p.healthRead {
+		return nil
+	}
+
+	if p.healthErr != nil {
+		return []tableRow{{cells: []string{"Health", "unknown: " + p.healthErr.Error()}, color: colorMuted}}
+	}
+
+	s, found := standingOf(p.server, p.health)
+	if !found {
+		return []tableRow{{cells: []string{"Health", "not reported"}, color: colorAttention}}
+	}
+
+	health := tableRow{cells: []string{"Health", healthWord(s.Healthy)}}
+	if !s.Healthy {
+		health.color = colorDead
+	}
+
+	index := strconv.FormatUint(s.LastIndex, 10)
+	rows := []tableRow{health}
+
+	if !s.Leader {
+		rows = append(rows, tableRow{cells: []string{"Last contact", shortDuration(s.LastContact)}})
+		index += fmt.Sprintf(", %d behind the leader", entriesBehind(s, leaderIndex(p.health)))
+	}
+
+	rows = append(rows, tableRow{cells: []string{"Raft index", index}})
+
+	if !s.StableSince.IsZero() {
+		rows = append(rows, tableRow{cells: []string{"Stable for", ageOf(s.StableSince)}})
+	}
+
+	return rows
+}
+
+// raftRow is where the Raft field is among the rows of a server, the last
+// row when it is not there.
+func raftRow(rows []tableRow) int {
+	for i, row := range rows {
+		if row.cells[0] == "Raft" {
+			return i
+		}
+	}
+
+	return len(rows) - 1
+}
 
 var serverKeys = []pageKey[serverPage]{copyKey[serverPage]()}
 

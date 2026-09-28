@@ -33,13 +33,14 @@ One binary, no config to write, no browser.
 - Shows the values of variables, hidden until you ask for them, and who holds
   a variable as a lock. Edits a variable in your editor with check-and-set.
 - Shows the versions of a job and reverts to any of them.
-- Explains why a job is not placed.
+- Explains why a job is not placed, and has the scheduler evaluate it again.
 - Lists the launches of periodic and parameterized jobs, shows when a
   periodic job runs next, runs it now, and dispatches a parameterized job
   with its meta and payload.
 - Starts, stops, scales and restarts jobs and allocations, restarts and
   signals single tasks, and opens a shell in a task.
 - Drains clients and shows their CPU and memory over time.
+- Shows the health of the servers and how many the cluster can lose.
 - Works in read-only mode, and with several named clusters.
 - Says when a newer urga is out, what it changed and how to update.
 - Finds anything in the cluster by its name or ID, in every namespace.

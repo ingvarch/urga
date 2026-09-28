@@ -147,6 +147,25 @@ func startStopJob(p jobsPage, e env) (jobsPage, outcome) {
 	})
 }
 
+// evaluateJobs asks the scheduler to evaluate the marked jobs, or the one
+// under the cursor, again as they stand: what waits may be placed now, on
+// clients that joined since.
+func evaluateJobs(p jobsPage, e env) (jobsPage, outcome) {
+	jobs := markedFrom(e, p.visible(e), jobMark)
+	if len(jobs) == 0 {
+		return p, outcome{}
+	}
+
+	client := e.client
+
+	return p, then(askMsg{
+		question: fmt.Sprintf("Really evaluate %s?", jobLabel(jobs)),
+		apply: each("Evaluated", jobLabel(jobs), jobs, jobMark, func(ctx context.Context, job nomad.Job) error {
+			return client.EvaluateJob(ctx, job.Namespace, job.ID)
+		}),
+	})
+}
+
 // jobLabel is what a question about jobs says.
 func jobLabel(jobs []nomad.Job) string {
 	return many(len(jobs), "the job "+jobs[0].ID, "jobs")

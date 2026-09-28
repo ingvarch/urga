@@ -129,6 +129,12 @@ newest evaluation that could not place them. For each task group, it shows
 which nodes were filtered out and which ran out of resources, such as CPU or
 memory.
 
+`ctrl-e` asks the scheduler to evaluate a job again, as it stands, after you
+confirm. Use it when what stopped the job has changed, for example when a
+client joined or was freed: the scheduler places what it can now. With several
+jobs marked, it evaluates all of them. It is not shown on a periodic or
+parameterized job: the scheduler evaluates their launches.
+
 ## Evaluations
 
 `:evaluations` lists the evaluations of the namespace. `enter` opens one: its
