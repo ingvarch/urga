@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -217,6 +218,13 @@ type fakeClient struct {
 	// health is how the servers stand, or healthErr why it is not known.
 	health    nomad.ClusterHealth
 	healthErr error
+
+	// deletedVariable is the variable deleted last, at the index it was read
+	// at; createdNamespace and deletedNamespace are the namespace created
+	// and deleted last.
+	deletedVariable  string
+	createdNamespace string
+	deletedNamespace string
 
 	// feed is what the cluster sends to :events, feedNamespace where it was
 	// asked for last.
@@ -573,6 +581,30 @@ func (f *fakeClient) EvaluateJob(_ context.Context, namespace, jobID string) err
 
 func (f *fakeClient) ServerHealth(context.Context) (nomad.ClusterHealth, error) {
 	return f.health, f.healthErr
+}
+
+func (f *fakeClient) DeleteVariable(_ context.Context, namespace, path string, index uint64) error {
+	f.wrote("DeleteVariable")
+	f.askedNamespace, f.deletedVariable = namespace, fmt.Sprintf("%s@%d", path, index)
+
+	return f.actionErr
+}
+
+func (f *fakeClient) CreateNamespace(_ context.Context, source string) (string, error) {
+	f.wrote("CreateNamespace")
+	f.createdNamespace = source
+
+	var namespace struct{ Name string }
+	_ = json.Unmarshal([]byte(source), &namespace)
+
+	return namespace.Name, f.refused(f.actionErr)
+}
+
+func (f *fakeClient) DeleteNamespace(_ context.Context, name string) error {
+	f.wrote("DeleteNamespace")
+	f.deletedNamespace = name
+
+	return f.actionErr
 }
 
 func (f *fakeClient) Feed(_ context.Context, namespace string) (*nomad.Feed, error) {

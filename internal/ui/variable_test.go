@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -182,12 +183,18 @@ func TestVariables_TheListOfTheNamespaceAndItsKeys(t *testing.T) {
 	r.Contains(fileRow(t, m, 1), "nomad/jobs/web")
 	r.Contains(fileRow(t, m, 1), "default")
 
-	// The locked one has no edit, and its lock can be released; the other
-	// one is the other way round.
-	r.Equal([]hint{{Key: "<enter>", Description: "Values"}, {Key: "<ctrl-r>", Description: "Release Lock"}}, m.hints())
+	// The locked one has no edit and no delete, and its lock can be
+	// released; the other one is the other way round.
+	r.Equal([]hint{
+		{Key: "<enter>", Description: "Values"}, {Key: "<n>", Description: "New"},
+		{Key: "<ctrl-r>", Description: "Release Lock"},
+	}, m.hints())
 
 	m, _ = m.update(key('j'))
-	r.Equal([]hint{{Key: "<enter>", Description: "Values"}, {Key: "<e>", Description: "Edit"}}, m.hints())
+	r.Equal([]hint{
+		{Key: "<enter>", Description: "Values"}, {Key: "<n>", Description: "New"},
+		{Key: "<e>", Description: "Edit"}, {Key: "<ctrl-d>", Description: "Delete"},
+	}, m.hints())
 }
 
 func TestVariable_TheKeysOfTheValues(t *testing.T) {
@@ -398,4 +405,114 @@ func TestVariable_ARefusedSaveSaysWhoseTokenWasRefused(t *testing.T) {
 	follow(m, cmd, 12)
 
 	r.Contains(editor.seen[1], "# Not saved: Permission denied: deploy-bot may not do this.\n")
+}
+
+// onVariables is the list of variables of the session in a namespace, the
+// locked one first, with an editor that types the edits one by one.
+func onVariables(t *testing.T, client *fakeClient, namespace string, edits ...string) (Model, *fakeEditor) {
+	t.Helper()
+
+	t.Setenv("TMPDIR", t.TempDir())
+
+	web := webVariable().Variable
+	web.Index = 769
+	client.variables = []nomad.Variable{leaderVariable().Variable, web}
+
+	editor := &fakeEditor{edits: edits}
+
+	m := New(client, Options{Namespace: namespace, Version: "v-test", Editor: editor, PollEvery: time.Millisecond})
+	m, _ = m.update(sizeMsg())
+
+	return typeCommand(m, "variables"), editor
+}
+
+// apiFile is a new variable with a value.
+const apiFile = "# Variable nomad/jobs/api in namespace production.\nDB_HOST = \"10.0.0.7\"\n"
+
+func TestVariables_NewAsksForAPathAndCreates(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m, editor := onVariables(t, client, "production", apiFile)
+
+	// The line names the namespace it goes to.
+	m, _ = m.update(key('n'))
+	r.Equal(overlayAnswer, m.overlay)
+	r.Contains(plain(m.render()), "new variable in production at:")
+
+	m = typeIn(m, "nomad/jobs/api")
+	m, cmd := m.update(enter())
+	m = follow(m, cmd, 8)
+
+	r.Equal([]string{nomad.VariableTemplate("production", "nomad/jobs/api")}, editor.seen)
+
+	// Index 0 makes it only where there is none.
+	r.Equal([]string{"SubmitVariable"}, client.writes)
+	r.Equal("production", client.askedNamespace)
+	r.Equal("nomad/jobs/api", client.variablePath)
+	r.Equal(apiFile, client.submittedSource)
+	r.Equal(uint64(0), client.submittedIndex)
+	r.Contains(plain(m.render()), "Variable nomad/jobs/api created.")
+}
+
+func TestVariables_NewInEveryNamespaceGoesToDefault(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onVariables(t, &fakeClient{}, nomad.AllNamespaces)
+
+	m, _ = m.update(key('n'))
+	r.Contains(plain(m.render()), "new variable in default at:")
+}
+
+func TestVariables_ANewOneNeedsAPath(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m, editor := onVariables(t, client, "production")
+
+	m, _ = m.update(key('n'))
+	m, cmd := m.update(enter())
+	m = follow(m, cmd, 8)
+
+	r.Empty(editor.seen)
+	r.Contains(plain(m.render()), "A variable needs a path.")
+}
+
+func TestVariables_ANewOneWhereOneExistsIsNotSavedOver(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{refusals: []error{&nomad.VariableConflict{Path: "nomad/jobs/api", Exists: true, Index: 800}}}
+
+	// The second time, the lines of the refusal are deleted.
+	m, editor := onVariables(t, client, "production", apiFile, apiFile)
+
+	m, _ = m.update(key('n'))
+	m = typeIn(m, "nomad/jobs/api")
+	m, cmd := m.update(enter())
+	follow(m, cmd, 16)
+
+	r.Len(editor.seen, 2)
+	r.Contains(editor.seen[1], "# Not saved: variable nomad/jobs/api already exists.\n# Saving again replaces it.\n")
+
+	r.Equal([]string{"SubmitVariable", "SubmitVariable"}, client.writes)
+	r.Equal(uint64(800), client.submittedIndex)
+}
+
+func TestVariables_DeleteAsksAndKeepsOneThatChanged(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m, _ := onVariables(t, client, "production")
+	m, _ = m.update(key('j'))
+
+	m, _ = m.update(ctrlKey('d'))
+	r.Equal("Really delete the variable nomad/jobs/web?", m.confirm.question)
+
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	// At the index the list read: one changed since is kept.
+	r.Equal("nomad/jobs/web@769", client.deletedVariable)
+	r.Equal("default", client.askedNamespace)
+	r.Contains(plain(m.render()), "Variable nomad/jobs/web deleted.")
 }

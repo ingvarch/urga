@@ -26,6 +26,7 @@ var (
 		"DetachVolume", "ReleaseClaim", "DispatchJob", "EvaluateJob",
 		"TagVersion", "UntagVersion", "SetAllocHealth", "ReleaseLock",
 		"SubmitACL", "DeleteACL", "SubmitScheduler",
+		"DeleteVariable", "CreateNamespace", "DeleteNamespace",
 	}
 
 	clientReads = []string{

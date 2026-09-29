@@ -88,7 +88,9 @@ func (p variablesPage) picked(e env) (nomad.Variable, bool) { return pickedFrom(
 
 var variablesKeys = []pageKey[variablesPage]{
 	{press: "enter", label: "Values", do: openVariable},
+	{press: "n", label: "New", do: newVariable, writes: true},
 	editVariableKey(variablesPage.picked),
+	{press: "ctrl+d", label: "Delete", do: deleteVariable, writes: true, offered: unlocked(variablesPage.picked)},
 	releaseLockKey(variablesPage.picked),
 }
 
@@ -246,14 +248,65 @@ func editVariableKey[P any](acted func(p P, e env) (nomad.Variable, bool)) pageK
 			return p, outcome{cmd: openEditor(variableFile(e.client, v.Namespace, v.Path))}
 		},
 
-		// Edit is offered only for a variable without a lock: Nomad refuses
-		// a change of a locked one to anyone but the holder.
-		offered: func(p P, e env) bool {
-			v, ok := acted(p, e)
-
-			return ok && v.Lock == nil
-		},
+		offered: unlocked(acted),
 	}
+}
+
+// unlocked offers a key for a variable without a lock: Nomad refuses a
+// change of a locked one to anyone but the holder.
+func unlocked[P any](acted func(p P, e env) (nomad.Variable, bool)) func(p P, e env) bool {
+	return func(p P, e env) bool {
+		v, ok := acted(p, e)
+
+		return ok && v.Lock == nil
+	}
+}
+
+// newVariable asks where a new variable goes and opens its file in the
+// editor. It goes to the namespace of the session, to default when the
+// session looks at every one.
+func newVariable(p variablesPage, e env) (variablesPage, outcome) {
+	namespace := e.namespace
+	if namespace == "" || namespace == nomad.AllNamespaces {
+		namespace = nomad.DefaultNamespace
+	}
+
+	return p, then(lineMsg{
+		prefix: "new variable in " + namespace + " at: ",
+		answer: func(m Model, typed string) (Model, tea.Cmd) {
+			path := strings.TrimSpace(typed)
+			if path == "" {
+				return m.warn("A variable needs a path."), nil
+			}
+
+			client := m.client
+
+			return m, openEditor(func(context.Context) (file, error) {
+				return file{
+					extension: "toml", content: nomad.VariableTemplate(namespace, path),
+					submit: saveVariable(client, namespace, path, 0),
+				}, nil
+			})
+		},
+	})
+}
+
+// deleteVariable deletes the variable under the cursor, after the user
+// confirms, at the index the list read: one changed since is kept.
+func deleteVariable(p variablesPage, e env) (variablesPage, outcome) {
+	v, ok := p.picked(e)
+	if !ok {
+		return p, outcome{}
+	}
+
+	client := e.client
+
+	return p, then(askMsg{
+		question: fmt.Sprintf("Really delete the variable %s?", v.Path),
+		apply: act(fmt.Sprintf("Variable %s deleted.", v.Path), func(ctx context.Context) error {
+			return client.DeleteVariable(ctx, v.Namespace, v.Path, v.Index)
+		}),
+	})
 }
 
 // releaseLockKey releases the lock held on the variable that acted returns,
@@ -295,11 +348,11 @@ func variableFile(client variablesClient, namespace, path string) load {
 	}
 }
 
-// saveVariable sends an edit of a variable read at index. What the cluster
-// refuses goes back to the editor instead of being lost. A variable changed
-// or deleted since it was read is overwritten by the next save, and the
-// header of the file warns about it; a locked one is sent at the old index
-// again.
+// saveVariable sends an edit of a variable read at index; at index 0 it
+// makes a new one where there is none. What the cluster refuses goes back to
+// the editor instead of being lost. A variable changed, deleted or found
+// there since it was read is overwritten by the next save, and the header of
+// the file warns about it; a locked one is sent at the old index again.
 func saveVariable(client variablesClient, namespace, path string, index uint64) func(source string) tea.Cmd {
 	return func(source string) tea.Cmd {
 		return func() tea.Msg {
@@ -308,7 +361,12 @@ func saveVariable(client variablesClient, namespace, path string, index uint64) 
 
 			err := client.SubmitVariable(ctx, namespace, path, source, index)
 			if err == nil {
-				return doneMsg{said: fmt.Sprintf("Variable %s saved.", path)}
+				verb := "saved"
+				if index == 0 {
+					verb = "created"
+				}
+
+				return doneMsg{said: fmt.Sprintf("Variable %s %s.", path, verb)}
 			}
 
 			next, advice := index, ""
@@ -317,8 +375,11 @@ func saveVariable(client variablesClient, namespace, path string, index uint64) 
 			if errors.As(err, &conflict) && conflict.Lock == nil {
 				next, advice = conflict.Index, "Saving again replaces that change."
 
-				if conflict.Deleted {
+				switch {
+				case conflict.Deleted:
 					advice = "Saving again creates it."
+				case conflict.Exists:
+					advice = "Saving again replaces it."
 				}
 			}
 

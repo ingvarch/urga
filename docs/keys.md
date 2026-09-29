@@ -321,7 +321,9 @@ when the group under the cursor has canaries waiting to be promoted.
 
 | Key | What it does | Changes |
 | --- | --- | --- |
+| `n` | Create a namespace in your editor | yes |
 | `e` | Edit a namespace in your editor | yes |
+| `ctrl-d` | Delete a namespace. Not shown on `default`. | yes |
 | `enter` | Instances of a service | |
 | `d` | Describe a service | |
 
@@ -337,7 +339,9 @@ when the group under the cursor has canaries waiting to be promoted.
 | Key | What it does | Changes |
 | --- | --- | --- |
 | `enter` | Open the variable on its values | |
+| `n` | Create a variable: its path is asked first | yes |
 | `e` | Edit the variable in your editor. Not shown on a locked one. | yes |
+| `ctrl-d` | Delete the variable. Not shown on a locked one. | yes |
 | `ctrl-r` | Release the lock held on the variable. Shown on a locked one. | yes |
 
 ### A variable
