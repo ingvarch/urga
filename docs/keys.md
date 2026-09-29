@@ -108,10 +108,22 @@ the events that report a failure.
 With the cursor on the top row, it stays there and shows each event as it
 arrives. Moved down, it stays on its event. `enter` opens what the event is
 about: a job, an allocation, a deployment, an evaluation, a client or a
-service.
+service. `esc` comes back to the events as they were, and the ones that
+happened meanwhile are added on top.
 
 The list follows the namespace of the session. Events of clients belong to no
-namespace and show in every one.
+namespace and show in every one. In another namespace it starts again from
+what the cluster keeps.
+
+## Sort
+
+Shift and a letter order the list by a column; the same key again turns the
+order round, and the title of the column shows which way with an arrow.
+Every column has a letter of its own. The common ones keep the letters you
+know from other tools: `N` for a name, `A` for an age, `S` for a status or a
+state, `P` for a namespace. Any other column takes the first letter of its
+title that is free, so on `:events` `T` is the topic and `Y` the type. `?`
+lists the letters of the screen that is open.
 
 ## Filter
 
@@ -134,7 +146,7 @@ and highlights what matched.
 | `/` | Filter |
 | `?` | Help |
 | `0` to `9` | Switch namespace. `0` is all namespaces. |
-| `A` to `Z` | Sort by the column that starts with this letter. Press again to reverse. |
+| `A` to `Z` | Sort by a column, see [Sort](#sort). Press again to reverse. |
 | `!` | Show only rows that need attention. Press again to show all rows. |
 | `enter` | Open the row under the cursor. |
 | `esc` | Go back to the previous screen, to the same row, filter and sort order. |

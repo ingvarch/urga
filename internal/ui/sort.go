@@ -3,6 +3,7 @@ package ui
 import (
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 	"unicode"
 
@@ -42,17 +43,48 @@ func (s sortState) marker(column int) string {
 	return " ↑"
 }
 
-// columnOfLetter is the first column whose title starts with a letter, which
-// is how a column is picked with one key.
-func columnOfLetter(titles []string, letter rune) (int, bool) {
-	wanted := unicode.ToLower(letter)
+// knownLetters are the letters of the columns most lists have, the ones
+// people know from other tools: they stay whatever else a list shows.
+var knownLetters = map[string]rune{"Name": 'n', "Age": 'a', "Status": 's', "State": 's', "Namespace": 'p'}
+
+// sortLetters is the letter of each column that orders the list by it: the
+// known one of a common column, otherwise the first letter of the title that
+// no other column has. Two columns that start alike each get one, the way
+// Topic and Type get T and Y. A column whose letters are all taken gets none.
+func sortLetters(titles []string) []rune {
+	letters := make([]rune, len(titles))
+	taken := map[rune]bool{}
 
 	for i, title := range titles {
-		if title == "" {
+		if letter, ok := knownLetters[title]; ok && !taken[letter] {
+			letters[i], taken[letter] = letter, true
+		}
+	}
+
+	for i, title := range titles {
+		if letters[i] != 0 {
 			continue
 		}
 
-		if unicode.ToLower([]rune(title)[0]) == wanted {
+		for _, letter := range strings.ToLower(title) {
+			if unicode.IsLetter(letter) && !taken[letter] {
+				letters[i], taken[letter] = letter, true
+
+				break
+			}
+		}
+	}
+
+	return letters
+}
+
+// columnOfLetter is the column a letter orders the list by, which is how a
+// column is picked with one key.
+func columnOfLetter(titles []string, letter rune) (int, bool) {
+	wanted := unicode.ToLower(letter)
+
+	for i, own := range sortLetters(titles) {
+		if own != 0 && own == wanted {
 			return i, true
 		}
 	}

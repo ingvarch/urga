@@ -20,7 +20,6 @@ var generalHints = []hint{
 	{Key: "</-f x>", Description: "Fuzzy Filter"},
 	{Key: "<?>", Description: "Help"},
 	{Key: "<0-9>", Description: "Switch Namespace"},
-	{Key: "<A-Z>", Description: "Sort Column"},
 	{Key: "<!>", Description: "Toggle Faults"},
 	{Key: "<q>", Description: "Quit"},
 }
@@ -45,10 +44,29 @@ func (m Model) helpSections() []helpSection {
 		sections = append(sections, helpSection{title: "RESOURCE", hints: hints})
 	}
 
+	if hints := m.sortHints(); len(hints) > 0 {
+		sections = append(sections, helpSection{title: "SORT", hints: hints})
+	}
+
 	return append(sections,
 		helpSection{title: "GENERAL", hints: generalHints},
 		helpSection{title: "NAVIGATION", hints: navigationHints},
 	)
+}
+
+// sortHints are the keys that order the open list, a column each. The same
+// key again turns the order round.
+func (m Model) sortHints() []hint {
+	titles := m.screen.page.titles()
+	hints := []hint{}
+
+	for i, letter := range sortLetters(titles) {
+		if letter != 0 {
+			hints = append(hints, hint{Key: "<shift-" + string(letter) + ">", Description: titles[i]})
+		}
+	}
+
+	return hints
 }
 
 // renderHelp lays the sections out side by side.
