@@ -258,6 +258,7 @@ func (m Model) done(msg doneMsg) (Model, tea.Cmd) {
 
 	if msg.err != nil {
 		m = m.fail(msg.err)
+		m.flash.ofAction = true
 	} else {
 		m = m.say(msg.said)
 	}

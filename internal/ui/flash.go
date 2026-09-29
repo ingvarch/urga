@@ -31,6 +31,10 @@ type flash struct {
 	text  string
 	level flashLevel
 	at    time.Time
+
+	// ofAction says the error is of an action: the answer to the next read
+	// does not make it out of date.
+	ofAction bool
 }
 
 // say reports what came of something the person asked for.
@@ -68,10 +72,10 @@ func (m Model) flashed(text string, level flashLevel) Model {
 }
 
 // forget clears an error once the cluster has answered: the error is out of
-// date. A message about an action stays for its full time, so the next poll
-// does not clear it.
+// date. A message about an action, and an action that failed, stay for their
+// full time, so the next poll does not clear them.
 func (m Model) forget() Model {
-	if m.flash.level == flashErr {
+	if m.flash.level == flashErr && !m.flash.ofAction {
 		return m.quiet()
 	}
 

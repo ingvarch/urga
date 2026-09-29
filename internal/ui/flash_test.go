@@ -99,3 +99,32 @@ func TestFlash_TheOneThatClearsItLeavesANewerOneAlone(t *testing.T) {
 	// that replaced it.
 	r.Contains(plain(m.render()), "second")
 }
+
+func TestFlash_AnActionThatFailedOutlivesTheRefresh(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onAllocations(t)
+	client.actionErr = errors.New("no answer from the client")
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(key('r'))
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	// The list is read again after an action, and its answer does not make
+	// what went wrong with the action out of date.
+	m, _ = m.update(allocsMsg(twoAllocs()))
+
+	r.Contains(plain(statusLine(m)), "restarted 0 of 2: no answer from the client")
+}
+
+func TestFlash_AnErrorOfAReadGoesWithTheNextAnswer(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onAllocations(t)
+
+	m, _ = m.update(errMsg{err: errors.New("no leader")})
+	m, _ = m.update(allocsMsg(twoAllocs()))
+
+	r.NotContains(plain(statusLine(m)), "no leader")
+}
