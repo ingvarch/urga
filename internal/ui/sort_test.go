@@ -181,16 +181,18 @@ func TestSort_KeepsTheCursorOnItsRow(t *testing.T) {
 
 	m := loadedModel(t)
 
-	// The cursor is on web, the second row after sorting by name.
+	// The cursor is on web, the second row after sorting by name: it goes
+	// with its job.
 	m, _ = m.update(key('N'))
 
 	out := plain(m.render())
 	r.True(strings.Index(out, "cron") < strings.Index(out, "web"), out)
+	r.Equal(1, m.list.table.cursor)
 
 	m, _ = m.update(enter())
 
-	// Enter opens what the cursor is on now, not what was there before.
-	r.Contains(plain(m.render()), "Allocations (Job: cron)")
+	// Enter opens what the cursor is on, through the sorted order.
+	r.Contains(plain(m.render()), "Allocations (Job: web)")
 }
 
 func TestSort_ByTheFirstLetterOfAColumn(t *testing.T) {

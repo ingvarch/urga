@@ -63,3 +63,28 @@ func TestCursor_ShrinkingClusterKeepsTheRowsVisible(t *testing.T) {
 	r.Contains(out, "job-00")
 	r.Contains(out, "job-01")
 }
+
+func TestCursor_StaysOnItsResourceWhenTheListChanges(t *testing.T) {
+	r := require.New(t)
+
+	job := func(id string) nomad.Job { return nomad.Job{ID: id, Name: id, Namespace: "production"} }
+	selected := func(m Model) string {
+		row, _ := m.list.table.selected()
+
+		return row.cells[0]
+	}
+
+	m := newTestModel(&fakeClient{})
+	m, _ = m.update(jobsMsg([]nomad.Job{job("cron"), job("web")}))
+	m, _ = m.update(key('j'))
+	r.Equal("web", selected(m))
+
+	// A job that appears above does not move the cursor to another job: a
+	// key pressed next acts on the one that was chosen.
+	m, _ = m.update(jobsMsg([]nomad.Job{job("api"), job("cron"), job("web")}))
+	r.Equal("web", selected(m))
+
+	// When the job is gone, the cursor keeps its place.
+	m, _ = m.update(jobsMsg([]nomad.Job{job("api"), job("batch"), job("cron")}))
+	r.Equal("cron", selected(m))
+}
