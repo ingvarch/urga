@@ -50,8 +50,8 @@ func (c *Client) JobVersions(ctx context.Context, namespace, jobID string) ([]Jo
 		}
 
 		version := JobVersion{
-			Version: uintOf(job.Version),
-			Stable:  boolOf(job.Stable),
+			Version: valueOf(job.Version),
+			Stable:  valueOf(job.Stable),
 			Current: i == 0,
 		}
 
@@ -83,7 +83,7 @@ func (c *Client) JobVersionDiff(ctx context.Context, namespace, jobID string, ve
 	}
 
 	for i, job := range jobs {
-		if job == nil || uintOf(job.Version) != version {
+		if job == nil || valueOf(job.Version) != version {
 			continue
 		}
 
@@ -155,16 +155,4 @@ func countFields(fields []*api.FieldDiff, objects []*api.ObjectDiff) int {
 	}
 
 	return count
-}
-
-func uintOf(value *uint64) uint64 {
-	if value == nil {
-		return 0
-	}
-
-	return *value
-}
-
-func boolOf(value *bool) bool {
-	return value != nil && *value
 }

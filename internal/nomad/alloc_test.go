@@ -151,6 +151,43 @@ func TestAllocations_ReadWhatHappenedToATask(t *testing.T) {
 	r.False(events[2].Failed)
 }
 
+func TestAllocations_ReadTheVersionRestartsAndOOM(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{
+		"ID": "af1f37df",
+		"Name": "web.frontend[0]",
+		"JobVersion": 4,
+		"TaskStates": {
+			"server": {
+				"State": "running",
+				"Restarts": 2,
+				"LastRestart": "2026-09-29T10:00:00Z",
+				"Events": [
+					{"Type": "Terminated", "Time": 1790671900000000000, "DisplayMessage": "Exit Code: 1",
+						"Details": {"exit_code": "1", "oom_killed": "false"}},
+					{"Type": "Terminated", "Time": 1790671937831483000, "DisplayMessage": "OOM Killed",
+						"Details": {"exit_code": "137", "oom_killed": "true"}}
+				]
+			}
+		}
+	}]`)
+
+	allocs, err := client.Allocations(context.Background(), "production", "")
+	r.NoError(err)
+
+	r.Equal(uint64(4), allocs[0].JobVersion)
+
+	task := allocs[0].Tasks[0]
+	r.Equal(2, task.Restarts)
+	r.Equal(time.Date(2026, 9, 29, 10, 0, 0, 0, time.UTC), task.LastRestart.UTC())
+
+	// Nomad says on every exit whether the kernel killed the task for its
+	// memory: only true is an OOM kill.
+	r.True(task.Events[0].OOM)
+	r.False(task.Events[1].OOM)
+}
+
 func TestAllocation(t *testing.T) {
 	r := require.New(t)
 

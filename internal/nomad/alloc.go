@@ -70,6 +70,9 @@ type Task struct {
 	Started  time.Time
 	Finished time.Time
 
+	// LastRestart is when the task was restarted last, zero for never.
+	LastRestart time.Time
+
 	// Events are what happened to the task, newest first: the client says
 	// what it did with it and why it stopped.
 	Events []TaskEvent
@@ -83,6 +86,9 @@ type TaskEvent struct {
 
 	// Failed says this event is what made the task fail.
 	Failed bool
+
+	// OOM says the kernel killed the task for the memory it used.
+	OOM bool
 }
 
 // Allocations lists the allocations of a job. An empty job lists every
@@ -226,6 +232,7 @@ func newAlloc(stub *api.AllocationListStub) Alloc {
 		Status:        stub.ClientStatus,
 		DesiredStatus: stub.DesiredStatus,
 		Tasks:         newTasks(stub.TaskStates),
+		JobVersion:    stub.JobVersion,
 	}
 
 	alloc.Created = unixTime(stub.CreateTime)
@@ -253,6 +260,7 @@ func newTaskEvents(events []*api.TaskEvent) []TaskEvent {
 			Type:    event.Type,
 			Message: message,
 			Failed:  event.FailsTask,
+			OOM:     event.Details["oom_killed"] == "true",
 		})
 	}
 
@@ -276,6 +284,7 @@ func newTasks(states map[string]*api.TaskState) []Task {
 			task.Restarts = int(state.Restarts)
 			task.Started = state.StartedAt
 			task.Finished = state.FinishedAt
+			task.LastRestart = state.LastRestart
 			task.Events = newTaskEvents(state.Events)
 		}
 
