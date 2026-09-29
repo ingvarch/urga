@@ -1,7 +1,8 @@
 # Jobs
 
-This page covers jobs, task groups, editing, plans, versions, evaluations and
-deployments. For the keys of each screen, see [Keys and commands](keys.md).
+This page covers jobs, task groups and their scaling, editing, plans,
+versions, evaluations and deployments. For the keys of each screen, see
+[Keys and commands](keys.md).
 
 ## Job list
 
@@ -70,10 +71,31 @@ With several jobs marked, it acts on all of them.
 ## Task groups and scaling
 
 The task group list shows how many allocations of each group are running,
-starting, queued, complete, failed and lost.
+starting, queued, complete, failed and lost. The Scaling column shows the
+bounds of the scaling policy of the group: `1-5`, `1-5 off` when the policy
+is disabled, or `-` when the group has none.
 
 `s` scales the group under the cursor. urga asks for the new count, with the
-current count filled in, and then asks you to confirm.
+current count filled in, and then asks you to confirm. When an enabled policy
+holds the group, the question says so: the autoscaler may change the count
+back. A count outside the bounds is refused by the cluster.
+
+`a` shows what was done to the count of the group, newest first: each change,
+`2 → 3`, with its message and when it happened. A report of the autoscaler
+that left the count shows `-`, and one that failed is red. The title shows
+the count and the bounds: `Scaling (Job: web, Group: frontend, 3 in 1-5)`.
+`d` shows the policy in full, with the settings the autoscaler reads. Nomad
+keeps the last 20 events of a group, from the autoscaler and from a scale by
+hand alike.
+
+### Scaling policies
+
+`:scaling` lists the scaling policies of the namespace: the job and the group
+each one scales, its type, and whether it is enabled. A disabled policy is
+grey. `enter` opens what was done to the count of the group, `d` shows the
+policy in full.
+
+A policy is part of its job. To change it, edit the job with `e`.
 
 ## Editing a job
 

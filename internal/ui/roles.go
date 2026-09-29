@@ -27,6 +27,7 @@ type Client interface {
 	searchClient
 	aclClient
 	schedulerClient
+	scalingClient
 }
 
 // The roles the cluster plays for the screens, one per kind of resource.
@@ -184,6 +185,14 @@ type (
 		TokenSecret(ctx context.Context, accessorID string) (string, error)
 		SubmitACL(ctx context.Context, kind, id, source string) (nomad.ACLWritten, error)
 		DeleteACL(ctx context.Context, kind, id string) error
+	}
+
+	// scalingClient is the scaling policies of the jobs, and what was done
+	// to the count of a group.
+	scalingClient interface {
+		ScalingPolicies(ctx context.Context, namespace string) ([]nomad.ScalingPolicy, error)
+		DescribeScalingPolicy(ctx context.Context, namespace, id string) (string, error)
+		GroupScaling(ctx context.Context, namespace, jobID, group string) (nomad.GroupScaling, error)
 	}
 
 	// schedulerClient is how the scheduler of the cluster places work.

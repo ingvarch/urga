@@ -27,7 +27,7 @@ func TestPrompt_ALetterOffersTheFirstResourceThatFitsIt(t *testing.T) {
 	m = typeIn(m, "s")
 
 	// One letter is enough to get a suggestion, without pressing an arrow.
-	r.Equal(":scheduler", promptLine(m))
+	r.Equal(":scaling", promptLine(m))
 }
 
 func TestPrompt_TheArrowsWalkWhatFits(t *testing.T) {

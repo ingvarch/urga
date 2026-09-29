@@ -25,6 +25,7 @@ Press `:` to open the command line, type a command and press `enter`.
 | `nodepools` | `np` | Node pools |
 | `servers` | `srv` | Servers |
 | `scheduler` | `sched` | How the scheduler places work |
+| `scaling` | `scale` | Scaling policies |
 | `volumes` | `volume`, `vol` | CSI and host volumes |
 | `plugins` | `plugin` | CSI plugins |
 | `tokens` | `token` | ACL tokens |
@@ -155,6 +156,16 @@ start, stop, restart or drain then applies to every marked row.
 | `s` | Scale: set the number of allocations | yes |
 | `l` | Logs of a task in every allocation of the group | |
 | `p` | Why the group is not placed. Shown when allocations are waiting. | |
+| `a` | What was done to the count of the group | |
+
+### Scaling policies
+
+| Key | What it does |
+| --- | --- |
+| `enter` | What was done to the count of the group |
+| `d` | Describe the policy |
+
+On what was done to the count of a group, `d` describes its policy.
 
 ### Versions
 
