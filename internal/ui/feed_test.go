@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
@@ -256,4 +257,26 @@ func TestEvents_WhatWaitsArrivesAtOnce(t *testing.T) {
 	r.True(ok)
 	r.Equal(events[0].Key, msg.events[0].Key)
 	r.Len(msg.events, 3)
+}
+
+func TestEvents_ASessionStartsOnThem(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	cfg.Screen = "events"
+
+	// urga was left on the events: the next run opens them, and reads them.
+	feed, _ := feedOf(someEvents()...)
+	client := &fakeClient{feed: feed}
+
+	m := New(client, Options{Version: "v-test", Config: cfg, PollEvery: time.Millisecond})
+	m, _ = m.update(sizeMsg())
+	m = playOut(m, m.Init())
+
+	r.IsType(feedPage{}, m.screen.page)
+	r.Equal("Events (all) [2]", m.title())
 }
