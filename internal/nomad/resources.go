@@ -185,6 +185,9 @@ type Variable struct {
 
 	// Lock is who holds the variable as a lock, nil when nobody does.
 	Lock *VariableLock
+
+	// Index is the version of the variable the list read.
+	Index uint64
 }
 
 // VariableLock is a lock held on a variable. Nomad knows its holder by the
@@ -211,7 +214,7 @@ func (c *Client) Variables(ctx context.Context, namespace string) ([]Variable, e
 
 	out := make([]Variable, 0, len(list))
 	for _, v := range list {
-		out = append(out, variableOf(v.Path, v.Namespace, v.CreateTime, v.ModifyTime, v.Lock))
+		out = append(out, variableOf(v))
 	}
 
 	return out, nil
@@ -225,19 +228,20 @@ func (c *Client) Variable(ctx context.Context, namespace, path string) (Variable
 	}
 
 	return VariableDetail{
-		Variable: variableOf(v.Path, v.Namespace, v.CreateTime, v.ModifyTime, v.Lock),
+		Variable: variableOf(v.Metadata()),
 		Items:    v.Items,
 	}, nil
 }
 
 // variableOf is what the list and a read have in common.
-func variableOf(path, namespace string, created, modified int64, lock *api.VariableLock) Variable {
+func variableOf(v *api.VariableMetadata) Variable {
 	return Variable{
-		Path:      path,
-		Namespace: namespace,
-		Created:   unixTime(created),
-		Modified:  unixTime(modified),
-		Lock:      lockOf(lock),
+		Path:      v.Path,
+		Namespace: v.Namespace,
+		Created:   unixTime(v.CreateTime),
+		Modified:  unixTime(v.ModifyTime),
+		Lock:      lockOf(v.Lock),
+		Index:     v.ModifyIndex,
 	}
 }
 

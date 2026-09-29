@@ -116,8 +116,7 @@ func (c *Client) submissionOf(ctx context.Context, namespace, jobID string, vers
 
 	// The job was read a moment ago, so a submission that is not found means
 	// the job was registered without its file.
-	var answer api.UnexpectedResponseError
-	if errors.As(err, &answer) && answer.StatusCode() == http.StatusNotFound {
+	if answered(err, http.StatusNotFound) {
 		return nil, ErrNoSource
 	}
 

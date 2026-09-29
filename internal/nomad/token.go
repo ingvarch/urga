@@ -62,8 +62,11 @@ func (c *Client) Token(ctx context.Context) (Token, error) {
 
 // Forbidden says the cluster refused a request with 403: the token may not
 // do what was asked, or is not a token the cluster knows.
-func Forbidden(err error) bool {
+func Forbidden(err error) bool { return answered(err, http.StatusForbidden) }
+
+// answered says the cluster refused a request with this status.
+func answered(err error, status int) bool {
 	var answer api.UnexpectedResponseError
 
-	return errors.As(err, &answer) && answer.StatusCode() == http.StatusForbidden
+	return errors.As(err, &answer) && answer.StatusCode() == status
 }

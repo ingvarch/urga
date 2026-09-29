@@ -208,6 +208,83 @@ func TestNamespaceSpec(t *testing.T) {
 	r.Contains(out, "\"Description\": \"live\"")
 }
 
+func TestCreateNamespace(t *testing.T) {
+	r := require.New(t)
+
+	// The cluster knows no namespace ml.
+	client, asked := clusterServer(t, map[string]string{"/v1/namespace": `{}`})
+
+	name, err := client.CreateNamespace(context.Background(), `{"Name": "ml", "Description": "machine learning"}`)
+	r.NoError(err)
+	r.Equal("ml", name)
+
+	sent := (*asked)[len(*asked)-1]
+	r.Equal("/v1/namespace", sent.path)
+	r.Equal("ml", sent.body["Name"])
+	r.Equal("machine learning", sent.body["Description"])
+}
+
+func TestCreateNamespace_ThatExists(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{"/v1/namespace/ml": `{"Name": "ml"}`})
+
+	// Registering it would overwrite the one there is.
+	_, err := client.CreateNamespace(context.Background(), `{"Name": "ml"}`)
+	r.EqualError(err, "namespace ml already exists")
+	r.Len(*asked, 1)
+}
+
+func TestCreateNamespace_WhenItCannotBeChecked(t *testing.T) {
+	r := require.New(t)
+
+	registered := false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method == http.MethodGet {
+			http.Error(w, "Permission denied", http.StatusForbidden)
+
+			return
+		}
+
+		registered = true
+		_, _ = w.Write([]byte(`{}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	// Not knowing whether it exists is not knowing that it does not.
+	_, err = client.CreateNamespace(context.Background(), `{"Name": "ml"}`)
+	r.Error(err)
+	r.False(registered)
+}
+
+func TestCreateNamespace_WithoutAName(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{})
+
+	_, err := client.CreateNamespace(context.Background(), `{"Description": "x"}`)
+	r.EqualError(err, "a namespace needs a name")
+
+	_, err = client.CreateNamespace(context.Background(), `{"Name":`)
+	r.ErrorContains(err, "not valid JSON")
+	r.Empty(*asked)
+}
+
+func TestDeleteNamespace(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, ``)
+
+	r.NoError(client.DeleteNamespace(context.Background(), "ml"))
+
+	r.Equal(http.MethodDelete, asked.Method)
+	r.Equal("/v1/namespace/ml", asked.URL.Path)
+}
+
 func TestSubmitNamespace(t *testing.T) {
 	r := require.New(t)
 
