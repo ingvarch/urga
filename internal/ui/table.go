@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"slices"
 	"strings"
 	"time"
 
@@ -56,6 +57,9 @@ type tableModel struct {
 	titles []string
 	rows   []tableRow
 
+	// ids name the resource of each row, when the screen names them.
+	ids []string
+
 	cursor int
 	top    int
 
@@ -82,6 +86,23 @@ func (t *tableModel) show(rows []tableRow, order sortState) {
 	t.rows = rows
 	t.cursor = max(0, min(t.cursor, len(rows)-1))
 	t.follow()
+}
+
+// chosen is the resource of the row the cursor is on, by its id.
+func (t tableModel) chosen() (string, bool) {
+	if t.cursor < 0 || t.cursor >= len(t.ids) {
+		return "", false
+	}
+
+	return t.ids[t.cursor], true
+}
+
+// choose puts the cursor on the row of a resource, when it is still there.
+func (t *tableModel) choose(id string) {
+	if at := slices.Index(t.ids, id); at >= 0 {
+		t.cursor = at
+		t.follow()
+	}
 }
 
 // selected is the row the cursor is on.

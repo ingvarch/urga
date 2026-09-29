@@ -34,9 +34,11 @@ func newList(titles []string) list {
 // read puts rows on the table: narrowed by the filter, and to the rows in
 // trouble when troubled is set, in the sort order, with the marks on the
 // rows of the resources that carry one. ids name the resource of each row,
-// nil for a list without marks.
+// nil for a list without marks. The cursor stays on the resource it was on:
+// a row that appears above it must not move a key to another resource.
 func (l list) read(all []tableRow, titles, ids []string, troubled bool) list {
 	l.held = len(all)
+	chosen, chose := l.table.chosen()
 
 	rows, index := filterRows(all, l.filter)
 
@@ -49,17 +51,38 @@ func (l list) read(all []tableRow, titles, ids []string, troubled bool) list {
 	l.index = index
 
 	// The mark of each resource goes on the row that shows it.
-	if len(l.marks) > 0 && ids != nil {
-		for i := range rows {
-			if i < len(index) && index[i] < len(ids) {
-				rows[i].marked = l.marks[ids[index[i]]]
-			}
-		}
+	rowIDs := idsOf(index, ids)
+	for i, id := range rowIDs {
+		rows[i].marked = l.marks[id]
 	}
 
 	l.table.show(rows, l.sort)
+	l.table.ids = rowIDs
+
+	if chose {
+		l.table.choose(chosen)
+	}
 
 	return l
+}
+
+// idsOf names the resource of each row, nil for a list whose screen names
+// none.
+func idsOf(index []int, ids []string) []string {
+	if ids == nil {
+		return nil
+	}
+
+	out := make([]string, 0, len(index))
+	for _, at := range index {
+		if at >= len(ids) {
+			break
+		}
+
+		out = append(out, ids[at])
+	}
+
+	return out
 }
 
 // selected is the resource the cursor is on. The filter shifts the rows, so
