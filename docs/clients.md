@@ -1,7 +1,8 @@
 # Clients, servers and other resources
 
-This page covers clients, servers, namespaces, services, variables and node
-pools. For the keys of each screen, see [Keys and commands](keys.md).
+This page covers clients, servers, the scheduler, namespaces, services,
+variables and node pools. For the keys of each screen, see
+[Keys and commands](keys.md).
 
 ## Client list
 
@@ -60,12 +61,27 @@ The health comes from the operator endpoint, which a token needs
 `operator:read` for. Without it, the columns show `-` and the title leaves the
 health out; the rest of the screen stays as it is.
 
+## Scheduler
+
+`:scheduler` shows how the scheduler of the cluster places work: the
+algorithm, binpack or spread, the types of job that may preempt others,
+whether memory oversubscription is on, and whether the cluster takes new jobs
+and schedules them.
+
+`e` opens the configuration in your editor as JSON, and urga saves it when you
+close the editor. It is saved with check-and-set: if someone changed the
+configuration after you opened it, the cluster keeps theirs and the editor
+opens again with the reason. Quit the editor without saving and press `e` to
+start from the new one.
+
+Reading the configuration needs `operator:read`, saving it `operator:write`.
+
 ## Copying a value
 
-On screens that show fields and values, such as a server, the attributes or
-metadata of a client, and driver details, `c` copies the value under the
-cursor to the clipboard. urga uses the OSC 52 terminal sequence, so copying
-also works over SSH if your terminal supports it.
+On screens that show fields and values, such as a server, the scheduler, the
+attributes or metadata of a client, and driver details, `c` copies the value
+under the cursor to the clipboard. urga uses the OSC 52 terminal sequence, so
+copying also works over SSH if your terminal supports it.
 
 ## Namespaces
 
@@ -159,7 +175,9 @@ variable, the reason may be:
 
 ## Node pools
 
-`:nodepools` lists the node pools and their schedulers.
+`:nodepools` lists the node pools and their schedulers. `enter` on a pool
+lists the jobs that run in it, of every namespace, and `c` lists its clients.
+The pool `all` holds every client of the cluster.
 
 ## Regions and datacenters
 

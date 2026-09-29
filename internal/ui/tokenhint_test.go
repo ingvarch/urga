@@ -91,8 +91,17 @@ func TestEmptyList_AFilterIsNotTheToken(t *testing.T) {
 func forbidden(t *testing.T) error {
 	t.Helper()
 
+	return refusedWith(t, http.StatusForbidden, "Permission denied")
+}
+
+// refusedWith is a request the cluster refused with a status and a text,
+// written as the cluster writes them: the text alone, no line end.
+func refusedWith(t *testing.T, status int, text string) error {
+	t.Helper()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		http.Error(w, "Permission denied", http.StatusForbidden)
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(text))
 	}))
 	t.Cleanup(server.Close)
 
@@ -127,7 +136,8 @@ func TestPermissionDenied_SaysWhy(t *testing.T) {
 	// When a management token is refused, the cluster's error explains why.
 	m := jobsSeenWith(nomad.Token{Name: "ops", Type: "management"}, twoJobs())
 	m, _ = m.update(errMsg{err: err})
-	require.Contains(t, plain(statusLine(m)), "403")
+	require.Contains(t, plain(statusLine(m)), "Permission denied")
+	require.NotContains(t, plain(statusLine(m)), "Unexpected response code")
 }
 
 func TestPermissionDenied_BeforeTheTokenIsKnown(t *testing.T) {
@@ -138,7 +148,8 @@ func TestPermissionDenied_BeforeTheTokenIsKnown(t *testing.T) {
 	m := New(&fakeClient{}, Options{Version: "v-test"})
 	m, _ = m.update(sizeMsg())
 	m, _ = m.update(errMsg{err: forbidden(t)})
-	r.Contains(plain(statusLine(m)), "403")
+	r.Contains(plain(statusLine(m)), "! Permission denied")
+	r.NotContains(plain(statusLine(m)), "no token is set")
 
 	m, _ = m.update(tokenMsg(nomad.Token{Anonymous: true}))
 	r.Contains(plain(statusLine(m)), "Permission denied: no token is set")

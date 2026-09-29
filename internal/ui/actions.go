@@ -233,7 +233,7 @@ func each[T any](done, label string, items []T, mark func(T) string, do func(con
 			cancel()
 
 			if err != nil {
-				failed = append(failed, err.Error())
+				failed = append(failed, nomad.Reason(err))
 				out.kept[mark(item)] = true
 
 				continue

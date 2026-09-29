@@ -25,7 +25,7 @@ var (
 		"PromoteDeployment", "FailDeployment",
 		"DetachVolume", "ReleaseClaim", "DispatchJob", "EvaluateJob",
 		"TagVersion", "UntagVersion", "SetAllocHealth", "ReleaseLock",
-		"SubmitACL", "DeleteACL",
+		"SubmitACL", "DeleteACL", "SubmitScheduler",
 	}
 
 	clientReads = []string{
@@ -34,12 +34,13 @@ var (
 		"DescribeJob", "DescribeAllocation", "DescribeDeployment", "DescribeService",
 		"Allocations", "NodeAllocations", "Allocation", "Logs",
 		"Usage", "AllocationUsage", "NodeUsage",
-		"Node", "NodeDetail", "NodeMeta", "NodeMetaSpec", "Nodes", "NodePools",
+		"Node", "NodeDetail", "NodeMeta", "NodeMetaSpec", "Nodes", "NodePools", "PoolJobs", "PoolNodes",
 		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "FailedPlacement", "Variables", "Variable", "VariableSpec",
 		"Servers", "Server", "RaftPeers", "Events",
 		"Volumes", "Volume", "DescribeVolume", "Plugins", "Plugin", "DescribePlugin",
 		"Find", "DispatchForm", "ServerHealth",
 		"ACLObjects", "DescribeACL", "TokenSecret",
+		"Scheduler", "SchedulerSpec",
 	}
 )
 

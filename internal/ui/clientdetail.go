@@ -363,13 +363,9 @@ func metaRows(meta []nomad.MetaEntry) []tableRow {
 
 // metaFile is the metadata of a client as a file.
 func metaFile(client nodesClient, nodeID, name string) load {
-	return func(ctx context.Context) (file, error) {
-		content, err := client.NodeMetaSpec(ctx, nodeID)
-
-		return file{extension: "json", content: content, submit: reopening("json", func(source string) tea.Cmd {
-			return act(fmt.Sprintf("Metadata of %s submitted.", name), func(ctx context.Context) error {
-				return client.SubmitNodeMeta(ctx, nodeID, source)
-			})
-		})}, err
-	}
+	return jsonFile(func(ctx context.Context) (string, error) {
+		return client.NodeMetaSpec(ctx, nodeID)
+	}, fmt.Sprintf("Metadata of %s submitted.", name), func(ctx context.Context, source string) error {
+		return client.SubmitNodeMeta(ctx, nodeID, source)
+	})
 }

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -29,6 +30,19 @@ func TestFlash_SaysWhatWentWrong(t *testing.T) {
 	out := plain(m.render())
 	r.Contains(out, "! connection refused")
 	r.Equal(flashErr, m.flash.level)
+}
+
+func TestFlash_SaysWhatTheClusterSaid(t *testing.T) {
+	r := require.New(t)
+
+	m := loadedModel(t)
+
+	m = m.fail(refusedWith(t, http.StatusInternalServerError, "job not found"))
+
+	// Without the code the client wraps it in.
+	out := plain(m.render())
+	r.Contains(out, "! job not found")
+	r.NotContains(out, "Unexpected response code")
 }
 
 func TestFlash_SaysWhatIsWorthKnowing(t *testing.T) {

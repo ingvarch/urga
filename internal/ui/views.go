@@ -105,6 +105,12 @@ var (
 	authMethodsView  = aclView(nomad.ACLAuthMethod, "authmethods", "authmethod", "auth")
 	bindingRulesView = aclView(nomad.ACLBindingRule, "bindingrules", "bindingrule", "br")
 
+	schedulerView = &view{
+		stored:  "scheduler",
+		aliases: []string{"scheduler", "sched"},
+		open:    func() page { return schedulerPage{} },
+	}
+
 	// aboutView is this urga. It is not a list of the cluster, so the next
 	// run does not reopen it.
 	aboutView = &view{
@@ -119,7 +125,7 @@ var views = []*view{
 	jobsView, allocationsView, deploymentsView, servicesView, evaluationsView,
 	nodesView, variablesView, regionsView, datacentersView, clustersView,
 	namespacesView, serversView, nodePoolsView, volumesView, pluginsView,
-	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, aboutView,
+	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, schedulerView, aboutView,
 }
 
 // opened is the list as a screen just opened, with nothing read into it yet.

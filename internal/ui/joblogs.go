@@ -414,7 +414,7 @@ func (p jobLogsPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 		}
 
 		if msg.err != nil {
-			return p.lines(msg.allocID, &styleError, "could not read: "+msg.err.Error()), outcome{reading: true}, true
+			return p.lines(msg.allocID, &styleError, "could not read: "+nomad.Reason(msg.err)), outcome{reading: true}, true
 		}
 
 		// The streams are kept from the first one on, whatever came before.

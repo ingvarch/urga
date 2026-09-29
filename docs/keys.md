@@ -24,6 +24,7 @@ Press `:` to open the command line, type a command and press `enter`.
 | `clients` | `nodes`, `node`, `no` | Clients |
 | `nodepools` | `np` | Node pools |
 | `servers` | `srv` | Servers |
+| `scheduler` | `sched` | How the scheduler places work |
 | `volumes` | `volume`, `vol` | CSI and host volumes |
 | `plugins` | `plugin` | CSI plugins |
 | `tokens` | `token` | ACL tokens |
@@ -336,11 +337,25 @@ On drivers, `enter` opens the details of a driver. On attributes, metadata,
 driver details and a server, `c` copies the value under the cursor. On
 metadata, `e` edits it in your editor.
 
+### Node pools
+
+| Key | What it does |
+| --- | --- |
+| `enter` | Jobs that run in the pool, of every namespace |
+| `c` | Clients of the pool |
+
 ### Servers
 
 | Key | What it does |
 | --- | --- |
 | `enter` | Details of the server |
+
+### Scheduler
+
+| Key | What it does | Changes |
+| --- | --- | --- |
+| `e` | Edit the configuration in your editor | yes |
+| `c` | Copy the value under the cursor | |
 
 ### Volumes
 
