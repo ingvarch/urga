@@ -140,7 +140,7 @@ func TestDeployment_ColumnsOfItsAllocations(t *testing.T) {
 
 	m := onDeployment(t, &fakeClient{})
 
-	r.Equal([]string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "CPU", "MEM", "Age"}, m.screen.page.titles())
+	r.Equal([]string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "Rst", "OOM", "CPU", "MEM", "Age"}, m.screen.page.titles())
 }
 
 func TestDeployment_WatchesItsAllocationsAndItself(t *testing.T) {

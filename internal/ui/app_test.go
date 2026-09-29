@@ -218,6 +218,11 @@ type fakeClient struct {
 	health    nomad.ClusterHealth
 	healthErr error
 
+	// feed is what the cluster sends to :events, feedNamespace where it was
+	// asked for last.
+	feed          *nomad.Feed
+	feedNamespace string
+
 	// scalingPolicies are the policies of the list, groupScaling how the
 	// group asked about is scaled.
 	scalingPolicies []nomad.ScalingPolicy
@@ -568,6 +573,12 @@ func (f *fakeClient) EvaluateJob(_ context.Context, namespace, jobID string) err
 
 func (f *fakeClient) ServerHealth(context.Context) (nomad.ClusterHealth, error) {
 	return f.health, f.healthErr
+}
+
+func (f *fakeClient) Feed(_ context.Context, namespace string) (*nomad.Feed, error) {
+	f.feedNamespace = namespace
+
+	return f.feed, f.err
 }
 
 func (f *fakeClient) ScalingPolicies(_ context.Context, namespace string) ([]nomad.ScalingPolicy, error) {

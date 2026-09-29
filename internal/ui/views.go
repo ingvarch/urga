@@ -105,6 +105,12 @@ var (
 	authMethodsView  = aclView(nomad.ACLAuthMethod, "authmethods", "authmethod", "auth")
 	bindingRulesView = aclView(nomad.ACLBindingRule, "bindingrules", "bindingrule", "br")
 
+	eventsView = &view{
+		stored:  "events",
+		aliases: []string{"events", "event"},
+		open:    func() page { return feedPage{} },
+	}
+
 	scalingView = &view{
 		stored:  "scaling",
 		aliases: []string{"scaling", "scale"},
@@ -131,7 +137,7 @@ var views = []*view{
 	jobsView, allocationsView, deploymentsView, servicesView, evaluationsView,
 	nodesView, variablesView, regionsView, datacentersView, clustersView,
 	namespacesView, serversView, nodePoolsView, volumesView, pluginsView,
-	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, scalingView, schedulerView, aboutView,
+	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, eventsView, scalingView, schedulerView, aboutView,
 }
 
 // opened is the list as a screen just opened, with nothing read into it yet.

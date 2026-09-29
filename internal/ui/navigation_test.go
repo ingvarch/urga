@@ -306,7 +306,7 @@ func TestAllocations_EachListAnswersItsOwnKeys(t *testing.T) {
 func TestAllocations_EachListHasItsOwnColumnsTitleAndTopics(t *testing.T) {
 	r := require.New(t)
 
-	allocColumns := []string{"ID", "TaskGroup", "JobID", "Namespace", "Node", "Status", "Desired", "CPU", "MEM", "Age"}
+	allocColumns := []string{"ID", "TaskGroup", "JobID", "Ver", "Namespace", "Node", "Status", "Desired", "Rst", "OOM", "CPU", "MEM", "Age"}
 
 	want := map[string]struct {
 		columns []string
@@ -316,7 +316,7 @@ func TestAllocations_EachListHasItsOwnColumnsTitleAndTopics(t *testing.T) {
 		"job":    {allocColumns, "Allocations (Job: web) [2]", []string{nomad.TopicAllocation}},
 		"client": {allocColumns, "Client nomad-server-01 [1]", []string{nomad.TopicAllocation}},
 		"deployment": {
-			[]string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "CPU", "MEM", "Age"},
+			[]string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "Rst", "OOM", "CPU", "MEM", "Age"},
 			"Deployment dep-1 (Job: web) [1]",
 			[]string{nomad.TopicAllocation, nomad.TopicDeployment},
 		},

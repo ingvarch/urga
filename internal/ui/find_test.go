@@ -123,8 +123,8 @@ func TestFind_WhatTheClusterCutShort(t *testing.T) {
 	r.Contains(plain(statusLine(m)), "Not every job and alloc is shown: type more to narrow the search.")
 }
 
-// openMatch opens the match of a row of the search for "web".
-func openMatch(t *testing.T, client *fakeClient, row int) Model {
+// openFoundRow opens the match of a row of the search for "web".
+func openFoundRow(t *testing.T, client *fakeClient, row int) Model {
 	t.Helper()
 
 	m := typeCommand(newTestModel(client), "find web")
@@ -143,7 +143,7 @@ func TestFind_AJobOpensAlone(t *testing.T) {
 	client := finding()
 	client.jobs = append(twoJobs(), nomad.Job{ID: "web-api", Name: "web-api", Namespace: "production", Type: "service", Status: "running"})
 
-	m := openMatch(t, client, 0)
+	m := openFoundRow(t, client, 0)
 
 	// In the list of jobs, with every key of a job, and no other job.
 	r.IsType(jobsPage{}, m.screen.page)
@@ -156,7 +156,7 @@ func TestFind_APartOfAJobOpensItsGroup(t *testing.T) {
 	r := require.New(t)
 
 	for _, row := range []int{1, 2, 4} {
-		m := openMatch(t, finding(), row)
+		m := openFoundRow(t, finding(), row)
 
 		allocs, ok := m.screen.page.(allocationsPage)
 		r.True(ok, "row %d: %T", row, m.screen.page)
@@ -170,7 +170,7 @@ func TestFind_AServiceOpensItsInstances(t *testing.T) {
 	r := require.New(t)
 
 	client := finding()
-	m := openMatch(t, client, 3)
+	m := openFoundRow(t, client, 3)
 
 	r.IsType(serviceInstancesPage{}, m.screen.page)
 	r.Equal("production", client.instancesNamespace)
@@ -183,7 +183,7 @@ func TestFind_AnAllocIsReadFirst(t *testing.T) {
 	client := finding()
 	client.alloc = nomad.Alloc{ID: "bb19fb79-0d79-6a6d-97fa-319ec77d542e", Namespace: "staging", JobID: "web-staging", Status: "running"}
 
-	m := openMatch(t, client, 5)
+	m := openFoundRow(t, client, 5)
 
 	tasks, ok := m.screen.page.(tasksPage)
 	r.True(ok, "%T", m.screen.page)
@@ -195,7 +195,7 @@ func TestFind_AnAllocIsReadFirst(t *testing.T) {
 func TestFind_ANodeOpensTheClient(t *testing.T) {
 	r := require.New(t)
 
-	m := openMatch(t, finding(), 6)
+	m := openFoundRow(t, finding(), 6)
 
 	client, ok := m.screen.page.(clientPage)
 	r.True(ok, "%T", m.screen.page)
@@ -239,16 +239,16 @@ func TestFind_ANamespaceSwitchesTheSession(t *testing.T) {
 func TestFind_TheRestOpenTheirScreens(t *testing.T) {
 	r := require.New(t)
 
-	m := openMatch(t, finding(), 9)
+	m := openFoundRow(t, finding(), 9)
 	r.Equal(variablePage{namespace: "production", path: "nomad/jobs/web"}.path, m.screen.page.(variablePage).path)
 
-	m = openMatch(t, finding(), 10)
+	m = openFoundRow(t, finding(), 10)
 	volume, ok := m.screen.page.(volumePage)
 	r.True(ok, "%T", m.screen.page)
 	r.Equal(nomad.VolumeHost, volume.kind)
 	r.Equal("7f3c1a2b-0000-0000-0000-000000000000", volume.id)
 
-	m = openMatch(t, finding(), 11)
+	m = openFoundRow(t, finding(), 11)
 	r.Equal("web-csi", m.screen.page.(pluginPage).id)
 }
 
@@ -256,7 +256,7 @@ func TestFind_AnEvalIsDescribed(t *testing.T) {
 	r := require.New(t)
 
 	client := finding()
-	m := openMatch(t, client, 12)
+	m := openFoundRow(t, client, 12)
 
 	r.IsType(describePage{}, m.screen.page)
 	r.Equal("bb1c0000-0000-0000-0000-000000000000", client.askedID)
@@ -270,7 +270,7 @@ func TestFind_ADeploymentIsReadFirst(t *testing.T) {
 		ID: "bb1d0000-0000-0000-0000-000000000000", JobID: "web", Namespace: "production", Status: "running",
 	}}
 
-	m := openMatch(t, client, 13)
+	m := openFoundRow(t, client, 13)
 
 	deployment, ok := m.screen.page.(deploymentPage)
 	r.True(ok, "%T", m.screen.page)

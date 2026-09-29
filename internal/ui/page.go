@@ -411,6 +411,12 @@ type restarter interface {
 	restart() page
 }
 
+// arriving is a list whose newest rows come on top: a cursor on the top row
+// stays there and shows what arrives.
+type arriving interface {
+	newestOnTop()
+}
+
 // follower is a page that lists what the session looks at rather than one
 // thing: it follows the session to another namespace or datacenter.
 type follower interface {
