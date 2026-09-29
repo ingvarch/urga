@@ -26,7 +26,8 @@ One binary, no config to write, no browser.
 - Lists jobs, allocations, tasks, task groups, deployments, evaluations,
   services, namespaces, variables, clients, node pools, servers, volumes,
   CSI plugins and the ACL objects.
-- Updates the screen when the cluster changes, using the Nomad event stream.
+- Updates the screen when the cluster changes, using the Nomad event stream,
+  and shows the stream itself on `:events`.
 - Shows task logs and the files of an allocation, and follows them as they
   grow. Shows the log of a task from every allocation of a job at once.
 - Edits a job in your editor and shows the plan before it submits anything.

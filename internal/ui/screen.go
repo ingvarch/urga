@@ -364,6 +364,8 @@ func letGo(msg tea.Msg) {
 		if opened.stream != nil {
 			opened.stream.Close()
 		}
+	case feedOpenedMsg:
+		opened.feed.Close()
 	}
 }
 

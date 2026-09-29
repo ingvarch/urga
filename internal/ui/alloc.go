@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"strconv"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -199,8 +201,12 @@ func runningRefs(index []int, allocs []nomad.Alloc) []rowRef {
 	return refs
 }
 
-// allocTitles are the columns of the allocation list.
-var allocTitles = []string{"ID", "TaskGroup", "JobID", "Namespace", "Node", "Status", "Desired", "CPU", "MEM", "Age"}
+// allocTitles are the columns of the allocation list. The version and the
+// restarts are a digit or two under short titles: the names beside them keep
+// their width on a narrow terminal.
+var allocTitles = []string{
+	"ID", "TaskGroup", "JobID", "Ver", "Namespace", "Node", "Status", "Desired", "Rst", "OOM", "CPU", "MEM", "Age",
+}
 
 func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []tableRow {
 	rows := make([]tableRow, 0, len(allocs))
@@ -213,10 +219,13 @@ func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []table
 			shortID(alloc.ID),
 			alloc.TaskGroup,
 			alloc.JobID,
+			strconv.FormatUint(alloc.JobVersion, 10),
 			alloc.Namespace,
 			alloc.NodeName,
 			alloc.Status,
 			alloc.DesiredStatus,
+			strconv.Itoa(restarts(alloc)),
+			oomCell(alloc),
 			cpuCell(use, known),
 			memoryCell(use, known),
 		)
@@ -232,7 +241,7 @@ func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []table
 func allocColor(alloc nomad.Alloc) color.Color {
 	switch alloc.Status {
 	case statusRunning:
-		if alloc.DesiredStatus == desiredStop {
+		if alloc.DesiredStatus == desiredStop || struggling(alloc, time.Now()) {
 			return colorAttention
 		}
 	case statusPending:
@@ -244,6 +253,52 @@ func allocColor(alloc nomad.Alloc) color.Color {
 	}
 
 	return nil
+}
+
+// troubleWindow is how recent a restart or an OOM kill is to be trouble now,
+// not history: a task that restarted once a month ago runs fine.
+const troubleWindow = time.Hour
+
+// struggling says a task of the allocation restarted, or was killed for its
+// memory, within the trouble window.
+func struggling(alloc nomad.Alloc, now time.Time) bool {
+	for _, task := range alloc.Tasks {
+		if now.Sub(task.LastRestart) < troubleWindow {
+			return true
+		}
+
+		for _, event := range task.Events {
+			if event.OOM && now.Sub(event.Time) < troubleWindow {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// restarts is how many times the tasks of an allocation were restarted.
+func restarts(alloc nomad.Alloc) int {
+	count := 0
+	for _, task := range alloc.Tasks {
+		count += task.Restarts
+	}
+
+	return count
+}
+
+// oomCell says the kernel killed a task of the allocation for its memory, in
+// what the cluster still keeps of its events.
+func oomCell(alloc nomad.Alloc) string {
+	for _, task := range alloc.Tasks {
+		for _, event := range task.Events {
+			if event.OOM {
+				return "yes"
+			}
+		}
+	}
+
+	return ""
 }
 
 const (

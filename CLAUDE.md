@@ -37,7 +37,9 @@ hashicorp/damon where the opposite of each one caused a bug that took hours.
    to the model, no goroutine draws, no blocking send on a channel that the UI
    also reads. The event stream says *when* a screen is stale; *what* it now
    holds is read the usual way. Nothing is built out of event payloads, and a
-   cluster that will not stream is polled the way it always was.
+   cluster that will not stream is polled the way it always was. `:events` is
+   the one screen that shows the events themselves, as they came; no other
+   screen is built out of them.
 4. **Screen keys in the header, general keys in help.** The header lists only
    what the open resource can do. Navigation and global keys live in `?`.
 5. **Render functions are pure.** A screen turns state plus a width into a

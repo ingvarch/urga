@@ -44,9 +44,11 @@ type (
 		Usage(ctx context.Context, datacenter string) (nomad.Usage, error)
 	}
 
-	// eventsClient opens the event stream that signals a screen is stale.
+	// eventsClient opens the event stream: the signal that a screen is
+	// stale, and the feed of what happened.
 	eventsClient interface {
 		Events(ctx context.Context, namespace string, topics []string) (*nomad.Changes, error)
+		Feed(ctx context.Context, namespace string) (*nomad.Feed, error)
 	}
 
 	jobsClient interface {

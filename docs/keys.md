@@ -18,6 +18,7 @@ Press `:` to open the command line, type a command and press `enter`.
 | `allocations` | `allocs`, `alloc` | Allocations of the namespace |
 | `deployments` | `dp` | Deployments |
 | `evaluations` | `evals`, `eval`, `ev` | Evaluations |
+| `events` | `event` | What happens in the cluster, event by event. See [Events](#events). |
 | `services` | `svc` | Services |
 | `namespaces` | `ns` | Namespaces |
 | `variables` | `vars`, `var` | Variables |
@@ -90,6 +91,26 @@ When the cluster cut a list short, the status line says to type more.
 
 A node pool or a node class has no screen of its own, so `enter` does nothing
 on it.
+
+## Events
+
+`:events` shows what happens in the cluster as it happens, newest first: the
+topic, the type of the event, the namespace, the name of the object and the
+state it reports, like `Allocation AllocationUpdated default web.frontend[0]
+failed`. It starts with the events the cluster still keeps, the last 100 by
+default, so it shows at once what just happened. urga keeps the last 1000.
+
+What failed, was lost or went down is red. An evaluation that could not place
+its work is in the attention color. `!` keeps both, and `/failed` shows only
+the events that report a failure.
+
+With the cursor on the top row, it stays there and shows each event as it
+arrives. Moved down, it stays on its event. `enter` opens what the event is
+about: a job, an allocation, a deployment, an evaluation, a client or a
+service.
+
+The list follows the namespace of the session. Events of clients belong to no
+namespace and show in every one.
 
 ## Filter
 
@@ -262,6 +283,12 @@ On an open file:
 | Key | What it does |
 | --- | --- |
 | `enter` | Details of the evaluation |
+
+### Events
+
+| Key | What it does |
+| --- | --- |
+| `enter` | Open what the event is about. Not shown for a topic urga opens nothing of. |
 
 ### Deployments
 

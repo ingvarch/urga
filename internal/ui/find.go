@@ -144,40 +144,42 @@ func (p findPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, findKeys, k)
 }
 
-// openFound opens the match under the cursor where it can be acted on. What
-// was found by its ID alone is read first: its namespace and its job are
-// not known until then.
+// openFound opens the match under the cursor where it can be acted on.
 func openFound(p findPage, e env) (findPage, outcome) {
 	m, ok := p.picked(e)
 	if !ok {
 		return p, outcome{}
 	}
 
-	if opened := pageOf(m); opened != nil {
-		return p, then(openMsg{opened})
-	}
+	return p, openMatch(e.client, m)
+}
 
-	client := e.client
+// openMatch opens a match where it can be acted on. What was found by its ID
+// alone is read first: its namespace and its job are not known until then.
+func openMatch(client Client, m nomad.Match) outcome {
+	if opened := pageOf(m); opened != nil {
+		return then(openMsg{opened})
+	}
 
 	switch m.Kind {
 	case nomad.MatchNamespace:
-		return p, then(switchNamespaceMsg(m.Name), openMsg{jobsPage{}})
+		return then(switchNamespaceMsg(m.Name), openMsg{jobsPage{}})
 
 	case nomad.MatchAlloc:
-		return p, outcome{cmd: request(func(ctx context.Context) (nomad.Alloc, error) {
+		return outcome{cmd: request(func(ctx context.Context) (nomad.Alloc, error) {
 			return client.Allocation(ctx, m.Namespace, m.ID)
 		}, func(alloc nomad.Alloc) tea.Msg { return openMsg{listedTasks(alloc)} })}
 
 	case nomad.MatchDeployment:
-		return p, outcome{cmd: request(func(ctx context.Context) (nomad.DeploymentDetail, error) {
+		return outcome{cmd: request(func(ctx context.Context) (nomad.DeploymentDetail, error) {
 			return client.Deployment(ctx, m.Namespace, m.ID)
 		}, func(d nomad.DeploymentDetail) tea.Msg { return openMsg{deploymentOf(d.Deployment)} })}
 
 	case nomad.MatchEval:
-		return p, outcome{cmd: describeEvaluation(client, m.Namespace, m.ID)}
+		return outcome{cmd: describeEvaluation(client, m.Namespace, m.ID)}
 	}
 
-	return p, outcome{}
+	return outcome{}
 }
 
 // pageOf is the page a match opens on, when what it needs is known already.

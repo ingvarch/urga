@@ -124,6 +124,7 @@ func listsByName(client *fakeClient) map[string]Model {
 		"plugins":     pluginsMsg(client.plugins),
 		"scheduler":   schedulerMsg(client.scheduler),
 		"scaling":     scalingPoliciesMsg(client.scalingPolicies),
+		"events":      feedEventMsg{event: someEvents()[1]},
 	}
 
 	// The lists of the access control, a kind each.
@@ -262,7 +263,7 @@ func openOfAClient(open map[string]Model) {
 	open["client"] = machine
 
 	for name, press := range map[string]tea.KeyPressMsg{
-		"events":      key('e'),
+		"nodeevents":  key('e'),
 		"drivers":     ctrlKey('d'),
 		"nodevolumes": ctrlKey('h'),
 		"attributes":  key('a'),

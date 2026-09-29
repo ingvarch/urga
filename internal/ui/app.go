@@ -612,7 +612,14 @@ func (m *Model) layout() {
 		m.text.toEnd()
 	}
 
+	_, arrives := m.screen.page.(arriving)
+	onTop := arrives && m.list.table.cursor == 0
+
 	m.list = m.list.read(m.rows(), m.screen.page.titles(), m.ids(), m.troubled)
+
+	if onTop {
+		m.list.table.move(-m.list.table.cursor)
+	}
 }
 
 // schedulePoll schedules the next poll, unless one is already scheduled.

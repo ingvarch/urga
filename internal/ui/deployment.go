@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +22,7 @@ type deploymentMsg nomad.DeploymentDetail
 // deploymentAllocTitles are the columns of the allocations of a deployment:
 // the job and the namespace are the deployment's, and the screen is read for
 // the canary and health of each allocation.
-var deploymentAllocTitles = []string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "CPU", "MEM", "Age"}
+var deploymentAllocTitles = []string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "Rst", "OOM", "CPU", "MEM", "Age"}
 
 // groupTitles are the columns of the groups of a deployment.
 var groupTitles = []string{"Group", "Desired", "Placed", "Healthy", "Unhealthy", "Canaries", "Promoted", "Auto Revert", "Deadline", "Progress By"}
@@ -500,6 +501,8 @@ func deploymentAllocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUs
 			alloc.Status,
 			canary,
 			alloc.Health,
+			strconv.Itoa(restarts(alloc)),
+			oomCell(alloc),
 			cpuCell(use, known),
 			memoryCell(use, known),
 		)

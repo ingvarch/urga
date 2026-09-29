@@ -73,9 +73,10 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal([]string{"servers", "services"}, matchingCommands("se"))
 	r.Equal([]string{"scheduler"}, matchingCommands("sch"))
 	r.Equal([]string{"scaling"}, matchingCommands("sca"))
+	r.Equal([]string{"evaluations", "events"}, matchingCommands("ev"))
 	r.Equal([]string{
 		"about", "allocations", "authmethods", "bindingrules", "clients", "deployments",
-		"evaluations", "jobs", "namespaces", "nodepools", "plugins", "policies", "roles",
+		"evaluations", "events", "jobs", "namespaces", "nodepools", "plugins", "policies", "roles",
 		"scaling", "scheduler", "servers", "services", "tokens", "variables", "volumes", "ctx", "dc", "region", "find",
 	}, matchingCommands(""))
 

@@ -114,9 +114,9 @@ func (w watchState) waitForChange() tea.Cmd {
 }
 
 // reasonOf is the error a stream ended with, if it sent one.
-func reasonOf(changes *nomad.Changes) error {
+func reasonOf[T any](stream *nomad.Stream[T]) error {
 	select {
-	case err := <-changes.Err:
+	case err := <-stream.Err:
 		return err
 	default:
 		return nil
