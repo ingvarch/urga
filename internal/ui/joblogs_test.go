@@ -626,6 +626,25 @@ func TestJobLogs_ASwitchOfTheSessionLeavesTheLogsAsTheyAre(t *testing.T) {
 	r.Contains(plain(m.render()), "Logs (Job: web, Task: server) [stdout, 2 allocations]")
 }
 
+func TestJobLogs_SaysWhatTheClusterSaid(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs:        twoJobs(),
+		allocs:      webAllocs("server")[:2],
+		logsByAlloc: map[string]*nomad.LogStream{newer: writing("ready\n")},
+	}
+
+	m := fromJobs(t, client)
+	reading := m.screen.page.(jobLogsPage).logs.reading
+
+	m, _ = m.update(jobLogOpenedMsg{reading: reading, allocID: older, err: forbidden(t)})
+
+	out := plain(m.render())
+	r.Contains(out, "could not read: Permission denied")
+	r.NotContains(out, "Unexpected response code")
+}
+
 func TestJobLogs_AStreamOfTheReadingIsKeptWhateverTheOrder(t *testing.T) {
 	r := require.New(t)
 

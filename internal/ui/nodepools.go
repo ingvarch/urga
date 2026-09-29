@@ -10,8 +10,6 @@ import (
 type nodePoolsPage struct {
 	ofTheSession
 
-	noKeys
-
 	pools []nomad.NodePool
 }
 
@@ -49,4 +47,27 @@ func (p nodePoolsPage) rows(env) []tableRow {
 	}
 
 	return rows
+}
+
+var nodePoolsKeys = []pageKey[nodePoolsPage]{
+	{press: "enter", label: "Jobs", do: openInPool(func(pool string) page { return jobsPage{pool: pool} })},
+	{press: "c", label: "Clients", do: openInPool(func(pool string) page { return nodesPage{pool: pool} })},
+}
+
+func (p nodePoolsPage) keys(e env) []keyHint { return hintsOf(p, e, nodePoolsKeys) }
+
+func (p nodePoolsPage) press(k string, e env) (page, outcome, bool) {
+	return pressOf(p, e, nodePoolsKeys, k)
+}
+
+// openInPool opens a list of what is in the pool under the cursor.
+func openInPool(open func(pool string) page) func(nodePoolsPage, env) (nodePoolsPage, outcome) {
+	return func(p nodePoolsPage, e env) (nodePoolsPage, outcome) {
+		pool, ok := pickedFrom(e, p.pools)
+		if !ok {
+			return p, outcome{}
+		}
+
+		return p, then(openMsg{open(pool.Name)})
+	}
 }

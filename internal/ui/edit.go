@@ -136,13 +136,20 @@ func jobExtension(format string) string {
 
 // namespaceFile is a namespace as a file.
 func namespaceFile(client namespacesClient, name string) load {
+	return jsonFile(func(ctx context.Context) (string, error) {
+		return client.NamespaceSpec(ctx, name)
+	}, fmt.Sprintf("Namespace %s submitted.", name), client.SubmitNamespace)
+}
+
+// jsonFile is what read gives, as JSON, sent by save, with done shown once
+// the cluster takes it. A file the cluster refuses opens again with the
+// reason.
+func jsonFile(read func(ctx context.Context) (string, error), done string, save func(ctx context.Context, source string) error) load {
 	return func(ctx context.Context) (file, error) {
-		content, err := client.NamespaceSpec(ctx, name)
+		content, err := read(ctx)
 
 		return file{extension: "json", content: content, submit: reopening("json", func(source string) tea.Cmd {
-			return act(fmt.Sprintf("Namespace %s submitted.", name), func(ctx context.Context) error {
-				return client.SubmitNamespace(ctx, source)
-			})
+			return act(done, func(ctx context.Context) error { return save(ctx, source) })
 		})}, err
 	}
 }
@@ -183,7 +190,7 @@ func reopening(extension string, send func(source string) tea.Cmd) func(source s
 func (m Model) reopenEdit(msg refusedEditMsg) tea.Cmd {
 	reason, ok := m.refusedBecause(msg.err)
 	if !ok {
-		reason = msg.err.Error()
+		reason = nomad.Reason(msg.err)
 	}
 
 	header := refusal(reason, msg.advice)

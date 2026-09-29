@@ -59,7 +59,7 @@ func (m Model) keepToken(msg tokenMsg) Model {
 	refused := m.refused
 	m.refused = nil
 
-	if refused == nil || !m.flash.fresh() || m.flash.text != refused.Error() {
+	if refused == nil || !m.flash.fresh() || m.flash.text != nomad.Reason(refused) {
 		return m
 	}
 

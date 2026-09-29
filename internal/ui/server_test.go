@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -189,6 +190,19 @@ func TestServer_WhenRaftIsNotAllowed(t *testing.T) {
 
 	// It is not an error over the whole screen.
 	r.NotEqual(flashErr, m.flash.level)
+}
+
+func TestServer_SaysWhatTheClusterSaid(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := serverScreen(t)
+
+	m, _ = m.update(raftMsg{err: forbidden(t)})
+	m, _ = m.update(serverHealthMsg{err: forbidden(t)})
+
+	out := plain(m.render())
+	r.Equal(2, strings.Count(out, "unknown: Permission denied"))
+	r.NotContains(out, "Unexpected response code")
 }
 
 func TestServer_CopiesTheValueUnderTheCursor(t *testing.T) {

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -64,6 +65,21 @@ func TestRefusedEdit_ANamespaceOpensAgainUntilDropped(t *testing.T) {
 	r.Len(editor.seen, 3)
 	r.Equal(reasonFor(second)+`{"Name": "prod uction"}`, editor.seen[2])
 	r.Contains(plain(m.render()), "unchanged")
+}
+
+func TestRefusedEdit_SaysWhatTheClusterSaid(t *testing.T) {
+	r := require.New(t)
+
+	refusal := refusedWith(t, http.StatusInternalServerError, "namespace name is not valid")
+	client := &fakeClient{refusals: []error{refusal}}
+	editor := &fakeEditor{edits: []string{`{"Name": "prod uction"}`}}
+	m := onNamespaces(t, client, editor)
+
+	m, cmd := m.update(key('e'))
+	_ = follow(m, cmd, 16)
+
+	r.Len(editor.seen, 2)
+	r.Equal(reasonFor("namespace name is not valid")+`{"Name": "prod uction"}`, editor.seen[1])
 }
 
 func TestRefusedEdit_MetadataIsSentAgainWithoutTheReason(t *testing.T) {

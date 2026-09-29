@@ -42,6 +42,8 @@ One binary, no config to write, no browser.
   signals single tasks, and opens a shell in a task.
 - Drains clients and shows their CPU and memory over time.
 - Shows the health of the servers and how many the cluster can lose.
+- Shows how the scheduler places work, and edits it with check-and-set.
+- Lists the jobs and the clients of a node pool.
 - Works in read-only mode, and with several named clusters.
 - Says when a newer urga is out, what it changed and how to update.
 - Finds anything in the cluster by its name or ID, in every namespace.
@@ -104,7 +106,7 @@ quit.
 - [Allocations and tasks](docs/allocations.md): allocations, checks, task
   actions, logs and files.
 - [Clients, servers and other resources](docs/clients.md): clients,
-  servers, namespaces, services, variables and node pools.
+  servers, the scheduler, namespaces, services, variables and node pools.
 - [Storage](docs/storage.md): CSI volumes, dynamic host volumes and CSI
   plugins.
 - [Access control](docs/acl.md): ACL tokens, policies, roles, auth methods

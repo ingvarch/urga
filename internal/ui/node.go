@@ -15,15 +15,36 @@ import (
 type nodesPage struct {
 	ofTheSession
 
+	// pool is the node pool whose clients the page lists, every pool for
+	// none.
+	pool string
+
 	nodes []nomad.Node
 }
 
-func (nodesPage) title(_ env, count int) string { return sprintf("Clients [%d]", count) }
-func (nodesPage) titles() []string              { return nodeTitles }
-func (nodesPage) topics() []string              { return []string{nomad.TopicNode} }
+func (p nodesPage) title(_ env, count int) string {
+	if p.pool != "" {
+		return sprintf("Clients (Pool: %s) [%d]", p.pool, count)
+	}
 
-func (nodesPage) fetch(e env) tea.Cmd {
-	return fetchList(e.client.Nodes, func(items []nomad.Node) tea.Msg { return nodesMsg(items) })
+	return sprintf("Clients [%d]", count)
+}
+
+func (nodesPage) titles() []string { return nodeTitles }
+func (nodesPage) topics() []string { return []string{nomad.TopicNode} }
+
+// fetch reads the clients, of the pool when the page has one: the cluster
+// says which clients a pool holds.
+func (p nodesPage) fetch(e env) tea.Cmd {
+	client, pool := e.client, p.pool
+
+	return fetchList(func(ctx context.Context) ([]nomad.Node, error) {
+		if pool != "" {
+			return client.PoolNodes(ctx, pool)
+		}
+
+		return client.Nodes(ctx)
+	}, func(items []nomad.Node) tea.Msg { return nodesMsg(items) })
 }
 
 func (p nodesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {

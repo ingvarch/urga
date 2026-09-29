@@ -4,6 +4,8 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // flashFor is how long a message stays before it clears itself. A message
@@ -49,7 +51,7 @@ func (m Model) fail(err error) Model {
 		return m
 	}
 
-	return m.flashed(err.Error(), flashErr)
+	return m.flashed(nomad.Reason(err), flashErr)
 }
 
 // quiet takes the message off the screen.

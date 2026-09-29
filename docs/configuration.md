@@ -81,8 +81,12 @@ management token, urga adds a grey line under the column titles:
 When the cluster refuses a request with `403 Permission denied`, the status
 line says which token it refused: `Permission denied: deploy-bot may not do
 this`, `Permission denied: no token is set` or `Permission denied: the token
-is not valid`. For a management token, urga shows the error of the cluster
-as it is.
+is not valid`. For a management token, urga shows the reason the cluster
+gave.
+
+Any error of the cluster shows as the cluster wrote it, without the response
+code around it: `job not found`, not `Unexpected response code: 404 (job not
+found)`.
 
 ## Newer releases
 

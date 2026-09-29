@@ -38,6 +38,9 @@ type fakeClient struct {
 	variable     nomad.VariableDetail
 	variablePath string
 	nodePools    []nomad.NodePool
+	poolJobs     []nomad.Job
+	poolNodes    []nomad.Node
+	askedPool    string
 	servers      []nomad.Server
 	changes      *fakeChanges
 	server       nomad.Server
@@ -214,6 +217,11 @@ type fakeClient struct {
 	// health is how the servers stand, or healthErr why it is not known.
 	health    nomad.ClusterHealth
 	healthErr error
+
+	// scheduler is how the scheduler places work, schedulerSpec the same
+	// as a file.
+	scheduler     nomad.SchedulerConfig
+	schedulerSpec string
 
 	// evaluated are the jobs evaluated, in turn.
 	evaluated []string
@@ -557,6 +565,21 @@ func (f *fakeClient) ServerHealth(context.Context) (nomad.ClusterHealth, error) 
 	return f.health, f.healthErr
 }
 
+func (f *fakeClient) Scheduler(context.Context) (nomad.SchedulerConfig, error) {
+	return f.scheduler, f.err
+}
+
+func (f *fakeClient) SchedulerSpec(context.Context) (string, error) {
+	return f.schedulerSpec, f.err
+}
+
+func (f *fakeClient) SubmitScheduler(_ context.Context, source string) error {
+	f.wrote("SubmitScheduler")
+	f.submittedSource = source
+
+	return f.refused(f.actionErr)
+}
+
 func (f *fakeClient) TagVersion(_ context.Context, namespace, jobID string, version uint64, name string) error {
 	f.wrote("TagVersion")
 	f.askedNamespace, f.tagged = namespace, fmt.Sprintf("%s@%d=%s", jobID, version, name)
@@ -859,6 +882,18 @@ func (f *fakeClient) refused(otherwise error) error {
 
 func (f *fakeClient) NodePools(context.Context) ([]nomad.NodePool, error) {
 	return f.nodePools, f.err
+}
+
+func (f *fakeClient) PoolJobs(_ context.Context, pool string) ([]nomad.Job, error) {
+	f.askedPool = pool
+
+	return f.poolJobs, f.err
+}
+
+func (f *fakeClient) PoolNodes(_ context.Context, pool string) ([]nomad.Node, error) {
+	f.askedPool = pool
+
+	return f.poolNodes, f.err
 }
 
 func (f *fakeClient) Events(_ context.Context, namespace string, topics []string) (*nomad.Changes, error) {

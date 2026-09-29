@@ -27,7 +27,7 @@ func TestPrompt_ALetterOffersTheFirstResourceThatFitsIt(t *testing.T) {
 	m = typeIn(m, "s")
 
 	// One letter is enough to get a suggestion, without pressing an arrow.
-	r.Equal(":servers", promptLine(m))
+	r.Equal(":scheduler", promptLine(m))
 }
 
 func TestPrompt_TheArrowsWalkWhatFits(t *testing.T) {
@@ -35,7 +35,7 @@ func TestPrompt_TheArrowsWalkWhatFits(t *testing.T) {
 
 	m := loadedModel(t)
 	m, _ = m.update(key(':'))
-	m = typeIn(m, "s")
+	m = typeIn(m, "se")
 
 	m, _ = m.update(down())
 	r.Equal(":services", promptLine(m))
@@ -72,7 +72,7 @@ func TestPrompt_TabTakesWhatIsOffered(t *testing.T) {
 
 	m := loadedModel(t)
 	m, _ = m.update(key(':'))
-	m = typeIn(m, "s")
+	m = typeIn(m, "se")
 	m, _ = m.update(down())
 	m, _ = m.update(tab())
 
@@ -88,7 +88,7 @@ func TestPrompt_EnterOpensWhatIsOffered(t *testing.T) {
 
 	m := loadedModel(t)
 	m, _ = m.update(key(':'))
-	m = typeIn(m, "s")
+	m = typeIn(m, "se")
 	m, _ = m.update(down())
 	m, _ = m.update(enter())
 
@@ -229,7 +229,7 @@ func TestPrompt_WhatTheLineReadsIsWhatEnterOpens(t *testing.T) {
 func TestPrompt_TakingAWordOffersTheNextOneAfterIt(t *testing.T) {
 	r := require.New(t)
 
-	m := walked(t, key('s'), tab())
+	m := walked(t, key('s'), key('e'), tab())
 
 	// The word is taken, and the arrows move on from it rather than from
 	// what was typed before it.
@@ -255,7 +255,7 @@ func TestPrompt_ASpaceIsNotAResource(t *testing.T) {
 func TestPrompt_TheOfferSurvivesTheNamespaceAfterIt(t *testing.T) {
 	r := require.New(t)
 
-	m := walked(t, letters("s")...)
+	m := walked(t, letters("se")...)
 	r.Equal(":servers", promptLine(m))
 
 	m = typeIn(m, " staging")
@@ -272,7 +272,7 @@ func TestPrompt_TheOfferSurvivesTheNamespaceAfterIt(t *testing.T) {
 func TestPrompt_AWalkedWordKeepsItsPlaceAfterASpace(t *testing.T) {
 	r := require.New(t)
 
-	m := walked(t, key('s'), down())
+	m := walked(t, key('s'), key('e'), down())
 	r.Equal(":services", promptLine(m))
 
 	m = typeIn(m, " staging")

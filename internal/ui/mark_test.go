@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -267,6 +268,21 @@ func TestMarks_AnActionThatFailsPartWaySaysHowFar(t *testing.T) {
 	out := plain(m.render())
 	r.Contains(out, "0 of 2")
 	r.Contains(out, "connection refused")
+}
+
+func TestMarks_AFailureSaysWhatTheClusterSaid(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onAllocations(t)
+	client.actionErr = refusedWith(t, http.StatusInternalServerError, "allocation not found")
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(key('r'))
+
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	r.Contains(plain(m.render()), "0 of 2: allocation not found")
 }
 
 func TestMarks_AreKeptWhenTheActionFails(t *testing.T) {

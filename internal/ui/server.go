@@ -114,11 +114,16 @@ func peerOf(server nomad.Server, peers []nomad.RaftPeer) (nomad.RaftPeer, bool) 
 	return nomad.RaftPeer{}, false
 }
 
+// notGiven is a value the cluster would not give, and what it said instead.
+func notGiven(failed error) string {
+	return "unknown: " + nomad.Reason(failed)
+}
+
 // raftStanding is the role of the server in the raft: whether it votes, or
 // why that is not known.
 func raftStanding(peer nomad.RaftPeer, known bool, failed error) string {
 	if failed != nil {
-		return "unknown: " + failed.Error()
+		return notGiven(failed)
 	}
 
 	if !known {
@@ -327,7 +332,7 @@ func (p serverPage) standingRows() []tableRow {
 	}
 
 	if p.healthErr != nil {
-		return []tableRow{{cells: []string{"Health", "unknown: " + p.healthErr.Error()}, color: colorMuted}}
+		return []tableRow{{cells: []string{"Health", notGiven(p.healthErr)}, color: colorMuted}}
 	}
 
 	s, found := standingOf(p.server, p.health)

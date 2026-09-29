@@ -99,6 +99,8 @@ func everyScreenClient() *fakeClient {
 
 		// One ACL object of each kind.
 		acl: aclObjects(),
+
+		scheduler: nomad.SchedulerConfig{Algorithm: "binpack"},
 	}
 }
 
@@ -116,6 +118,7 @@ func listsByName(client *fakeClient) map[string]Model {
 		"servers":     serversMsg(client.servers),
 		"volumes":     volumesMsg(client.volumes),
 		"plugins":     pluginsMsg(client.plugins),
+		"scheduler":   schedulerMsg(client.scheduler),
 	}
 
 	// The lists of the access control, a kind each.

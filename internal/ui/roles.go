@@ -26,6 +26,7 @@ type Client interface {
 	volumesClient
 	searchClient
 	aclClient
+	schedulerClient
 }
 
 // The roles the cluster plays for the screens, one per kind of resource.
@@ -118,6 +119,8 @@ type (
 		DrainNode(ctx context.Context, nodeID string, drain bool) error
 		SetNodeEligible(ctx context.Context, nodeID string, eligible bool) error
 		NodePools(ctx context.Context) ([]nomad.NodePool, error)
+		PoolJobs(ctx context.Context, pool string) ([]nomad.Job, error)
+		PoolNodes(ctx context.Context, pool string) ([]nomad.Node, error)
 	}
 
 	namespacesClient interface {
@@ -181,5 +184,12 @@ type (
 		TokenSecret(ctx context.Context, accessorID string) (string, error)
 		SubmitACL(ctx context.Context, kind, id, source string) (nomad.ACLWritten, error)
 		DeleteACL(ctx context.Context, kind, id string) error
+	}
+
+	// schedulerClient is how the scheduler of the cluster places work.
+	schedulerClient interface {
+		Scheduler(ctx context.Context) (nomad.SchedulerConfig, error)
+		SchedulerSpec(ctx context.Context) (string, error)
+		SubmitScheduler(ctx context.Context, source string) error
 	}
 )

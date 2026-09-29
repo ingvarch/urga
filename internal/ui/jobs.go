@@ -14,13 +14,16 @@ import (
 // jobTitles are the columns of the job list.
 var jobTitles = []string{"ID", "Name", "Type", "Namespace", "Status", "Allocs", "Age"}
 
-// jobsPage is the jobs of the namespace the session looks at, or the
-// launches of one periodic or parameterized job.
+// jobsPage is the jobs of the namespace the session looks at, the launches
+// of one periodic or parameterized job, or the jobs of a node pool.
 type jobsPage struct {
 	// parent is the job whose launches the page lists, and only the one job
 	// it lists, found by a search. Without either, it lists the jobs of the
 	// session.
 	parent, only nomad.Job
+
+	// pool is the node pool whose jobs the page lists, of every namespace.
+	pool string
 
 	// next is when a periodic parent launches next, zero for never.
 	next time.Time
@@ -37,6 +40,10 @@ func (p jobsPage) title(e env, count int) string {
 		return sprintf("Job %s (%s) [%d]", p.only.ID, p.only.Namespace, count)
 	}
 
+	if p.pool != "" {
+		return sprintf("Jobs (Pool: %s) [%d]", p.pool, count)
+	}
+
 	return sprintf("Jobs (%s) [%d]", namespaceLabel(e.namespace), count)
 }
 
@@ -46,8 +53,9 @@ func (p jobsPage) ofParent() bool { return p.parent.ID != "" }
 func (p jobsPage) alone() bool    { return p.only.ID != "" }
 
 // followsSession: the jobs of the session follow it; the launches of a job,
-// and a job alone, stay where the job lives.
-func (p jobsPage) followsSession() bool { return !p.ofParent() && !p.alone() }
+// and a job alone, stay where the job lives, and the jobs of a pool in every
+// namespace.
+func (p jobsPage) followsSession() bool { return !p.ofParent() && !p.alone() && p.pool == "" }
 
 // where is the namespace the jobs are asked in: the one of the job the page
 // is about, or the session's.
@@ -57,6 +65,8 @@ func (p jobsPage) where(e env) string {
 		return p.parent.Namespace
 	case p.alone():
 		return p.only.Namespace
+	case p.pool != "":
+		return nomad.AllNamespaces
 	}
 
 	return e.namespace
@@ -68,9 +78,13 @@ func (jobsPage) topics() []string { return []string{nomad.TopicJob} }
 // fetch reads the jobs, and when the page lists the launches of a periodic
 // job, when it launches next.
 func (p jobsPage) fetch(e env) tea.Cmd {
-	client, namespace := e.client, p.where(e)
+	client, namespace, pool := e.client, p.where(e), p.pool
 
 	jobs := fetchList(func(ctx context.Context) ([]nomad.Job, error) {
+		if pool != "" {
+			return client.PoolJobs(ctx, pool)
+		}
+
 		return client.Jobs(ctx, namespace)
 	}, func(items []nomad.Job) tea.Msg { return jobsMsg(items) })
 
