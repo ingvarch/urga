@@ -68,6 +68,13 @@ missing, the file opens again with the reason at the top.
 `ctrl-s` stops a running job and starts a stopped one, after you confirm.
 With several jobs marked, it acts on all of them.
 
+A stopped job stays in the list until the cluster collects it. `ctrl-p`
+purges it now, after you confirm: the job leaves the cluster with its
+versions and history, and cannot be started again from urga. With several
+jobs marked, it purges the stopped ones and leaves the running ones as they
+are. `:gc` does the same for every dead job of the cluster at once, see
+[Keys and commands](keys.md#command-line).
+
 ## Task groups and scaling
 
 The task group list shows how many allocations of each group are running,

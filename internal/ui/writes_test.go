@@ -27,6 +27,7 @@ var (
 		"TagVersion", "UntagVersion", "SetAllocHealth", "ReleaseLock",
 		"SubmitACL", "DeleteACL", "SubmitScheduler",
 		"DeleteVariable", "CreateNamespace", "DeleteNamespace",
+		"PurgeJob", "PurgeNode", "CollectNode", "CollectGarbage",
 	}
 
 	clientReads = []string{

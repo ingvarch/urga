@@ -55,7 +55,7 @@ func TestClients_TheList(t *testing.T) {
 	// The CPU and memory use of the machine is unknown until it is read.
 	r.Regexp(`^\s*node-1\s+nomad-server-01\s+dc1\s+default\s+1\.11\.1\s+ready\s+eligible\s+false\s+-\s+-\s+10\.0\.0\.2`, fileRow(t, m, 0))
 
-	r.Equal([]string{"enter Allocations", "ctrl+d Drain", "i Toggle Eligibility", "space Mark", "ctrl+a Mark All"}, keyNames(m))
+	r.Equal([]string{"enter Allocations", "ctrl+d Drain", "i Toggle Eligibility", "ctrl+g GC", "space Mark", "ctrl+a Mark All"}, keyNames(m))
 }
 
 func TestClients_OnlyThoseThatTakeNoWork(t *testing.T) {

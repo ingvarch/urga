@@ -70,6 +70,10 @@ var scopeNames = []string{"ctx", "dc", "region"}
 // first, after the scopes.
 var findNames = []string{"find", "search"}
 
+// gcNames are the words that collect the garbage of the cluster, offered
+// last.
+var gcNames = []string{"gc"}
+
 var scopeAliases = map[string]scope{
 	"ctx":     scopeCluster,
 	"cluster": scopeCluster,
@@ -90,6 +94,9 @@ type command struct {
 	// finding says the line searches the cluster, text for what.
 	finding bool
 	text    string
+
+	// collecting says the line collects the garbage of the cluster.
+	collecting bool
 }
 
 // parseCommand reads "<resource> [namespace]", for example "jobs production",
@@ -117,6 +124,10 @@ func parseCommand(input string) (command, bool) {
 		rest := strings.TrimPrefix(strings.TrimSpace(input), fields[0])
 
 		return command{finding: true, text: strings.TrimSpace(rest)}, true
+	}
+
+	if slices.Contains(gcNames, word) {
+		return command{collecting: true}, true
 	}
 
 	if switching, ok := scopeAliases[word]; ok {
@@ -189,7 +200,7 @@ func matchingCommands(typed string) []string {
 		matches = append(matches, nameOf(named))
 	}
 
-	for _, name := range slices.Concat(commandNames, scopeNames, findNames[:1]) {
+	for _, name := range slices.Concat(commandNames, scopeNames, findNames[:1], gcNames) {
 		if strings.HasPrefix(name, word) && !slices.Contains(matches, name) {
 			matches = append(matches, name)
 		}

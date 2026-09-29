@@ -42,6 +42,7 @@ type (
 		Datacenters(ctx context.Context) ([]string, error)
 		Token(ctx context.Context) (nomad.Token, error)
 		Usage(ctx context.Context, datacenter string) (nomad.Usage, error)
+		CollectGarbage(ctx context.Context) error
 	}
 
 	// eventsClient opens the event stream: the signal that a screen is
@@ -61,6 +62,7 @@ type (
 		SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error
 		StartJob(ctx context.Context, namespace, jobID string) error
 		StopJob(ctx context.Context, namespace, jobID string) error
+		PurgeJob(ctx context.Context, namespace, jobID string) error
 		LaunchJob(ctx context.Context, namespace, jobID string) error
 		EvaluateJob(ctx context.Context, namespace, jobID string) error
 		TagVersion(ctx context.Context, namespace, jobID string, version uint64, name string) error
@@ -121,6 +123,8 @@ type (
 		NodeUsage(ctx context.Context, nodeID string) (nomad.ResourceUse, error)
 		DrainNode(ctx context.Context, nodeID string, drain bool) error
 		SetNodeEligible(ctx context.Context, nodeID string, eligible bool) error
+		PurgeNode(ctx context.Context, nodeID string) error
+		CollectNode(ctx context.Context, nodeID string) error
 		NodePools(ctx context.Context) ([]nomad.NodePool, error)
 		PoolJobs(ctx context.Context, pool string) ([]nomad.Job, error)
 		PoolNodes(ctx context.Context, pool string) ([]nomad.Node, error)

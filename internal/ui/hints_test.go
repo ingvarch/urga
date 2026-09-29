@@ -30,6 +30,7 @@ func everyScreen(t *testing.T) map[string]Model {
 	openOfAPeriodicJob(open)
 	openOfStorage(open)
 	openOfALock(open)
+	openOfADownClient(open)
 	openOfATask(open)
 	openOfAClient(open)
 	openOfTheLists(open)
@@ -236,6 +237,17 @@ func openOfALock(open map[string]Model) {
 
 	variable, cmd := locked.update(enter())
 	open["lockedvariable"] = drain(variable, cmd)
+}
+
+// openOfADownClient adds the clients with one that is down under the
+// cursor, where a purge is offered.
+func openOfADownClient(open map[string]Model) {
+	client := everyScreenClient()
+	client.nodes = upAndDown()
+
+	clients := typeCommand(newTestModel(client), "clients")
+	clients, _ = clients.update(key('j'))
+	open["downclient"] = clients
 }
 
 // openOfATask adds the screens that hang off a task.
