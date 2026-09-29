@@ -49,7 +49,7 @@ func onEvents(t *testing.T, client *fakeClient) Model {
 
 // arrives is one more event of the feed the screen reads.
 func arrives(m Model, event nomad.Event) Model {
-	m, _ = m.update(feedEventMsg{feed: m.screen.page.(feedPage).feed, event: event})
+	m, _ = m.update(feedEventsMsg{feed: m.screen.page.(feedPage).feed, events: []nomad.Event{event}})
 
 	return m
 }
@@ -180,6 +180,7 @@ func TestEvents_TheFeedFollowsTheSession(t *testing.T) {
 
 	r.True(*closed)
 	r.Equal("staging", client.feedNamespace)
+	r.Equal(uint64(1), client.feedFrom)
 	r.Equal("Events (staging) [2]", m.title())
 
 	// Leaving the screen closes the feed.
@@ -216,4 +217,43 @@ func TestEvents_AFeedThatBreaksSaysWhy(t *testing.T) {
 
 	r.Contains(plain(statusLine(m)), "no answer from the client")
 	r.Len(m.screen.page.rows(m.env()), 2)
+}
+
+func TestEvents_ComingBackKeepsWhatWasRead(t *testing.T) {
+	r := require.New(t)
+
+	feed, _ := feedOf(someEvents()...)
+	client := &fakeClient{feed: feed, alloc: twoAllocs()[0]}
+	m := onEvents(t, client)
+	r.Equal(uint64(1), client.feedFrom)
+
+	// Into the allocation of the newest event, and back.
+	client.feed, _ = feedOf()
+
+	m, cmd := m.update(enter())
+	m = playOut(m, cmd)
+	r.IsType(tasksPage{}, m.screen.page)
+
+	m, cmd = m.update(escape())
+	m = playOut(m, cmd)
+
+	// What was read stays, and the feed goes on after the newest event:
+	// nothing is read twice.
+	r.Equal("Events (production) [2]", m.title())
+	r.Equal(uint64(12), client.feedFrom)
+	r.Equal("Allocation", m.screen.page.rows(m.env())[0].cells[0])
+}
+
+func TestEvents_WhatWaitsArrivesAtOnce(t *testing.T) {
+	r := require.New(t)
+
+	events := append(someEvents(), nomad.Event{Index: 12, Topic: "Evaluation", Key: "e1"})
+	feed, _ := feedOf(events...)
+
+	// The events the cluster keeps are there when the feed opens: one
+	// message takes them all, and the screen is drawn once, not once each.
+	msg, ok := nextEvent(feed)().(feedEventsMsg)
+	r.True(ok)
+	r.Equal(events[0].Key, msg.events[0].Key)
+	r.Len(msg.events, 3)
 }

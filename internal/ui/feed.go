@@ -19,10 +19,11 @@ type (
 	// feedOpenedMsg is the feed the cluster opened for the page.
 	feedOpenedMsg struct{ feed *nomad.Feed }
 
-	// feedEventMsg is one event of the feed a page reads.
-	feedEventMsg struct {
-		feed  *nomad.Feed
-		event nomad.Event
+	// feedEventsMsg are the events of the feed a page reads that were
+	// waiting, oldest first.
+	feedEventsMsg struct {
+		feed   *nomad.Feed
+		events []nomad.Event
 	}
 
 	// feedEndedMsg is the end of a feed, with the error it ended with.
@@ -48,6 +49,12 @@ type feedPage struct {
 	feed   *nomad.Feed
 	events []feedEvent
 	seen   int
+
+	// namespace is the one the events were read in, and last the index of
+	// the newest of them: back on the same namespace, the page goes on after
+	// it.
+	namespace string
+	last      uint64
 }
 
 var feedTitles = []string{"Topic", "Type", "Namespace", "Name", "State", "Age"}
@@ -64,16 +71,25 @@ func (feedPage) fetch(env) tea.Cmd { return nil }
 func (feedPage) follows() bool     { return false }
 func (feedPage) newestOnTop()      {}
 
-// open reads the feed from what the cluster still keeps: what the page read
-// before is in there again.
+// open reads the feed. Back from a screen opened on an event, the page keeps
+// what it read and goes on after the newest event; in another namespace it
+// starts over from what the cluster still keeps.
 func (p feedPage) open(e env) (page, tea.Cmd) {
 	p.stop()
-	p.events = nil
+
+	from := uint64(1)
+	if p.namespace == e.namespace && p.last > 0 {
+		from = p.last + 1
+	} else {
+		p.events, p.last = nil, 0
+	}
+
+	p.namespace = e.namespace
 
 	client, namespace := e.client, e.namespace
 
 	return p, func() tea.Msg {
-		feed, err := client.Feed(context.Background(), namespace)
+		feed, err := client.Feed(context.Background(), namespace, from)
 		if err != nil {
 			return errMsg{err: err}
 		}
@@ -111,14 +127,21 @@ func (p feedPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 		return p, outcome{cmd: nextEvent(p.feed), reading: true}, true
 
-	case feedEventMsg:
+	case feedEventsMsg:
 		if msg.feed != p.feed {
 			return p, outcome{}, false
 		}
 
-		p.seen++
-		kept := p.events[:min(len(p.events), feedKept-1)]
-		p.events = append([]feedEvent{{Event: msg.event, seq: p.seen}}, kept...)
+		// They come oldest first, and the newest goes on top.
+		arrived := make([]feedEvent, len(msg.events))
+		for i, event := range msg.events {
+			p.seen++
+			p.last = max(p.last, event.Index)
+			arrived[len(arrived)-1-i] = feedEvent{Event: event, seq: p.seen}
+		}
+
+		p.events = append(arrived, p.events...)
+		p.events = p.events[:min(len(p.events), feedKept)]
 
 		return p, outcome{cmd: nextEvent(p.feed), reading: true}, true
 
@@ -139,9 +162,10 @@ func (p feedPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, false
 }
 
-// nextEvent waits for the next event of the feed. The events arrive as
-// messages, one command at a time, so nothing writes to the model from a
-// goroutine.
+// nextEvent waits for the next event of the feed, and takes along the ones
+// already waiting behind it: the screen is drawn once for all of them, not
+// once each. The events arrive as messages, one command at a time, so
+// nothing writes to the model from a goroutine.
 func nextEvent(feed *nomad.Feed) tea.Cmd {
 	if feed == nil {
 		return nil
@@ -154,10 +178,29 @@ func nextEvent(feed *nomad.Feed) tea.Cmd {
 				return feedEndedMsg{feed: feed, err: reasonOf(feed)}
 			}
 
-			return feedEventMsg{feed: feed, event: event}
+			return feedEventsMsg{feed: feed, events: withWaiting(feed, event)}
 
 		case err := <-feed.Err:
 			return feedEndedMsg{feed: feed, err: err}
+		}
+	}
+}
+
+// withWaiting is the first event and every one waiting behind it, oldest
+// first. The end of the feed is left for the next read to find.
+func withWaiting(feed *nomad.Feed, first nomad.Event) []nomad.Event {
+	events := []nomad.Event{first}
+
+	for {
+		select {
+		case event, ok := <-feed.C:
+			if !ok {
+				return events
+			}
+
+			events = append(events, event)
+		default:
+			return events
 		}
 	}
 }

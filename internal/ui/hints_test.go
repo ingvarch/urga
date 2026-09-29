@@ -125,7 +125,7 @@ func listsByName(client *fakeClient) map[string]Model {
 		"plugins":     pluginsMsg(client.plugins),
 		"scheduler":   schedulerMsg(client.scheduler),
 		"scaling":     scalingPoliciesMsg(client.scalingPolicies),
-		"events":      feedEventMsg{event: someEvents()[1]},
+		"events":      feedEventsMsg{events: someEvents()},
 	}
 
 	// The lists of the access control, a kind each.
