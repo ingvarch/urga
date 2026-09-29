@@ -104,10 +104,15 @@ func (c *Session) Remember(namespaces []string) {
 }
 
 // Ordered is the rule the number keys follow: first seen keeps its number, a
-// namespace already known stays where it is, and no more than MaxNamespaces
-// get a key.
+// namespace already known stays where it is, one the cluster no longer names
+// loses its key, and no more than MaxNamespaces get a key. A cluster that
+// names none says nothing about what is gone.
 func Ordered(known, seen []string) []string {
 	order := slices.Clone(known)
+
+	if len(seen) > 0 {
+		order = slices.DeleteFunc(order, func(name string) bool { return !slices.Contains(seen, name) })
+	}
 
 	for _, name := range seen {
 		if len(order) >= MaxNamespaces {
