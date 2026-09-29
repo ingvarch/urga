@@ -211,3 +211,39 @@ func TestSort_ByTheFirstLetterOfAColumn(t *testing.T) {
 	m, _ = m.update(key('X'))
 	r.Equal(2, m.list.sort.column)
 }
+
+func TestSort_EveryColumnHasALetterOfItsOwn(t *testing.T) {
+	r := require.New(t)
+
+	// Two columns of the events start with T and two with N. The common ones
+	// keep the letters people know them by: N for a name, A for an age, S
+	// for a status or a state, P for a namespace. The rest take the first
+	// letter of their title that is free.
+	r.Equal([]rune{'t', 'y', 'p', 'n', 's', 'a'}, sortLetters(feedTitles))
+
+	feed, _ := feedOf(someEvents()...)
+	m := onEvents(t, &fakeClient{feed: feed})
+
+	for letter, column := range map[rune]string{'T': "Topic", 'Y': "Type", 'P': "Namespace", 'N': "Name", 'S': "State", 'A': "Age"} {
+		m, _ = m.update(key(letter))
+		r.Equal(column, feedTitles[m.list.sort.column], string(letter))
+	}
+
+	// On the jobs, A is the age, and the allocations take L.
+	r.Equal([]rune{'i', 'n', 't', 'p', 's', 'l', 'a'}, sortLetters(jobTitles))
+}
+
+func TestSort_HelpNamesTheLetterOfEachColumn(t *testing.T) {
+	r := require.New(t)
+
+	feed, _ := feedOf(someEvents()...)
+	m := onEvents(t, &fakeClient{feed: feed})
+
+	m, _ = m.update(key('?'))
+
+	out := plain(m.render())
+	r.Contains(out, "SORT")
+	r.Contains(out, "<shift-y> Type")
+	r.Contains(out, "<shift-p> Namespace")
+	r.NotContains(out, "<A-Z>")
+}
