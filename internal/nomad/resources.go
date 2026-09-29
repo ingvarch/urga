@@ -315,6 +315,9 @@ type TaskGroup struct {
 	JobID string
 	Count int
 
+	// Policy is the policy that scales the group, nil for none.
+	Policy *GroupPolicy
+
 	Running  int
 	Starting int
 	Queued   int
@@ -341,7 +344,7 @@ func (c *Client) TaskGroups(ctx context.Context, namespace, jobID string) ([]Tas
 			continue
 		}
 
-		tg := TaskGroup{Name: *group.Name, JobID: jobID}
+		tg := TaskGroup{Name: *group.Name, JobID: jobID, Policy: groupPolicy(group.Scaling)}
 
 		if group.Count != nil {
 			tg.Count = *group.Count
