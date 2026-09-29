@@ -218,6 +218,11 @@ type fakeClient struct {
 	health    nomad.ClusterHealth
 	healthErr error
 
+	// scalingPolicies are the policies of the list, groupScaling how the
+	// group asked about is scaled.
+	scalingPolicies []nomad.ScalingPolicy
+	groupScaling    nomad.GroupScaling
+
 	// scheduler is how the scheduler places work, schedulerSpec the same
 	// as a file.
 	scheduler     nomad.SchedulerConfig
@@ -563,6 +568,24 @@ func (f *fakeClient) EvaluateJob(_ context.Context, namespace, jobID string) err
 
 func (f *fakeClient) ServerHealth(context.Context) (nomad.ClusterHealth, error) {
 	return f.health, f.healthErr
+}
+
+func (f *fakeClient) ScalingPolicies(_ context.Context, namespace string) ([]nomad.ScalingPolicy, error) {
+	f.askedNamespace = namespace
+
+	return f.scalingPolicies, f.err
+}
+
+func (f *fakeClient) DescribeScalingPolicy(_ context.Context, namespace, id string) (string, error) {
+	f.askedNamespace, f.askedID = namespace, id
+
+	return f.describe, f.err
+}
+
+func (f *fakeClient) GroupScaling(_ context.Context, namespace, jobID, group string) (nomad.GroupScaling, error) {
+	f.askedNamespace, f.askedJobID, f.askedGroup = namespace, jobID, group
+
+	return f.groupScaling, f.err
 }
 
 func (f *fakeClient) Scheduler(context.Context) (nomad.SchedulerConfig, error) {

@@ -169,13 +169,14 @@ func TestTaskGroups_TheKeysOfAGroup(t *testing.T) {
 		{Key: "<enter>", Description: "Allocations"},
 		{Key: "<s>", Description: "Scale"},
 		{Key: "<l>", Description: "Logs"},
+		{Key: "<a>", Description: "Scaling"},
 	}
 	r.Equal(keys, m.hints())
 
 	// A group with an allocation that waits for a place gets a key that
 	// shows why.
 	m, _ = m.update(key('j'))
-	r.Equal([]hint{keys[0], keys[1], {Key: "<p>", Description: "Placement"}, keys[2]}, m.hints())
+	r.Equal([]hint{keys[0], keys[1], {Key: "<p>", Description: "Placement"}, keys[2], keys[3]}, m.hints())
 }
 
 func TestTaskGroups_AreAskedWhereTheJobLives(t *testing.T) {

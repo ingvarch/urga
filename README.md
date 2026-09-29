@@ -43,6 +43,8 @@ One binary, no config to write, no browser.
 - Drains clients and shows their CPU and memory over time.
 - Shows the health of the servers and how many the cluster can lose.
 - Shows how the scheduler places work, and edits it with check-and-set.
+- Lists the scaling policies and shows what the autoscaler did with the
+  count of each group.
 - Lists the jobs and the clients of a node pool.
 - Works in read-only mode, and with several named clusters.
 - Says when a newer urga is out, what it changed and how to update.
@@ -101,8 +103,8 @@ quit.
   clusters, and switching between them.
 - [Keys and commands](docs/keys.md): the command line, the filter, and the
   keys of every screen.
-- [Jobs](docs/jobs.md): jobs, task groups, editing and plans, versions,
-  evaluations and deployments.
+- [Jobs](docs/jobs.md): jobs, task groups and their scaling, editing and
+  plans, versions, evaluations and deployments.
 - [Allocations and tasks](docs/allocations.md): allocations, checks, task
   actions, logs and files.
 - [Clients, servers and other resources](docs/clients.md): clients,

@@ -12,7 +12,7 @@ import (
 )
 
 // taskGroupTitles are the columns of the task group list.
-var taskGroupTitles = []string{"Name", "JobID", "Allocs", "Starting", "Queued", "Complete", "Failed", "Lost"}
+var taskGroupTitles = []string{"Name", "JobID", "Allocs", "Starting", "Queued", "Complete", "Failed", "Lost", "Scaling"}
 
 // taskGroupsPage is the groups of one job.
 type taskGroupsPage struct {
@@ -58,6 +58,8 @@ var taskGroupKeys = []pageKey[taskGroupsPage]{
 	{press: "s", label: "Scale", do: scaleGroup, writes: true},
 	{press: "p", label: "Placement", do: groupPlacement, offered: groupWaits},
 	{press: "l", label: "Logs", do: groupLogs},
+	// Offered without a policy too: a scale by hand is an event as well.
+	{press: "a", label: "Scaling", do: openGroupScaling},
 }
 
 func (p taskGroupsPage) keys(e env) []keyHint { return hintsOf(p, e, taskGroupKeys) }
@@ -80,6 +82,7 @@ func taskGroupRows(groups []nomad.TaskGroup) []tableRow {
 				strconv.Itoa(group.Complete),
 				strconv.Itoa(group.Failed),
 				strconv.Itoa(group.Lost),
+				policyCell(group.Policy),
 			},
 			color: taskGroupColor(group),
 		})
@@ -148,12 +151,28 @@ func (m Model) scaleTo(group groupRef, input string) (Model, tea.Cmd) {
 
 	client, namespace := m.client, group.namespace
 
+	question := fmt.Sprintf("Really scale %s of %s from %d to %d?", group.Name, group.JobID, group.Count, count)
+	if policy := group.Policy; policy != nil && policy.Enabled {
+		question += " The autoscaler keeps it in " + bounds(*policy) + " and may change it back."
+	}
+
 	return m.ask(
-		fmt.Sprintf("Really scale %s of %s from %d to %d?", group.Name, group.JobID, group.Count, count),
+		question,
 		act(fmt.Sprintf("Task group %s scaled to %d.", group.Name, count), func(ctx context.Context) error {
 			return client.ScaleJob(ctx, namespace, group.JobID, group.Name, count)
 		}),
 	)
+}
+
+// openGroupScaling opens what was done to the count of the group under the
+// cursor.
+func openGroupScaling(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
+	group, ok := p.picked(e)
+	if !ok {
+		return p, outcome{}
+	}
+
+	return p, then(openMsg{scalingPage{namespace: p.namespace, jobID: group.JobID, group: group.Name}})
 }
 
 // openGroupAllocations drills into the task group under the cursor: the

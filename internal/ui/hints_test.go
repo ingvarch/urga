@@ -101,6 +101,10 @@ func everyScreenClient() *fakeClient {
 		acl: aclObjects(),
 
 		scheduler: nomad.SchedulerConfig{Algorithm: "binpack"},
+
+		// The scaling policies, and the history of the group of the first.
+		scalingPolicies: twoPolicies(),
+		groupScaling:    frontendScaling(),
 	}
 }
 
@@ -119,6 +123,7 @@ func listsByName(client *fakeClient) map[string]Model {
 		"volumes":     volumesMsg(client.volumes),
 		"plugins":     pluginsMsg(client.plugins),
 		"scheduler":   schedulerMsg(client.scheduler),
+		"scaling":     scalingPoliciesMsg(client.scalingPolicies),
 	}
 
 	// The lists of the access control, a kind each.
@@ -288,6 +293,10 @@ func openOfTheLists(open map[string]Model) {
 	// The screen of a deployment, opened from the list of them.
 	deployment, cmd := open["deployments"].update(enter())
 	open["deployment"] = drain(deployment, cmd)
+
+	// The scaling history of a group, opened from its policy.
+	history, cmd := open["scaling"].update(enter())
+	open["scalinghistory"] = drain(history, cmd)
 }
 
 // openPickers adds the lists a cluster, a region and a datacenter are picked

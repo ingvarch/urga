@@ -41,6 +41,7 @@ var (
 		"Find", "DispatchForm", "ServerHealth",
 		"ACLObjects", "DescribeACL", "TokenSecret",
 		"Scheduler", "SchedulerSpec",
+		"ScalingPolicies", "DescribeScalingPolicy", "GroupScaling",
 	}
 )
 
