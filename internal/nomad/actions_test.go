@@ -1,10 +1,12 @@
 package nomad_test
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,6 +24,73 @@ func TestStopJob(t *testing.T) {
 	r.Equal(http.MethodDelete, asked.Method)
 	r.Equal("/v1/job/web", asked.URL.Path)
 	r.Equal("production", asked.URL.Query().Get("namespace"))
+}
+
+func TestPurgeJob(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{"EvalID": ""}`)
+
+	r.NoError(client.PurgeJob(context.Background(), "production", "cron"))
+
+	// A stopped job is taken out of the cluster, versions and all.
+	r.Equal(http.MethodDelete, asked.Method)
+	r.Equal("/v1/job/cron", asked.URL.Path)
+	r.Equal("true", asked.URL.Query().Get("purge"))
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+}
+
+func TestPurgeNode(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{"EvalIDs": []}`)
+
+	r.NoError(client.PurgeNode(context.Background(), "node-1"))
+
+	r.Equal(http.MethodPut, asked.Method)
+	r.Equal("/v1/node/node-1/purge", asked.URL.Path)
+}
+
+func TestCollectNode(t *testing.T) {
+	r := require.New(t)
+
+	asked := &http.Request{}
+
+	// The cluster answers with nothing, and gzips that nothing for a client
+	// that takes gzip: twenty bytes that unzip to an empty body.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		*asked = *req
+
+		if strings.Contains(req.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header().Set("Content-Encoding", "gzip")
+			zipped := gzip.NewWriter(w)
+			_ = zipped.Close()
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	r.NoError(client.CollectNode(context.Background(), "node-1"))
+
+	r.Equal("/v1/client/gc", asked.URL.Path)
+	r.Equal("node-1", asked.URL.Query().Get("node_id"))
+}
+
+func TestCollectGarbage(t *testing.T) {
+	t.Setenv("NOMAD_REGION", "")
+
+	r := require.New(t)
+
+	client, asked := recorder(t, ``)
+
+	r.NoError(client.InRegion("eu").CollectGarbage(context.Background()))
+
+	// In the region of the session, like any other request.
+	r.Equal(http.MethodPut, asked.Method)
+	r.Equal("/v1/system/gc", asked.URL.Path)
+	r.Equal("eu", asked.URL.Query().Get("region"))
 }
 
 func TestLaunchJob(t *testing.T) {

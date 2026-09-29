@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"time"
 
@@ -194,6 +195,46 @@ func (c *Client) PauseDeployment(ctx context.Context, namespace, deploymentID st
 // FailDeployment stops a deployment and rolls it back where the job says to.
 func (c *Client) FailDeployment(ctx context.Context, namespace, deploymentID string) error {
 	_, _, err := c.api.Deployments().Fail(deploymentID, c.write(ctx, namespace))
+
+	return err
+}
+
+// PurgeJob takes a stopped job out of the cluster, with its versions and
+// its history, so that it leaves the list.
+func (c *Client) PurgeJob(ctx context.Context, namespace, jobID string) error {
+	_, _, err := c.api.Jobs().Deregister(jobID, true, c.write(ctx, namespace))
+
+	return err
+}
+
+// PurgeNode takes a client out of the cluster. One that comes back registers
+// again.
+func (c *Client) PurgeNode(ctx context.Context, nodeID string) error {
+	_, _, err := c.api.Nodes().Purge(nodeID, c.query(ctx, ""))
+
+	return err
+}
+
+// CollectNode deletes what a client keeps of its allocations that ended:
+// their directories and their logs. The cluster answers with nothing, and
+// the API call for it reads that nothing as JSON: once unzipped it is not
+// an empty answer but an end of stream, and the call fails with EOF. The
+// answer is only checked for its status here.
+func (c *Client) CollectNode(ctx context.Context, nodeID string) error {
+	body, err := c.api.Raw().Response("/v1/client/gc?node_id="+url.QueryEscape(nodeID), c.query(ctx, ""))
+	if err != nil {
+		return err
+	}
+
+	return body.Close()
+}
+
+// CollectGarbage makes the servers forget now what they would forget later:
+// dead jobs, evaluations and allocations that ended, and clients that are
+// down. The API call for it takes no options, so it is sent as it is, with
+// the region and the deadline of every other request.
+func (c *Client) CollectGarbage(ctx context.Context) error {
+	_, err := c.api.Raw().Write("/v1/system/gc", nil, nil, c.write(ctx, ""))
 
 	return err
 }
