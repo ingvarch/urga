@@ -188,3 +188,15 @@ func TestCommand_ANamespaceGivenLeavesTheScreenBelowWhereItIs(t *testing.T) {
 	r.Equal("production", client.askedNamespace)
 	r.Equal("production", client.watchedNamespace)
 }
+
+func TestNamespaces_OneThatIsGoneLosesItsNumberKey(t *testing.T) {
+	r := require.New(t)
+
+	m := onNamespaces(t, &fakeClient{}, &fakeEditor{})
+	r.Equal([]string{"production", "staging"}, m.namespaceOrder)
+
+	// The cluster no longer names production.
+	m, _ = m.update(namespacesMsg([]nomad.Namespace{{Name: "staging"}}))
+
+	r.Equal([]string{"staging"}, m.namespaceOrder)
+}

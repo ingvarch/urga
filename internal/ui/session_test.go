@@ -189,7 +189,7 @@ func TestSession_EachClusterComesBackToItsOwn(t *testing.T) {
 
 	// What prod looks at is written down for prod, and nowhere else.
 	m, _ = m.update(sizeMsg())
-	m, _ = m.update(namespacesMsg(threeNamespaces()))
+	m, _ = m.update(namespacesMsg([]nomad.Namespace{{Name: "batch"}, {Name: "web"}}))
 	m, cmd := m.update(key('2'))
 	drain(m, cmd)
 

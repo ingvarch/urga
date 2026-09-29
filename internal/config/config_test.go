@@ -70,6 +70,26 @@ func TestConfig_UseNamespaceKeepsTheOrder(t *testing.T) {
 	r.Equal([]string{"default", "production", "staging"}, cfg.Namespaces)
 }
 
+func TestConfig_ANamespaceThatIsGoneLosesItsKey(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	cfg.Remember([]string{"default", "ml", "staging"})
+
+	// ml was deleted: a key of it would open nothing, and the one after it
+	// takes its key.
+	cfg.Remember([]string{"staging", "default"})
+	r.Equal([]string{"default", "staging"}, cfg.Namespaces)
+
+	// A cluster that names none says nothing about what is gone.
+	cfg.Remember(nil)
+	r.Equal([]string{"default", "staging"}, cfg.Namespaces)
+}
+
 func TestConfig_MissingFileIsNoError(t *testing.T) {
 	r := require.New(t)
 
