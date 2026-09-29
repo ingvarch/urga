@@ -151,7 +151,7 @@ func conflicted(t *testing.T, now string) *nomad.Client {
 		w.Header().Set("Content-Type", "application/json")
 
 		switch {
-		case req.Method == http.MethodPut:
+		case req.Method == http.MethodPut, req.Method == http.MethodDelete:
 			// The answer holds the variable only when it changed since; one
 			// deleted or locked comes back empty.
 			w.WriteHeader(http.StatusConflict)
@@ -243,4 +243,56 @@ func TestSubmitVariable_AConflictItCannotReadAgain(t *testing.T) {
 	err = client.SubmitVariable(context.Background(), "production", "nomad/jobs/web", "DB_HOST = \"10.0.0.6\"\n", 769)
 	r.ErrorContains(err, "variable nomad/jobs/web changed since it was read, and reading it again failed")
 	r.ErrorContains(err, "no leader")
+}
+
+func TestSubmitVariable_ANewOneWhereOneExists(t *testing.T) {
+	r := require.New(t)
+
+	client := conflicted(t, `{"Namespace": "production", "Path": "nomad/jobs/web", "ModifyIndex": 800, "Items": {"DB_HOST": "10.0.0.9"}}`)
+
+	// Index 0 creates a variable only where there is none: one that exists
+	// is not overwritten.
+	err := client.SubmitVariable(context.Background(), "production", "nomad/jobs/web", "DB_HOST = \"10.0.0.6\"\n", 0)
+
+	var conflict *nomad.VariableConflict
+	r.True(errors.As(err, &conflict), "%v", err)
+	r.True(conflict.Exists)
+	r.Equal(uint64(800), conflict.Index)
+	r.EqualError(conflict, "variable nomad/jobs/web already exists")
+}
+
+func TestDeleteVariable(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, ``)
+
+	r.NoError(client.DeleteVariable(context.Background(), "production", "nomad/jobs/web", 769))
+
+	// With check-and-set: a variable changed since it was read is kept.
+	r.Equal(http.MethodDelete, asked.Method)
+	r.Equal("/v1/var/nomad/jobs/web", asked.URL.Path)
+	r.Equal("769", asked.URL.Query().Get("cas"))
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+}
+
+func TestDeleteVariable_ThatChanged(t *testing.T) {
+	r := require.New(t)
+
+	client := conflicted(t, `{"Namespace": "production", "Path": "nomad/jobs/web", "ModifyIndex": 800, "Items": {"DB_HOST": "10.0.0.9"}}`)
+
+	err := client.DeleteVariable(context.Background(), "production", "nomad/jobs/web", 769)
+
+	var conflict *nomad.VariableConflict
+	r.True(errors.As(err, &conflict), "%v", err)
+	r.EqualError(conflict, "variable nomad/jobs/web changed since it was read")
+}
+
+func TestVariableTemplate(t *testing.T) {
+	r := require.New(t)
+
+	template := nomad.VariableTemplate("production", "nomad/jobs/web")
+
+	// The header of any variable file, and a line to copy that TOML reads
+	// as a comment: the file as it is holds no items.
+	r.Equal("# Variable nomad/jobs/web in namespace production.\n# KEY = \"value\"\n", template)
 }

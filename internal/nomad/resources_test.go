@@ -167,13 +167,17 @@ func TestNodes_ReadTheCapacity(t *testing.T) {
 func TestVariables_Read(t *testing.T) {
 	r := require.New(t)
 
-	client, _ := recorder(t, `[{"Path": "nomad/jobs/web", "Namespace": "production", "CreateTime": 1758499200000000000, "ModifyTime": 1758585600000000000}]`)
+	client, _ := recorder(t, `[{"Path": "nomad/jobs/web", "Namespace": "production", "CreateTime": 1758499200000000000,
+		"ModifyTime": 1758585600000000000, "ModifyIndex": 769}]`)
 
 	variables, err := client.Variables(context.Background(), "production")
 	r.NoError(err)
 	r.Len(variables, 1)
 
 	r.Equal("nomad/jobs/web", variables[0].Path)
+
+	// The index a delete gives, so that a variable changed since is kept.
+	r.Equal(uint64(769), variables[0].Index)
 	r.False(variables[0].Created.IsZero())
 	r.False(variables[0].Modified.IsZero())
 	r.Nil(variables[0].Lock)

@@ -14,11 +14,12 @@ import (
 )
 
 // VariableConflict is a save refused because the variable changed since it
-// was read: what happened to it, and the index a save must give to
-// replace it.
+// was read, or exists where a new one was to be made: what happened to it,
+// and the index a save must give to replace it.
 type VariableConflict struct {
 	Path    string
 	Deleted bool
+	Exists  bool
 	Lock    *VariableLock
 	Index   uint64
 }
@@ -27,6 +28,8 @@ func (e *VariableConflict) Error() string {
 	switch {
 	case e.Deleted:
 		return fmt.Sprintf("variable %s was deleted since it was read", e.Path)
+	case e.Exists:
+		return fmt.Sprintf("variable %s already exists", e.Path)
 	case e.Lock != nil:
 		return fmt.Sprintf("variable %s is locked: only the holder of lock %s can change it", e.Path, e.Lock.ID)
 	}
@@ -63,8 +66,22 @@ func (c *Client) SubmitVariable(ctx context.Context, namespace, path, source str
 
 	_, _, err = c.api.Variables().CheckedUpdate(v, c.write(ctx, namespace))
 
+	return c.checked(ctx, namespace, path, index, err)
+}
+
+// DeleteVariable deletes a variable read at index, with check-and-set: one
+// changed since is kept.
+func (c *Client) DeleteVariable(ctx context.Context, namespace, path string, index uint64) error {
+	_, err := c.api.Variables().CheckedDelete(path, index, c.write(ctx, namespace))
+
+	return c.checked(ctx, namespace, path, index, err)
+}
+
+// checked is what a write at index came to: a refusal of check-and-set says
+// what happened to the variable instead.
+func (c *Client) checked(ctx context.Context, namespace, path string, index uint64, err error) error {
 	if conflict := (api.ErrCASConflict{}); errors.As(err, &conflict) {
-		return c.variableConflict(ctx, namespace, path)
+		return c.variableConflict(ctx, namespace, path, index)
 	}
 
 	return err
@@ -72,8 +89,9 @@ func (c *Client) SubmitVariable(ctx context.Context, namespace, path, source str
 
 // variableConflict reads the variable again to find out what happened to it:
 // the cluster returns the same error for a variable changed, deleted or
-// locked since, and returns no variable for the last two.
-func (c *Client) variableConflict(ctx context.Context, namespace, path string) error {
+// locked since, and returns no variable for the last two. At index 0 the
+// write was to make a new one, so one that is there already existed.
+func (c *Client) variableConflict(ctx context.Context, namespace, path string, index uint64) error {
 	now, _, err := c.api.Variables().Peek(path, c.query(ctx, namespace))
 	if err != nil {
 		return fmt.Errorf("variable %s changed since it was read, and reading it again failed: %w", path, err)
@@ -83,7 +101,7 @@ func (c *Client) variableConflict(ctx context.Context, namespace, path string) e
 		return &VariableConflict{Path: path, Deleted: true}
 	}
 
-	return &VariableConflict{Path: path, Lock: lockOf(now.Lock), Index: now.ModifyIndex}
+	return &VariableConflict{Path: path, Exists: index == 0, Lock: lockOf(now.Lock), Index: now.ModifyIndex}
 }
 
 // variableFile writes the items of a variable as TOML, one key per line, by
@@ -185,4 +203,10 @@ func parseVariableFile(source string) (map[string]string, error) {
 	}
 
 	return items, nil
+}
+
+// VariableTemplate is the file of a new variable: the header of any
+// variable file, and a line to copy.
+func VariableTemplate(namespace, path string) string {
+	return variableFile(namespace, path, nil) + "# KEY = \"value\"\n"
 }

@@ -3,8 +3,10 @@ package nomad
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -132,12 +134,57 @@ func (c *Client) NamespaceSpec(ctx context.Context, name string) (string, error)
 
 // SubmitNamespace sends a namespace file back to the cluster.
 func (c *Client) SubmitNamespace(ctx context.Context, source string) error {
-	namespace := &api.Namespace{}
-	if err := json.Unmarshal([]byte(source), namespace); err != nil {
-		return fmt.Errorf("the namespace is not valid JSON: %w", err)
+	namespace, err := namespaceOf(source)
+	if err != nil {
+		return err
 	}
 
-	_, err := c.api.Namespaces().Register(namespace, c.write(ctx, ""))
+	_, err = c.api.Namespaces().Register(namespace, c.write(ctx, ""))
 
 	return err
+}
+
+// CreateNamespace registers a namespace from its file when there is none of
+// its name, and says its name: registering one that exists would overwrite
+// it.
+func (c *Client) CreateNamespace(ctx context.Context, source string) (string, error) {
+	namespace, err := namespaceOf(source)
+	if err != nil {
+		return "", err
+	}
+
+	if namespace.Name == "" {
+		return "", errors.New("a namespace needs a name")
+	}
+
+	_, _, err = c.api.Namespaces().Info(namespace.Name, c.query(ctx, ""))
+
+	switch {
+	case err == nil:
+		return "", fmt.Errorf("namespace %s already exists", namespace.Name)
+	case !answered(err, http.StatusNotFound):
+		return "", err
+	}
+
+	_, err = c.api.Namespaces().Register(namespace, c.write(ctx, ""))
+
+	return namespace.Name, err
+}
+
+// DeleteNamespace deletes a namespace. The cluster refuses one that still
+// holds jobs, variables or volumes, and the default one.
+func (c *Client) DeleteNamespace(ctx context.Context, name string) error {
+	_, err := c.api.Namespaces().Delete(name, c.write(ctx, ""))
+
+	return err
+}
+
+// namespaceOf reads a namespace file.
+func namespaceOf(source string) (*api.Namespace, error) {
+	namespace := &api.Namespace{}
+	if err := json.Unmarshal([]byte(source), namespace); err != nil {
+		return nil, fmt.Errorf("the namespace is not valid JSON: %w", err)
+	}
+
+	return namespace, nil
 }

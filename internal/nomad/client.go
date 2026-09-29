@@ -12,6 +12,9 @@ import (
 // AllNamespaces is what Nomad understands as every namespace at once.
 const AllNamespaces = "*"
 
+// DefaultNamespace is the namespace every cluster has, and keeps.
+const DefaultNamespace = "default"
+
 // Config says which cluster to talk to. An empty address or region falls
 // back to the environment, the same variables the nomad command reads,
 // which is also where the token comes from.
