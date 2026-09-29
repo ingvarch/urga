@@ -230,6 +230,25 @@ func TestFeed_KeepsWhatArrivesWhileNobodyReads(t *testing.T) {
 	r.Eventually(func() bool { return len(feed.C) == 3 }, 2*time.Second, 10*time.Millisecond)
 }
 
+func TestFeed_LeavesOutWhatCameBeforeTheIndex(t *testing.T) {
+	r := require.New(t)
+
+	// Asked for an index past its newest event, the cluster sends its
+	// newest one again, and then what comes after.
+	client, _ := eventServer(t,
+		`{"Index": 18, "Events": [{"Topic": "Node", "Type": "NodeRegistration", "Key": "n1", "Index": 18}]}`,
+		`{"Index": 19, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "web", "Index": 19}]}`,
+	)
+
+	feed, err := client.Feed(context.Background(), "", 19)
+	r.NoError(err)
+
+	defer feed.Close()
+
+	// What was read before is not read twice.
+	r.Equal(uint64(19), waitForEvent(t, feed).Index)
+}
+
 // waitForEvent takes the next event of a feed, or fails rather than hanging.
 func waitForEvent(t *testing.T, feed *nomad.Feed) nomad.Event {
 	t.Helper()

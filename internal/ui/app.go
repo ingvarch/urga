@@ -141,6 +141,10 @@ type (
 // Model is the whole interface. It owns the screen, the keyboard and the last
 // answers of the cluster.
 type Model struct {
+	// opening is the stream of the first screen, opened with the model and
+	// started by Init; nil for a screen that reads none.
+	opening tea.Cmd
+
 	client Client
 	opts   Options
 
@@ -231,8 +235,13 @@ func New(client Client, opts Options) Model {
 		list:      newList(jobTitles),
 	}
 	m.screen = jobsView.opened()
+	m = m.restore()
 
-	return m.restore()
+	// The first screen reads its stream the way any screen does once it is
+	// entered: opened with the model, started by Init.
+	m, m.opening = m.openStream()
+
+	return m
 }
 
 // Init asks the cluster for what the first screen shows, and for what the
@@ -240,6 +249,7 @@ func New(client Client, opts Options) Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.fetch(),
+		m.opening,
 		m.watchScreen(),
 		m.askAboutTheCluster(),
 		m.checkRelease(),
@@ -482,6 +492,7 @@ func (m Model) headerData() header {
 		memory:        percentOf(m.usage.cluster.MemoryPercent),
 		namespaces:    m.namespaceColumnData(),
 		hints:         m.hints(),
+		sorts:         m.sortHints(),
 		readOnly:      m.opts.ReadOnly,
 	}
 }

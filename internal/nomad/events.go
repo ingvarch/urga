@@ -68,8 +68,8 @@ func (c *Client) Events(ctx context.Context, namespace string, topics []string) 
 
 	// The stream starts with the next change: anything before it is already
 	// in the list the screen read.
-	return follow(ctx, c, namespace, watch, 0, func(event api.Event) Change {
-		return Change{Topic: string(event.Topic), Type: event.Type, Key: event.Key}
+	return follow(ctx, c, namespace, watch, 0, func(event api.Event) (Change, bool) {
+		return Change{Topic: string(event.Topic), Type: event.Type, Key: event.Key}, true
 	})
 }
 
@@ -90,7 +90,11 @@ type Feed = Stream[Event]
 // an index on: 1 is the oldest the cluster still keeps. The caller closes it
 // when it stops reading.
 func (c *Client) Feed(ctx context.Context, namespace string, from uint64) (*Feed, error) {
-	return follow(ctx, c, namespace, map[api.Topic][]string{api.TopicAll: nil}, from, newEvent)
+	// Asked for an index past its newest event, the cluster starts at that
+	// event again: what came before the index was read already.
+	return follow(ctx, c, namespace, map[api.Topic][]string{api.TopicAll: nil}, from, func(event api.Event) (Event, bool) {
+		return newEvent(event), event.Index >= from
+	})
 }
 
 // newEvent reads an event: what it names, and the namespace, the state and
@@ -138,9 +142,9 @@ func newEvent(e api.Event) Event {
 const streamBuffer = 256
 
 // follow streams the topics of a namespace from an index, and sends what
-// read makes of each event until the stream ends or is closed.
+// read makes of each event it keeps until the stream ends or is closed.
 func follow[T any](ctx context.Context, c *Client, namespace string, topics map[api.Topic][]string, index uint64,
-	read func(api.Event) T,
+	read func(api.Event) (T, bool),
 ) (*Stream[T], error) {
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -174,8 +178,13 @@ func follow[T any](ctx context.Context, c *Client, namespace string, topics map[
 			}
 
 			for _, event := range batch.Events {
+				item, keep := read(event)
+				if !keep {
+					continue
+				}
+
 				select {
-				case out <- read(event):
+				case out <- item:
 				case <-ctx.Done():
 					return
 				}

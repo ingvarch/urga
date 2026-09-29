@@ -250,3 +250,29 @@ func TestHeader_ShowsTheClusterOfTheSession(t *testing.T) {
 	// When the column is too narrow, the address is cut and the name stays.
 	r.Contains(plain(m.render()), "Cluster:   prod  https://nomad.example")
 }
+
+func TestHeader_TheSortLettersStandNextToTheNamespaces(t *testing.T) {
+	r := require.New(t)
+
+	out := plain(renderHeader(header{
+		namespaces: []namespaceKey{{Key: "<0>", Name: "all"}, {Key: "<1>", Name: "production"}},
+		sorts:      []hint{{Key: "<shift-t>", Description: "Topic"}, {Key: "<shift-y>", Description: "Type"}},
+	}, 160))
+
+	lines := strings.Split(out, "\n")
+	r.Regexp(`<0> all\s+<shift-t> Topic`, lines[0])
+	r.Regexp(`<1> production\s+<shift-y> Type`, lines[1])
+}
+
+func TestHeader_SaysHowTheScreenSorts(t *testing.T) {
+	r := require.New(t)
+
+	feed, _ := feedOf(someEvents()...)
+	m := onEvents(t, &fakeClient{feed: feed})
+
+	// Next to the namespaces, above the list.
+	header := strings.Join(strings.Split(plain(m.render()), "\n")[:headerHeight+1], "\n")
+	r.Contains(header, "<shift-t> Topic")
+	r.Contains(header, "<shift-y> Type")
+	r.Contains(header, "<shift-a> Age")
+}

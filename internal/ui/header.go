@@ -54,6 +54,10 @@ type header struct {
 	namespaces   []namespaceKey
 	hints        []hint
 
+	// sorts are the letters that order the list of the screen, next to the
+	// namespaces.
+	sorts []hint
+
 	// readOnly says the session changes nothing in the cluster.
 	readOnly bool
 }
@@ -69,7 +73,7 @@ func renderHeader(h header, width int) string {
 	}
 
 	info := infoColumn(h, infoWidth(rest))
-	keys := namespaceColumn(h.namespaces)
+	keys := besides(namespaceColumn(h.namespaces), sortColumn(h.sorts))
 
 	// Every column is a block of the same width from top to bottom, so the
 	// one next to it starts at the same place on every line.
@@ -218,6 +222,35 @@ func namespaceColumn(keys []namespaceKey) string {
 	}
 
 	return grid(cells, headerHeight)
+}
+
+// sortColumn is the letters that order the list, a column each.
+func sortColumn(sorts []hint) string {
+	if len(sorts) == 0 {
+		return ""
+	}
+
+	return grid(hintCells(sorts, styleValue), headerHeight)
+}
+
+// besides puts one block of the header next to another, a gap between, and
+// either one alone when the other is empty.
+func besides(left, right string) string {
+	switch {
+	case left == "":
+		return right
+	case right == "":
+		return left
+	}
+
+	leftWide := blockWidth(left)
+	rows := make([]string, headerHeight)
+
+	for i := range rows {
+		rows[i] = pad(lineAt(left, i), leftWide) + strings.Repeat(" ", columnGap) + lineAt(right, i)
+	}
+
+	return strings.Join(rows, "\n")
 }
 
 // grid lays cells into columns of the given height, the way a key list reads:
