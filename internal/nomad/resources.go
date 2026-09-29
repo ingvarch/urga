@@ -149,16 +149,8 @@ type Node struct {
 // Nodes lists the clients of the cluster.
 func (c *Client) Nodes(ctx context.Context) ([]Node, error) {
 	list, _, err := c.api.Nodes().List(c.resourceQuery(ctx, ""))
-	if err != nil {
-		return nil, err
-	}
 
-	out := make([]Node, 0, len(list))
-	for _, n := range list {
-		out = append(out, newNode(n))
-	}
-
-	return out, nil
+	return listed(list, err, newNode)
 }
 
 // newNode reads one machine of the list.
@@ -281,6 +273,36 @@ func (c *Client) NodePools(ctx context.Context) ([]NodePool, error) {
 		}
 
 		out = append(out, pool)
+	}
+
+	return out, nil
+}
+
+// PoolNodes lists the clients of a node pool, as the cluster counts them:
+// the pool all holds every client, whatever pool each is in.
+func (c *Client) PoolNodes(ctx context.Context, pool string) ([]Node, error) {
+	list, _, err := c.api.NodePools().ListNodes(pool, c.resourceQuery(ctx, ""))
+
+	return listed(list, err, newNode)
+}
+
+// PoolJobs lists the jobs of every namespace that run in a node pool.
+func (c *Client) PoolJobs(ctx context.Context, pool string) ([]Job, error) {
+	stubs, _, err := c.api.NodePools().ListJobs(pool, c.query(ctx, AllNamespaces))
+
+	return listed(stubs, err, newJob)
+}
+
+// listed reads each item of a list the cluster answered, or passes on why
+// it did not.
+func listed[S, T any](items []S, err error, read func(S) T) ([]T, error) {
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]T, 0, len(items))
+	for _, item := range items {
+		out = append(out, read(item))
 	}
 
 	return out, nil
