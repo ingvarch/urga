@@ -130,6 +130,8 @@ type (
 		Namespaces(ctx context.Context) ([]nomad.Namespace, error)
 		NamespaceSpec(ctx context.Context, name string) (string, error)
 		SubmitNamespace(ctx context.Context, source string) error
+		CreateNamespace(ctx context.Context, source string) (string, error)
+		DeleteNamespace(ctx context.Context, name string) error
 	}
 
 	servicesClient interface {
@@ -152,6 +154,7 @@ type (
 		VariableSpec(ctx context.Context, namespace, path string) (nomad.VariableSource, error)
 		SubmitVariable(ctx context.Context, namespace, path, source string, index uint64) error
 		ReleaseLock(ctx context.Context, namespace, path, lockID string) error
+		DeleteVariable(ctx context.Context, namespace, path string, index uint64) error
 	}
 
 	serversClient interface {

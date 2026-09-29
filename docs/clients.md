@@ -88,9 +88,21 @@ copying also works over SSH if your terminal supports it.
 `:namespaces` lists the namespaces. `e` opens a namespace in your editor, and
 urga saves it to the cluster when you close the editor.
 
+`n` opens a new namespace in your editor, with the fields it is made of:
+`Name`, `Description` and `Meta`. urga creates it when you close the editor,
+if there is no namespace of that name: saving one that exists would replace
+it, so urga refuses and opens the file again with the reason.
+
+`ctrl-d` deletes the namespace under the cursor, after you confirm. The
+cluster refuses to delete a namespace that still holds jobs, variables or
+volumes, and says why. `default` cannot be deleted, so `ctrl-d` is not
+offered on it. When you delete the namespace the session is in, the session
+goes to `default`.
+
 The number keys `1` to `9` switch to a namespace, and `0` shows all
 namespaces. The header shows which namespace each key opens. urga keeps this
-order between runs.
+order between runs. A namespace the cluster no longer has loses its key, and
+the ones after it move up.
 
 ## Services
 
@@ -172,6 +184,27 @@ variable, the reason may be:
 - The token may not write the variable.
 
 `e` is not offered on a variable held as a lock.
+
+### Creating and deleting a variable
+
+`n` on the list asks for the path of the new variable, then opens its file in
+your editor, with a line to copy:
+
+```toml
+# Variable nomad/jobs/api in namespace production.
+# KEY = "value"
+```
+
+The variable goes to the namespace of the session, or to `default` when the
+session shows all namespaces; the line names it: `new variable in production
+at:`. urga creates it only if there is no variable at that path. If there is
+one, the editor opens again with `variable ... already exists`, and saving
+again replaces it.
+
+`ctrl-d` deletes the variable under the cursor, after you confirm, with
+check-and-set: if the variable changed since the list was read, the cluster
+keeps it and urga says so. A variable held as a lock cannot be deleted, so
+`ctrl-d` is not offered on it.
 
 ## Node pools
 
