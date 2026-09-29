@@ -1166,5 +1166,5 @@ func newChanges() *fakeChanges {
 }
 
 func (f *fakeChanges) stream() *nomad.Changes {
-	return nomad.NewChanges(f.c, f.errs, func() { f.closed = true })
+	return nomad.NewStream(f.c, f.errs, func() { f.closed = true })
 }

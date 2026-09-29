@@ -108,13 +108,5 @@ func groupPolicy(p *api.ScalingPolicy) *GroupPolicy {
 		return nil
 	}
 
-	return &GroupPolicy{ID: p.ID, Enabled: boolOf(p.Enabled), Min: intOf(p.Min), Max: intOf(p.Max)}
-}
-
-func intOf(value *int64) int {
-	if value == nil {
-		return 0
-	}
-
-	return int(*value)
+	return &GroupPolicy{ID: p.ID, Enabled: valueOf(p.Enabled), Min: int(valueOf(p.Min)), Max: int(valueOf(p.Max))}
 }

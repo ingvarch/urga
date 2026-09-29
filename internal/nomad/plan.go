@@ -135,7 +135,7 @@ func (c *Client) PlanRevert(ctx context.Context, namespace, jobID string, to *ui
 		return Plan{}, fmt.Errorf("%s has no versions", jobID)
 	}
 
-	current := uintOf(versions[0].Version)
+	current := valueOf(versions[0].Version)
 
 	if to == nil {
 		if current == 0 {
@@ -146,7 +146,7 @@ func (c *Client) PlanRevert(ctx context.Context, namespace, jobID string, to *ui
 		to = &previous
 	}
 
-	i := slices.IndexFunc(versions, func(job *api.Job) bool { return uintOf(job.Version) == *to })
+	i := slices.IndexFunc(versions, func(job *api.Job) bool { return valueOf(job.Version) == *to })
 	if i < 0 {
 		return Plan{}, fmt.Errorf("%s has no version %d", jobID, *to)
 	}
