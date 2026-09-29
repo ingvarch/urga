@@ -127,16 +127,8 @@ type Job struct {
 // Jobs lists the jobs of a namespace. AllNamespaces lists the whole cluster.
 func (c *Client) Jobs(ctx context.Context, namespace string) ([]Job, error) {
 	stubs, _, err := c.api.Jobs().List(c.query(ctx, namespace))
-	if err != nil {
-		return nil, err
-	}
 
-	jobs := make([]Job, 0, len(stubs))
-	for _, stub := range stubs {
-		jobs = append(jobs, newJob(stub))
-	}
-
-	return jobs, nil
+	return listed(stubs, err, newJob)
 }
 
 // Agent is what the agent the client talks to says about itself.

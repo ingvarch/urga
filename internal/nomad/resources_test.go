@@ -222,6 +222,45 @@ func TestNodePools_Read(t *testing.T) {
 	r.Equal("binpack", pools[0].Scheduler)
 }
 
+func TestPoolJobs(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/node/pool/gpu/jobs": `[{"ID": "train", "Name": "train", "Namespace": "ml", "Type": "batch", "Status": "running"}]`,
+	})
+
+	jobs, err := client.PoolJobs(context.Background(), "gpu")
+	r.NoError(err)
+
+	// The jobs of every namespace that run in the pool.
+	r.Equal("*", (*asked)[0].namespace)
+	r.Len(jobs, 1)
+	r.Equal("train", jobs[0].ID)
+	r.Equal("ml", jobs[0].Namespace)
+}
+
+func TestPoolNodes(t *testing.T) {
+	r := require.New(t)
+
+	// The cluster says which clients a pool holds: all holds every one,
+	// whatever pool each is in.
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/node/pool/all/nodes": `[{"ID": "node-1", "Name": "web-01", "NodePool": "default",
+			"NodeResources": {"Cpu": {"CpuShares": 4000}, "Memory": {"MemoryMB": 3820}}}]`,
+	})
+
+	nodes, err := client.PoolNodes(context.Background(), "all")
+	r.NoError(err)
+
+	r.Len(nodes, 1)
+	r.Equal("web-01", nodes[0].Name)
+	r.Equal("default", nodes[0].NodePool)
+
+	// With their capacity, as on the list of clients.
+	r.Equal("true", (*asked)[0].query.Get("resources"))
+	r.Equal(4000, nodes[0].CPUShares)
+}
+
 func TestTaskGroups_Read(t *testing.T) {
 	r := require.New(t)
 
