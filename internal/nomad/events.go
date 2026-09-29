@@ -86,10 +86,11 @@ type Event struct {
 // Feed is what happens in the cluster, event by event.
 type Feed = Stream[Event]
 
-// Feed follows every topic of the cluster in a namespace, from the oldest
-// event the cluster still keeps. The caller closes it when it stops reading.
-func (c *Client) Feed(ctx context.Context, namespace string) (*Feed, error) {
-	return follow(ctx, c, namespace, map[api.Topic][]string{api.TopicAll: nil}, 1, newEvent)
+// Feed follows every topic of the cluster in a namespace, from the event of
+// an index on: 1 is the oldest the cluster still keeps. The caller closes it
+// when it stops reading.
+func (c *Client) Feed(ctx context.Context, namespace string, from uint64) (*Feed, error) {
+	return follow(ctx, c, namespace, map[api.Topic][]string{api.TopicAll: nil}, from, newEvent)
 }
 
 // newEvent reads an event: what it names, and the namespace, the state and
@@ -133,6 +134,9 @@ func newEvent(e api.Event) Event {
 	return event
 }
 
+// streamBuffer is how many events of a stream wait for the reader.
+const streamBuffer = 256
+
 // follow streams the topics of a namespace from an index, and sends what
 // read makes of each event until the stream ends or is closed.
 func follow[T any](ctx context.Context, c *Client, namespace string, topics map[api.Topic][]string, index uint64,
@@ -147,7 +151,9 @@ func follow[T any](ctx context.Context, c *Client, namespace string, topics map[
 		return nil, err
 	}
 
-	out := make(chan T)
+	// What arrives while nobody reads waits here, so that the reader takes it
+	// in one go.
+	out := make(chan T, streamBuffer)
 	errs := make(chan error, 1)
 
 	go func() {

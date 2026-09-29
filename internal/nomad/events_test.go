@@ -25,6 +25,9 @@ func eventServer(t *testing.T, lines ...string) (*nomad.Client, *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
+		// The cluster answers at once, before it has an event to send.
+		w.(http.Flusher).Flush()
+
 		for _, line := range lines {
 			_, _ = w.Write([]byte(line + "\n"))
 			w.(http.Flusher).Flush()
@@ -121,7 +124,7 @@ func TestFeed_ReadsWhatHappened(t *testing.T) {
 		]}`,
 	)
 
-	feed, err := client.Feed(context.Background(), "production")
+	feed, err := client.Feed(context.Background(), "production", 1)
 	r.NoError(err)
 
 	defer feed.Close()
@@ -171,7 +174,7 @@ func TestFeed_NamesEachKindOfObject(t *testing.T) {
 	} {
 		client, _ := eventServer(t, `{"Index": 3, "Events": [{"Topic": "`+topic+`", "Type": "Updated", "Key": "k1", "Index": 3, "Payload": `+want.payload+`}]}`)
 
-		feed, err := client.Feed(context.Background(), "")
+		feed, err := client.Feed(context.Background(), "", 1)
 		r.NoError(err, topic)
 
 		event := waitForEvent(t, feed)
@@ -192,6 +195,39 @@ func TestFeed_NamesEachKindOfObject(t *testing.T) {
 			r.WithinDuration(time.Unix(0, 1790671900000000000), event.At, time.Microsecond, topic)
 		}
 	}
+}
+
+func TestFeed_GoesOnFromAnIndex(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := eventServer(t)
+
+	feed, err := client.Feed(context.Background(), "production", 58)
+	r.NoError(err)
+
+	defer feed.Close()
+
+	// What was read before is not read again.
+	r.Equal("58", asked.URL.Query().Get("index"))
+}
+
+func TestFeed_KeepsWhatArrivesWhileNobodyReads(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := eventServer(t,
+		`{"Index": 7, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "web", "Index": 7}]}`,
+		`{"Index": 8, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "api", "Index": 8}]}`,
+		`{"Index": 9, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "db", "Index": 9}]}`,
+	)
+
+	feed, err := client.Feed(context.Background(), "", 1)
+	r.NoError(err)
+
+	defer feed.Close()
+
+	// The events wait for the reader together, so that it takes them in one
+	// go rather than one screen each.
+	r.Eventually(func() bool { return len(feed.C) == 3 }, 2*time.Second, 10*time.Millisecond)
 }
 
 // waitForEvent takes the next event of a feed, or fails rather than hanging.

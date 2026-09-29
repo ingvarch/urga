@@ -49,7 +49,7 @@ type (
 	// stale, and the feed of what happened.
 	eventsClient interface {
 		Events(ctx context.Context, namespace string, topics []string) (*nomad.Changes, error)
-		Feed(ctx context.Context, namespace string) (*nomad.Feed, error)
+		Feed(ctx context.Context, namespace string, from uint64) (*nomad.Feed, error)
 	}
 
 	jobsClient interface {
