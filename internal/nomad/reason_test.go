@@ -54,3 +54,20 @@ func TestReason_ARefusalWithNothingSaid(t *testing.T) {
 	// The code is all there is to say.
 	r.Equal(err.Error(), nomad.Reason(err))
 }
+
+func TestReason_ErrorsTheClusterListed(t *testing.T) {
+	r := require.New(t)
+
+	// The cluster writes several errors as a list under a count: a status
+	// line shows one line, and the count alone says nothing.
+	_, err := refusing(t, http.StatusInternalServerError,
+		"1 error occurred:\n\t* namespace \"ml\" has variables associated with it in regions: [global]\n\n").Jobs(context.Background(), "default")
+	r.Equal(`namespace "ml" has variables associated with it in regions: [global]`, nomad.Reason(err))
+
+	_, err = refusing(t, http.StatusInternalServerError, "2 errors occurred:\n\t* first\n\t* second\n\n").Jobs(context.Background(), "default")
+	r.Equal("first; second", nomad.Reason(err))
+
+	// Lines of another kind are what the cluster said, as it said it.
+	_, err = refusing(t, http.StatusInternalServerError, "the job is not valid:\n* count must be positive").Jobs(context.Background(), "default")
+	r.Equal("the job is not valid:\n* count must be positive", nomad.Reason(err))
+}
