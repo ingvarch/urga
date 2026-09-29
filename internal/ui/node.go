@@ -91,6 +91,8 @@ var nodesKeys = []pageKey[nodesPage]{
 	{press: "enter", label: "Allocations", do: openClient},
 	{press: "ctrl+d", label: "Drain", do: drainNode, writes: true},
 	{press: "i", label: "Toggle Eligibility", do: toggleEligibility, writes: true},
+	{press: "ctrl+p", label: "Purge", do: purgeNodes, writes: true, offered: clientIs(isDown)},
+	{press: "ctrl+g", label: "GC", do: collectNodes, writes: true, offered: clientIs(isUp)},
 	markKey[nodesPage](),
 	markAllKey[nodesPage](),
 }

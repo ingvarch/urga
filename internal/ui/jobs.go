@@ -151,6 +151,7 @@ var jobsKeys = []pageKey[jobsPage]{
 	{press: "d", label: "Describe", do: describeJob},
 	{press: "h", label: "Job Spec", do: showJobSpec},
 	{press: "ctrl+s", label: "Start/Stop", do: startStopJob, writes: true},
+	{press: "ctrl+p", label: "Purge", do: purgeJobs, writes: true, offered: stopped},
 	{press: "r", label: "Run Now", do: runNow, writes: true, offered: runsOnSchedule},
 	{press: "r", label: "Dispatch", do: dispatchJob, writes: true, offered: dispatchable},
 	// The cluster evaluates the launches of a job, not the job that makes

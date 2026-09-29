@@ -42,7 +42,9 @@ One binary, no config to write, no browser.
   with its meta and payload.
 - Starts, stops, scales and restarts jobs and allocations, restarts and
   signals single tasks, and opens a shell in a task.
-- Drains clients and shows their CPU and memory over time.
+- Drains clients and shows their CPU and memory over time. Purges clients
+  that are down, stopped jobs, and collects the garbage of a client or of
+  the whole cluster.
 - Shows the health of the servers and how many the cluster can lose.
 - Shows how the scheduler places work, and edits it with check-and-set.
 - Lists the scaling policies and shows what the autoscaler did with the

@@ -13,8 +13,14 @@ client.
 
 - `ctrl-d` drains a client, or stops draining it, after you confirm.
 - `i` marks a client as eligible or ineligible for new work.
+- `ctrl-p` purges a client that is down, after you confirm: the cluster
+  forgets it. If the machine comes back, it registers again.
+- `ctrl-g` collects the garbage of a client that runs, after you confirm: it
+  deletes the directories and logs of its allocations that ended, which frees
+  its disk.
 
-With several clients marked, these keys act on all of them.
+With several clients marked, these keys act on all of them that fit:
+`ctrl-p` on the ones that are down, `ctrl-g` on the ones that run.
 
 ## A client
 

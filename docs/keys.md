@@ -54,6 +54,7 @@ Other commands:
 | `ctx prod` | Switch to another cluster from the settings file. See [Named clusters](clusters.md). |
 | `ctx` | List the clusters and pick one. |
 | `find web` | Find anything in the cluster by its name or ID. `search` works too. See [Find](#find). |
+| `gc` | Collect the garbage of the cluster now, after you confirm: dead jobs, evaluations and allocations that ended, and clients that are down. Not in read-only mode. |
 | `q`, `quit`, `exit` | Quit. |
 
 In a list of regions, datacenters or clusters, the current one is marked.
@@ -163,6 +164,7 @@ start, stop, restart or drain then applies to every marked row.
 | `l` | Logs of a task in every allocation of the job. Not shown for a periodic or parameterized job. | |
 | `e` | Edit the job in your editor | yes |
 | `ctrl-s` | Start a stopped job, or stop a running one | yes |
+| `ctrl-p` | Purge a stopped job: it leaves the cluster with its versions. Shown on a stopped job. | yes |
 | `ctrl-e` | Evaluate the job again: the scheduler places what it can now | yes |
 | `r` | Run a periodic job now, out of its schedule, or dispatch a parameterized one. Shown for those jobs. | yes |
 | `u` | Revert to the previous version | yes |
@@ -360,6 +362,8 @@ when the group under the cursor has canaries waiting to be promoted.
 | `enter` | Open the client | |
 | `ctrl-d` | Drain, or stop draining | yes |
 | `i` | Allow or stop new work on the client | yes |
+| `ctrl-p` | Purge a client that is down: the cluster forgets it. Shown on one that is down. | yes |
+| `ctrl-g` | Collect the garbage of a client: the directories and logs of its allocations that ended. Shown on one that runs. | yes |
 | `space`, `ctrl-a` | Mark | |
 
 ### A client

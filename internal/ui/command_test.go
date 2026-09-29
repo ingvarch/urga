@@ -77,7 +77,7 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal([]string{
 		"about", "allocations", "authmethods", "bindingrules", "clients", "deployments",
 		"evaluations", "events", "jobs", "namespaces", "nodepools", "plugins", "policies", "roles",
-		"scaling", "scheduler", "servers", "services", "tokens", "variables", "volumes", "ctx", "dc", "region", "find",
+		"scaling", "scheduler", "servers", "services", "tokens", "variables", "volumes", "ctx", "dc", "region", "find", "gc",
 	}, matchingCommands(""))
 
 	// A word that is an alias of its own comes first, whatever other names

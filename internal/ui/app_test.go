@@ -219,6 +219,11 @@ type fakeClient struct {
 	health    nomad.ClusterHealth
 	healthErr error
 
+	// purged are the jobs and the clients purged, collected the clients
+	// whose garbage was collected, in turn.
+	purged    []string
+	collected []string
+
 	// deletedVariable is the variable deleted last, at the index it was read
 	// at; createdNamespace and deletedNamespace are the namespace created
 	// and deleted last.
@@ -581,6 +586,33 @@ func (f *fakeClient) EvaluateJob(_ context.Context, namespace, jobID string) err
 
 func (f *fakeClient) ServerHealth(context.Context) (nomad.ClusterHealth, error) {
 	return f.health, f.healthErr
+}
+
+func (f *fakeClient) PurgeJob(_ context.Context, namespace, jobID string) error {
+	f.wrote("PurgeJob")
+	f.askedNamespace, f.purged = namespace, append(f.purged, jobID)
+
+	return f.actionErr
+}
+
+func (f *fakeClient) PurgeNode(_ context.Context, nodeID string) error {
+	f.wrote("PurgeNode")
+	f.purged = append(f.purged, nodeID)
+
+	return f.actionErr
+}
+
+func (f *fakeClient) CollectNode(_ context.Context, nodeID string) error {
+	f.wrote("CollectNode")
+	f.collected = append(f.collected, nodeID)
+
+	return f.actionErr
+}
+
+func (f *fakeClient) CollectGarbage(context.Context) error {
+	f.wrote("CollectGarbage")
+
+	return f.actionErr
 }
 
 func (f *fakeClient) DeleteVariable(_ context.Context, namespace, path string, index uint64) error {
