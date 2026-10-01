@@ -74,7 +74,8 @@ These keys work on the task under the cursor while it is running:
 - `x` sends a signal. urga asks for the signal name, with `SIGHUP` filled in.
   You can type it in short form or in lower case: `hup`, `usr1`, `SIGTERM`.
 - `s` opens a shell in the task. urga starts `bash` if the task has it, and
-  `sh` if not.
+  `sh` if not. The shell opens on a clean screen. What the terminal showed
+  before, an earlier shell included, is still in its scrollback.
 
 urga only sends a signal name that Nomad knows. When a Nomad client gets a
 name it does not know, it sends `SIGINT` instead, which stops most tasks. So
