@@ -10,6 +10,7 @@ require (
 	github.com/google/licenseclassifier/v2 v2.0.0
 	github.com/hashicorp/nomad/api v0.0.0-20260922135024-0afeddadd9b4
 	github.com/ingvarch/pulse v0.4.0
+	github.com/muesli/cancelreader v0.2.2
 	github.com/stretchr/testify v1.12.1
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/mod v0.40.0
@@ -33,7 +34,6 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-runewidth v0.0.30 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/muesli/cancelreader v0.2.2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/xo/terminfo v1.2.0 // indirect
