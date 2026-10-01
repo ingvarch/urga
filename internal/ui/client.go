@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
@@ -13,13 +14,14 @@ import (
 
 const (
 	// hostChartHeight is how tall the plot of a chart is when the screen has
-	// room for it, and hostChartShort what it falls back to. Both divide by
-	// four, so that every quarter of the scale falls between two rows and
-	// can be drawn where it is. hostChartRest is what a chart takes besides
-	// its plot: the reading, the top of the scale, the axis and the times.
-	hostChartHeight = 8
-	hostChartShort  = 4
-	hostChartRest   = 4
+	// room for it, and hostChartShort what it falls back to. The tall one
+	// is a row more than divides by four and the short one a row more than
+	// divides by two, so that every quarter of the scale, or its half,
+	// falls on a row and is marked where it is. hostChartRest is what a
+	// chart takes besides its plot: the reading and the times.
+	hostChartHeight = 13
+	hostChartShort  = 7
+	hostChartRest   = 2
 
 	// hostPanelRest is the panel around the charts: the details of the
 	// machine, a line under them and an empty line above the allocations.
@@ -100,6 +102,10 @@ type clientPage struct {
 	// host is the machine as the page last read it, and the readings taken
 	// of it since the page was opened.
 	host hostModel
+
+	// absolute reads the charts in megahertz and mebibytes; without it
+	// they read percents.
+	absolute bool
 
 	allocs []nomad.Alloc
 }
@@ -236,12 +242,21 @@ var clientKeys = append([]pageKey[clientPage]{
 	{press: "ctrl+h", label: "Host Volumes", do: nodeScreen(func(d machine) page { return nodeVolumesPage{machine: d} })},
 	{press: "a", label: "Attributes", do: nodeScreen(func(d machine) page { return nodeAttributesPage{machine: d} })},
 	{press: "m", label: "Meta", do: nodeScreen(func(d machine) page { return nodeMetaPage{nodeID: d.nodeID, name: d.name} })},
+	{press: "u", label: "Units", do: toggleUnits},
 }, allocKeys[clientPage]()...)
 
 func (p clientPage) keys(e env) []keyHint { return hintsOf(p, e, clientKeys) }
 
 func (p clientPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, clientKeys, k)
+}
+
+// toggleUnits reads the charts in numbers and back in percents: megahertz
+// for CPU, mebibytes for memory.
+func toggleUnits(p clientPage, _ env) (clientPage, outcome) {
+	p.absolute = !p.absolute
+
+	return p, outcome{}
 }
 
 // keep puts a reading at the end of the chart, which holds the last few
@@ -265,13 +280,8 @@ func chartWidth(width int) int {
 
 // chartHeight is how tall the plot of a chart is in a panel of room rows. A
 // short screen gets the short one, and then none at all: the allocations
-// come first. A narrow one gets none either: half of it has no room for a
-// chart with its scale.
-func chartHeight(half, room int) int {
-	if half <= chartAxisWidth {
-		return 0
-	}
-
+// come first.
+func chartHeight(room int) int {
 	room -= hostChartRest + hostPanelRest
 
 	switch {
@@ -319,44 +329,33 @@ func (p clientPage) panel(_ env, width, room int) []string {
 
 	half := chartWidth(width)
 
-	return p.host.view(width, half, chartHeight(half, room))
+	return p.host.view(width, half, chartHeight(room), p.absolute)
 }
 
 // view is what a client shows above its allocations: what kind of machine
 // it is and what it has been doing since the screen was opened. Each chart
 // is half wide and plot tall, and a plot of no height leaves them out.
-func (h hostModel) view(width, half, plot int) []string {
+func (h hostModel) view(width, half, plot int, absolute bool) []string {
 	// One column of the panel goes to the margin the table keeps.
 	width--
 
 	rows := []string{h.details(width), ""}
 
 	if plot > 0 {
-		window := time.Duration(half-chartAxisWidth) * hostUseEvery
+		cpu, memory := alignLabels(h.chart(cpuMeasure, absolute), h.chart(memoryMeasure, absolute))
+		cpuLines := cpu.render(half, plot)
+		memoryLines := memory.render(half, plot)
 
-		cpu := chart{
-			name:    "CPU",
-			reading: h.cpuReading(),
-			detail:  h.cpuDetail(),
-			values:  shares(h.trail, cpuShare),
-			window:  window,
-			color:   colorAccent,
-		}.render(half, plot)
-
-		memory := chart{
-			name:    "MEM",
-			reading: h.memoryReading(),
-			detail:  h.memoryDetail(),
-			values:  shares(h.trail, memoryShare),
-			window:  window,
-			color:   colorTitle,
-		}.render(half, plot)
-
-		for i := range cpu {
-			rows = append(rows, pad(cpu[i], half)+strings.Repeat(" ", columnGap)+memory[i])
+		for i := range cpuLines {
+			rows = append(rows, pad(cpuLines[i], half)+strings.Repeat(" ", columnGap)+memoryLines[i])
 		}
 
-		rows = append(rows, "")
+		// A narrow screen gets no charts: half of it has no room for one
+		// with its scale. Then there is nothing to keep apart from the
+		// allocations either.
+		if len(cpuLines) > 0 {
+			rows = append(rows, "")
+		}
 	}
 
 	// The panel starts where the columns of the table do.
@@ -365,6 +364,111 @@ func (h hostModel) view(width, half, plot int) []string {
 	}
 
 	return rows
+}
+
+// measure is one thing the charts read of a machine: its CPU or its memory.
+type measure struct {
+	name  string
+	color color.Color
+
+	// share is how much of a hundred a reading takes, used the number
+	// behind it.
+	share, used func(nomad.ResourceUse) int
+
+	// has is what the machine has of it, nothing when it does not say.
+	has func(hostModel) int
+
+	// small is the unit the numbers come in, and big the one they read in
+	// once the total holds per of the small one: gigahertz past a thousand
+	// megahertz, gibibytes past a gibibyte.
+	small, big string
+	per        float64
+}
+
+var (
+	cpuMeasure = measure{
+		name:  "CPU",
+		color: colorAccent,
+		share: func(use nomad.ResourceUse) int { return use.CPUPercent },
+		used:  func(use nomad.ResourceUse) int { return use.CPUTicks },
+		has:   func(h hostModel) int { return h.node.CPUShares },
+		small: mhzUnit, big: ghzUnit, per: 1000,
+	}
+
+	memoryMeasure = measure{
+		name:  "MEM",
+		color: colorTitle,
+		share: func(use nomad.ResourceUse) int { return use.MemoryPercent },
+		used:  func(use nomad.ResourceUse) int { return use.MemoryMB },
+		has:   memoryOf,
+		small: mibUnit, big: gibUnit, per: 1024,
+	}
+)
+
+// memoryOf is the memory the last reading says the work may take, or what
+// the machine has when the reading does not say.
+func memoryOf(h hostModel) int {
+	if use, ok := h.last(); ok && use.MemoryMBAllowed > 0 {
+		return use.MemoryMBAllowed
+	}
+
+	return h.node.MemoryMB
+}
+
+// unit is the unit the numbers read in against a total, and how many of the
+// small one make it.
+func (m measure) unit(total float64) (string, float64) {
+	if total >= m.per {
+		return m.big, m.per
+	}
+
+	return m.small, 1
+}
+
+// chart is one measure of the machine since the screen was opened: a share
+// of a hundred, or the numbers against what the machine has.
+func (h hostModel) chart(of measure, absolute bool) chart {
+	c := chart{name: of.name, color: of.color, every: hostUseEvery}
+
+	use, read := h.last()
+	has := float64(of.has(h))
+
+	// The last reading in words: the share of the machine, and the numbers
+	// it comes from when they are known.
+	share := unknown
+	if read {
+		share = fmt.Sprintf("%d%%", of.share(use))
+	}
+
+	// The numbers read against what the machine has, or the most it used
+	// since the screen was opened. With neither, the percents are drawn.
+	total := has
+	if total == 0 {
+		total = maxOf(counts(h.trail, of.used, 1))
+	}
+
+	if absolute && total > 0 {
+		unit, per := of.unit(total)
+
+		c.values, c.max, c.unit = counts(h.trail, of.used, per), total/per, unit
+		c.reading, c.detail = unknown, share
+
+		if read {
+			c.reading = amount(float64(of.used(use))/per, unit)
+		}
+
+		return c
+	}
+
+	c.values, c.max, c.unit = counts(h.trail, of.share, 1), 100, percentUnit
+	c.reading = share
+
+	if read && has > 0 {
+		unit, per := of.unit(has)
+		c.detail = pair(float64(of.used(use))/per, has/per, unit)
+	}
+
+	return c
 }
 
 // details is the machine itself, in the fields the Nomad interface shows.
@@ -390,53 +494,6 @@ func eligibilityOf(node nomad.Node) string {
 	return node.Eligibility
 }
 
-// The last reading in words: the share of the machine, and the numbers it
-// comes from when they are known.
-func (h hostModel) cpuReading() string {
-	use, ok := h.last()
-	if !ok {
-		return unknown
-	}
-
-	return fmt.Sprintf("%d%%", use.CPUPercent)
-}
-
-func (h hostModel) cpuDetail() string {
-	use, ok := h.last()
-	if !ok || h.node.CPUShares == 0 {
-		return ""
-	}
-
-	return fmt.Sprintf("%d / %d MHz", use.CPUTicks, h.node.CPUShares)
-}
-
-func (h hostModel) memoryReading() string {
-	use, ok := h.last()
-	if !ok {
-		return unknown
-	}
-
-	return fmt.Sprintf("%d%%", use.MemoryPercent)
-}
-
-func (h hostModel) memoryDetail() string {
-	use, ok := h.last()
-	if !ok {
-		return ""
-	}
-
-	total := use.MemoryMBAllowed
-	if total == 0 {
-		total = h.node.MemoryMB
-	}
-
-	if total == 0 {
-		return ""
-	}
-
-	return fmt.Sprintf("%d / %d MiB", use.MemoryMB, total)
-}
-
 func (h hostModel) last() (nomad.ResourceUse, bool) {
 	if len(h.trail) == 0 {
 		return nomad.ResourceUse{}, false
@@ -445,16 +502,23 @@ func (h hostModel) last() (nomad.ResourceUse, bool) {
 	return h.trail[len(h.trail)-1], true
 }
 
-// shares turns the readings into the 0 to 1 the chart draws.
-func shares(trail []nomad.ResourceUse, of func(nomad.ResourceUse) int) []float64 {
+// counts turns the readings into the numbers the plot counts, per of them
+// to one of its unit. A reading past the top of the scale is drawn on it.
+func counts(trail []nomad.ResourceUse, of func(nomad.ResourceUse) int, per float64) []float64 {
 	out := make([]float64, 0, len(trail))
 	for _, use := range trail {
-		out = append(out, float64(max(0, min(of(use), 100)))/100)
+		out = append(out, float64(max(of(use), 0))/per)
 	}
 
 	return out
 }
 
-func cpuShare(use nomad.ResourceUse) int { return use.CPUPercent }
+// maxOf is the most of the numbers, or nothing when there are none.
+func maxOf(values []float64) float64 {
+	top := 0.0
+	for _, value := range values {
+		top = max(top, value)
+	}
 
-func memoryShare(use nomad.ResourceUse) int { return use.MemoryPercent }
+	return top
+}

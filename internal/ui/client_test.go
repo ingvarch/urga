@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -104,6 +105,10 @@ func TestClient_DrawsWhatTheHostIsDoing(t *testing.T) {
 
 	m, _ := onClient(t)
 
+	// One reading is a mark, and no line turns yet.
+	m, _ = m.update(reading(0))
+	r.False(strings.ContainsAny(bodyOf(m), chartTurnRunes), bodyOf(m))
+
 	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{
 		CPUPercent: 29, CPUTicks: 1165,
 		MemoryPercent: 22, MemoryMB: 857, MemoryMBAllowed: 3820,
@@ -115,13 +120,187 @@ func TestClient_DrawsWhatTheHostIsDoing(t *testing.T) {
 	// taken since the screen was opened.
 	r.Contains(out, "CPU")
 	r.Contains(out, "29%")
-	r.Contains(out, "1165 / 4000 MHz")
+	r.Contains(out, "1.17 / 4.00 GHz")
 
 	r.Contains(out, "MEM")
 	r.Contains(out, "22%")
-	r.Contains(out, "857 / 3820 MiB")
+	r.Contains(out, "0.84 / 3.73 GiB")
 
-	r.True(strings.ContainsAny(out, "▁▂▃▄▅▆▇█"), out)
+	// The line climbs from the first reading to the second.
+	r.True(strings.ContainsAny(bodyOf(m), chartTurnRunes), bodyOf(m))
+}
+
+// bodyOf is what the box of the screen holds, without its frame.
+func bodyOf(m Model) string {
+	_, content := m.body(m.width - 2*screenPadX - 2)
+
+	return plain(content)
+}
+
+func TestClient_UnitsTogglesBetweenPercentsAndNumbers(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onClient(t)
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{
+		CPUPercent: 29, CPUTicks: 1165,
+		MemoryPercent: 22, MemoryMB: 857, MemoryMBAllowed: 3820,
+	}})
+
+	// The charts read percents first, against the numbers behind them.
+	r.Contains(plain(m.render()), "1.17 / 4.00 GHz")
+	r.Contains(plain(m.render()), "0.84 / 3.73 GiB")
+	r.Contains(keyNames(m), "u Units")
+
+	m, _ = m.update(key('u'))
+	out := plain(m.render())
+
+	// One key shows the numbers themselves: gigahertz, gibibytes, and the
+	// percents behind them.
+	r.Contains(out, "1.17 GHz")
+	r.Contains(out, "0.84 GiB")
+	r.Contains(out, "2.00 GHz")
+	r.Contains(out, "GiB")
+	r.Contains(out, "29%")
+
+	// The same key reads percents again.
+	m, _ = m.update(key('u'))
+	out = plain(m.render())
+
+	r.Contains(out, "1.17 / 4.00 GHz")
+	r.NotContains(out, "1.17 GHz")
+}
+
+func TestClient_AnIdleMachineDoesNotReadAsDoingNothing(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onClient(t)
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{
+		CPUPercent: 1, CPUTicks: 40,
+		MemoryPercent: 1, MemoryMB: 40, MemoryMBAllowed: 3820,
+	}})
+
+	// The little a machine uses still reads as something, in both units.
+	out := plain(m.render())
+	r.Contains(out, "0.04 / 4.00 GHz")
+	r.Contains(out, "0.04 / 3.73 GiB")
+
+	m, _ = m.update(key('u'))
+	out = plain(m.render())
+	r.Contains(out, "0.04 GHz")
+	r.Contains(out, "0.04 GiB")
+}
+
+func TestClient_TheChartsHaveOneLook(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onClient(t)
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{
+		CPUPercent: 50, CPUTicks: 2000,
+		MemoryPercent: 50, MemoryMB: 1910, MemoryMBAllowed: 3820,
+	}})
+
+	shaded := m.render()
+	r.Contains(shaded, paintOf(sgrBackground, colorPanel))
+
+	// How the charts are filled is not a choice of the screen: the keys
+	// that are not its own change nothing it draws.
+	for _, press := range []rune{'f', 's'} {
+		pressed, _ := m.update(key(press))
+		r.Equal(shaded, pressed.render(), string(press))
+	}
+}
+
+func TestClient_UnitsFallsBackToPercentsWithoutTotals(t *testing.T) {
+	r := require.New(t)
+
+	// The machine reports no totals to read the numbers against.
+	client := &fakeClient{
+		nodes:      []nomad.Node{{ID: "node-1", Name: "nomad-server-01", Status: "ready", Eligibility: "eligible"}},
+		nodeAllocs: clientAllocs(),
+	}
+
+	m, _ := nodeModelOf(client)
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{CPUPercent: 29, MemoryPercent: 22}})
+
+	m, _ = m.update(key('u'))
+	out := plain(m.render())
+
+	// Without a limit the numbers read against nothing: percents do.
+	r.NotContains(out, "MHz")
+	r.NotContains(out, "MiB")
+	r.Contains(out, "50%")
+}
+
+func TestClient_SmallNumbersReadWithoutScaling(t *testing.T) {
+	r := require.New(t)
+
+	// Below a thousand megahertz and a gibibyte, numbers read as they are.
+	client := &fakeClient{
+		nodes:      []nomad.Node{{ID: "node-1", Name: "nomad-server-01", Status: "ready", Eligibility: "eligible", CPUShares: 500, MemoryMB: 512}},
+		nodeAllocs: clientAllocs(),
+	}
+
+	m, _ := nodeModelOf(client)
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{
+		CPUPercent: 80, CPUTicks: 400,
+		MemoryPercent: 50, MemoryMB: 256, MemoryMBAllowed: 512,
+	}})
+
+	out := plain(m.render())
+	r.Contains(out, "400 / 500 MHz")
+	r.Contains(out, "256 / 512 MiB")
+
+	m, _ = m.update(key('u'))
+	out = plain(m.render())
+
+	r.Contains(out, "400 MHz")
+	r.Contains(out, "256 MiB")
+	r.NotContains(out, "GHz")
+	r.NotContains(out, "GiB")
+}
+
+func TestClient_ChartsShareOneScaleWidth(t *testing.T) {
+	r := require.New(t)
+
+	// Gigahertz take more room than the mebibytes of this machine.
+	client := &fakeClient{
+		nodes:      []nomad.Node{{ID: "node-1", Name: "nomad-server-01", Status: "ready", Eligibility: "eligible", CPUShares: 20000, MemoryMB: 512}},
+		nodeAllocs: clientAllocs(),
+	}
+
+	m, _ := nodeModelOf(client)
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{
+		CPUPercent: 6, CPUTicks: 1165, MemoryPercent: 50, MemoryMB: 256, MemoryMBAllowed: 512,
+	}})
+	m, _ = m.update(key('u'))
+
+	lines := strings.Split(plain(m.render()), "\n")
+	head := slices.IndexFunc(lines, func(s string) bool { return strings.Contains(s, "1.17 GHz") })
+	r.Positive(head)
+
+	// The first plot row carries no labels: its first bar per half is the
+	// axis both scales stand on. Cells, not bytes: the bar takes three of
+	// those. The table draws the panel without its margin space.
+	half := chartWidth(m.width - 2*screenPadX - 2)
+	plot := strings.TrimSuffix(strings.TrimPrefix(lines[head+1], " │ "), " │")
+	cells := []rune(plot)
+	cpuAxis := slices.Index(cells[:half], '│')
+	memAxis := slices.Index(cells[half+columnGap:], '│')
+	r.Positive(cpuAxis)
+	r.Positive(memAxis)
+
+	// Both axes stand the same columns into their halves: the charts
+	// shrink together instead of one shifting sideways.
+	r.Equal(cpuAxis, memAxis)
+	r.Equal(len("20.00 GHz"), cpuAxis)
 }
 
 func TestClient_TheChartIsDroppedOnAShortScreen(t *testing.T) {
@@ -138,7 +317,7 @@ func TestClient_TheChartIsDroppedOnAShortScreen(t *testing.T) {
 	// allocations, and the status of the node still shows.
 	r.Contains(out, "pelmeni_buh_bot")
 	r.Contains(out, "ready")
-	r.NotContains(out, "100%")
+	r.NotContains(out, "50%")
 }
 
 func TestClient_TheChartKeepsTheReadings(t *testing.T) {
@@ -237,7 +416,7 @@ func TestClient_TheChartBelongsToTheClientScreenOnly(t *testing.T) {
 
 	out := plain(next.render())
 	r.NotContains(out, "Datacenter")
-	r.NotContains(out, "100%")
+	r.NotContains(out, "50%")
 }
 
 func TestClient_AReadingOfTheMachineYouLeftIsDropped(t *testing.T) {
@@ -293,7 +472,7 @@ func TestClient_ANarrowScreenKeepsTheMachineAndDropsTheCharts(t *testing.T) {
 	// the node details keep the room and the charts are dropped instead of
 	// spilling out of the box.
 	r.Contains(out, "ready")
-	r.NotContains(out, "100%")
+	r.NotContains(out, "50%")
 
 	for _, line := range strings.Split(out, "\n") {
 		r.LessOrEqual(ansi.StringWidth(line), 20, line)
@@ -439,11 +618,15 @@ func TestClient_ThePanelTakesWhatTheBoxHasRoomFor(t *testing.T) {
 		width, box, panel int
 		charts            bool
 	}{
-		{width: 120, box: 40, panel: 15, charts: true},
-		{width: 120, box: 21, panel: 15, charts: true},
-		{width: 120, box: 20, panel: 11, charts: true},
-		{width: 120, box: 17, panel: 11, charts: true},
-		{width: 120, box: 16, panel: 2},
+		{width: 120, box: 40, panel: 18, charts: true},
+		{width: 120, box: 26, panel: 18, charts: true},
+		{width: 120, box: 25, panel: 18, charts: true},
+		{width: 120, box: 24, panel: 18, charts: true},
+		{width: 120, box: 23, panel: 12, charts: true},
+		{width: 120, box: 20, panel: 12, charts: true},
+		{width: 120, box: 19, panel: 12, charts: true},
+		{width: 120, box: 18, panel: 12, charts: true},
+		{width: 120, box: 17, panel: 2},
 		{width: 120, box: 8, panel: 2},
 		{width: 120, box: 7, panel: 0},
 		{width: 120, box: 3, panel: 0},
@@ -457,7 +640,7 @@ func TestClient_ThePanelTakesWhatTheBoxHasRoomFor(t *testing.T) {
 		r.Equal(tc.panel, drawnPanel(sized), "%dx%d", tc.width, tc.box)
 		r.Equal(max(tc.box-3-tc.panel, 1), sized.list.table.height, "%dx%d", tc.width, tc.box)
 		r.Equal(tc.panel > 0, strings.Contains(body, "ready"), "%dx%d", tc.width, tc.box)
-		r.Equal(tc.charts, strings.Contains(body, "100%"), "%dx%d", tc.width, tc.box)
+		r.Equal(tc.charts, strings.Contains(body, "50%"), "%dx%d", tc.width, tc.box)
 	}
 }
 
@@ -491,12 +674,44 @@ func TestClient_TheChartSaysHowFarBackItReaches(t *testing.T) {
 	r := require.New(t)
 
 	m, _ := onClient(t)
-	m, _ = m.update(reading(29))
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{CPUPercent: 29, CPUTicks: 1165}})
+	m, _ = m.update(tea.WindowSizeMsg{Width: 114, Height: 44})
 
-	// The left edge is as many readings back as the chart is wide, and the
-	// readings come at the pace of their own timer.
-	window := time.Duration(chartWidth(m.width-2*screenPadX-2)-chartAxisWidth) * hostUseEvery
-	r.Contains(plain(m.render()), age(window)+" ago")
+	half := chartWidth(m.width - 2*screenPadX - 2)
+
+	// The left edge is as many readings back as the plot is wide, and the
+	// readings come at the pace of their own timer. The plot is what the
+	// scale leaves of the chart.
+	window := time.Duration(half-len("100%")-1) * hostUseEvery
+	r.Equal(4*time.Minute, window)
+	r.Contains(bodyOf(m), "4m ago")
+
+	// The numbers take a wider scale, and the plot holds less.
+	m, _ = m.update(key('u'))
+
+	window = time.Duration(half-len("4.00 GHz")-1) * hostUseEvery
+	r.Equal(3*time.Minute+40*time.Second, window)
+	r.Contains(bodyOf(m), "3m ago")
+	r.NotContains(bodyOf(m), "4m ago")
+}
+
+func TestClient_ChartsTooNarrowForTheirScaleTakeNoRows(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onClient(t)
+	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{CPUPercent: 29, CPUTicks: 1165}})
+	m, _ = m.update(tea.WindowSizeMsg{Width: 26, Height: 44})
+
+	// Half of this screen holds the scale of the percents and a plot.
+	r.Contains(bodyOf(m), "50%")
+
+	// The scale of the numbers is wider and leaves no plot: the charts are
+	// dropped, and so is the empty row under them.
+	m, _ = m.update(key('u'))
+
+	r.Equal(hostPanelRows, m.panelHeight())
+	r.Equal(hostPanelRows, drawnPanel(m))
+	r.NotContains(bodyOf(m), "now")
 }
 
 func TestClient_TheAllocationsOnItAnswerTheirKeys(t *testing.T) {

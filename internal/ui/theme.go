@@ -27,10 +27,6 @@ var (
 	// colorMark is a row an action applies to. It outranks the color the
 	// row carries for its state: a mark is what the eye is looking for.
 	colorMark = lipgloss.Color("#d7a13b")
-
-	// chartLine is the scale drawn across a chart: dim enough to look like
-	// a hairline, whether it crosses empty space or a bar.
-	chartLine = lipgloss.Color("#525a63")
 )
 
 // Row colors say what state a resource is in, at a glance down the list.

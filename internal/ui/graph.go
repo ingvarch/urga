@@ -8,54 +8,12 @@ import (
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/ingvarch/pulse"
 )
 
-// chartAxisWidth is the scale down the left of a chart: the widest label it
-// carries, a space and the side of the plot.
-const chartAxisWidth = len("100%") + 2
-
-// chartLevels are the levels of the scale that are drawn across the plot.
-// The top and the bottom are the frame itself.
-var chartLevels = []int{75, 50, 25}
-
-// chartQuarters is how tall a plot has to be before it is worth marking the
-// quarters as well as the half. Below it the lines crowd out the readings.
-const chartQuarters = 8
-
-// levels are the lines drawn across a plot of this height.
-func levels(height int) []int {
-	if height < chartQuarters {
-		return []int{50}
-	}
-
-	return chartLevels
-}
-
-// What a cell of the plot holds: nothing, the top of a reading, the fill
-// under that top, a line of the scale in the air, or a line of the scale
-// over the fill that covers it.
-const (
-	cellAir = iota
-	cellEdge
-	cellFill
-	cellLine
-	cellOver
-)
-
-// chartDash is how often a line of the scale draws a mark: every other
-// column, so the line looks dotted rather than solid.
-const chartDash = 2
-
-// chartHair is what a line of the scale is drawn with. It sits along the
-// floor of its cell and is as thin as the border of the screen; the blocks a
-// reading is drawn with are far heavier.
-const chartHair = '_'
-
-// chartCell is one cell of the plot.
-type chartCell struct {
-	glyph rune
-	kind  int
-}
+// chartPlotMin is the narrowest plot that is drawn. A column holds one
+// reading, and one reading is a mark: a line takes two.
+const chartPlotMin = 2
 
 // chart is a reading over time, drawn with a scale on the left and the span
 // of time along the bottom.
@@ -67,193 +25,145 @@ type chart struct {
 	reading string
 	detail  string
 
-	// values are the readings, each from 0 to 1, oldest first.
+	// values are the readings in the units of the scale, oldest first.
 	values []float64
 
-	// window is how far back the left edge of the chart reaches.
-	window time.Duration
+	// every is the time between two readings, which is what one column of
+	// the plot stands for: the left edge of the chart reaches as far back
+	// as the plot is wide.
+	every time.Duration
 
 	// color is what a reading is drawn in.
 	color color.Color
+
+	// max is what the top of the scale stands for, unit what it counts in.
+	max  float64
+	unit string
+
+	// labelWidth is how wide the scale down the left reads. Charts next
+	// to each other share the wider one, so neither shifts when units
+	// change and both shrink instead.
+	labelWidth int
 }
 
+// Units a chart reads in: shares of a hundred, megahertz and mebibytes,
+// and gigahertz and gibibytes past a thousand of those.
+const (
+	percentUnit = "%"
+	mhzUnit     = "MHz"
+	mibUnit     = "MiB"
+	ghzUnit     = "GHz"
+	gibUnit     = "GiB"
+)
+
 // render draws the chart into a block of the given width, with a plot of the
-// given height. It takes four lines more: what it reads now, the top of the
-// scale, the axis under the plot and the times at its ends.
-//
-// A row of the plot is a band of the scale, so a level falls between two
-// rows, not on one. The lines are drawn there, on the edge of a row, and a
-// level that falls inside a row is left off the scale: a label there would
-// stand beside the wrong place.
+// given height. It takes two lines more: what it reads now and the times at
+// the ends of the plot.
 func (c chart) render(width, height int) []string {
-	// The scale takes its columns whatever it is given. Less than one
-	// column of plot left is not a chart, and drawing it anyway spills out
-	// of the box.
-	if width <= chartAxisWidth || height < 1 {
+	// The scale takes its columns whatever it is given. Less than a line
+	// of plot left is not a chart, and drawing it anyway spills out of the
+	// box.
+	plot := width - c.axisWidth()
+	if plot < chartPlotMin || height < 1 {
 		return nil
 	}
 
-	plot := width - chartAxisWidth
-
-	rows := []string{
-		pad(c.headline(width), width),
-		styleMuted.Render(c.side("100%", "┌") + strings.Repeat("─", plot)),
-	}
-
-	for i, row := range c.cells(plot, height) {
-		rows = append(rows, styleMuted.Render(c.side(levelAt(i, height), "│"))+c.line(row))
-	}
+	rows := []string{pad(c.headline(width), width)}
+	rows = append(rows, strings.Split(c.plot(plot, height), "\n")...)
 
 	return append(rows,
-		styleMuted.Render(c.side("0%", "└")+strings.Repeat("─", plot)),
-		styleMuted.Render(strings.Repeat(" ", chartAxisWidth)+pad(c.times(plot), plot)))
+		styleMuted.Render(strings.Repeat(" ", c.axisWidth())+pad(c.times(plot), plot)))
 }
 
-// side is the scale down the left of the plot: what this row stands for and
-// the edge of the plot next to it.
-func (c chart) side(label, edge string) string {
-	return padLeft(label, chartAxisWidth-2) + " " + edge
+// axisWidth is the scale down the left of a chart: the widest label it
+// carries and the side of the plot.
+func (c chart) axisWidth() int {
+	return c.axisLabelWidth() + 1
 }
 
-// cells are the rows of the plot: the readings, with the lines of the scale
-// laid over them.
-func (c chart) cells(width, height int) [][]chartCell {
-	rows := make([][]chartCell, height)
-	for row := range rows {
-		rows[row] = make([]chartCell, width)
-		for column := range rows[row] {
-			rows[row][column] = chartCell{glyph: ' ', kind: cellAir}
-		}
-	}
-
-	values := c.values
-	if len(values) > width {
-		values = values[len(values)-width:]
-	}
-
-	for i, value := range values {
-		c.draw(rows, width-len(values)+i, value, height)
-	}
-
-	c.mark(rows, width, height)
-
-	return rows
+// axisLabelWidth is how wide the scale of the chart reads: the top of it
+// names the longest label, and a chart next to another takes the wider of
+// the two.
+func (c chart) axisLabelWidth() int {
+	return max(c.labelWidth, len(amount(c.max, c.unit)))
 }
 
-// draw fills one reading up its column, from the floor of the plot. The top
-// of it is kept apart from the body: a line of the scale is drawn over the
-// body and hidden behind the top.
-func (c chart) draw(rows [][]chartCell, column int, value float64, height int) {
-	filled := value * float64(height)
-	top := true
+// plot is the line of the readings over time, newest at the right, on the
+// scale of their own units.
+func (c chart) plot(width, height int) string {
+	ch := pulse.New(width, height,
+		pulse.WithRange(0, c.max),
+		pulse.WithTicks(c.ticks(height)...),
+		pulse.WithLabelFormatter(func(value float64) string { return amount(value, c.unit) }),
+		pulse.WithLabelWidth(c.axisLabelWidth()),
+		pulse.WithAxisStyle(styleMuted),
+		// CPU reads green and memory cyan, the way the rest of the screen
+		// names them.
+		pulse.WithLineWidth(1),
+		pulse.WithLineStyle(lipgloss.NewStyle().Foreground(c.color)),
+		// What is under the line is the shade of a panel, with no marks
+		// of its own.
+		pulse.WithFill(true),
+		pulse.WithTintedFill(true),
+		pulse.WithSolidFill(true),
+		pulse.WithTintColor(colorPanel),
+	)
 
-	for row := range height {
-		part := eighths(filled - float64(height-row-1))
-		if part == 0 {
-			continue
-		}
-
-		if top {
-			rows[row][column] = chartCell{glyph: blocks[part], kind: cellEdge}
-			top = false
-
-			continue
-		}
-
-		rows[row][column] = chartCell{glyph: '█', kind: cellFill}
+	for _, value := range c.values {
+		ch.Push(value)
 	}
 
-	// A reading of nothing has no height, and a column with nothing in it
-	// reads as a reading that was never taken. It is drawn on the floor of
-	// the plot, where it is.
-	if top {
-		rows[height-1][column] = chartCell{glyph: chartHair, kind: cellEdge}
-	}
+	return ch.View()
 }
 
-// mark lays the lines of the scale over the readings. A line runs along the
-// floor of its row, in the air or over the fill; where the top of a reading
-// stands in that cell the line passes behind it, the way a chart is read.
-func (c chart) mark(rows [][]chartCell, width, height int) {
-	for _, level := range levels(height) {
-		at := rowOf(level, height)
-		if at < 0 {
-			continue
-		}
+// ticks are the levels of the scale a plot of this height marks. The rows
+// of a plot are one more than the steps between them, so a level is marked
+// only where it falls on a row: a label anywhere else would stand beside
+// the wrong place.
+func (c chart) ticks(height int) []float64 {
+	steps := height - 1
 
-		for column := 0; column < width; column += chartDash {
-			switch rows[at][column].kind {
-			case cellAir:
-				rows[at][column] = chartCell{glyph: chartHair, kind: cellLine}
-			case cellFill:
-				rows[at][column] = chartCell{glyph: chartHair, kind: cellOver}
-			}
-		}
+	switch {
+	case steps%4 == 0:
+		return []float64{0, c.max * 0.25, c.max * 0.5, c.max * 0.75, c.max}
+	case steps%2 == 0:
+		return []float64{0, c.max * 0.5, c.max}
+	}
+
+	return []float64{0, c.max}
+}
+
+// alignLabels gives both charts the wider scale, so their axes stand
+// aligned and neither shifts when units change: both shrink instead.
+func alignLabels(cpu, memory chart) (chart, chart) {
+	width := max(cpu.axisLabelWidth(), memory.axisLabelWidth())
+	cpu.labelWidth, memory.labelWidth = width, width
+
+	return cpu, memory
+}
+
+// amount names a reading in its unit: percents and small numbers read
+// bare, thousands with two decimals. One decimal reads the little an idle
+// machine uses as nothing.
+func amount(value float64, unit string) string {
+	switch unit {
+	case percentUnit:
+		return fmt.Sprintf("%.0f%%", value)
+	case ghzUnit, gibUnit:
+		return fmt.Sprintf("%.2f %s", value, unit)
+	default:
+		return fmt.Sprintf("%.0f %s", value, unit)
 	}
 }
 
-// rowOf is the row a level of the scale is drawn under, or -1 when the level
-// falls inside a row rather than between two of them.
-func rowOf(level, height int) int {
-	if height < 2 || level*height%100 != 0 {
-		return -1
+// pair names a reading against its total, the unit once behind both.
+func pair(value, total float64, unit string) string {
+	switch unit {
+	case ghzUnit, gibUnit:
+		return fmt.Sprintf("%.2f / %.2f %s", value, total, unit)
+	default:
+		return fmt.Sprintf("%.0f / %.0f %s", value, total, unit)
 	}
-
-	return height - level*height/100 - 1
-}
-
-// levelAt is what the floor of a row stands for, for the rows that carry a
-// line of the scale.
-func levelAt(row, height int) string {
-	for _, level := range levels(height) {
-		if rowOf(level, height) == row {
-			return fmt.Sprintf("%d%%", level)
-		}
-	}
-
-	return ""
-}
-
-// line paints a row of the plot, in runs of what is drawn the same way: a
-// style of its own per cell would be mostly escape codes.
-func (c chart) line(row []chartCell) string {
-	out := strings.Builder{}
-
-	for at := 0; at < len(row); {
-		end := at
-
-		// An empty cell shows nothing but the shade behind it, so it joins
-		// whatever run is open unless that run is painted over a reading.
-		for end < len(row) && (row[end].kind == row[at].kind ||
-			(row[end].glyph == ' ' && row[at].kind != cellOver)) {
-			end++
-		}
-
-		run := strings.Builder{}
-		for _, cell := range row[at:end] {
-			run.WriteRune(cell.glyph)
-		}
-
-		out.WriteString(c.paint(row[at].kind).Render(run.String()))
-
-		at = end
-	}
-
-	return out.String()
-}
-
-// paint is how each kind of cell is drawn. A reading is one color from its
-// top to the floor of the plot; a line of the scale is a hairline, over the
-// shade of the plot or over the reading that covers it.
-func (c chart) paint(kind int) lipgloss.Style {
-	switch kind {
-	case cellLine:
-		return chartPaint(chartLine)
-	case cellOver:
-		return lipgloss.NewStyle().Foreground(chartLine).Background(c.color)
-	}
-
-	return chartPaint(c.color)
 }
 
 // headline is what the chart shows right now: what it is and how much of it
@@ -276,7 +186,7 @@ func (c chart) headline(width int) string {
 // times are the ends of the time axis: how far back the chart reaches, and
 // the reading that has just come in.
 func (c chart) times(width int) string {
-	back := age(c.window) + " ago"
+	back := age(time.Duration(width)*c.every) + " ago"
 
 	gap := width - len(back) - len("now")
 	if gap < 1 {
@@ -284,27 +194,4 @@ func (c chart) times(width int) string {
 	}
 
 	return back + strings.Repeat(" ", gap) + "now"
-}
-
-// chartPaint is how a chart is drawn: the color of the reading on the shade
-// the chart sits on.
-func chartPaint(of color.Color) lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(of).Background(colorPanel)
-}
-
-// padLeft lines a value up against the right of its column.
-func padLeft(s string, width int) string {
-	if gap := width - len(s); gap > 0 {
-		return strings.Repeat(" ", gap) + s
-	}
-
-	return s
-}
-
-// blocks fill a cell from empty to full, an eighth at a time.
-var blocks = []rune(" ▁▂▃▄▅▆▇█")
-
-// eighths is how much of one cell a share of it fills, in eighths.
-func eighths(share float64) int {
-	return max(0, min(int(share*8+0.5), 8))
 }
