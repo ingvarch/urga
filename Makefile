@@ -21,7 +21,7 @@ vet:
 
 # The version CI lints with: another one finds other things. A test keeps
 # the two the same.
-GOLANGCI_LINT_VERSION := 2.13.2
+GOLANGCI_LINT_VERSION := 2.14.0
 
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { \
