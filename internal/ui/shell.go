@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"golang.org/x/term"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -76,10 +78,22 @@ func (s shellRunner) session(cmd shellCommand) *shellSession {
 	return &shellSession{client: s.client.InRegion(cmd.Region), cmd: cmd}
 }
 
+// execer runs a command inside a task, with the terminal connected to it.
+type execer interface {
+	Exec(
+		ctx context.Context,
+		namespace, allocID, task string,
+		command []string,
+		stdin io.Reader,
+		stdout, stderr io.Writer,
+		sizes <-chan nomad.TerminalSize,
+	) (int, error)
+}
+
 // shellSession is a running shell. Bubble Tea gives it the terminal while it
 // runs and takes it back afterwards.
 type shellSession struct {
-	client *nomad.Client
+	client execer
 	cmd    shellCommand
 
 	stdin          io.Reader
@@ -110,6 +124,21 @@ func (s *shellSession) Run() error {
 	sizes := make(chan nomad.TerminalSize, 1)
 	go watchSize(ctx, fd, sizes)
 
+	_, height, _ := term.GetSize(fd)
+
+	return s.open(ctx, height, sizes)
+}
+
+// open starts the shell in the task and connects the terminal to it. The
+// terminal is height rows tall, or says nothing about it.
+func (s *shellSession) open(ctx context.Context, height int, sizes <-chan nomad.TerminalSize) error {
+	// The shell draws on the screen the terminal had before urga, not on
+	// the one urga draws on. Nothing clears that screen between two shells:
+	// it still shows what the last one left, in another task.
+	if _, err := io.WriteString(s.stdout, freshScreen(height)); err != nil {
+		return err
+	}
+
 	code, err := s.client.Exec(ctx, s.cmd.Namespace, s.cmd.AllocID, s.cmd.Task,
 		[]string{"/bin/sh", "-c", "command -v bash >/dev/null && exec bash || exec sh"},
 		s.stdin, s.stdout, s.stderr, sizes)
@@ -122,6 +151,14 @@ func (s *shellSession) Run() error {
 	}
 
 	return nil
+}
+
+// freshScreen leaves a screen of this height with nothing on it and the
+// cursor at its top. A line feed for every row pushes what the screen shows
+// into the scrollback, where it can still be read; erasing it would lose it.
+// What the line feeds leave is erased, and so is a screen of unknown height.
+func freshScreen(height int) string {
+	return strings.Repeat("\n", max(height, 0)) + ansi.CursorHomePosition + ansi.EraseScreenBelow
 }
 
 // shellDone shows that the shell closed, or why it could not open.
