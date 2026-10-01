@@ -29,7 +29,8 @@ With several clients marked, these keys act on all of them that fit:
 - its status, address, datacenter, node pool, version and whether it takes
   new work;
 - charts of its CPU and memory use, read every 5 seconds while the screen is
-  open. The charts keep the last 20 minutes.
+  open. The charts keep the last 20 minutes. `u` reads them in percents or
+  in numbers, scaled up to gigahertz and gibibytes.
 
 Below, it lists the allocations on the client, from every namespace. On a
 small terminal, the charts are left out to keep room for the allocations.

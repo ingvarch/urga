@@ -285,7 +285,7 @@ func TestAllocations_EachListAnswersItsOwnKeys(t *testing.T) {
 		"job": allocKeys,
 
 		// The keys of the node first, then those of its allocations.
-		"client": slices.Concat([]string{"e Events", "ctrl+d Drivers", "ctrl+h Host Volumes", "a Attributes", "m Meta"}, allocKeys),
+		"client": slices.Concat([]string{"e Events", "ctrl+d Drivers", "ctrl+h Host Volumes", "a Attributes", "m Meta", "u Units"}, allocKeys),
 
 		// The deployment first, then what it placed.
 		"deployment": slices.Concat([]string{
