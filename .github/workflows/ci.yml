@@ -34,7 +34,7 @@ jobs:
 
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.13.2
+          version: v2.14.0
 
       # A module urga links, on any platform it ships for, may only have a
       # license internal/licenses allows. It runs after a lint failure too, so
