@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -279,6 +281,65 @@ func TestShell_ErasesAScreenOfUnknownHeight(t *testing.T) {
 	// the right amount. The shell still gets a clean screen.
 	r.NoError(session.open(context.Background(), 0, nil))
 	r.Equal([]string{"new$ ", "", "", "", "", ""}, term.lines())
+}
+
+// typingExec is a task whose shell closes at once while a key is still
+// waited for on its behalf, in a goroutine of its own: the way the client of
+// the cluster reads what is typed.
+type typingExec struct {
+	// stopped gets what the wait for a key ended with.
+	stopped chan error
+}
+
+func (e typingExec) Exec(
+	_ context.Context, _, _, _ string, _ []string,
+	stdin io.Reader, _, _ io.Writer, _ <-chan nomad.TerminalSize,
+) (int, error) {
+	go func() {
+		_, err := stdin.Read(make([]byte, 1))
+		e.stopped <- err
+	}()
+
+	return 0, nil
+}
+
+func TestShell_LeavesTheNextKeyToUrga(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("a read from a pipe cannot be stopped there, only one from the console")
+	}
+
+	r := require.New(t)
+
+	typed, typing, err := os.Pipe()
+	r.NoError(err)
+
+	defer func() { _ = typed.Close() }()
+	defer func() { _ = typing.Close() }()
+
+	task := typingExec{stopped: make(chan error, 1)}
+
+	session := &shellSession{client: task}
+	session.SetStdin(typed)
+	session.SetStdout(io.Discard)
+
+	r.NoError(session.open(context.Background(), 0, nil))
+
+	// The shell is closed, and nothing waits for a key on its behalf: left
+	// waiting, it would take the first key typed afterwards.
+	select {
+	case <-task.stopped:
+	case <-time.After(time.Second):
+		r.Fail("the closed shell still waits for a key")
+	}
+
+	// That key is there for whoever reads next.
+	_, err = typing.WriteString("s")
+	r.NoError(err)
+
+	key := make([]byte, 1)
+	_, err = typed.Read(key)
+	r.NoError(err)
+	r.Equal("s", string(key))
 }
 
 func TestShellRunner_AsksInTheRegionOfTheTask(t *testing.T) {

@@ -6,9 +6,11 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/cancelreader"
 	"golang.org/x/term"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -132,6 +134,13 @@ func (s *shellSession) Run() error {
 // open starts the shell in the task and connects the terminal to it. The
 // terminal is height rows tall, or says nothing about it.
 func (s *shellSession) open(ctx context.Context, height int, sizes <-chan nomad.TerminalSize) error {
+	typed, err := keysOf(s.stdin)
+	if err != nil {
+		return err
+	}
+
+	defer typed.stop()
+
 	// The shell draws on the screen the terminal had before urga, not on
 	// the one urga draws on. Nothing clears that screen between two shells:
 	// it still shows what the last one left, in another task.
@@ -141,7 +150,7 @@ func (s *shellSession) open(ctx context.Context, height int, sizes <-chan nomad.
 
 	code, err := s.client.Exec(ctx, s.cmd.Namespace, s.cmd.AllocID, s.cmd.Task,
 		[]string{"/bin/sh", "-c", "command -v bash >/dev/null && exec bash || exec sh"},
-		s.stdin, s.stdout, s.stderr, sizes)
+		typed, s.stdout, s.stderr, sizes)
 	if err != nil {
 		return err
 	}
@@ -151,6 +160,49 @@ func (s *shellSession) open(ctx context.Context, height int, sizes <-chan nomad.
 	}
 
 	return nil
+}
+
+// keys are what is typed into a shell while it runs, and no longer. The
+// client of the cluster reads them in a goroutine of its own, which still
+// waits for a key when the shell closes. Left to wait, it takes the first key
+// typed afterwards, which was meant for urga.
+type keys struct {
+	from cancelreader.CancelReader
+
+	// reading is held while a read waits for a key.
+	reading sync.Mutex
+}
+
+// keysOf reads the keys of a shell from the input of the terminal.
+func keysOf(stdin io.Reader) (*keys, error) {
+	from, err := cancelreader.NewReader(stdin)
+	if err != nil {
+		return nil, err
+	}
+
+	return &keys{from: from}, nil
+}
+
+func (k *keys) Read(p []byte) (int, error) {
+	k.reading.Lock()
+	defer k.reading.Unlock()
+
+	return k.from.Read(p)
+}
+
+// stop ends the wait for a key, and closes what was waited with once the
+// wait is over.
+func (k *keys) stop() {
+	// A wait that cannot be ended is left as it is: closing under it is
+	// worse than the key it takes.
+	if !k.from.Cancel() {
+		return
+	}
+
+	k.reading.Lock()
+	defer k.reading.Unlock()
+
+	_ = k.from.Close()
 }
 
 // freshScreen leaves a screen of this height with nothing on it and the
