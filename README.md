@@ -72,6 +72,13 @@ sudo apt install ./urga_*_amd64.deb
 sudo dnf install ./urga-*.x86_64.rpm
 ```
 
+On Arch Linux install from the AUR:
+
+```sh
+# https://aur.archlinux.org/packages/urga
+yay -S urga
+```
+
 For other systems (Linux, macOS, Windows and FreeBSD, on amd64 and ARM),
 download an archive from the same page, or install with Go:
 
