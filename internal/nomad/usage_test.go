@@ -64,19 +64,30 @@ func TestNodeUsage(t *testing.T) {
 	r.Equal(8192, use.MemoryMBAllowed)
 }
 
+// webAlloc is an allocation of one task that asked for 500 ticks and 256
+// megabytes.
+const webAlloc = `{
+	"ID": "af1f37df",
+	"AllocatedResources": {"Tasks": {"web": {"Cpu": {"CpuShares": 500}, "Memory": {"MemoryMB": 256}}}}
+}`
+
 // statsServer answers the two requests a reading makes: the allocation and
 // its stats.
 func statsServer(t *testing.T, stats string) *nomad.Client {
+	t.Helper()
+
+	return allocServer(t, webAlloc, stats)
+}
+
+// allocServer answers the same two requests for the allocation it is given.
+func allocServer(t *testing.T, alloc, stats string) *nomad.Client {
 	t.Helper()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
 		if req.URL.Path == "/v1/allocation/af1f37df" {
-			_, _ = w.Write([]byte(`{
-				"ID": "af1f37df",
-				"AllocatedResources": {"Tasks": {"web": {"Cpu": {"CpuShares": 500}, "Memory": {"MemoryMB": 256}}}}
-			}`))
+			_, _ = w.Write([]byte(alloc))
 
 			return
 		}
@@ -157,4 +168,37 @@ func TestAllocationUsage_OnlyTheTasksReport(t *testing.T) {
 
 	r.Equal(125, use.CPUTicks)
 	r.Equal(128, use.MemoryMB)
+}
+
+func TestAllocationUsage_OnlyTheTasksThatRun(t *testing.T) {
+	r := require.New(t)
+
+	// One task ran before the others and has ended, one waits for them to
+	// stop. What they asked for is not what the allocation may use now, and
+	// the last reading of a task that ended is old.
+	client := allocServer(t, `{
+		"ID": "af1f37df",
+		"TaskStates": {"init": {"State": "dead"}, "web": {"State": "running"}, "cleanup": {"State": "pending"}},
+		"AllocatedResources": {"Tasks": {
+			"init": {"Cpu": {"CpuShares": 1000}, "Memory": {"MemoryMB": 1000}},
+			"web": {"Cpu": {"CpuShares": 500}, "Memory": {"MemoryMB": 256}},
+			"cleanup": {"Cpu": {"CpuShares": 200}, "Memory": {"MemoryMB": 100}}
+		}}
+	}`, `{
+		"Tasks": {
+			"init": {"ResourceUsage": {"CpuStats": {"TotalTicks": 40}, "MemoryStats": {"RSS": 16777216}}},
+			"web": {"ResourceUsage": {"CpuStats": {"TotalTicks": 125}, "MemoryStats": {"RSS": 134217728}}}
+		}
+	}`)
+
+	use, err := client.AllocationUsage(context.Background(), "production", "af1f37df")
+	r.NoError(err)
+
+	r.Equal(125, use.CPUTicks)
+	r.Equal(500, use.CPUTicksAllowed)
+	r.Equal(25, use.CPUPercent)
+
+	r.Equal(128, use.MemoryMB)
+	r.Equal(256, use.MemoryMBAllowed)
+	r.Equal(50, use.MemoryPercent)
 }

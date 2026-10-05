@@ -86,7 +86,11 @@ func (c *Client) AllocationUsage(ctx context.Context, namespace, allocID string)
 	use := ResourceUse{}
 
 	if alloc.AllocatedResources != nil {
-		for _, task := range alloc.AllocatedResources.Tasks {
+		for name, task := range alloc.AllocatedResources.Tasks {
+			if !runs(alloc, name) {
+				continue
+			}
+
 			use.CPUTicksAllowed += int(task.Cpu.CpuShares)
 			use.MemoryMBAllowed += int(task.Memory.MemoryMB)
 		}
@@ -98,8 +102,8 @@ func (c *Client) AllocationUsage(ctx context.Context, namespace, allocID string)
 		// The summary of the allocation adds up each field apart, and tasks
 		// of different drivers fill different fields. Each task is read by
 		// the field it fills, and the tasks are added up here.
-		for _, task := range stats.Tasks {
-			if task == nil {
+		for name, task := range stats.Tasks {
+			if task == nil || !runs(alloc, name) {
 				continue
 			}
 
@@ -115,6 +119,16 @@ func (c *Client) AllocationUsage(ctx context.Context, namespace, allocID string)
 	use.MemoryPercent = percent(int64(use.MemoryMB), int64(use.MemoryMBAllowed))
 
 	return use, nil
+}
+
+// runs says whether a task of an allocation is running. A task that ended,
+// or waits for the others to stop, uses nothing of what it asked for, and
+// the answer still holds its last reading. A task the allocation holds no
+// state of is counted.
+func runs(alloc *api.Allocation, task string) bool {
+	state, known := alloc.TaskStates[task]
+
+	return !known || state == nil || state.State == taskStateRunning
 }
 
 // NodeUsage is how much CPU and memory a node of the cluster uses.

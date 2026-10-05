@@ -21,6 +21,9 @@ const logTail = 64 << 10
 // taskStateDead is how the cluster says a task has stopped for good.
 const taskStateDead = "dead"
 
+// taskStateRunning is how the cluster says a task is running.
+const taskStateRunning = "running"
+
 // LogStream follows what a task writes. Lines arrive on Lines until the task
 // stops or Close is called; Err says why it ended, if it did not end on its
 // own.
