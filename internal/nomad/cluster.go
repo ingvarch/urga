@@ -15,8 +15,8 @@ type Usage struct {
 // withResources asks Nomad to put the resources in a list answer.
 var withResources = map[string]string{"resources": "true"}
 
-// Usage reads the capacity of the nodes that are ready and what the running
-// allocations take of it. A datacenter narrows both to its own machines, an
+// Usage reads the capacity of the nodes that are ready, without what each
+// keeps for itself, and what the running allocations take of it. A datacenter narrows both to its own machines, an
 // empty one is the whole region.
 func (c *Client) Usage(ctx context.Context, datacenter string) (Usage, error) {
 	nodes, _, err := c.api.Nodes().List(c.resourceQuery(ctx, ""))
@@ -44,8 +44,9 @@ func (c *Client) Usage(ctx context.Context, datacenter string) (Usage, error) {
 			continue
 		}
 
-		cpuCapacity += node.NodeResources.Cpu.CpuShares
-		memoryCapacity += node.NodeResources.Memory.MemoryMB
+		cpu, memory := schedulable(node)
+		cpuCapacity += cpu
+		memoryCapacity += memory
 	}
 
 	var cpuClaimed, memoryClaimed int64
@@ -69,6 +70,19 @@ func (c *Client) Usage(ctx context.Context, datacenter string) (Usage, error) {
 		CPUPercent:    percent(cpuClaimed, cpuCapacity),
 		MemoryPercent: percent(memoryClaimed, memoryCapacity),
 	}, nil
+}
+
+// schedulable is what a client gives to jobs: what it has without what it
+// keeps for itself. A client that keeps more than it has gives nothing.
+func schedulable(node *api.NodeListStub) (cpu, memory int64) {
+	cpu, memory = node.NodeResources.Cpu.CpuShares, node.NodeResources.Memory.MemoryMB
+
+	if kept := node.ReservedResources; kept != nil {
+		cpu -= int64(kept.Cpu.CpuShares)
+		memory -= int64(kept.Memory.MemoryMB)
+	}
+
+	return max(cpu, 0), max(memory, 0)
 }
 
 // AllocationUsage is how much one allocation uses of what it asked for.
