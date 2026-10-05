@@ -57,6 +57,9 @@ type logScope struct {
 	// fault narrows the allocations to those in that state, for the logs of
 	// a list the overview opened.
 	fault fault
+
+	// read is the time the fault is judged against: when the list was read.
+	read time.Time
 }
 
 // logChoice is a task and the allocations that run it.
@@ -186,7 +189,7 @@ func choices(scope logScope, allocs []nomad.Alloc) []logChoice {
 func inScope(scope logScope, alloc nomad.Alloc) bool {
 	return (scope.jobID == "" || alloc.JobID == scope.jobID) &&
 		(scope.group == "" || alloc.TaskGroup == scope.group) &&
-		allocHasFault(alloc, scope.fault, time.Now())
+		allocHasFault(alloc, scope.fault, scope.read)
 }
 
 // scopeName names what the logs were asked of, for a question or a warning.

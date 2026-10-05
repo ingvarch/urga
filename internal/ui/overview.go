@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 	"strconv"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -16,6 +17,9 @@ type partMsg[T any] struct {
 	namespace string
 	items     []T
 	err       error
+
+	// at is when the answer came.
+	at time.Time
 }
 
 // part is one list as the overview holds it.
@@ -93,7 +97,7 @@ func allocLine(f fault) overviewRow {
 	return overviewRow{
 		resource: "Allocations", fault: f,
 		known: func(r overviewRead, namespace string) (bool, error) { return r.allocs.counted(namespace) },
-		list:  func(r overviewRead) page { return allocationsPage{allocs: r.allocs.items, fault: f} },
+		list:  func(r overviewRead) page { return allocationsPage{allocs: r.allocs.items, read: r.allocs.at, fault: f} },
 	}
 }
 
@@ -143,7 +147,7 @@ func readPart[T any](namespace string, load func(ctx context.Context) ([]T, erro
 
 		items, err := load(ctx)
 
-		return partMsg[T]{namespace: namespace, items: items, err: err}
+		return partMsg[T]{namespace: namespace, items: items, err: err, at: time.Now()}
 	}
 }
 

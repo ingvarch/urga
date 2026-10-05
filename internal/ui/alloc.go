@@ -24,6 +24,10 @@ type allocationsPage struct {
 	// fault narrows the page to the allocations in that state, as the
 	// overview opens it.
 	fault fault
+
+	// read is when the allocations were read. The fault is judged against
+	// it, so the rows do not change with the clock between two answers.
+	read time.Time
 }
 
 func (p allocationsPage) title(e env, count int) string {
@@ -71,7 +75,7 @@ func (p allocationsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 		return p, outcome{}, false
 	}
 
-	p.allocs = allocs
+	p.allocs, p.read = allocs, time.Now()
 
 	return p, outcome{}, true
 }
@@ -88,9 +92,7 @@ func (p allocationsPage) visible(env) []nomad.Alloc {
 		return allocs
 	}
 
-	now := time.Now()
-
-	return keep(allocs, func(alloc nomad.Alloc) bool { return allocHasFault(alloc, p.fault, now) })
+	return keep(allocs, func(alloc nomad.Alloc) bool { return allocHasFault(alloc, p.fault, p.read) })
 }
 
 func (p allocationsPage) rows(e env) []tableRow { return allocRows(p.visible(e), e.usage) }
@@ -106,7 +108,7 @@ func (allocationsPage) reading(ctx context.Context, client Client, ref rowRef) (
 // logsOf is what the logs of the page are read of: the allocations of the
 // job, of the group, or of the namespace, narrowed to the fault.
 func (p allocationsPage) logsOf(e env) logScope {
-	return logScope{namespace: p.where(e), jobID: p.jobID, group: p.group, fault: p.fault}
+	return logScope{namespace: p.where(e), jobID: p.jobID, group: p.group, fault: p.fault, read: p.read}
 }
 
 var allocationsKeys = allocKeys[allocationsPage]()

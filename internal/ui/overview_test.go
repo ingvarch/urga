@@ -32,7 +32,7 @@ func troubledCluster() *fakeClient {
 			allocFaultsAlloc("lost", statusLost),
 			replaced,
 			allocFaultsAlloc("restarting", statusRunning, restarting),
-			allocFaultsAlloc("healthy", statusRunning),
+			allocFaultsAlloc("healthy", statusRunning, nomad.Task{Name: "server"}),
 		},
 		nodes: []nomad.Node{
 			{ID: "down", Datacenter: "dc1", Status: "down", Eligibility: "ineligible"},
@@ -97,8 +97,8 @@ func overviewWithCounts(client *fakeClient) Model {
 	m := typeCommand(newTestModel(client), "overview")
 
 	for _, part := range []tea.Msg{
-		partMsg[nomad.Job]{namespace: "production", items: append([]nomad.Job{dead}, client.jobs...)},
-		partMsg[nomad.Alloc]{namespace: "production", items: append([]nomad.Alloc{failed}, client.allocs...)},
+		partMsg[nomad.Job]{namespace: "production", at: time.Now(), items: append([]nomad.Job{dead}, client.jobs...)},
+		partMsg[nomad.Alloc]{namespace: "production", at: time.Now(), items: append([]nomad.Alloc{failed}, client.allocs...)},
 	} {
 		m, _ = m.update(part)
 	}
@@ -503,4 +503,28 @@ func TestOverview_AnOpenedListIsNotWhatTheNextRunOpens(t *testing.T) {
 	r.IsType(jobsPage{}, opened.screen.page)
 
 	r.Equal("overview", cfg.Of("").Screen)
+}
+
+func TestOverview_RestartsAreJudgedAtTheTimeOfTheRead(t *testing.T) {
+	r := require.New(t)
+
+	now := time.Now()
+	restarted := func(id string, ago time.Duration) nomad.Alloc {
+		return allocFaultsAlloc(id, statusRunning,
+			nomad.Task{Name: "server", Restarts: 1, LastRestart: now.Add(-ago)})
+	}
+
+	m := overviewOpen(&fakeClient{changes: newChanges()})
+	m, _ = m.update(partMsg[nomad.Alloc]{
+		namespace: "production", at: now.Add(-2 * time.Hour),
+		items: []nomad.Alloc{restarted("aaaa1111", 2*time.Hour+10*time.Minute), restarted("bbbb2222", 3*time.Hour+30*time.Minute)},
+	})
+
+	i := slices.Index(overviewLines, [2]string{"Allocations", "restarting"})
+	r.Equal("1", overviewCounts(m)[i])
+
+	opened, _ := overviewAt(t, m, "Allocations", "restarting").handleKey(enter())
+
+	r.Len(opened.list.table.rows, 1)
+	r.Equal("aaaa1111", opened.list.table.rows[0].cells[0][:8])
 }
