@@ -510,6 +510,7 @@ func TestJobLogs_TheHeaderSaysWhatTheLogsCanDo(t *testing.T) {
 		{Key: "<w>", Description: "Toggle Wrap"},
 		{Key: "<t>", Description: "Toggle Timestamps"},
 		{Key: "<ctrl-s>", Description: "Save"},
+		{Key: "<c>", Description: "Copy"},
 	}, m.hints())
 }
 

@@ -87,6 +87,9 @@ func (m Model) fromPage(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case saveMsg:
 		return taken(saveScreen(m))
 
+	case copyTextMsg:
+		return taken(m.copyText())
+
 	case askMsg:
 		return taken(m.ask(msg.question, msg.apply))
 

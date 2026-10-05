@@ -22,17 +22,7 @@ func (m Model) saveText() tea.Cmd {
 	}
 
 	name := saveName(m.screen.page)
-
-	// What is saved is what is shown: the filter, the wrapping and the times
-	// are how the screen was narrowed down to what matters.
-	rows := m.text.rows()
-
-	lines := make([]string, 0, len(rows))
-	for _, row := range rows {
-		lines = append(lines, row.text)
-	}
-
-	content := strings.Join(lines, "\n")
+	content := strings.Join(m.shownLines(), "\n")
 
 	return request(func(context.Context) (savedMsg, error) {
 		if err := os.WriteFile(name, []byte(content), 0o600); err != nil {
@@ -41,6 +31,20 @@ func (m Model) saveText() tea.Cmd {
 
 		return savedMsg{path: name}, nil
 	}, func(msg savedMsg) tea.Msg { return msg })
+}
+
+// shownLines is the text as the screen shows it. What is saved or copied is
+// what is shown: the filter, the wrapping and the times are how the screen
+// was narrowed down to what matters.
+func (m Model) shownLines() []string {
+	rows := m.text.rows()
+
+	lines := make([]string, 0, len(rows))
+	for _, row := range rows {
+		lines = append(lines, row.text)
+	}
+
+	return lines
 }
 
 // saveName names the file by what it is of and when it was saved, and

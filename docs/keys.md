@@ -223,6 +223,7 @@ On what was done to the count of a group, `d` describes its policy.
 | `esc` | Go back without submitting | |
 | `w` | Wrap long lines | |
 | `ctrl-s` | Save the plan to a file | |
+| `c` | Copy the plan to the clipboard | |
 
 ### Allocations
 
@@ -264,6 +265,7 @@ evaluation.
 | `ctrl-e` | Switch between stdout and stderr |
 | `p` | Same log in the allocation this one replaced |
 | `ctrl-s` | Save the log to a file |
+| `c` | Copy the log to the clipboard, the last 64 KiB at most |
 
 ### Logs of every allocation
 
@@ -275,6 +277,7 @@ evaluation.
 | `t` | Timestamps on or off |
 | `w` | Wrap on or off |
 | `ctrl-s` | Save the logs to a file |
+| `c` | Copy the logs to the clipboard |
 
 In the list of tasks that opens first when there are several, `enter` opens
 the logs of the task under the cursor.
@@ -292,6 +295,7 @@ On an open file:
 | `s` | Autoscroll on or off |
 | `w` | Wrap on or off |
 | `ctrl-s` | Save the file to a local file |
+| `c` | Copy the file to the clipboard |
 
 ### Evaluations
 
@@ -467,3 +471,8 @@ Descriptions, job files and diffs:
 | --- | --- |
 | `w` | Wrap on or off |
 | `ctrl-s` | Save to a file |
+| `c` | Copy to the clipboard |
+
+On every text screen, logs, files and plans included, `c` copies up to 64 KiB:
+the last whole lines when the text is longer, so the start of a long log is
+left out. `ctrl-s` saves all of it.

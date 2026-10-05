@@ -486,6 +486,7 @@ var jobLogsKeys = []pageKey[jobLogsPage]{
 	wrapKey[jobLogsPage](),
 	timesKey[jobLogsPage](),
 	saveKey[jobLogsPage](),
+	copyTextKey[jobLogsPage](),
 }
 
 func (p jobLogsPage) keys(e env) []keyHint { return hintsOf(p, e, jobLogsKeys) }
