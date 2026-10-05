@@ -60,7 +60,9 @@ func (p evaluationsPage) visible(env) []nomad.Evaluation {
 	case faultBlocked:
 		return keep(p.evaluations, func(eval nomad.Evaluation) bool { return eval.Status == stateBlocked })
 	case faultFailed:
-		newest := newestEvaluations(p.evaluations)
+		newest := newestOfEachJob(p.evaluations, evaluationJobMark, func(a, b nomad.Evaluation) bool {
+			return a.Created.After(b.Created)
+		})
 
 		return keep(p.evaluations, func(eval nomad.Evaluation) bool {
 			return eval.Status == statusFailed && newest[evaluationJobMark(eval)].ID == eval.ID
@@ -68,21 +70,6 @@ func (p evaluationsPage) visible(env) []nomad.Evaluation {
 	}
 
 	return p.evaluations
-}
-
-// newestEvaluations is the newest evaluation of each job. A failed
-// evaluation that a newer one of its job followed is not counted.
-func newestEvaluations(evals []nomad.Evaluation) map[string]nomad.Evaluation {
-	newest := map[string]nomad.Evaluation{}
-
-	for _, eval := range evals {
-		job := evaluationJobMark(eval)
-		if seen, ok := newest[job]; !ok || eval.Created.After(seen.Created) {
-			newest[job] = eval
-		}
-	}
-
-	return newest
 }
 
 func evaluationJobMark(eval nomad.Evaluation) string {

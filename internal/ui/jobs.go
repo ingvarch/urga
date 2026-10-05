@@ -244,6 +244,7 @@ const (
 	statusPending = "pending"
 	statusDead    = "dead"
 	statusFailed  = "failed"
+	statusPaused  = "paused"
 
 	typeService = "service"
 	typeBatch   = "batch"

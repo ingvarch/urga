@@ -60,3 +60,18 @@ func (f fault) after() string {
 
 	return ", " + f.String()
 }
+
+// newestOfEachJob is the newest item of each job. A failed item that a
+// newer one of its job followed is not counted.
+func newestOfEachJob[T any](items []T, job func(T) string, newer func(a, b T) bool) map[string]T {
+	newest := map[string]T{}
+
+	for _, item := range items {
+		key := job(item)
+		if seen, ok := newest[key]; !ok || newer(item, seen) {
+			newest[key] = item
+		}
+	}
+
+	return newest
+}
