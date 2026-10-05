@@ -19,12 +19,15 @@ type evaluationsPage struct {
 	ofTheSession
 
 	evaluations []nomad.Evaluation
+	// fault narrows the page to the evaluations in that state, as the
+	// overview opens it.
+	fault fault
 }
 
 var evaluationTitles = []string{"ID", "JobID", "Namespace", "Type", "TriggeredBy", "Status", "Age"}
 
-func (evaluationsPage) title(e env, count int) string {
-	return sprintf("Evaluations (%s) [%d]", namespaceLabel(e.namespace), count)
+func (p evaluationsPage) title(e env, count int) string {
+	return sprintf("Evaluations (%s%s) [%d]", namespaceLabel(e.namespace), p.fault.after(), count)
 }
 
 func (evaluationsPage) titles() []string { return evaluationTitles }
@@ -49,7 +52,44 @@ func (p evaluationsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, true
 }
 
-func (p evaluationsPage) rows(env) []tableRow { return evaluationRows(p.evaluations) }
+// visible are the evaluations on the screen: all of them, or the ones in one
+// state when the overview opened the page for it. The rows and the key that
+// opens one read the same list, so the key finds the evaluation on screen.
+func (p evaluationsPage) visible(env) []nomad.Evaluation {
+	switch p.fault {
+	case faultBlocked:
+		return keep(p.evaluations, func(eval nomad.Evaluation) bool { return eval.Status == stateBlocked })
+	case faultFailed:
+		newest := newestEvaluations(p.evaluations)
+
+		return keep(p.evaluations, func(eval nomad.Evaluation) bool {
+			return eval.Status == statusFailed && newest[evaluationJobMark(eval)].ID == eval.ID
+		})
+	}
+
+	return p.evaluations
+}
+
+// newestEvaluations is the newest evaluation of each job. A failed
+// evaluation that a newer one of its job followed is not counted.
+func newestEvaluations(evals []nomad.Evaluation) map[string]nomad.Evaluation {
+	newest := map[string]nomad.Evaluation{}
+
+	for _, eval := range evals {
+		job := evaluationJobMark(eval)
+		if seen, ok := newest[job]; !ok || eval.Created.After(seen.Created) {
+			newest[job] = eval
+		}
+	}
+
+	return newest
+}
+
+func evaluationJobMark(eval nomad.Evaluation) string {
+	return jobMark(nomad.Job{Namespace: eval.Namespace, ID: eval.JobID})
+}
+
+func (p evaluationsPage) rows(e env) []tableRow { return evaluationRows(p.visible(e)) }
 
 func evaluationRows(evals []nomad.Evaluation) []tableRow {
 	rows := make([]tableRow, 0, len(evals))
@@ -90,7 +130,7 @@ func (p evaluationsPage) press(k string, e env) (page, outcome, bool) {
 // openEvaluation reads the evaluation under the cursor in full: how it
 // ended, and why it placed nothing when it did not.
 func openEvaluation(p evaluationsPage, e env) (evaluationsPage, outcome) {
-	eval, ok := pickedFrom(e, p.evaluations)
+	eval, ok := pickedFrom(e, p.visible(e))
 	if !ok {
 		return p, outcome{}
 	}
