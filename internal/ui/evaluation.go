@@ -67,8 +67,11 @@ func evaluationRows(evals []nomad.Evaluation) []tableRow {
 
 func evaluationColor(e nomad.Evaluation) color.Color {
 	switch e.Status {
-	case "pending", "blocked":
+	case "pending":
 		return colorPending
+	case "blocked":
+		// Waits for room the cluster does not have.
+		return colorAttention
 	case "failed", "canceled":
 		return colorDead
 	}

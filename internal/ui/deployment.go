@@ -109,6 +109,9 @@ func deploymentColor(d nomad.Deployment) color.Color {
 		return colorPending
 	case "failed", "cancelled":
 		return colorDead
+	case "paused":
+		// Stays paused until someone resumes it.
+		return colorAttention
 	case "successful":
 		return nil
 	}

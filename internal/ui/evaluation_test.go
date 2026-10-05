@@ -253,10 +253,32 @@ func TestEvaluations_TheListOfTheNamespaceAndItsKeys(t *testing.T) {
 
 	r.NotContains(row, "1ad88fd0-6b1c")
 
-	// A blocked one waits.
-	r.Equal(colorPending, m.list.table.rows[0].color)
+	// A blocked one waits for room the cluster does not have.
+	r.Equal(colorAttention, m.list.table.rows[0].color)
 
 	r.Equal([]hint{{Key: "<enter>", Description: "Details"}}, m.hints())
+}
+
+func TestEvaluations_TroubleKeepsABlockedOne(t *testing.T) {
+	r := require.New(t)
+
+	done := nomad.Evaluation{ID: "2bd88fd0-0000-0000-0000-000000000000", JobID: "api", Namespace: "production", Status: "complete"}
+	waiting := nomad.Evaluation{ID: "3cd88fd0-0000-0000-0000-000000000000", JobID: "api", Namespace: "production", Status: "pending"}
+	listed := []nomad.Evaluation{shortOfRoom().Evaluation, done, waiting}
+	m, cmd := runLine(newTestModel(&fakeClient{evaluations: listed}), "evaluations")
+	m = drain(m, cmd)
+
+	// A pending one keeps its own color, not the attention one.
+	r.Equal(colorPending, m.list.table.rows[2].color)
+
+	m, _ = m.update(key('!'))
+
+	out := plain(m.render())
+	r.Contains(out, "1ad88fd0")
+	r.NotContains(out, "2bd88fd0")
+	r.NotContains(out, "3cd88fd0")
+	r.Equal(1, m.list.shown)
+	r.Equal(3, m.list.held)
 }
 
 func TestEvaluations_AListThatAnswersLateIsDropped(t *testing.T) {
