@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"slices"
 	"strconv"
 	"time"
 
@@ -19,6 +20,10 @@ type allocationsPage struct {
 	namespace, jobID, group string
 
 	allocs []nomad.Alloc
+
+	// fault narrows the page to the allocations in that state, as the
+	// overview opens it.
+	fault fault
 }
 
 func (p allocationsPage) title(e env, count int) string {
@@ -29,7 +34,7 @@ func (p allocationsPage) title(e env, count int) string {
 	// The command line opens the allocations of the namespace, with no job
 	// to name.
 	if p.jobID == "" {
-		return sprintf("Allocations (%s) [%d]", namespaceLabel(e.namespace), count)
+		return sprintf("Allocations (%s%s) [%d]", namespaceLabel(e.namespace), p.fault.after(), count)
 	}
 
 	return sprintf("Allocations (Job: %s) [%d]", p.jobID, count)
@@ -72,13 +77,20 @@ func (p allocationsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 }
 
 // visible are the allocations the page was opened for: all it read, or only
-// those of one task group.
+// those of one task group, or those in the state the overview counted.
 func (p allocationsPage) visible(env) []nomad.Alloc {
-	if p.group == "" {
-		return p.allocs
+	allocs := p.allocs
+	if p.group != "" {
+		allocs = keep(allocs, func(alloc nomad.Alloc) bool { return alloc.TaskGroup == p.group })
 	}
 
-	return keep(p.allocs, func(alloc nomad.Alloc) bool { return alloc.TaskGroup == p.group })
+	if p.fault == noFault {
+		return allocs
+	}
+
+	now := time.Now()
+
+	return keep(allocs, func(alloc nomad.Alloc) bool { return allocHasFault(alloc, p.fault, now) })
 }
 
 func (p allocationsPage) rows(e env) []tableRow { return allocRows(p.visible(e), e.usage) }
@@ -92,9 +104,9 @@ func (allocationsPage) reading(ctx context.Context, client Client, ref rowRef) (
 }
 
 // logsOf is what the logs of the page are read of: the allocations of the
-// job, of the group, or of the namespace.
+// job, of the group, or of the namespace, narrowed to the fault.
 func (p allocationsPage) logsOf(e env) logScope {
-	return logScope{namespace: p.where(e), jobID: p.jobID, group: p.group}
+	return logScope{namespace: p.where(e), jobID: p.jobID, group: p.group, fault: p.fault}
 }
 
 var allocationsKeys = allocKeys[allocationsPage]()
@@ -262,19 +274,41 @@ const troubleWindow = time.Hour
 // struggling says a task of the allocation restarted, or was killed for its
 // memory, within the trouble window.
 func struggling(alloc nomad.Alloc, now time.Time) bool {
-	for _, task := range alloc.Tasks {
-		if now.Sub(task.LastRestart) < troubleWindow {
-			return true
-		}
+	return restartedRecently(alloc, now) || killedRecently(alloc, now)
+}
 
-		for _, event := range task.Events {
-			if event.OOM && now.Sub(event.Time) < troubleWindow {
-				return true
-			}
-		}
+// restartedRecently says a task of the allocation restarted within the
+// trouble window.
+func restartedRecently(alloc nomad.Alloc, now time.Time) bool {
+	return slices.ContainsFunc(alloc.Tasks, func(task nomad.Task) bool {
+		return now.Sub(task.LastRestart) < troubleWindow
+	})
+}
+
+// killedRecently says a task of the allocation was killed for its memory
+// within the trouble window.
+func killedRecently(alloc nomad.Alloc, now time.Time) bool {
+	return slices.ContainsFunc(alloc.Tasks, func(task nomad.Task) bool {
+		return slices.ContainsFunc(task.Events, func(event nomad.TaskEvent) bool {
+			return event.OOM && now.Sub(event.Time) < troubleWindow
+		})
+	})
+}
+
+// allocHasFault says the allocation is in the state the overview counts. A
+// restart and a kill only count while the allocation runs: a failed one
+// shows as failed. No fault, or one of another list, keeps the allocation.
+func allocHasFault(alloc nomad.Alloc, f fault, now time.Time) bool {
+	switch f {
+	case faultFailedOrLost:
+		return (alloc.Status == statusFailed || alloc.Status == statusLost) && alloc.Next == ""
+	case faultRestarting:
+		return alloc.Status == statusRunning && restartedRecently(alloc, now)
+	case faultOOMKilled:
+		return alloc.Status == statusRunning && killedRecently(alloc, now)
 	}
 
-	return false
+	return true
 }
 
 // restarts is how many times the tasks of an allocation were restarted.

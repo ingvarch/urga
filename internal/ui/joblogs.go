@@ -53,6 +53,10 @@ type logScope struct {
 	// volumeKind and volumeID read the allocations that use a volume; label
 	// names it.
 	volumeKind, volumeID string
+
+	// fault narrows the allocations to those in that state, for the logs of
+	// a list the overview opened.
+	fault fault
 }
 
 // logChoice is a task and the allocations that run it.
@@ -177,10 +181,12 @@ func choices(scope logScope, allocs []nomad.Alloc) []logChoice {
 	return out
 }
 
-// inScope says the allocation is in the job and the group of the scope.
+// inScope says the allocation is in the job, the group and the state of the
+// scope.
 func inScope(scope logScope, alloc nomad.Alloc) bool {
 	return (scope.jobID == "" || alloc.JobID == scope.jobID) &&
-		(scope.group == "" || alloc.TaskGroup == scope.group)
+		(scope.group == "" || alloc.TaskGroup == scope.group) &&
+		allocHasFault(alloc, scope.fault, time.Now())
 }
 
 // scopeName names what the logs were asked of, for a question or a warning.
@@ -192,6 +198,9 @@ func scopeName(scope logScope) string {
 		return scope.jobID
 	case scope.label != "":
 		return scope.label
+	case scope.fault != noFault:
+		// Singular, like the other names: the warning says "has".
+		return "the list of " + scope.fault.String() + " allocations"
 	case scope.deploymentID != "":
 		return "deployment " + shortID(scope.deploymentID)
 	}
@@ -287,7 +296,8 @@ func pickLogTask(p logTasksPage, e env) (logTasksPage, outcome) {
 // jobLogsPage follows what a task writes in every allocation that runs it.
 type jobLogsPage struct {
 	// scope is what the allocations are read of, narrowed to the job and
-	// the group of the task.
+	// the group of the task. It has no fault: a reload follows the
+	// replacements of a deployment, and those never restarted.
 	scope        logScope
 	task, source string
 
@@ -304,7 +314,7 @@ type jobLogsPage struct {
 // runs it, on top of the screen it was asked from: escape closes them all
 // and goes back.
 func jobLogsOf(scope logScope, choice logChoice) jobLogsPage {
-	scope.jobID, scope.group = choice.job, choice.group
+	scope.jobID, scope.group, scope.fault = choice.job, choice.group, noFault
 
 	return jobLogsPage{scope: scope, task: choice.task, source: nomad.LogStdout, first: choice.allocs}
 }
