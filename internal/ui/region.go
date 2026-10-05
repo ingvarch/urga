@@ -131,7 +131,7 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 // there: an empty list until the next region answers is correct.
 func (m Model) forgetRegion() Model {
 	m.list.marks = nil
-	m.usage.cluster = nomad.Usage{}
+	m.usage = m.usage.forgetCluster()
 	m.datacenter, m.datacenters = "", nil
 
 	return m
@@ -151,7 +151,7 @@ func (m Model) switchDatacenter(datacenter string) (Model, tea.Cmd) {
 // screen that show returns.
 func (m Model) narrow(datacenter string, show func(Model) (Model, tea.Cmd)) (Model, tea.Cmd) {
 	m.datacenter = datacenter
-	m.usage.cluster = nomad.Usage{}
+	m.usage = m.usage.forgetCluster()
 
 	next, cmd := show(m)
 

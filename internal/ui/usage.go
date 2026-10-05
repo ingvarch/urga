@@ -48,8 +48,11 @@ type (
 // usageState is what the cluster and the rows on the screen are busy with,
 // and which readings already have the next one pending.
 type usageState struct {
-	// cluster is what the header shows.
-	cluster nomad.Usage
+	// cluster is what the header shows, and clusterRead says it was read: a
+	// cluster with nothing claimed reads as zero, which is not the same as
+	// no reading.
+	cluster     nomad.Usage
+	clusterRead bool
 
 	// clusterDue is true while the timer for the next reading of the header
 	// is pending. A switch reads at once, and its answer must not start a
@@ -73,7 +76,7 @@ type usageState struct {
 // pending.
 func (u usageState) keepCluster(use nomad.Usage, here bool) (usageState, tea.Cmd) {
 	if here {
-		u.cluster = use
+		u.cluster, u.clusterRead = use, true
 	}
 
 	if u.clusterDue {
@@ -83,6 +86,14 @@ func (u usageState) keepCluster(use nomad.Usage, here bool) (usageState, tea.Cmd
 	u.clusterDue = true
 
 	return u, tea.Tick(usageEvery, func(time.Time) tea.Msg { return pollUsageMsg{} })
+}
+
+// forgetCluster drops the reading of the header: it was taken somewhere the
+// session has left.
+func (u usageState) forgetCluster() usageState {
+	u.cluster, u.clusterRead = nomad.Usage{}, false
+
+	return u
 }
 
 // keepRows stores the readings of the rows.

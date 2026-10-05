@@ -488,8 +488,8 @@ func (m Model) headerData() header {
 		version:       m.opts.Version,
 		newer:         m.newer,
 		nomadVersion:  m.nomadVersion,
-		usage:         percentOf(m.usage.cluster.CPUPercent),
-		memory:        percentOf(m.usage.cluster.MemoryPercent),
+		usage:         percentOf(m.usage.cluster.CPUPercent, m.usage.clusterRead),
+		memory:        percentOf(m.usage.cluster.MemoryPercent, m.usage.clusterRead),
 		namespaces:    m.namespaceColumnData(),
 		hints:         m.hints(),
 		sorts:         m.sortHints(),
@@ -655,8 +655,8 @@ func (m Model) poll() (Model, tea.Cmd) {
 }
 
 // percentOf is a reading of the cluster, empty until there is one.
-func percentOf(value int) string {
-	if value == 0 {
+func percentOf(value int, read bool) string {
+	if !read {
 		return ""
 	}
 
