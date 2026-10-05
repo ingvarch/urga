@@ -19,12 +19,19 @@ type nodesPage struct {
 	// none.
 	pool string
 
+	// fault narrows the page to the clients in that state, as the overview
+	// opens it.
+	fault fault
+
 	nodes []nomad.Node
 }
 
 func (p nodesPage) title(_ env, count int) string {
-	if p.pool != "" {
+	switch {
+	case p.pool != "":
 		return sprintf("Clients (Pool: %s) [%d]", p.pool, count)
+	case p.fault != noFault:
+		return sprintf("Clients (%s) [%d]", p.fault, count)
 	}
 
 	return sprintf("Clients [%d]", count)
@@ -58,12 +65,40 @@ func (p nodesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, true
 }
 
-// visible are the clients of the datacenter the session is narrowed to. They
+// visible are the clients of the datacenter the session is narrowed to, and
+// only those in one state when the overview opened the page for it. They
 // are filtered as they are drawn: until the cluster answers, and when it
 // does not, no client of another datacenter shows under the new name. The
 // rows, the marks and the keys that find a row by its place read the same
 // list, so a key finds the client on the screen.
-func (p nodesPage) visible(e env) []nomad.Node { return nodesIn(e.datacenter, p.nodes) }
+func (p nodesPage) visible(e env) []nomad.Node {
+	nodes := nodesIn(e.datacenter, p.nodes)
+	if p.fault == noFault {
+		return nodes
+	}
+
+	return keep(nodes, func(node nomad.Node) bool { return nodeHasFault(node, p.fault) })
+}
+
+// nodeHasFault says the client is in the state a line of the overview counts.
+// Draining and ineligible count ready clients only, and a draining client is
+// not counted again as ineligible.
+func nodeHasFault(node nomad.Node, f fault) bool {
+	ready := node.Status == "ready"
+
+	switch f {
+	case faultDown:
+		return isDown(node)
+	case faultDisconnected:
+		return node.Status == "disconnected"
+	case faultDraining:
+		return ready && node.Drain
+	case faultIneligible:
+		return ready && !node.Drain && node.Eligibility != "eligible"
+	}
+
+	return false
+}
 
 func (p nodesPage) rows(e env) []tableRow { return nodeRows(p.visible(e), e.usage) }
 
