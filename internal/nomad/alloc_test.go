@@ -115,6 +115,41 @@ func TestNodeAllocations_AsksTheNode(t *testing.T) {
 	r.Equal("running", allocs[0].Status)
 }
 
+func TestAllocations_ReadWhatReplacedThem(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{
+		"ID": "af1f37df-7b19-6b1c-da67-5e8f482b5a15",
+		"JobID": "web",
+		"ClientStatus": "failed",
+		"NextAllocation": "b2c3d4e5-0000-0000-0000-000000000001"
+	}]`)
+
+	allocs, err := client.Allocations(context.Background(), "production", "")
+	r.NoError(err)
+	r.Len(allocs, 1)
+
+	r.Equal("b2c3d4e5-0000-0000-0000-000000000001", allocs[0].Next)
+}
+
+func TestNodeAllocations_ReadWhatReplacedThem(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{
+		"ID": "af1f37df-4528-6395-3a51-1ffcbf3c2ba4",
+		"JobID": "web",
+		"NodeID": "node-1",
+		"ClientStatus": "lost",
+		"NextAllocation": "b2c3d4e5-0000-0000-0000-000000000002"
+	}]`)
+
+	allocs, err := client.NodeAllocations(context.Background(), "node-1")
+	r.NoError(err)
+	r.Len(allocs, 1)
+
+	r.Equal("b2c3d4e5-0000-0000-0000-000000000002", allocs[0].Next)
+}
+
 func TestAllocations_ReadWhatHappenedToATask(t *testing.T) {
 	r := require.New(t)
 
