@@ -43,11 +43,16 @@ func onLogs(t *testing.T, lines ...string) (Model, *fakeClient) {
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
+	return withLines(m, lines), client
+}
+
+// withLines adds lines to the log on the screen.
+func withLines(m Model, lines []string) Model {
 	for _, line := range lines {
 		m, _ = m.update(lineOf(m, line))
 	}
 
-	return m, client
+	return m
 }
 
 func TestLogs_TheFilterShowsWhereItMatched(t *testing.T) {

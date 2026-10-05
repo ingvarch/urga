@@ -115,7 +115,8 @@ A line under the title shows the state of three toggles:
 - **Wrap**: wrap long lines. `w` turns it on or off.
 
 `ctrl-e` switches between stdout and stderr. `ctrl-s` saves the log to a file
-in the current directory, as the filter shows it.
+in the current directory, as the filter shows it. `c` copies it to the
+clipboard.
 
 ## Logs of every allocation
 
@@ -159,7 +160,7 @@ The list shows the name, size and age of each file. Directories come first.
 - It opens at the top, with Autoscroll off. `s` turns Autoscroll on to follow
   the end as the file grows.
 - A file larger than 1 MiB opens at its last 1 MiB. The title says so.
-- `w` wraps long lines, `/` filters them, `ctrl-s` saves the file.
+- `w` wraps long lines, `/` filters them, `ctrl-s` saves the file, `c` copies it.
 
 urga does not open:
 

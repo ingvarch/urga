@@ -404,6 +404,7 @@ func TestPlan_TheHeaderSaysWhatAPlanCanDo(t *testing.T) {
 		{Key: "<r>", Description: "Replan"},
 		{Key: "<w>", Description: "Toggle Wrap"},
 		{Key: "<ctrl-s>", Description: "Save"},
+		{Key: "<c>", Description: "Copy"},
 	}, m.hints())
 
 	// With nothing to send, there is no key that sends.
@@ -414,6 +415,7 @@ func TestPlan_TheHeaderSaysWhatAPlanCanDo(t *testing.T) {
 		{Key: "<r>", Description: "Replan"},
 		{Key: "<w>", Description: "Toggle Wrap"},
 		{Key: "<ctrl-s>", Description: "Save"},
+		{Key: "<c>", Description: "Copy"},
 	}, m.hints())
 }
 

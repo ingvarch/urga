@@ -146,6 +146,7 @@ var logsKeys = []pageKey[logsPage]{
 	wrapKey[logsPage](),
 	timesKey[logsPage](),
 	saveKey[logsPage](),
+	copyTextKey[logsPage](),
 }
 
 func (p logsPage) keys(e env) []keyHint { return hintsOf(p, e, logsKeys) }

@@ -239,14 +239,15 @@ type (
 	sayMsg  string
 	warnMsg string
 
-	// wrapMsg and saveMsg act on the window over a text: wrap its lines, or
-	// write what it shows to a file. followMsg follows the end of a stream,
-	// or stops following it, and timesMsg shows or hides the time each line
-	// arrived in front of it.
-	wrapMsg   struct{}
-	saveMsg   struct{}
-	followMsg struct{}
-	timesMsg  struct{}
+	// wrapMsg, saveMsg and copyTextMsg act on the window over a text: wrap
+	// its lines, write what it shows to a file, or copy it to the clipboard.
+	// followMsg follows the end of a stream, or stops following it, and
+	// timesMsg shows or hides the time each line arrived in front of it.
+	wrapMsg     struct{}
+	saveMsg     struct{}
+	copyTextMsg struct{}
+	followMsg   struct{}
+	timesMsg    struct{}
 
 	// reopenMsg opens the stream of the page again, the way entering the
 	// page does, in the same window: the page now reads another stream.
@@ -368,12 +369,14 @@ type reader interface {
 
 // textKeys are the keys of a page that reads as text.
 func textKeys[P page]() []pageKey[P] {
-	return []pageKey[P]{wrapKey[P](), saveKey[P]()}
+	return []pageKey[P]{wrapKey[P](), saveKey[P](), copyTextKey[P]()}
 }
 
 func wrapKey[P page]() pageKey[P] { return windowKey[P]("w", "Toggle Wrap", wrapMsg{}) }
 
 func saveKey[P page]() pageKey[P] { return windowKey[P]("ctrl+s", "Save", saveMsg{}) }
+
+func copyTextKey[P page]() pageKey[P] { return windowKey[P]("c", "Copy", copyTextMsg{}) }
 
 // followKey follows the end of what a stream writes, or stops following it
 // where the view is; timesKey shows or hides the time each line of it
