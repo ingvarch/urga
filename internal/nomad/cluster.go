@@ -87,17 +87,73 @@ func schedulable(node *api.NodeListStub) (cpu, memory int64) {
 
 // AllocationUsage is how much one allocation uses of what it asked for.
 func (c *Client) AllocationUsage(ctx context.Context, namespace, allocID string) (ResourceUse, error) {
-	alloc, _, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))
+	tasks, err := c.taskReadings(ctx, namespace, allocID)
 	if err != nil {
 		return ResourceUse{}, err
+	}
+
+	all := reading{}
+	for _, task := range tasks {
+		all = all.add(task)
+	}
+
+	return all.use(), nil
+}
+
+// TaskUsage is how much one task of an allocation uses of what it asked for.
+func (c *Client) TaskUsage(ctx context.Context, namespace, allocID, task string) (ResourceUse, error) {
+	tasks, err := c.taskReadings(ctx, namespace, allocID)
+	if err != nil {
+		return ResourceUse{}, err
+	}
+
+	return tasks[task].use(), nil
+}
+
+// reading is what a running task uses and what it asked for. The memory it
+// uses stays in bytes until the tasks are added up.
+type reading struct {
+	ticks, ticksAllowed int
+	memory              uint64
+	memoryMBAllowed     int
+}
+
+func (r reading) add(other reading) reading {
+	r.ticks += other.ticks
+	r.ticksAllowed += other.ticksAllowed
+	r.memory += other.memory
+	r.memoryMBAllowed += other.memoryMBAllowed
+
+	return r
+}
+
+func (r reading) use() ResourceUse {
+	use := ResourceUse{
+		CPUTicks:        r.ticks,
+		CPUTicksAllowed: r.ticksAllowed,
+		MemoryMB:        int(r.memory / megabyte),
+		MemoryMBAllowed: r.memoryMBAllowed,
+	}
+
+	use.CPUPercent = percent(int64(use.CPUTicks), int64(use.CPUTicksAllowed))
+	use.MemoryPercent = percent(int64(use.MemoryMB), int64(use.MemoryMBAllowed))
+
+	return use
+}
+
+// taskReadings reads the running tasks of an allocation, by their names.
+func (c *Client) taskReadings(ctx context.Context, namespace, allocID string) (map[string]reading, error) {
+	alloc, _, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
 	}
 
 	stats, err := c.api.Allocations().Stats(alloc, c.query(ctx, namespace))
 	if err != nil {
-		return ResourceUse{}, err
+		return nil, err
 	}
 
-	use := ResourceUse{}
+	tasks := map[string]reading{}
 
 	if alloc.AllocatedResources != nil {
 		for name, task := range alloc.AllocatedResources.Tasks {
@@ -105,34 +161,26 @@ func (c *Client) AllocationUsage(ctx context.Context, namespace, allocID string)
 				continue
 			}
 
-			use.CPUTicksAllowed += int(task.Cpu.CpuShares)
-			use.MemoryMBAllowed += int(task.Memory.MemoryMB)
+			tasks[name] = reading{ticksAllowed: int(task.Cpu.CpuShares), memoryMBAllowed: int(task.Memory.MemoryMB)}
 		}
 	}
 
 	if stats != nil {
-		var memory uint64
-
 		// The summary of the allocation adds up each field apart, and tasks
 		// of different drivers fill different fields. Each task is read by
-		// the field it fills, and the tasks are added up here.
+		// the field it fills, and the tasks are added up from that.
 		for name, task := range stats.Tasks {
 			if task == nil || !runs(alloc, name) {
 				continue
 			}
 
-			taskTicks, taskMemory := readUsage(task.ResourceUsage)
-			use.CPUTicks += taskTicks
-			memory += taskMemory
+			read := tasks[name]
+			read.ticks, read.memory = readUsage(task.ResourceUsage)
+			tasks[name] = read
 		}
-
-		use.MemoryMB = int(memory / megabyte)
 	}
 
-	use.CPUPercent = percent(int64(use.CPUTicks), int64(use.CPUTicksAllowed))
-	use.MemoryPercent = percent(int64(use.MemoryMB), int64(use.MemoryMBAllowed))
-
-	return use, nil
+	return tasks, nil
 }
 
 // runs says whether a task of an allocation is running. A task that ended,

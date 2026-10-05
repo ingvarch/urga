@@ -223,3 +223,34 @@ func TestAllocationUsage_MemoryOutsideRSS(t *testing.T) {
 	r.Equal(192, use.MemoryMB)
 	r.Equal(75, use.MemoryPercent)
 }
+
+func TestTaskUsage(t *testing.T) {
+	r := require.New(t)
+
+	client := allocServer(t, `{
+		"ID": "af1f37df",
+		"TaskStates": {"web": {"State": "running"}, "sidecar": {"State": "running"}},
+		"AllocatedResources": {"Tasks": {
+			"web": {"Cpu": {"CpuShares": 500}, "Memory": {"MemoryMB": 256}},
+			"sidecar": {"Cpu": {"CpuShares": 100}, "Memory": {"MemoryMB": 64}}
+		}}
+	}`, `{
+		"Tasks": {
+			"web": {"ResourceUsage": {"CpuStats": {"TotalTicks": 125}, "MemoryStats": {"Usage": 134217728}}},
+			"sidecar": {"ResourceUsage": {"CpuStats": {"TotalTicks": 50}, "MemoryStats": {"RSS": 33554432}}}
+		}
+	}`)
+
+	use, err := client.TaskUsage(context.Background(), "production", "af1f37df", "sidecar")
+	r.NoError(err)
+
+	// Its own reading against what it asked for itself, not the allocation:
+	// 50 of 100 ticks, 32 of 64 megabytes.
+	r.Equal(50, use.CPUTicks)
+	r.Equal(100, use.CPUTicksAllowed)
+	r.Equal(50, use.CPUPercent)
+
+	r.Equal(32, use.MemoryMB)
+	r.Equal(64, use.MemoryMBAllowed)
+	r.Equal(50, use.MemoryPercent)
+}
