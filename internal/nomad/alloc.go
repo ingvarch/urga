@@ -154,8 +154,8 @@ func (c *Client) Allocation(ctx context.Context, namespace, allocID string) (All
 }
 
 // withDetail adds the fields only a full allocation has: its job version,
-// its deployment health, its ports, and the allocations and evaluation
-// before and after it.
+// its deployment health, its ports, the allocation before it and the
+// evaluation after it.
 func withDetail(out Alloc, alloc *api.Allocation) Alloc {
 	if alloc.Job != nil && alloc.Job.Version != nil {
 		out.JobVersion = *alloc.Job.Version
@@ -179,7 +179,6 @@ func withDetail(out Alloc, alloc *api.Allocation) Alloc {
 	}
 
 	out.Previous = alloc.PreviousAllocation
-	out.Next = alloc.NextAllocation
 	out.FollowUp = alloc.FollowupEvalID
 
 	return out
@@ -216,6 +215,8 @@ func stubOf(alloc *api.Allocation) *api.AllocationListStub {
 		TaskStates:    alloc.TaskStates,
 		CreateTime:    alloc.CreateTime,
 		ModifyTime:    alloc.ModifyTime,
+
+		NextAllocation: alloc.NextAllocation,
 	}
 }
 
@@ -233,6 +234,7 @@ func newAlloc(stub *api.AllocationListStub) Alloc {
 		DesiredStatus: stub.DesiredStatus,
 		Tasks:         newTasks(stub.TaskStates),
 		JobVersion:    stub.JobVersion,
+		Next:          stub.NextAllocation,
 	}
 
 	alloc.Created = unixTime(stub.CreateTime)

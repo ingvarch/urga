@@ -123,6 +123,12 @@ var (
 		open:    func() page { return schedulerPage{} },
 	}
 
+	overviewView = &view{
+		stored:  "overview",
+		aliases: []string{"overview", "ov"},
+		open:    func() page { return overviewPage{} },
+	}
+
 	// aboutView is this urga. It is not a list of the cluster, so the next
 	// run does not reopen it.
 	aboutView = &view{
@@ -137,7 +143,7 @@ var views = []*view{
 	jobsView, allocationsView, deploymentsView, servicesView, evaluationsView,
 	nodesView, variablesView, regionsView, datacentersView, clustersView,
 	namespacesView, serversView, nodePoolsView, volumesView, pluginsView,
-	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, eventsView, scalingView, schedulerView, aboutView,
+	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, eventsView, scalingView, schedulerView, overviewView, aboutView,
 }
 
 // opened is the list as a screen just opened, with nothing read into it yet.

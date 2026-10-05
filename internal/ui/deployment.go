@@ -35,10 +35,13 @@ type deploymentsPage struct {
 	ofTheSession
 
 	deployments []nomad.Deployment
+	// fault narrows the page to the deployments in that state, as the
+	// overview opens it.
+	fault fault
 }
 
-func (deploymentsPage) title(e env, count int) string {
-	return sprintf("Deployments (%s) [%d]", namespaceLabel(e.namespace), count)
+func (p deploymentsPage) title(e env, count int) string {
+	return sprintf("Deployments (%s%s) [%d]", namespaceLabel(e.namespace), p.fault.after(), count)
 }
 
 func (deploymentsPage) titles() []string { return deploymentTitles }
@@ -63,10 +66,39 @@ func (p deploymentsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, true
 }
 
-func (p deploymentsPage) rows(env) []tableRow { return deploymentRows(p.deployments) }
+// visible are the deployments on the screen: all of them, or the ones in one
+// state when the overview opened the page for it. The rows and the keys read
+// the same list, so a key finds the deployment on screen. A failed deployment
+// that a newer one of its job followed is not counted.
+func (p deploymentsPage) visible(env) []nomad.Deployment {
+	switch p.fault {
+	case faultFailed:
+		newest := newestOfEachJob(p.deployments, deploymentJobMark, func(a, b nomad.Deployment) bool {
+			return a.JobVersion > b.JobVersion
+		})
+
+		return keep(p.deployments, func(d nomad.Deployment) bool {
+			return d.Status == statusFailed && newest[deploymentJobMark(d)].ID == d.ID
+		})
+	case faultPaused:
+		return keep(p.deployments, func(d nomad.Deployment) bool { return d.Status == statusPaused })
+	case faultRunning:
+		return keep(p.deployments, func(d nomad.Deployment) bool { return d.Status == statusRunning })
+	}
+
+	return p.deployments
+}
+
+func deploymentJobMark(d nomad.Deployment) string {
+	return jobMark(nomad.Job{Namespace: d.Namespace, ID: d.JobID})
+}
+
+func (p deploymentsPage) rows(e env) []tableRow { return deploymentRows(p.visible(e)) }
 
 // inView is the deployment under the cursor.
-func (p deploymentsPage) inView(e env) (nomad.Deployment, bool) { return pickedFrom(e, p.deployments) }
+func (p deploymentsPage) inView(e env) (nomad.Deployment, bool) {
+	return pickedFrom(e, p.visible(e))
+}
 
 var deploymentsKeys = []pageKey[deploymentsPage]{
 	{press: "enter", label: "Details", do: openDeployment},
@@ -109,6 +141,9 @@ func deploymentColor(d nomad.Deployment) color.Color {
 		return colorPending
 	case "failed", "cancelled":
 		return colorDead
+	case "paused":
+		// Stays paused until someone resumes it.
+		return colorAttention
 	case "successful":
 		return nil
 	}

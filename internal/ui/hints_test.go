@@ -148,6 +148,8 @@ func listsByName(client *fakeClient) map[string]Model {
 		open[name] = m
 	}
 
+	open["overview"] = overviewWithCounts(client)
+
 	// This urga, which has no rows.
 	open["about"] = typeCommand(newTestModel(client), "about")
 

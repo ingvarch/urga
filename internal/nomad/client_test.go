@@ -101,6 +101,27 @@ func TestJobs_ReadsTheList(t *testing.T) {
 	r.Equal(1, job.Queued)
 }
 
+func TestJobs_ReadsWhetherAJobWasStopped(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[
+		{"ID": "old", "Type": "service", "Status": "dead", "Stop": true},
+		{"ID": "crashed", "Type": "service", "Status": "dead"}
+	]`)
+
+	jobs, err := client.Jobs(context.Background(), "production")
+	r.NoError(err)
+	r.Len(jobs, 2)
+
+	// The list comes back sorted by ID, so each job is found by its ID.
+	stopped := map[string]bool{}
+	for _, job := range jobs {
+		stopped[job.ID] = job.Stopped
+	}
+
+	r.Equal(map[string]bool{"old": true, "crashed": false}, stopped)
+}
+
 func TestJobs_ReadsWhatLaunchedAJob(t *testing.T) {
 	r := require.New(t)
 

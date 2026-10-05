@@ -28,6 +28,10 @@ One binary, no config to write, no browser.
   CSI plugins and the ACL objects.
 - Updates the screen when the cluster changes, using the Nomad event stream,
   and shows the stream itself on `:events`.
+- Counts on one screen what needs attention: dead jobs, failed allocations,
+  tasks that restart or run out of memory, clients that are down or draining,
+  blocked evaluations and failed deployments, and opens the list of each with
+  one key.
 - Shows task logs and the files of an allocation, and follows them as they
   grow. Shows the log of a task from every allocation of a job at once.
 - Edits a job in your editor and shows the plan before it submits anything.

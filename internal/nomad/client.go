@@ -121,6 +121,10 @@ type Job struct {
 	Parameterized bool
 	ParentID      string
 
+	// Stopped says somebody stopped the job on purpose, as against dead of
+	// itself.
+	Stopped bool
+
 	SubmitTime time.Time
 
 	// Datacenters are where the job may be placed, stars included.
@@ -170,6 +174,7 @@ func newJob(stub *api.JobListStub) Job {
 		Periodic:      stub.Periodic,
 		Parameterized: stub.ParameterizedJob,
 		ParentID:      stub.ParentID,
+		Stopped:       stub.Stop,
 	}
 
 	job.SubmitTime = unixTime(stub.SubmitTime)

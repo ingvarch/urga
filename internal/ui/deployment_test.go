@@ -227,6 +227,23 @@ func TestDeployments_TheList(t *testing.T) {
 	r.Regexp(`^\s*7e8f9a0b\s+cron\s+production\s+3\s+paused\s+Deployment is paused`, fileRow(t, m, 1))
 }
 
+func TestDeployments_APausedOneNeedsAttention(t *testing.T) {
+	r := require.New(t)
+
+	m := onDeployments(t, &fakeClient{})
+
+	// It stays paused until someone resumes it.
+	r.Equal(colorAttention, m.list.table.rows[1].color)
+
+	m, _ = m.update(key('!'))
+
+	out := plain(m.render())
+	r.Contains(out, "7e8f9a0b")
+	r.NotContains(out, "5d1a2b3c")
+	r.Equal(1, m.list.shown)
+	r.Equal(2, m.list.held)
+}
+
 func TestDeployments_TheKeysOfTheList(t *testing.T) {
 	r := require.New(t)
 
