@@ -108,7 +108,7 @@ func TestSort_EveryAgeColumnGoesByTime(t *testing.T) {
 			return deploymentAllocRows([]nomad.Alloc{{Created: at}}, nil)
 		}},
 		{"tasks", taskTitles, "Started", func(at time.Time) []tableRow {
-			return taskRows([]nomad.Task{{Started: at}})
+			return taskRows([]nomad.Task{{Started: at}}, nil)
 		}},
 		{"task events", taskEventTitles, "Age", func(at time.Time) []tableRow {
 			return taskEventRows([]nomad.TaskEvent{{Time: at}})
@@ -157,7 +157,7 @@ func TestSort_AnAgeThatIsNotThereCountsAsNew(t *testing.T) {
 	r := require.New(t)
 
 	tbl := newTableModel(taskTitles)
-	tbl.show(taskRows([]nomad.Task{{Name: "web", Started: time.Now().Add(-time.Hour)}, {Name: "sidecar"}}), newSortState())
+	tbl.show(taskRows([]nomad.Task{{Name: "web", Started: time.Now().Add(-time.Hour)}, {Name: "sidecar"}}, nil), newSortState())
 
 	sortTable(&tbl, slices.Index(taskTitles, "Started"))
 

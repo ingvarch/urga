@@ -85,6 +85,7 @@ type (
 		Allocation(ctx context.Context, namespace, allocID string) (nomad.Alloc, error)
 		DescribeAllocation(ctx context.Context, namespace, allocID string) (string, error)
 		AllocationUsage(ctx context.Context, namespace, allocID string) (nomad.ResourceUse, error)
+		TaskUsage(ctx context.Context, namespace, allocID, task string) (nomad.ResourceUse, error)
 		AllocationChecks(ctx context.Context, namespace, allocID string) ([]nomad.Check, error)
 		RestartAllocation(ctx context.Context, namespace, allocID string) error
 		RestartTask(ctx context.Context, namespace, allocID, task string) error

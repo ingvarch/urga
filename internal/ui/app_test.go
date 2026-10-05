@@ -891,6 +891,12 @@ func (f *fakeClient) AllocationUsage(_ context.Context, namespace, allocID strin
 	return use, nil
 }
 
+func (f *fakeClient) TaskUsage(_ context.Context, namespace, allocID, task string) (nomad.ResourceUse, error) {
+	f.askedID = allocID
+
+	return f.AllocationUsage(context.Background(), namespace, task)
+}
+
 func (f *fakeClient) NodeUsage(_ context.Context, nodeID string) (nomad.ResourceUse, error) {
 	f.usageCalls++
 
