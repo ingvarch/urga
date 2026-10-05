@@ -148,8 +148,10 @@ func infoColumn(h header, width int) string {
 		{label: "DC:", value: orEvery(h.datacenter)},
 		{label: "Urga Rev:", value: h.version, mark: newerMark(h.newer)},
 		{label: "Nomad Rev:", value: orUnknown(h.nomadVersion)},
-		{label: "CPU:", value: orUnknown(h.usage)},
-		{label: "MEM:", value: orUnknown(h.memory)},
+		// What the allocations asked for, not what the machines use: the
+		// label keeps the two apart.
+		{label: "CPU Alloc:", value: orUnknown(h.usage)},
+		{label: "MEM Alloc:", value: orUnknown(h.memory)},
 	}
 
 	out := make([]string, 0, len(rows))

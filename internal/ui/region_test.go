@@ -247,7 +247,7 @@ func TestUsage_IsReadForTheDatacenterInUse(t *testing.T) {
 
 	// The numbers under the name of the datacenter are about it.
 	r.Equal("dc1", client.usageDatacenter)
-	r.Contains(headerOf(m), "CPU:       15%")
+	r.Contains(headerOf(m), "CPU Alloc: 15%")
 }
 
 func TestUsage_AReadingOfAnotherPlaceIsDropped(t *testing.T) {
@@ -260,7 +260,7 @@ func TestUsage_AReadingOfAnotherPlaceIsDropped(t *testing.T) {
 	m, _ = m.update(usageMsg{region: "eu", datacenter: "dc2", usage: nomad.Usage{CPUPercent: 50}})
 	m, _ = m.update(usageMsg{region: "us", datacenter: "dc1", usage: nomad.Usage{CPUPercent: 60}})
 
-	r.Contains(headerOf(m), "CPU:       n/a")
+	r.Contains(headerOf(m), "CPU Alloc: n/a")
 }
 
 func TestUsage_KeepsOneTimer(t *testing.T) {
@@ -386,7 +386,7 @@ func TestRegionCommand_ReadsTheUsageAtOnce(t *testing.T) {
 	m, cmd := runLine(m, "region us")
 	m = drain(m, cmd)
 
-	r.Contains(headerOf(m), "CPU:       15%")
+	r.Contains(headerOf(m), "CPU Alloc: 15%")
 }
 
 func TestRegionCommand_ARegionTheClusterDoesNotKnow(t *testing.T) {
@@ -658,12 +658,12 @@ func TestRegionCommand_TheNumbersOfTheRegionLeftAreGone(t *testing.T) {
 
 	m := regionalModel(t, &fakeClient{})
 	m, _ = m.update(usageMsg{usage: nomad.Usage{CPUPercent: 15, MemoryPercent: 31}})
-	r.Contains(headerOf(m), "CPU:       15%")
+	r.Contains(headerOf(m), "CPU Alloc: 15%")
 
 	m, _ = runLine(m, "region us")
 
-	r.Contains(headerOf(m), "CPU:       n/a")
-	r.Contains(headerOf(m), "MEM:       n/a")
+	r.Contains(headerOf(m), "CPU Alloc: n/a")
+	r.Contains(headerOf(m), "MEM Alloc: n/a")
 }
 
 func TestDatacenterCommand_NarrowsWhatIsOnTheScreenAtOnce(t *testing.T) {
@@ -699,8 +699,8 @@ func TestDatacenterCommand_TheNumbersOfTheDatacenterLeftAreGone(t *testing.T) {
 
 	m, _ = runLine(m, "dc dc1")
 
-	r.Contains(headerOf(m), "CPU:       n/a")
-	r.Contains(headerOf(m), "MEM:       n/a")
+	r.Contains(headerOf(m), "CPU Alloc: n/a")
+	r.Contains(headerOf(m), "MEM Alloc: n/a")
 }
 
 func TestRegionState_NarrowsToItsDatacenter(t *testing.T) {
