@@ -29,6 +29,9 @@ type jobsPage struct {
 	next time.Time
 
 	jobs []nomad.Job
+
+	// fault narrows the page to the jobs in that state, as the overview opens it.
+	fault fault
 }
 
 func (p jobsPage) title(e env, count int) string {
@@ -44,7 +47,7 @@ func (p jobsPage) title(e env, count int) string {
 		return sprintf("Jobs (Pool: %s) [%d]", p.pool, count)
 	}
 
-	return sprintf("Jobs (%s) [%d]", namespaceLabel(e.namespace), count)
+	return sprintf("Jobs (%s%s) [%d]", namespaceLabel(e.namespace), p.fault.after(), count)
 }
 
 // ofParent says the page lists the launches of a job; alone, that it lists
@@ -117,9 +120,25 @@ func (p jobsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 }
 
 // visible are the jobs of the datacenter the session is narrowed to that the
-// page lists. The rows, the marks and the keys that find a row by its place
-// read the same list, so a key finds the job on the screen.
-func (p jobsPage) visible(e env) []nomad.Job { return keep(jobsIn(e.datacenter, p.jobs), p.lists) }
+// page lists, and only the dead ones when the overview opened it for them.
+// The rows, the marks and the keys that find a row by its place read the same
+// list, so a key finds the job on the screen.
+func (p jobsPage) visible(e env) []nomad.Job {
+	jobs := keep(jobsIn(e.datacenter, p.jobs), p.lists)
+
+	if p.fault != faultDead {
+		return jobs
+	}
+
+	last := lastLaunches(p.jobs)
+
+	return keep(jobs, func(job nomad.Job) bool { return isDead(job, last) })
+}
+
+// isDead says the list paints the job red and nobody stopped it on purpose.
+func isDead(job nomad.Job, last map[string]nomad.Job) bool {
+	return launcherColor(job, last) == colorDead && !job.Stopped
+}
 
 // lists says the page shows a job: a launch of its parent, the one job it is
 // about, or, without either, a job that is not a launch. The job that
