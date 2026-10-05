@@ -105,8 +105,8 @@ func allocServer(t *testing.T, alloc, stats string) *nomad.Client {
 func TestAllocationUsage_MemoryWithoutRSS(t *testing.T) {
 	r := require.New(t)
 
-	// On cgroups v2 Nomad fills Usage and leaves RSS at zero. Reading RSS
-	// alone shows a running task as taking no memory at all.
+	// Some versions of Nomad fill Usage on cgroups v2 and leave RSS at
+	// zero. Reading RSS alone shows a running task as taking no memory.
 	client := statsServer(t, `{
 		"ResourceUsage": {
 			"CpuStats": {"TotalTicks": 50},
@@ -201,4 +201,25 @@ func TestAllocationUsage_OnlyTheTasksThatRun(t *testing.T) {
 	r.Equal(128, use.MemoryMB)
 	r.Equal(256, use.MemoryMBAllowed)
 	r.Equal(50, use.MemoryPercent)
+}
+
+func TestAllocationUsage_MemoryOutsideRSS(t *testing.T) {
+	r := require.New(t)
+
+	// A container that filled a tmpfs: RSS holds only its anonymous memory,
+	// and the kernel counts all of Usage against its limit.
+	client := statsServer(t, `{
+		"Tasks": {
+			"web": {"ResourceUsage": {"MemoryStats": {
+				"RSS": 135168, "Cache": 200278016, "Usage": 201326592,
+				"Measured": ["RSS", "Cache", "Swap", "Usage"]
+			}}}
+		}
+	}`)
+
+	use, err := client.AllocationUsage(context.Background(), "production", "af1f37df")
+	r.NoError(err)
+
+	r.Equal(192, use.MemoryMB)
+	r.Equal(75, use.MemoryPercent)
 }

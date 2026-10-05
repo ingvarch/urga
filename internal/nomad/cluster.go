@@ -163,8 +163,9 @@ func (c *Client) NodeUsage(ctx context.Context, nodeID string) (ResourceUse, err
 }
 
 // readUsage reads ticks and memory from a report, whichever field the
-// driver filled. On cgroups v2 the memory of a task is in Usage and RSS
-// stays at zero.
+// driver filled. Usage is what the kernel counts against the limit of a
+// task, tmpfs and file cache with it; RSS leaves them out, and is read from
+// a driver that fills nothing else.
 func readUsage(usage *api.ResourceUsage) (ticks int, memoryBytes uint64) {
 	if usage == nil {
 		return 0, 0
@@ -175,9 +176,9 @@ func readUsage(usage *api.ResourceUsage) (ticks int, memoryBytes uint64) {
 	}
 
 	if memory := usage.MemoryStats; memory != nil {
-		memoryBytes = memory.RSS
+		memoryBytes = memory.Usage
 		if memoryBytes == 0 {
-			memoryBytes = memory.Usage
+			memoryBytes = memory.RSS
 		}
 	}
 
