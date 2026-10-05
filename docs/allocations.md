@@ -10,6 +10,12 @@ You open allocations from a job, from a task group, from a client, or with
 namespace, node, status and desired status of each allocation. For running
 allocations it also shows CPU and memory use, updated every 5 seconds.
 
+CPU and memory are a share of what the running tasks of the allocation asked
+for. A task that has ended, or has not started yet, is left out. Memory is
+what the kernel counts against the limit of a task. For a Docker task that
+includes tmpfs and the file cache, so a task that reads and writes many files
+can stay close to 100% without being short of memory.
+
 Three columns show how the allocation is doing:
 
 | Column | Description |
