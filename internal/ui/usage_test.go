@@ -288,3 +288,32 @@ func TestUsage_OnlyWhatTheFilterLeavesIsAsked(t *testing.T) {
 
 	r.Equal(1, client.usageCalls)
 }
+
+func TestUsage_ShownOnTheTasks(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs:   twoJobs(),
+		allocs: twoAllocs(),
+		use: map[string]nomad.ResourceUse{
+			"server": {CPUTicks: 125, CPUTicksAllowed: 500, CPUPercent: 25, MemoryMB: 128, MemoryMBAllowed: 256, MemoryPercent: 50},
+		},
+	}
+
+	m := openTasks(t, client)
+
+	// Each task has its own reading, next to how it is doing.
+	r.Equal([]string{"Name", "State", "Failed", "Restarts", "CPU", "MEM", "Started"}, m.screen.page.titles())
+
+	m = drain(m, m.fetchUsage())
+
+	out := plain(m.render())
+	r.Contains(out, "25%")
+	r.Contains(out, "50%")
+
+	// Of the two tasks one runs, and it is the only one asked about, in the
+	// allocation it belongs to.
+	r.Equal(1, client.usageCalls)
+	r.Equal("production", client.usageNamespace)
+	r.Equal("af1f37df-7b19-6b1c-da67-5e8f482b5a15", client.askedID)
+}

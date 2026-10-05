@@ -84,7 +84,25 @@ func (p tasksPage) restart() page {
 	return p
 }
 
-func (p tasksPage) rows(env) []tableRow { return taskRows(p.alloc.Tasks) }
+func (p tasksPage) rows(e env) []tableRow { return taskRows(p.alloc.Tasks, e.usage) }
+
+// readings are the tasks on the screen that run: a task that ended or has
+// not started has nothing to report.
+func (p tasksPage) readings(e env) []rowRef {
+	refs := make([]rowRef, 0, len(e.index))
+	for _, at := range e.index {
+		if at < len(p.alloc.Tasks) && p.alloc.Tasks[at].State == statusRunning {
+			refs = append(refs, rowRef{namespace: p.namespace, id: p.alloc.Tasks[at].Name})
+		}
+	}
+
+	return refs
+}
+
+// reading reads what one task takes, in the allocation the page is open on.
+func (p tasksPage) reading(ctx context.Context, client Client, ref rowRef) (nomad.ResourceUse, error) {
+	return client.TaskUsage(ctx, ref.namespace, p.allocID, ref.id)
+}
 
 // picked is the task under the cursor.
 func (p tasksPage) picked(e env) (nomad.Task, bool) { return pickedFrom(e, p.alloc.Tasks) }
@@ -113,14 +131,23 @@ func (p tasksPage) press(k string, e env) (page, outcome, bool) {
 }
 
 // taskTitles are the columns of the task list.
-var taskTitles = []string{"Name", "State", "Failed", "Restarts", "Started"}
+var taskTitles = []string{"Name", "State", "Failed", "Restarts", "CPU", "MEM", "Started"}
 
-func taskRows(tasks []nomad.Task) []tableRow {
+func taskRows(tasks []nomad.Task, usage map[string]nomad.ResourceUse) []tableRow {
 	rows := make([]tableRow, 0, len(tasks))
 
 	for _, task := range tasks {
+		use, known := usage[task.Name]
+
 		row := tableRow{color: taskColor(task)}
-		row.add(task.Name, task.State, fmt.Sprintf("%t", task.Failed), fmt.Sprintf("%d", task.Restarts))
+		row.add(
+			task.Name,
+			task.State,
+			fmt.Sprintf("%t", task.Failed),
+			fmt.Sprintf("%d", task.Restarts),
+			cpuCell(use, known),
+			memoryCell(use, known),
+		)
 		row.addAge(task.Started)
 
 		rows = append(rows, row)

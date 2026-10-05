@@ -52,6 +52,10 @@ allocation, the scheduler places a new one if the job still needs it.
 A line with nothing to show is left out. On a small terminal, the panel shows
 only what fits and always leaves room for at least three tasks.
 
+For each running task, the list shows CPU and memory use as a share of what
+the task asked for, updated every 5 seconds. Memory is read the same way as
+in the allocation list.
+
 From here:
 
 - `c` opens the client the allocation runs on;
