@@ -55,6 +55,7 @@ func (p evaluationsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 // visible are the evaluations on the screen: all of them, or the ones in one
 // state when the overview opened the page for it. The rows and the key that
 // opens one read the same list, so the key finds the evaluation on screen.
+// A failed evaluation that a newer one of its job followed is not counted.
 func (p evaluationsPage) visible(env) []nomad.Evaluation {
 	switch p.fault {
 	case faultBlocked:

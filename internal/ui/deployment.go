@@ -68,7 +68,8 @@ func (p deploymentsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 // visible are the deployments on the screen: all of them, or the ones in one
 // state when the overview opened the page for it. The rows and the keys read
-// the same list, so a key finds the deployment on screen.
+// the same list, so a key finds the deployment on screen. A failed deployment
+// that a newer one of its job followed is not counted.
 func (p deploymentsPage) visible(env) []nomad.Deployment {
 	switch p.fault {
 	case faultFailed:

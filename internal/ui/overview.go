@@ -27,7 +27,7 @@ type part[T any] struct {
 
 // counted says the list can be counted in the namespace. A list not read
 // yet, or read in another namespace, is not known; one the cluster refused
-// says why.
+// returns its error.
 func (p part[T]) counted(namespace string) (bool, error) {
 	if !p.read || p.namespace != namespace {
 		return false, nil
