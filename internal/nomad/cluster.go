@@ -93,24 +93,21 @@ func (c *Client) AllocationUsage(ctx context.Context, namespace, allocID string)
 	}
 
 	if stats != nil {
-		ticks, memory := readUsage(stats.ResourceUsage)
+		var memory uint64
 
-		// Some drivers leave the summary of the allocation empty and report
-		// per task instead. Adding the tasks up is what the summary would
-		// have said.
-		if ticks == 0 && memory == 0 {
-			for _, task := range stats.Tasks {
-				if task == nil {
-					continue
-				}
-
-				taskTicks, taskMemory := readUsage(task.ResourceUsage)
-				ticks += taskTicks
-				memory += taskMemory
+		// The summary of the allocation adds up each field apart, and tasks
+		// of different drivers fill different fields. Each task is read by
+		// the field it fills, and the tasks are added up here.
+		for _, task := range stats.Tasks {
+			if task == nil {
+				continue
 			}
+
+			taskTicks, taskMemory := readUsage(task.ResourceUsage)
+			use.CPUTicks += taskTicks
+			memory += taskMemory
 		}
 
-		use.CPUTicks = ticks
 		use.MemoryMB = int(memory / megabyte)
 	}
 
