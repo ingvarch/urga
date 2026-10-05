@@ -18,6 +18,9 @@ func TestAllocationUsage(t *testing.T) {
 		"ResourceUsage": {
 			"CpuStats": {"TotalTicks": 125},
 			"MemoryStats": {"RSS": 134217728}
+		},
+		"Tasks": {
+			"web": {"ResourceUsage": {"CpuStats": {"TotalTicks": 125}, "MemoryStats": {"RSS": 134217728}}}
 		}
 	}`)
 
@@ -97,6 +100,12 @@ func TestAllocationUsage_MemoryWithoutRSS(t *testing.T) {
 		"ResourceUsage": {
 			"CpuStats": {"TotalTicks": 50},
 			"MemoryStats": {"RSS": 0, "Usage": 201326592, "Measured": ["Cache", "Swap", "Usage"]}
+		},
+		"Tasks": {
+			"web": {"ResourceUsage": {
+				"CpuStats": {"TotalTicks": 50},
+				"MemoryStats": {"RSS": 0, "Usage": 201326592, "Measured": ["Cache", "Swap", "Usage"]}
+			}}
 		}
 	}`)
 
@@ -107,11 +116,35 @@ func TestAllocationUsage_MemoryWithoutRSS(t *testing.T) {
 	r.Equal(75, use.MemoryPercent)
 }
 
+func TestAllocationUsage_TasksThatFillDifferentFields(t *testing.T) {
+	r := require.New(t)
+
+	// The summary adds up each field apart: its RSS holds only the task that
+	// fills RSS, its Usage only the one that fills Usage. Reading one field
+	// of it loses the other task.
+	client := statsServer(t, `{
+		"ResourceUsage": {
+			"CpuStats": {"TotalTicks": 125},
+			"MemoryStats": {"RSS": 134217728, "Usage": 67108864}
+		},
+		"Tasks": {
+			"web": {"ResourceUsage": {"CpuStats": {"TotalTicks": 100}, "MemoryStats": {"RSS": 134217728}}},
+			"sidecar": {"ResourceUsage": {"CpuStats": {"TotalTicks": 25}, "MemoryStats": {"RSS": 0, "Usage": 67108864}}}
+		}
+	}`)
+
+	use, err := client.AllocationUsage(context.Background(), "production", "af1f37df")
+	r.NoError(err)
+
+	r.Equal(125, use.CPUTicks)
+	r.Equal(192, use.MemoryMB)
+}
+
 func TestAllocationUsage_OnlyTheTasksReport(t *testing.T) {
 	r := require.New(t)
 
-	// Some drivers leave the summary of the allocation empty and report per
-	// task. Adding the tasks up is what the summary would have said.
+	// An answer with an empty summary still holds its tasks, and they are
+	// what is added up.
 	client := statsServer(t, `{
 		"Tasks": {
 			"web": {"ResourceUsage": {"CpuStats": {"TotalTicks": 100}, "MemoryStats": {"RSS": 67108864}}},
