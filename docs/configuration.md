@@ -167,7 +167,7 @@ memory of allocations and clients in a list are what they use, updated every
 urga saves where you were and restores it on the next run:
 
 - the namespace;
-- the last list screen, such as jobs or clients;
+- the last list screen, such as jobs, clients or the overview;
 - which namespace each number key opens.
 
 The session is saved to `urga/config.json` in:

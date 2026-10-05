@@ -196,3 +196,17 @@ func TestSession_EachClusterComesBackToItsOwn(t *testing.T) {
 	r.Equal("web", *cfg.Of("prod").Namespace)
 	r.Equal("default", *cfg.Of("").Namespace)
 }
+
+func TestSession_TheNextRunOpensTheOverviewAgain(t *testing.T) {
+	r := require.New(t)
+
+	m, cfg := sessionModel(t, &fakeClient{})
+	typeCommand(m, "overview")
+
+	r.Equal("overview", cfg.Of("").Screen)
+
+	next := New(&fakeClient{}, Options{Namespace: "production", Version: "v-test", Config: cfg, PollEvery: time.Millisecond})
+
+	r.IsType(overviewPage{}, next.screen.page)
+	r.Equal(overviewView, next.screen.view)
+}

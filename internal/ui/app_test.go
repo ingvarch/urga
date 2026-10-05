@@ -100,6 +100,15 @@ type fakeClient struct {
 	err     error
 	raftErr error
 
+	// nodesErr and allocsErr fail the client list or the allocation list
+	// alone, ahead of err, as a token that may not read one of them does.
+	nodesErr  error
+	allocsErr error
+
+	// lists are the namespaces each list was asked in, by list; the
+	// allocations carry the job after a slash.
+	lists map[string][]string
+
 	askedNamespace   string
 	askedJobID       string
 	askedNodeID      string
@@ -289,8 +298,18 @@ func (f *fakeClient) Agent(context.Context) (nomad.Agent, error) {
 	return nomad.Agent{Version: "1.11.1"}, nil
 }
 
+// listed records what a list call was asked.
+func (f *fakeClient) listed(list, asked string) {
+	if f.lists == nil {
+		f.lists = map[string][]string{}
+	}
+
+	f.lists[list] = append(f.lists[list], asked)
+}
+
 func (f *fakeClient) Jobs(_ context.Context, namespace string) ([]nomad.Job, error) {
 	f.askedNamespace = namespace
+	f.listed("jobs", namespace)
 	f.calls++
 
 	return f.jobs, f.err
@@ -299,6 +318,11 @@ func (f *fakeClient) Jobs(_ context.Context, namespace string) ([]nomad.Job, err
 func (f *fakeClient) Allocations(_ context.Context, namespace, jobID string) ([]nomad.Alloc, error) {
 	f.askedNamespace, f.askedJobID = namespace, jobID
 	f.allocCalls++
+	f.listed("allocations", namespace+"/"+jobID)
+
+	if f.allocsErr != nil {
+		return nil, f.allocsErr
+	}
 
 	return f.allocs, f.err
 }
@@ -922,6 +946,7 @@ func (f *fakeClient) DeploymentAllocations(_ context.Context, namespace, id stri
 
 func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {
 	f.askedNamespace = namespace
+	f.listed("deployments", namespace)
 
 	return f.deployments, f.err
 }
@@ -938,11 +963,18 @@ func (f *fakeClient) Services(_ context.Context, namespace string) ([]nomad.Serv
 
 func (f *fakeClient) Evaluations(_ context.Context, namespace string) ([]nomad.Evaluation, error) {
 	f.askedNamespace = namespace
+	f.listed("evaluations", namespace)
 
 	return f.evaluations, f.err
 }
 
 func (f *fakeClient) Nodes(context.Context) ([]nomad.Node, error) {
+	f.listed("nodes", "")
+
+	if f.nodesErr != nil {
+		return nil, f.nodesErr
+	}
+
 	return f.nodes, f.err
 }
 

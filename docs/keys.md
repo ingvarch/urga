@@ -19,6 +19,7 @@ Press `:` to open the command line, type a command and press `enter`.
 | `deployments` | `dp` | Deployments |
 | `evaluations` | `evals`, `eval`, `ev` | Evaluations |
 | `events` | `event` | What happens in the cluster, event by event. See [Events](#events). |
+| `overview` | `ov` | What needs attention in the cluster, a count each. See [Overview](#overview). |
 | `services` | `svc` | Services |
 | `namespaces` | `ns` | Namespaces |
 | `variables` | `vars`, `var` | Variables |
@@ -60,6 +61,44 @@ Other commands:
 In a list of regions, datacenters or clusters, the current one is marked.
 `enter` switches to the one under the cursor, `esc` goes back without a
 change.
+
+## Overview
+
+`:overview` counts what needs attention, one line per kind of trouble:
+
+| Line | Counts |
+| --- | --- |
+| Jobs dead | Jobs the job list paints red (see [Jobs](jobs.md)), unless someone stopped them on purpose. A batch job that ended well is not counted. |
+| Allocations failed or lost | Failed or lost allocations that nothing replaced |
+| Allocations restarting | Running allocations with a task that restarted in the last hour |
+| Allocations OOM killed | Running allocations with a task killed for its memory in the last hour |
+| Clients down | Clients that are down |
+| Clients disconnected | Clients that are disconnected |
+| Clients draining | Ready clients that are draining |
+| Clients ineligible | Ready clients that are ineligible and not draining |
+| Evaluations blocked | Blocked evaluations |
+| Evaluations failed | Failed evaluations that are the newest of their job |
+| Deployments failed | Failed deployments that are the newest of their job |
+| Deployments paused | Paused deployments |
+| Deployments running | Running deployments |
+
+The overview follows the namespace of the session, and `0` counts in every
+namespace. Clients belong to no namespace, so their lines are the same in
+every one. Jobs and clients follow `:dc`. A token that reads only some
+namespaces gets the counts of those.
+
+A count shows `n/a` until it is read. When a list cannot be read, for example
+because the token may not read it, the lines of that list show `unknown:` and
+the reason, and the other lines keep their counts.
+
+Lines have the colors of the rows they count. A zero is grey. `!` keeps the
+lines that need attention.
+
+`enter` on a count opens the list of exactly those things, with every key of
+that list. Its title says what it is narrowed to, like `Jobs (production,
+dead)`. `esc` comes back to the overview.
+
+The overview updates with the event stream, like the lists.
 
 ## Find
 
@@ -296,6 +335,12 @@ On an open file:
 | `w` | Wrap on or off |
 | `ctrl-s` | Save the file to a local file |
 | `c` | Copy the file to the clipboard |
+
+### Overview
+
+| Key | What it does |
+| --- | --- |
+| `enter` | Open the list of what the line counts. Shown on a count above zero. |
 
 ### Evaluations
 
