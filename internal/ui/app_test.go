@@ -1220,7 +1220,7 @@ func TestModel_ReadsWhatTheClusterIsUsing(t *testing.T) {
 	r.NotNil(cmd, "the next reading is scheduled")
 
 	head := plain(renderHeader(m.headerData(), 120))
-	r.Contains(head, "CPU:")
+	r.Contains(head, "CPU Alloc:")
 	r.Contains(head, "15%")
 	r.Contains(head, "31%")
 }
@@ -1231,13 +1231,13 @@ func TestModel_ShowsAClusterWithNothingClaimed(t *testing.T) {
 	m := newTestModel(&fakeClient{})
 
 	// Until the cluster is read there is nothing to show.
-	r.Contains(headerOf(m), "CPU:       n/a")
+	r.Contains(headerOf(m), "CPU Alloc: n/a")
 
 	m, _ = m.update(usageMsg{usage: nomad.Usage{}})
 
 	// A cluster that runs nothing was read too: none of it is claimed.
-	r.Contains(headerOf(m), "CPU:       0%")
-	r.Contains(headerOf(m), "MEM:       0%")
+	r.Contains(headerOf(m), "CPU Alloc: 0%")
+	r.Contains(headerOf(m), "MEM Alloc: 0%")
 }
 
 // clipboardOf is what a command puts on the clipboard.

@@ -130,10 +130,10 @@ func TestHeader_ShowsWhatTheClusterIsUsing(t *testing.T) {
 	out := renderHeader(header{usage: "15%", memory: "31%"}, 140)
 	rows := lines(out)
 
-	r.Contains(rows[5], "CPU:")
-	r.Contains(rows[5], "15%")
-	r.Contains(rows[6], "MEM:")
-	r.Contains(rows[6], "31%")
+	// The labels say these are what the allocations asked for: what a
+	// client uses reads CPU and MEM in its own list.
+	r.Contains(rows[5], "CPU Alloc: 15%")
+	r.Contains(rows[6], "MEM Alloc: 31%")
 }
 
 func TestHeader_BeforeTheClusterAnswers(t *testing.T) {

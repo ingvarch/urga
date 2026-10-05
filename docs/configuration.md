@@ -156,8 +156,11 @@ If the event stream is not available, which usually means the ACL token does
 not allow it, urga reloads every screen every 2 seconds instead. The status
 line says so.
 
-CPU and memory in the header are updated every 15 seconds. CPU and memory of
-allocations and clients in a list are updated every 5 seconds.
+`CPU Alloc` and `MEM Alloc` in the header are how much of the cluster the
+running allocations asked for, out of what the ready clients give to jobs.
+They are not what the machines use. They are updated every 15 seconds. CPU and
+memory of allocations and clients in a list are what they use, updated every
+5 seconds.
 
 ## Saved session
 
