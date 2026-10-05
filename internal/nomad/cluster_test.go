@@ -103,3 +103,69 @@ func TestClusterUsage_EmptyCluster(t *testing.T) {
 	r.Zero(usage.CPUPercent)
 	r.Zero(usage.MemoryPercent)
 }
+
+// usageServer answers the two lists the load of the cluster is read from.
+func usageServer(t *testing.T, nodes, allocs string) *nomad.Client {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch req.URL.Path {
+		case "/v1/nodes":
+			_, _ = w.Write([]byte(nodes))
+		case "/v1/allocations":
+			_, _ = w.Write([]byte(allocs))
+		default:
+			http.NotFound(w, req)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	return client
+}
+
+func TestClusterUsage_WithoutWhatAClientKeepsForItself(t *testing.T) {
+	r := require.New(t)
+
+	client := usageServer(t, `[
+		{"ID": "n1", "Status": "ready",
+			"NodeResources": {"Cpu": {"CpuShares": 4000}, "Memory": {"MemoryMB": 8000}},
+			"ReservedResources": {"Cpu": {"CpuShares": 1000}, "Memory": {"MemoryMB": 2000}}}
+	]`, `[
+		{"ID": "a1", "ClientStatus": "running", "AllocatedResources": {"Tasks": {"web": {"Cpu": {"CpuShares": 1500}, "Memory": {"MemoryMB": 3000}}}}}
+	]`)
+
+	usage, err := client.Usage(context.Background(), "")
+	r.NoError(err)
+
+	// The scheduler gives jobs what is left of a client after its own share:
+	// 1500 of 3000 shares, 3000 of 6000 megabytes.
+	r.Equal(50, usage.CPUPercent)
+	r.Equal(50, usage.MemoryPercent)
+}
+
+func TestClusterUsage_AClientThatKeepsMoreThanItHas(t *testing.T) {
+	r := require.New(t)
+
+	client := usageServer(t, `[
+		{"ID": "n1", "Status": "ready",
+			"NodeResources": {"Cpu": {"CpuShares": 4000}, "Memory": {"MemoryMB": 8000}}},
+		{"ID": "n2", "Status": "ready",
+			"NodeResources": {"Cpu": {"CpuShares": 48}, "Memory": {"MemoryMB": 1000}},
+			"ReservedResources": {"Cpu": {"CpuShares": 2000}, "Memory": {"MemoryMB": 4000}}}
+	]`, `[
+		{"ID": "a1", "ClientStatus": "running", "AllocatedResources": {"Tasks": {"web": {"Cpu": {"CpuShares": 1000}, "Memory": {"MemoryMB": 2000}}}}}
+	]`)
+
+	usage, err := client.Usage(context.Background(), "")
+	r.NoError(err)
+
+	// Such a client has nothing to give, and takes nothing from the others:
+	// 1000 of 4000 shares, 2000 of 8000 megabytes.
+	r.Equal(25, usage.CPUPercent)
+	r.Equal(25, usage.MemoryPercent)
+}
