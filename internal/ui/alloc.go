@@ -251,19 +251,32 @@ func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []table
 	return rows
 }
 
-// allocColor says whether an allocation is doing its job.
+// allocColor says where an allocation is in its life: waiting to start,
+// started and not healthy yet, on its way out, or broken.
 func allocColor(alloc nomad.Alloc) color.Color {
 	switch alloc.Status {
 	case statusRunning:
-		if alloc.DesiredStatus == desiredStop || struggling(alloc, time.Now()) {
-			return colorAttention
-		}
+		return runningColor(alloc)
 	case statusPending:
 		return colorPending
 	case statusFailed, statusLost:
 		return colorDead
 	case statusComplete:
 		return colorSpent
+	}
+
+	return nil
+}
+
+// runningColor is the colour of an allocation that runs. Going away
+// outranks the rest: what is being stopped is not worth a look for how its
+// tasks run on the way out.
+func runningColor(alloc nomad.Alloc) color.Color {
+	switch {
+	case alloc.DesiredStatus == desiredStop || alloc.DesiredStatus == desiredEvict:
+		return colorStopping
+	case alloc.Health == nomad.HealthChecking || alloc.Health == nomad.HealthUnhealthy || struggling(alloc, time.Now()):
+		return colorDead
 	}
 
 	return nil
@@ -341,7 +354,8 @@ const (
 	statusComplete = "complete"
 	statusLost     = "lost"
 
-	desiredStop = "stop"
+	desiredStop  = "stop"
+	desiredEvict = "evict"
 )
 
 // allocReading reads what one allocation takes.

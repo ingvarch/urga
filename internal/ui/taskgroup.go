@@ -91,13 +91,17 @@ func taskGroupRows(groups []nomad.TaskGroup) []tableRow {
 	return rows
 }
 
-// taskGroupColor marks a group that is not running what it asks for.
+// taskGroupColor marks a group that is not running what it asks for: orange
+// while allocations wait for room or to start, red when one failed or the
+// group is short with nothing on the way.
 func taskGroupColor(group nomad.TaskGroup) color.Color {
 	switch {
 	case group.Failed > 0, group.Lost > 0:
 		return colorDead
-	case group.Running+group.Starting < group.Count:
-		return colorAttention
+	case group.Queued > 0, group.Starting > 0:
+		return colorPending
+	case group.Running < group.Count:
+		return colorDead
 	}
 
 	return nil
