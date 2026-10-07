@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"slices"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -233,6 +234,34 @@ func sortColumn(sorts []hint) string {
 	}
 
 	return grid(hintCells(sorts, styleValue), headerHeight)
+}
+
+// headerSortHints keeps only the prominent sort keys (Name or ID, and Age or
+// Modified/Started) so that the header stays compact above the table.
+func headerSortHints(titles []string) []hint {
+	nameIdx := slices.Index(titles, "Name")
+	if nameIdx == -1 {
+		nameIdx = slices.Index(titles, "ID")
+	}
+
+	timeIdx := slices.Index(titles, "Age")
+	if timeIdx == -1 {
+		timeIdx = slices.Index(titles, "Modified")
+	}
+	if timeIdx == -1 {
+		timeIdx = slices.Index(titles, "Started")
+	}
+
+	letters := sortLetters(titles)
+	hints := []hint{}
+
+	for i, title := range titles {
+		if (i == nameIdx || i == timeIdx) && letters[i] != 0 {
+			hints = append(hints, hint{Key: "<shift-" + string(letters[i]) + ">", Description: title})
+		}
+	}
+
+	return hints
 }
 
 // besides puts one block of the header next to another, a gap between, and
