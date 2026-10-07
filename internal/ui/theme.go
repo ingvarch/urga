@@ -30,11 +30,16 @@ var (
 )
 
 // Row colors say what state a resource is in, at a glance down the list.
+// They follow k9s: what waits to start is orange, what started and is not
+// ready yet or broke is red, what is on its way out is purple.
 var (
-	colorAttention = lipgloss.Color("#d98b6a")
-	colorPending   = lipgloss.Color("#e5c07b")
+	colorAttention = lipgloss.Color("#e5c07b")
+	colorPending   = lipgloss.Color("#f0883e")
 	colorDead      = lipgloss.Color("#e06c75")
 	colorSpent     = lipgloss.Color("#6b7178")
+
+	// colorStopping is what was told to stop and still runs.
+	colorStopping = lipgloss.Color("#9370db")
 
 	// colorCanary is an allocation put out to try a change before the rest.
 	colorCanary = lipgloss.Color("#c678dd")
@@ -106,8 +111,8 @@ var (
 // the settings use.
 var clusterColours = map[string]color.Color{
 	"red":    colorDead,
-	"orange": colorAttention,
-	"yellow": colorPending,
+	"orange": colorPending,
+	"yellow": colorAttention,
 	"green":  colorAccent,
 	"cyan":   colorTitle,
 	"blue":   colorBlue,

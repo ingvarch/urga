@@ -184,6 +184,13 @@ func withDetail(out Alloc, alloc *api.Allocation) Alloc {
 	return out
 }
 
+// The health a deployment reports for an allocation.
+const (
+	HealthChecking  = "checking"
+	HealthHealthy   = "healthy"
+	HealthUnhealthy = "unhealthy"
+)
+
 // healthOf is the health the deployment reports for an allocation. One the
 // deployment has not decided on yet is checking.
 func healthOf(deploymentID string, status *api.AllocDeploymentStatus) string {
@@ -191,12 +198,12 @@ func healthOf(deploymentID string, status *api.AllocDeploymentStatus) string {
 	case deploymentID == "":
 		return ""
 	case status == nil || status.Healthy == nil:
-		return "checking"
+		return HealthChecking
 	case *status.Healthy:
-		return "healthy"
+		return HealthHealthy
 	}
 
-	return "unhealthy"
+	return HealthUnhealthy
 }
 
 // stubOf copies a full allocation into a list stub. The Stub method of the

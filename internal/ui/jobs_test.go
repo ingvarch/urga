@@ -56,8 +56,8 @@ func TestJobColor(t *testing.T) {
 	// A service that runs all the allocations it wants has no color.
 	r.Nil(jobColor(nomad.Job{Type: "service", Status: "running", Running: 3, Desired: 3}))
 
-	// One that runs fewer than it wants gets the attention color.
-	r.Equal(colorAttention, jobColor(nomad.Job{Type: "service", Status: "running", Running: 2, Desired: 3}))
+	// One that runs fewer than it wants is not ready yet: red.
+	r.Equal(colorDead, jobColor(nomad.Job{Type: "service", Status: "running", Running: 2, Desired: 3}))
 
 	r.Equal(colorPending, jobColor(nomad.Job{Type: "service", Status: "pending"}))
 	r.Equal(colorDead, jobColor(nomad.Job{Type: "service", Status: "dead"}))

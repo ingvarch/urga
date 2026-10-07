@@ -69,9 +69,10 @@ func TestAllocations_ARecentRestartOrOOMNeedsAttention(t *testing.T) {
 
 	rows := allocRows(troubledAllocs(), nil)
 
-	// A restart or an OOM kill of the last hour is a task in trouble now.
-	r.Equal(colorAttention, rows[0].color)
-	r.Equal(colorAttention, rows[1].color)
+	// A restart or an OOM kill of the last hour is a task in trouble now:
+	// red, as k9s paints a pod that crashes.
+	r.Equal(colorDead, rows[0].color)
+	r.Equal(colorDead, rows[1].color)
 
 	// One of hours ago is history.
 	r.Nil(rows[2].color)
@@ -95,5 +96,5 @@ func TestDeployment_AllocationsShowRestartsAndOOM(t *testing.T) {
 
 	r.Equal("3", cellOf(deploymentAllocTitles, rows[0], "Rst"))
 	r.Equal("yes", cellOf(deploymentAllocTitles, rows[1], "OOM"))
-	r.Equal(colorAttention, rows[0].color)
+	r.Equal(colorDead, rows[0].color)
 }

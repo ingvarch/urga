@@ -136,8 +136,9 @@ func (p jobsPage) visible(e env) []nomad.Job {
 }
 
 // isDead says the list paints the job red and nobody stopped it on purpose.
+// A service still starting is red too, but it is not dead.
 func isDead(job nomad.Job, last map[string]nomad.Job) bool {
-	return launcherColor(job, last) == colorDead && !job.Stopped
+	return launcherColor(job, last) == colorDead && !job.Stopped && !startingService(job)
 }
 
 // lists says the page shows a job: a launch of its parent, the one job it is
@@ -216,16 +217,14 @@ func jobRows(jobs []nomad.Job, last map[string]nomad.Job) []tableRow {
 	return rows
 }
 
-// jobColor shows the state of a job without reading the row: a service short
-// of allocations gets the attention color, a dead one is red, a batch job
-// that ended gets the spent color, not the dead one, unless a group of it
-// failed.
+// jobColor shows the state of a job without reading the row, as k9s shows a
+// pod: what waits for room is orange, a service not all up yet is red, what
+// was stopped and still runs is purple, a dead one is red, a batch job that
+// ended gets the spent color, not the dead one, unless a group of it failed.
 func jobColor(job nomad.Job) color.Color {
 	switch job.Status {
 	case statusRunning:
-		if job.Type == typeService && job.Running != job.Desired {
-			return colorAttention
-		}
+		return runningJobColor(job)
 	case statusPending:
 		return colorPending
 	case statusDead, statusFailed:
@@ -237,6 +236,26 @@ func jobColor(job nomad.Job) color.Color {
 	}
 
 	return nil
+}
+
+// runningJobColor is the colour of a job that runs.
+func runningJobColor(job nomad.Job) color.Color {
+	switch {
+	case job.Stopped:
+		return colorStopping
+	case job.Queued > 0:
+		return colorPending
+	case startingService(job):
+		return colorDead
+	}
+
+	return nil
+}
+
+// startingService says a service runs fewer allocations than it asks for:
+// not ready yet, which is red, and not dead.
+func startingService(job nomad.Job) bool {
+	return job.Status == statusRunning && job.Type == typeService && job.Running != job.Desired
 }
 
 const (
