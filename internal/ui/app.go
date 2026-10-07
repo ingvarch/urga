@@ -492,7 +492,7 @@ func (m Model) headerData() header {
 		memory:        percentOf(m.usage.cluster.MemoryPercent, m.usage.clusterRead),
 		namespaces:    m.namespaceColumnData(),
 		hints:         m.hints(),
-		sorts:         m.sortHints(),
+		sorts:         headerSortHints(m.screen.page.titles()),
 		readOnly:      m.opts.ReadOnly,
 	}
 }

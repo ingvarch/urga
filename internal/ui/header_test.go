@@ -270,9 +270,56 @@ func TestHeader_SaysHowTheScreenSorts(t *testing.T) {
 	feed, _ := feedOf(someEvents()...)
 	m := onEvents(t, &fakeClient{feed: feed})
 
-	// Next to the namespaces, above the list.
+	// The header keeps only the main sort columns: Name and Age, so it stays
+	// compact. Other columns (Topic, Type, State) are not in the header.
 	header := strings.Join(strings.Split(plain(m.render()), "\n")[:headerHeight+1], "\n")
-	r.Contains(header, "<shift-t> Topic")
-	r.Contains(header, "<shift-y> Type")
+	r.Contains(header, "<shift-n> Name")
 	r.Contains(header, "<shift-a> Age")
+	r.NotContains(header, "<shift-t> Topic")
+	r.NotContains(header, "<shift-y> Type")
+
+	// Help still lists all sort columns for the screen.
+	m, _ = m.update(key('?'))
+	help := plain(m.render())
+	r.Contains(help, "<shift-t> Topic")
+	r.Contains(help, "<shift-y> Type")
+	r.Contains(help, "<shift-n> Name")
+	r.Contains(help, "<shift-a> Age")
+}
+
+func TestHeaderSortHints_PicksOnlyNameOrIDAndAge(t *testing.T) {
+	r := require.New(t)
+
+	// When both Name and Age are present, both are picked in title order.
+	r.Equal([]hint{
+		{Key: "<shift-n>", Description: "Name"},
+		{Key: "<shift-a>", Description: "Age"},
+	}, headerSortHints([]string{"ID", "Name", "Type", "Namespace", "Status", "Allocs", "Age"}))
+
+	// When Name is not present, ID is used instead (e.g. allocations).
+	r.Equal([]hint{
+		{Key: "<shift-i>", Description: "ID"},
+		{Key: "<shift-a>", Description: "Age"},
+	}, headerSortHints([]string{"ID", "TaskGroup", "JobID", "Ver", "Namespace", "Node", "Status", "Desired", "Rst", "OOM", "CPU", "MEM", "Age"}))
+
+	// When Age is not present, Modified is used if present.
+	r.Equal([]hint{
+		{Key: "<shift-n>", Description: "Name"},
+		{Key: "<shift-m>", Description: "Modified"},
+	}, headerSortHints([]string{"Name", "Size", "Modified"}))
+
+	// When neither Age nor Modified is present, but Started is.
+	// Note: State takes 's', so Started gets 't'.
+	r.Equal([]hint{
+		{Key: "<shift-n>", Description: "Name"},
+		{Key: "<shift-t>", Description: "Started"},
+	}, headerSortHints([]string{"Name", "State", "Failed", "Restarts", "CPU", "MEM", "Started"}))
+
+	// When only Name is present (no time column).
+	r.Equal([]hint{
+		{Key: "<shift-n>", Description: "Name"},
+	}, headerSortHints([]string{"Name", "Quota", "Description"}))
+
+	// Empty when no titles.
+	r.Empty(headerSortHints(nil))
 }
