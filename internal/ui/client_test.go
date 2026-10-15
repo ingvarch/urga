@@ -804,10 +804,11 @@ func TestClient_TheLogsOfATaskOnItAreReadAgainFromIt(t *testing.T) {
 	m, cmd = m.update(key('l'))
 	m = drain(m, cmd)
 
-	// Tasks of several jobs are named with their job.
-	r.Contains(fileRow(t, m, 0), "cron/nightly/job")
-	r.Contains(fileRow(t, m, 1), "pelmeni_buh_bot/pelmenis/bot")
+	// Tasks of several namespaces are named with their namespace and job.
+	r.Contains(fileRow(t, m, 0), "production/pelmeni_buh_bot/pelmenis/bot")
+	r.Contains(fileRow(t, m, 1), "staging/cron/nightly/job")
 
+	m, _ = m.update(key('j'))
 	m, cmd = m.update(enter())
 	m = playOut(m, cmd)
 	r.Contains(plain(m.render()), "Logs (Job: cron, Task: job) [stdout, 1 allocation]")
