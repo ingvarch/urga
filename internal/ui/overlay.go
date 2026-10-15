@@ -79,9 +79,13 @@ func (p promptModel) choice() string {
 // write it, the rest of that word which was not typed, and whatever the line
 // says after it.
 func (p promptModel) split() (word, tail, rest string) {
+	// The word is the one firstWord reads: after any spaces, up to any
+	// space, a no-break one too. choice is matched against that word.
+	lead := len(p.text) - len(strings.TrimLeftFunc(p.text, unicode.IsSpace))
+
 	word, rest = p.text, ""
-	if at := strings.IndexByte(p.text, ' '); at >= 0 {
-		word, rest = p.text[:at], p.text[at:]
+	if at := strings.IndexFunc(p.text[lead:], unicode.IsSpace); at >= 0 {
+		word, rest = p.text[:lead+at], p.text[lead+at:]
 	}
 
 	offered := p.choice()
@@ -91,7 +95,9 @@ func (p promptModel) split() (word, tail, rest string) {
 
 	// The resource is spelled the way the cluster spells it, whatever case
 	// was typed: the line has to show one word.
-	return offered[:len(word)], offered[len(word):], rest
+	typed := len(word) - lead
+
+	return word[:lead] + offered[:typed], offered[typed:], rest
 }
 
 // line is what the command line reads as.
