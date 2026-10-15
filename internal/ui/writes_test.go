@@ -25,7 +25,7 @@ var (
 		"PromoteDeployment", "FailDeployment",
 		"DetachVolume", "ReleaseClaim", "DispatchJob", "EvaluateJob",
 		"TagVersion", "UntagVersion", "SetAllocHealth", "ReleaseLock",
-		"SubmitACL", "DeleteACL", "SubmitScheduler",
+		"SubmitACL", "CreateACL", "DeleteACL", "SubmitScheduler",
 		"DeleteVariable", "CreateNamespace", "DeleteNamespace",
 		"PurgeJob", "PurgeNode", "CollectNode", "CollectGarbage",
 	}

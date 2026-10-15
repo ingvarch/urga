@@ -754,6 +754,13 @@ func (f *fakeClient) SubmitACL(_ context.Context, kind, id, source string) (noma
 	return f.aclWritten, f.refused(f.actionErr)
 }
 
+func (f *fakeClient) CreateACL(_ context.Context, kind, id, source string) (nomad.ACLWritten, error) {
+	f.wrote("CreateACL")
+	f.submittedACL, f.aclSource = kind+"/"+id, source
+
+	return f.aclWritten, f.refused(f.actionErr)
+}
+
 func (f *fakeClient) DeleteACL(_ context.Context, kind, id string) error {
 	f.wrote("DeleteACL")
 	f.deletedACL = kind + "/" + id

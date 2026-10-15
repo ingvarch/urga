@@ -194,6 +194,7 @@ type (
 		DescribeACL(ctx context.Context, kind, id string) (string, error)
 		TokenSecret(ctx context.Context, accessorID string) (string, error)
 		SubmitACL(ctx context.Context, kind, id, source string) (nomad.ACLWritten, error)
+		CreateACL(ctx context.Context, kind, id, source string) (nomad.ACLWritten, error)
 		DeleteACL(ctx context.Context, kind, id string) error
 	}
 

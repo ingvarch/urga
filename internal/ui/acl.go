@@ -208,12 +208,17 @@ func aclFile(client aclClient, kind, id string, fresh bool, read func(ctx contex
 		extension = "hcl"
 	}
 
+	write := client.SubmitACL
+	if fresh {
+		write = client.CreateACL
+	}
+
 	return func(ctx context.Context) (file, error) {
 		content, err := read(ctx)
 
 		return file{extension: extension, content: content, submit: reopening(extension, func(source string) tea.Cmd {
 			return request(func(ctx context.Context) (nomad.ACLWritten, error) {
-				return client.SubmitACL(ctx, kind, id, source)
+				return write(ctx, kind, id, source)
 			}, func(w nomad.ACLWritten) tea.Msg { return aclWritten(kind, fresh, w) })
 		})}, err
 	}

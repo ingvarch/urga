@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"slices"
 	"strings"
@@ -297,6 +298,39 @@ func (c *Client) SubmitACL(ctx context.Context, kind, id, source string) (ACLWri
 	}
 
 	return ACLWritten{ID: cmp.Or(answer.AccessorID, answer.ID, answer.Name), Name: answer.Name, Secret: answer.SecretID}, nil
+}
+
+// CreateACL writes a new ACL object from its file, as SubmitACL does, but
+// refuses a policy or an auth method whose name is in use: the cluster would
+// replace the one and merge into the other. A policy is named by id, an auth
+// method by the Name of its file.
+func (c *Client) CreateACL(ctx context.Context, kind, id, source string) (ACLWritten, error) {
+	var name string
+
+	switch kind {
+	case ACLPolicy:
+		name = id
+	case ACLAuthMethod:
+		// A file that is not JSON has no name; SubmitACL reports it.
+		var named struct{ Name string }
+		_ = json.Unmarshal([]byte(source), &named)
+		name = named.Name
+	}
+
+	if name == "" {
+		return c.SubmitACL(ctx, kind, id, source)
+	}
+
+	_, err := c.DescribeACL(ctx, kind, name)
+
+	switch {
+	case err == nil:
+		return ACLWritten{}, fmt.Errorf("%s %s already exists", kind, name)
+	case !answered(err, http.StatusNotFound):
+		return ACLWritten{}, err
+	}
+
+	return c.SubmitACL(ctx, kind, id, source)
 }
 
 // redacted is what the cluster answers in place of a secret of an auth
