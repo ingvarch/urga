@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/nomad/api"
 )
@@ -17,6 +18,10 @@ const (
 // logTail is how much of a log is read back when it is opened: the last
 // screens of it, without flooding the screen with a chatty task.
 const logTail = 64 << 10
+
+// drainWait is how long a cancelled stream keeps taking frames, so a
+// producer blocked on its send reaches its own cancel check.
+const drainWait = time.Second
 
 // taskStateDead is how the cluster says a task has stopped for good.
 const taskStateDead = "dead"
@@ -98,7 +103,22 @@ func streamLines(frames <-chan *api.StreamFrame, startsCut func(first *api.Strea
 
 		first, cut := true, false
 
-		for frame := range frames {
+		for {
+			var frame *api.StreamFrame
+
+			select {
+			case f, ok := <-frames:
+				if !ok {
+					return
+				}
+
+				frame = f
+			case <-cancel:
+				go drain(frames)
+
+				return
+			}
+
 			if frame == nil || len(frame.Data) == 0 {
 				continue
 			}
@@ -127,12 +147,34 @@ func streamLines(frames <-chan *api.StreamFrame, startsCut func(first *api.Strea
 			select {
 			case lines <- string(data):
 			case <-cancel:
+				go drain(frames)
+
 				return
 			}
 		}
 	}()
 
 	return lines
+}
+
+// drain takes frames until the channel is closed or drainWait has passed.
+func drain(frames <-chan *api.StreamFrame) {
+	if frames == nil {
+		return
+	}
+
+	timeout := time.After(drainWait)
+
+	for {
+		select {
+		case _, ok := <-frames:
+			if !ok {
+				return
+			}
+		case <-timeout:
+			return
+		}
+	}
 }
 
 // taskDead says the task of the allocation has stopped for good.
