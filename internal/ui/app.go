@@ -609,7 +609,7 @@ func (m *Model) layout() {
 	grew := false
 	if r, ok := m.screen.page.(reader); ok {
 		content := r.text(m.env())
-		grew = len(content.lines) > len(m.text.lines)
+		grew = content.total() > m.text.total()
 		m.text.textContent = content
 	}
 

@@ -360,6 +360,7 @@ func (m Model) readsAStream() bool {
 // screen has any.
 func showTimes(m Model) (Model, tea.Cmd) {
 	m.text.times = !m.text.times
+	m.text.refresh()
 
 	return m, nil
 }

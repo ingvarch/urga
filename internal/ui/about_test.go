@@ -111,10 +111,10 @@ func TestAbout_AnUpdateIsReady(t *testing.T) {
 	// The update, the versions and the kinds of change stand out from the
 	// changes.
 	for _, line := range []int{3, 6, 7, 9, 12, 13} {
-		r.Contains(m.text.paint, line, m.text.lines[line])
+		r.NotNil(m.text.paintAt(line), m.text.lines[line])
 	}
 
-	r.NotContains(m.text.paint, 8)
+	r.Nil(m.text.paintAt(8))
 }
 
 func TestAbout_WhileTheReleasesAreRead(t *testing.T) {

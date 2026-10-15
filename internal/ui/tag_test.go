@@ -19,9 +19,9 @@ func tagged() (textModel, lipgloss.Style, lipgloss.Style) {
 
 	t := textModel{textContent: textContent{
 		lines: []string{"GET /health 200", "worker started " + strings.Repeat("x", 40)},
-		tags: map[int]tag{
-			0: {text: "9a1b2c3d │ ", style: first},
-			1: {text: "4f2a1c9e │ ", style: second},
+		tags: []*tag{
+			{text: "9a1b2c3d │ ", style: first},
+			{text: "4f2a1c9e │ ", style: second},
 		},
 	}}
 	t.setSize(40, 10)
@@ -54,7 +54,7 @@ func TestText_ATagThroughTheWrapAndTheTimes(t *testing.T) {
 	text, _, second := tagged()
 	text.wrap = true
 	text.times = true
-	text.stamps = map[int]time.Time{1: time.Date(2026, 9, 24, 18, 26, 44, 0, time.UTC)}
+	text.stamps = []time.Time{{}, time.Date(2026, 9, 24, 18, 26, 44, 0, time.UTC)}
 
 	rows := text.rows()
 
@@ -74,8 +74,8 @@ func TestText_ATagCutAtTheEdgeOfTheScreen(t *testing.T) {
 		text := textModel{
 			textContent: textContent{
 				lines:  []string{"GET /health 200"},
-				stamps: map[int]time.Time{0: time.Date(2026, 9, 24, 18, 26, 44, 0, time.UTC)},
-				tags:   map[int]tag{0: {text: label, style: lipgloss.NewStyle().Foreground(colorTitle)}},
+				stamps: []time.Time{time.Date(2026, 9, 24, 18, 26, 44, 0, time.UTC)},
+				tags:   []*tag{{text: label, style: lipgloss.NewStyle().Foreground(colorTitle)}},
 			},
 			times: true,
 		}
