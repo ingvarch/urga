@@ -134,6 +134,9 @@ func TestAction_RevertAJob(t *testing.T) {
 	r.IsType(planPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Revert (Job: web, Version: 3)")
 
+	// A revert reads no file, so there is no read to have changed since.
+	r.NotContains(plain(m.render()), "Changed after the file was read")
+
 	m, cmd = m.update(key('y'))
 	m = drain(m, cmd)
 

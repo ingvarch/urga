@@ -154,7 +154,7 @@ func planned(t *testing.T, client *fakeClient) Model {
 func TestPlan_ComesBeforeTheSubmit(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	// Saving the file requests a plan from the cluster and submits nothing
@@ -172,7 +172,7 @@ func TestPlan_ComesBeforeTheSubmit(t *testing.T) {
 func TestPlan_SubmitsAtItsIndex(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	m, cmd := m.update(key('y'))
@@ -188,12 +188,41 @@ func TestPlan_SubmitsAtItsIndex(t *testing.T) {
 	r.Contains(plain(m.render()), "Job web submitted")
 }
 
+func TestPlan_SaysTheJobChangedAfterTheFileWasRead(t *testing.T) {
+	r := require.New(t)
+
+	// The file was read at 41, and the job changed before the file was
+	// saved: a submit, a scale, a stop or a revert. The plan is at 42.
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 41}, plan: changedEnv()}
+	m := planned(t, client)
+
+	// The changes are against the job as it is now, so they undo that
+	// change where the file differs from it.
+	out := plain(m.render())
+	r.Contains(out, "Changed after the file was read")
+	r.Contains(out, "web changed while the file was open.")
+
+	// What is sent is what the plan shows, at the index it was planned at.
+	m, cmd := m.update(key('y'))
+	drain(m, cmd)
+	r.Equal(uint64(42), client.submittedIndex)
+}
+
+func TestPlan_OfAFileReadAtTheIndexItIsPlannedAt(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
+	m := planned(t, client)
+
+	r.NotContains(plain(m.render()), "Changed after the file was read")
+}
+
 func TestPlan_WhenTheJobChangedSinceThePlan(t *testing.T) {
 	r := require.New(t)
 
 	client := &fakeClient{
 		jobs:      twoJobs(),
-		spec:      nomad.JobSource{Source: "job \"web\" {}"},
+		spec:      nomad.JobSource{Source: "job \"web\" {}", Index: 42},
 		plan:      changedEnv(),
 		actionErr: nomad.ErrJobChanged,
 	}
@@ -211,7 +240,7 @@ func TestPlan_WhenTheJobChangedSinceThePlan(t *testing.T) {
 func TestPlan_PlansTheSameFileAgain(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	again := changedEnv()
@@ -236,7 +265,7 @@ func TestPlan_PlansTheSameFileAgain(t *testing.T) {
 func TestPlan_EscapeLeavesTheJobAsItIs(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	m, _ = m.update(escape())
@@ -267,7 +296,7 @@ func TestPlan_AsksAtTheBottom(t *testing.T) {
 		long.Diff = append(long.Diff, nomad.DiffLine{Kind: nomad.DiffAdded, Indent: 3, Text: fmt.Sprintf("K%d = \"v\"", i)})
 	}
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: long}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: long}
 	m := planned(t, client)
 
 	// The question and its buttons stay at the foot of the plan, however
@@ -289,7 +318,7 @@ func TestPlan_AsksAtTheBottom(t *testing.T) {
 func TestPlan_EnterOnCancelLeavesTheJobAsItIs(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	// Over to submit and back.
@@ -306,7 +335,7 @@ func TestPlan_EnterOnCancelLeavesTheJobAsItIs(t *testing.T) {
 func TestPlan_EnterOnSubmitSendsIt(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyRight})
@@ -323,7 +352,7 @@ func TestPlan_EnterOnSubmitSendsIt(t *testing.T) {
 func TestPlan_WhatCannotBePlacedIsNotSent(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: shortOfMemory()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: shortOfMemory()}
 	m := planned(t, client)
 
 	// The cluster has no room for it: the button shows that, and neither
@@ -396,7 +425,7 @@ func TestPlan_ARevertSaysWhatItDoes(t *testing.T) {
 func TestPlan_TheHeaderSaysWhatAPlanCanDo(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	r.Equal([]hint{
@@ -422,7 +451,7 @@ func TestPlan_TheHeaderSaysWhatAPlanCanDo(t *testing.T) {
 func TestPlan_TheButtonsAreChosenTheWayTheButtonsOfAQuestionAre(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	cancel, submit := opening(styleButtonOn)+" Cancel ", opening(styleButtonOn)+" Submit "
@@ -448,7 +477,7 @@ func TestPlan_TheButtonsAreChosenTheWayTheButtonsOfAQuestionAre(t *testing.T) {
 func TestPlan_ReadOnlySendsNothing(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 	m.opts.ReadOnly = true
 
@@ -470,7 +499,7 @@ func TestPlan_ReadOnlySendsNothing(t *testing.T) {
 func TestPlan_PlannedAgainInPlaceOfTheOneBefore(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 	m, _ = m.update(key('w'))
 	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyTab})
@@ -493,7 +522,7 @@ func TestPlan_ASubmitThatFailsStaysOnThePlan(t *testing.T) {
 
 	client := &fakeClient{
 		jobs:      twoJobs(),
-		spec:      nomad.JobSource{Source: "job \"web\" {}"},
+		spec:      nomad.JobSource{Source: "job \"web\" {}", Index: 42},
 		plan:      changedEnv(),
 		actionErr: errors.New("Unexpected response code: 500 (rpc error)"),
 	}
@@ -516,7 +545,7 @@ func TestPlan_ASubmitThatFailsStaysOnThePlan(t *testing.T) {
 func TestPlan_WhatCameOfASubmitIsSaidAfterLeaving(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	// Sent, and the plan is left before the cluster answers.
@@ -532,7 +561,7 @@ func TestPlan_WhatCameOfASubmitIsSaidAfterLeaving(t *testing.T) {
 func TestPlan_DoesNotPoll(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	_, cmd := m.update(pollMsg{})
@@ -545,7 +574,7 @@ func TestPlan_Saved(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
 	m, cmd := m.update(ctrlKey('s'))
@@ -563,7 +592,7 @@ func TestPlan_Saved(t *testing.T) {
 func TestPlan_ASwitchOfTheSessionLeavesThePlanAsItIs(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv()}
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 	m.namespaceOrder = []string{"production", "staging"}
 

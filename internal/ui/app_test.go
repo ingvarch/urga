@@ -481,7 +481,7 @@ func (f *fakeClient) JobSpec(_ context.Context, namespace, jobID string) (nomad.
 	f.askedNamespace, f.askedID = namespace, jobID
 
 	if f.specErr != nil {
-		return nomad.JobSource{}, f.specErr
+		return f.spec, f.specErr
 	}
 
 	return f.spec, f.err

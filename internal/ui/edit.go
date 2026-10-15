@@ -100,8 +100,7 @@ func jobFile(client jobsClient, job nomad.Job) load {
 	return func(ctx context.Context) (file, error) {
 		spec, err := client.JobSpec(ctx, job.Namespace, job.ID)
 		if errors.Is(err, nomad.ErrNoSource) {
-			spec = nomad.JobSource{Format: nomad.FormatJSON}
-			spec.Source, err = client.DescribeJob(ctx, job.Namespace, job.ID)
+			err = nil
 		}
 
 		if err != nil {
@@ -119,6 +118,7 @@ func jobFile(client jobsClient, job nomad.Job) load {
 				jobID:     job.ID,
 				source:    source,
 				vars:      spec.Variables,
+				read:      spec.Index,
 			})
 		})}, nil
 	}

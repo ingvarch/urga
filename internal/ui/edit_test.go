@@ -200,9 +200,9 @@ func TestEdit_WhenTheClusterKeptNoSource(t *testing.T) {
 	r := require.New(t)
 
 	client := &fakeClient{
-		jobs:     twoJobs(),
-		specErr:  nomad.ErrNoSource,
-		describe: "{\n  \"ID\": \"web\",\n  \"Type\": \"service\"\n}",
+		jobs:    twoJobs(),
+		spec:    nomad.JobSource{Source: "{\n  \"ID\": \"web\",\n  \"Type\": \"service\"\n}", Format: nomad.FormatJSON},
+		specErr: nomad.ErrNoSource,
 	}
 
 	m, editor := editModel(t, client)
@@ -221,6 +221,30 @@ func TestEdit_WhenTheClusterKeptNoSource(t *testing.T) {
 
 	r.Equal(1, client.submitted)
 	r.Contains(client.submittedSource, "\"Type\": \"batch\"")
+}
+
+func TestEdit_AJobWithoutASourceKeepsTheIndexItWasReadAt(t *testing.T) {
+	r := require.New(t)
+
+	read := "{\n  \"ID\": \"web\"\n}"
+	client := &fakeClient{
+		jobs:    twoJobs(),
+		spec:    nomad.JobSource{Source: read, Format: nomad.FormatJSON, Index: 42},
+		specErr: nomad.ErrNoSource,
+		plan:    changedEnv(),
+	}
+
+	m, editor := editModel(t, client)
+	editor.replace = "{\n  \"ID\": \"web\",\n  \"Type\": \"batch\"\n}"
+
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 6)
+
+	// The JSON and its index come from one read, so a plan at that index
+	// says nothing changed meanwhile.
+	r.Equal(read, editor.seen[0])
+	r.IsType(planPage{}, m.screen.page)
+	r.NotContains(plain(m.render()), "Changed after the file was read")
 }
 
 func TestDescribe_JobSpecWhenTheClusterKeptNone(t *testing.T) {

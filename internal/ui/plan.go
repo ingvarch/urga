@@ -19,9 +19,11 @@ type planState struct {
 	namespace string
 	jobID     string
 
-	// source and vars are the job file of an edit.
+	// source and vars are the job file of an edit, read is the index the
+	// job had when the file was read, index the one it had when planned.
 	source string
 	vars   nomad.JobVariables
+	read   uint64
 	index  uint64
 
 	// revert goes back to the version to, from the version the job had when
@@ -63,7 +65,24 @@ func planOf(plan nomad.Plan, state planState) planPage {
 		state.to, state.from = &to, plan.Version
 	}
 
-	return planPage{planState: state, content: paintedText(planText(plan, state.revert)).textContent}
+	lines := planText(plan, state.revert)
+	if !state.revert && state.read != state.index {
+		lines = append(changedSinceRead(state.jobID), lines...)
+	}
+
+	return planPage{planState: state, content: paintedText(lines).textContent}
+}
+
+// changedSinceRead warns that the plan compares the file with a newer job.
+func changedSinceRead(jobID string) []paintedLine {
+	return []paintedLine{
+		{text: "Changed after the file was read", style: &styleWarn},
+		{},
+		{text: jobID + " changed while the file was open."},
+		{text: "The changes below compare your file with the job as it is now."},
+		{text: "Submitting undoes that change, where your file differs from it."},
+		{},
+	}
 }
 
 // title says whose plan it is, and for a revert, to which version.
