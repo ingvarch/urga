@@ -280,6 +280,10 @@ func (c *Client) SubmitACL(ctx context.Context, kind, id, source string) (ACLWri
 		return ACLWritten{}, fmt.Errorf("the %s is not valid JSON: %w", kind, err)
 	}
 
+	if err := checkSecrets(kind, object); err != nil {
+		return ACLWritten{}, err
+	}
+
 	// A new one is written where the kind is created, one that is there by
 	// its ID.
 	endpoint := strings.TrimSuffix(path.one, "/")
@@ -293,6 +297,52 @@ func (c *Client) SubmitACL(ctx context.Context, kind, id, source string) (ACLWri
 	}
 
 	return ACLWritten{ID: cmp.Or(answer.AccessorID, answer.ID, answer.Name), Name: answer.Name, Secret: answer.SecretID}, nil
+}
+
+// redacted is what the cluster answers in place of a secret of an auth
+// method, on every read.
+const redacted = "redacted"
+
+// authMethodSecrets are the fields of an auth method the cluster hides.
+var authMethodSecrets = [][]string{
+	{"Config", "OIDCClientSecret"},
+	{"Config", "OIDCClientAssertion", "ClientSecret"},
+	{"Config", "OIDCClientAssertion", "PrivateKey", "PemKey"},
+}
+
+// checkSecrets refuses an auth method that still holds a secret as the
+// cluster hid it. The cluster keeps the Config it is sent whole, so the word
+// would replace the secret.
+func checkSecrets(kind string, object map[string]any) error {
+	if kind != ACLAuthMethod {
+		return nil
+	}
+
+	for _, path := range authMethodSecrets {
+		if valueAt(object, path) == redacted {
+			return fmt.Errorf("%s reads %q, the way the cluster hides a secret: type the secret, or delete Config to keep the one stored",
+				strings.Join(path, "."), redacted)
+		}
+	}
+
+	return nil
+}
+
+// valueAt is the value at a path of keys in decoded JSON, nil when the path
+// is not there.
+func valueAt(object map[string]any, path []string) any {
+	var at any = object
+
+	for _, key := range path {
+		fields, ok := at.(map[string]any)
+		if !ok {
+			return nil
+		}
+
+		at = fields[key]
+	}
+
+	return at
 }
 
 // descriptionLine starts the first line of a policy file, which holds the

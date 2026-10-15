@@ -188,6 +188,43 @@ func TestSubmitACL_APolicyWithoutADescription(t *testing.T) {
 	r.Equal("namespace \"*\" {}\n", (*asked)[0].body["Rules"])
 }
 
+func TestSubmitACL_AnAuthMethodWithASecretAsTheClusterHidesIt(t *testing.T) {
+	r := require.New(t)
+
+	hidden := map[string]string{
+		"Config.OIDCClientSecret":                      `{"OIDCClientSecret": "redacted"}`,
+		"Config.OIDCClientAssertion.ClientSecret":      `{"OIDCClientAssertion": {"ClientSecret": "redacted"}}`,
+		"Config.OIDCClientAssertion.PrivateKey.PemKey": `{"OIDCClientAssertion": {"PrivateKey": {"PemKey": "redacted"}}}`,
+	}
+
+	for field, config := range hidden {
+		client, asked := clusterServer(t, map[string]string{"/v1/acl/auth-method/okta": `{"Name": "okta"}`})
+
+		_, err := client.SubmitACL(context.Background(), nomad.ACLAuthMethod, "okta",
+			`{"Name": "okta", "Type": "OIDC", "MaxTokenTTL": "2h", "Config": `+config+`}`)
+
+		// The cluster answers every read with the word in place of the
+		// secret, and keeps the Config it is sent whole: saved back, the
+		// word would replace the secret.
+		r.ErrorContains(err, field+` reads "redacted"`, field)
+		r.ErrorContains(err, "delete Config", field)
+		r.Empty(*asked, field)
+	}
+}
+
+func TestSubmitACL_AnAuthMethodWithItsSecretTyped(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{"/v1/acl/auth-method/okta": `{"Name": "okta"}`})
+
+	_, err := client.SubmitACL(context.Background(), nomad.ACLAuthMethod, "okta",
+		`{"Name": "okta", "Config": {"OIDCClientSecret": "s3cr3t"}}`)
+	r.NoError(err)
+
+	r.Equal("/v1/acl/auth-method/okta", (*asked)[0].path)
+	r.Equal(map[string]any{"OIDCClientSecret": "s3cr3t"}, (*asked)[0].body["Config"])
+}
+
 func TestSubmitACL_NotJSON(t *testing.T) {
 	r := require.New(t)
 
