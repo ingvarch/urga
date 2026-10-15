@@ -204,6 +204,8 @@ func TestPrompt_WhatTheLineReadsIsWhatEnterOpens(t *testing.T) {
 		"typed past every name":  {key('z'), key('z'), down()},
 		"backspaced to nothing":  {key('s'), backspace(), down()},
 		"a word and a namespace": append([]tea.KeyPressMsg{key('j'), tab()}, append(letters(" staging"), down())...),
+		"a no-break space":       letters("se staging"),
+		"a space before a word":  {key(' '), key('s')},
 	}
 
 	for name, keys := range walks {
@@ -250,6 +252,30 @@ func TestPrompt_ASpaceIsNotAResource(t *testing.T) {
 
 	opened, _ := m.commit()
 	r.Equal(flashErr, opened.flash.level)
+}
+
+func TestPrompt_AnySpaceEndsTheWord(t *testing.T) {
+	r := require.New(t)
+
+	// Option+Space on a Mac types a no-break space, and a line pasted from
+	// a chat can hold one.
+	m := walked(t, letters("se staging")...)
+	r.Equal(":servers staging", promptLine(m))
+
+	opened, _ := m.commit()
+	r.IsType(serversPage{}, opened.screen.page)
+	r.Equal("staging", opened.namespace)
+}
+
+func TestPrompt_ASpaceBeforeTheWordStaysBeforeIt(t *testing.T) {
+	r := require.New(t)
+
+	m := walked(t, key(' '), key('s'), key('e'))
+
+	r.Equal(": servers", promptLine(m))
+
+	opened, _ := m.commit()
+	r.IsType(serversPage{}, opened.screen.page)
 }
 
 func TestPrompt_TheOfferSurvivesTheNamespaceAfterIt(t *testing.T) {
