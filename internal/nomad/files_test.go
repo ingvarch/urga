@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -132,6 +135,86 @@ func TestFile_ReadFromItsStart(t *testing.T) {
 	for _, req := range *asked {
 		r.NotEqual("/v1/node/", req.path)
 	}
+}
+
+// openFile opens a file of the given size whose stream sends the frames at
+// their offsets and then stays open until the test ends.
+func openFile(t *testing.T, size int64, frames map[int64]string) *nomad.LogStream {
+	t.Helper()
+
+	held := make(chan struct{})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch req.URL.Path {
+		case "/v1/allocation/af1f37df":
+			_, _ = w.Write([]byte(allocInfo))
+		case "/v1/client/fs/stat/af1f37df":
+			_, _ = fmt.Fprintf(w, `{"Name": "app.env", "Size": %d, "FileMode": "-rw-r--r--", "ContentType": "text/plain; charset=utf-8"}`, size)
+		case "/v1/client/fs/stream/af1f37df":
+			offsets := make([]int64, 0, len(frames))
+			for offset := range frames {
+				offsets = append(offsets, offset)
+			}
+
+			slices.Sort(offsets)
+
+			for _, offset := range offsets {
+				_, _ = w.Write([]byte(streamed(t, offset, frames[offset])))
+			}
+
+			w.(http.Flusher).Flush()
+
+			// Not the request context: the client does not close the body
+			// when it cancels.
+			<-held
+		}
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(held) })
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	stream, err := client.File(context.Background(), "production", "af1f37df", "/t/local/app.env")
+	require.NoError(t, err)
+	t.Cleanup(stream.Close)
+
+	return stream
+}
+
+// next is the next chunk of a stream, or a failure when none shows.
+func next(t *testing.T, stream *nomad.LogStream) string {
+	t.Helper()
+
+	select {
+	case line := <-stream.Lines:
+		return line
+	case <-time.After(2 * time.Second):
+		t.Fatal("no line showed while the stream was open")
+	}
+
+	return ""
+}
+
+func TestFile_SendTheLastLineOfAFileWithNoBreakWhileTheStreamStaysOpen(t *testing.T) {
+	stream := openFile(t, 7, map[int64]string{7: "a=1\nb=2"})
+
+	require.Equal(t, "a=1\nb=2", next(t, stream))
+}
+
+func TestFile_JoinALineThatGrewAfterItWasOpened(t *testing.T) {
+	stream := openFile(t, 4, map[int64]string{4: "a=1\n", 12: "first li", 15: "ne\n"})
+
+	require.Equal(t, "a=1\n", next(t, stream))
+	require.Equal(t, "first line\n", next(t, stream))
+}
+
+func TestFile_JoinALineOfAFileThatWasEmpty(t *testing.T) {
+	stream := openFile(t, 0, map[int64]string{8: "first li", 14: "ne\nsec", 18: "ond\n"})
+
+	require.Equal(t, "first line\nsecond\n", next(t, stream)+next(t, stream))
 }
 
 func TestFile_OnlyTheEndOfABigOne(t *testing.T) {

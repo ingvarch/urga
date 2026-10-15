@@ -88,33 +88,45 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 
 	frames, errs := c.api.AllocFS().Logs(alloc, !finished, task, source, "end", logTail, cancel, c.query(context.Background(), namespace))
 
-	lines := streamLines(frames, startsCut, cancel)
+	lines := streamLines(frames, startsCut, nil, cancel)
 
 	return &LogStream{Lines: lines, Err: errs, Finished: finished, Previous: alloc.PreviousAllocation, cancel: cancel}, nil
 }
 
 // streamLines passes on what the frames hold, from the first whole line when
-// the first frame says the read began in the middle of one.
-func streamLines(frames <-chan *api.StreamFrame, startsCut func(first *api.StreamFrame) bool, cancel <-chan struct{}) <-chan string {
+// the first frame says the read began in the middle of one. Frames are not
+// aligned to lines, so it sends only whole lines: the end of a frame waits for
+// the rest of its line. A line still being written shows when it ends, when
+// the stream ends, or after logTail bytes. atEnd, when not nil, says a frame
+// reached the end of what was there when the stream began, and what is held
+// is sent after it, once: a file does not end, so its last line gets no break.
+func streamLines(frames <-chan *api.StreamFrame, startsCut, atEnd func(frame *api.StreamFrame) bool, cancel <-chan struct{}) <-chan string {
 	lines := make(chan string)
 
 	go func() {
 		defer close(lines)
 
-		first, cut := true, false
+		send := func(chunk []byte) bool { return sendChunk(lines, chunk, frames, cancel) }
+
+		var (
+			whole = wholeLines{first: true, startsCut: startsCut}
+			frame *api.StreamFrame
+			open  bool
+		)
 
 		for {
-			var frame *api.StreamFrame
-
 			select {
-			case f, ok := <-frames:
-				if !ok {
-					return
-				}
-
-				frame = f
+			case frame, open = <-frames:
 			case <-cancel:
 				go drain(frames)
+
+				return
+			}
+
+			if !open {
+				if rest := whole.rest(); len(rest) > 0 {
+					send(rest)
+				}
 
 				return
 			}
@@ -123,38 +135,96 @@ func streamLines(frames <-chan *api.StreamFrame, startsCut func(first *api.Strea
 				continue
 			}
 
-			if first {
-				first, cut = false, startsCut(frame)
+			chunk := whole.add(frame)
+
+			if atEnd != nil && atEnd(frame) {
+				chunk = append(chunk, whole.rest()...)
+				atEnd = nil
 			}
 
-			data := frame.Data
-
-			// Up to the first line break is the rest of a line whose start
-			// was not read.
-			if cut {
-				at := bytes.IndexByte(data, '\n')
-				if at < 0 {
-					continue
-				}
-
-				data, cut = data[at+1:], false
-			}
-
-			if len(data) == 0 {
-				continue
-			}
-
-			select {
-			case lines <- string(data):
-			case <-cancel:
-				go drain(frames)
-
+			if len(chunk) > 0 && !send(chunk) {
 				return
 			}
 		}
 	}()
 
 	return lines
+}
+
+// wholeLines holds the end of a stream that is not a whole line yet.
+type wholeLines struct {
+	held []byte
+
+	// unended is set when rest sent a line that has no break yet: a break
+	// that comes next ends that line, it does not start a new one.
+	unended bool
+
+	// first is set until the first frame is seen, and cut while the rest of
+	// a line whose start was not read is still to be dropped.
+	first, cut bool
+	startsCut  func(first *api.StreamFrame) bool
+}
+
+// add takes a frame and gives back what is whole up to its last line break,
+// or all of it when the line held grows past logTail with no break.
+func (w *wholeLines) add(frame *api.StreamFrame) []byte {
+	if w.first {
+		w.first, w.cut = false, w.startsCut(frame)
+	}
+
+	data := frame.Data
+
+	// Up to the first line break is the rest of a line whose start was not
+	// read.
+	if w.cut {
+		at := bytes.IndexByte(data, '\n')
+		if at < 0 {
+			return nil
+		}
+
+		data, w.cut = data[at+1:], false
+	}
+
+	if w.unended && len(data) > 0 {
+		w.unended = false
+
+		if data[0] == '\n' {
+			data = data[1:]
+		}
+	}
+
+	data = append(w.held, data...)
+
+	end := bytes.LastIndexByte(data, '\n') + 1
+
+	w.held = append([]byte(nil), data[end:]...)
+
+	if len(w.held) > logTail {
+		end, w.held, w.unended = len(data), nil, true
+	}
+
+	return data[:end]
+}
+
+// rest gives back what is held and forgets it.
+func (w *wholeLines) rest() []byte {
+	held := w.held
+	w.held = nil
+	w.unended = len(held) > 0
+
+	return held
+}
+
+// sendChunk sends the chunk, or drains the frames when cancel comes first.
+func sendChunk(lines chan<- string, chunk []byte, frames <-chan *api.StreamFrame, cancel <-chan struct{}) bool {
+	select {
+	case lines <- string(chunk):
+		return true
+	case <-cancel:
+		go drain(frames)
+
+		return false
+	}
 }
 
 // drain takes frames until the channel is closed or drainWait has passed.
