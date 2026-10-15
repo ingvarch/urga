@@ -24,7 +24,7 @@ func TestRefusedEdit_AJobThatCannotBePlannedOpensAgain(t *testing.T) {
 	broken := "# The web frontend.\njob \"web\" {\n  type = \n}"
 	fixed := "# The web frontend.\njob \"web\" {\n  type = \"batch\"\n}"
 
-	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}, plan: changedEnv(),
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv(),
 		refusals: []error{errors.New(refusal)}}
 	m, editor := editModel(t, client)
 

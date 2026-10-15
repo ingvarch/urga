@@ -65,6 +65,22 @@ func TestJobSpec_FromWhatWasSubmitted(t *testing.T) {
 	r.Equal("hcl2", out.Format)
 }
 
+func TestJobSpec_KeepsTheIndexItWasReadAt(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := clusterServer(t, map[string]string{
+		"/v1/job/web":            `{"ID": "web", "Version": 3, "JobModifyIndex": 41}`,
+		"/v1/job/web/submission": `{"Source": "job \"web\" {}", "Format": "hcl2"}`,
+	})
+
+	out, err := client.JobSpec(context.Background(), "production", "web")
+	r.NoError(err)
+
+	// A plan of the edited file at another index means the job changed
+	// while the file was open.
+	r.Equal(uint64(41), out.Index)
+}
+
 func TestJobSpec_KeepsTheVariables(t *testing.T) {
 	r := require.New(t)
 
@@ -97,7 +113,7 @@ func TestJobSpec_WhenTheClusterAnswersThereIsNone(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"ID": "web", "Version": 3}`))
+		_, _ = w.Write([]byte(`{"ID": "web", "Version": 3, "JobModifyIndex": 41}`))
 	}))
 	t.Cleanup(server.Close)
 
@@ -107,9 +123,11 @@ func TestJobSpec_WhenTheClusterAnswersThereIsNone(t *testing.T) {
 	out, err := client.JobSpec(context.Background(), "production", "web")
 
 	// The job exists, only its file does not: ErrNoSource tells the editor
-	// to open the job as JSON instead.
+	// to open the job as JSON instead, from the read the index comes from.
 	r.ErrorIs(err, nomad.ErrNoSource)
-	r.Empty(out)
+	r.Equal(nomad.FormatJSON, out.Format)
+	r.Contains(out.Source, `"Version": 3`)
+	r.Equal(uint64(41), out.Index)
 }
 
 func TestJobSpec_WithoutASource(t *testing.T) {
@@ -121,9 +139,11 @@ func TestJobSpec_WithoutASource(t *testing.T) {
 
 	// When the cluster did not keep the source, JobSpec returns an error.
 	// Returning a sentence as if it were the job file puts English prose in
-	// an editor that submits what it is given.
+	// an editor that submits what it is given: what comes with the error is
+	// the job as JSON.
 	r.ErrorIs(err, nomad.ErrNoSource)
-	r.Empty(out)
+	r.Equal(nomad.FormatJSON, out.Format)
+	r.Contains(out.Source, `"ID": "web"`)
 }
 
 func TestJobSpec_WhenTheVersionCannotBeRead(t *testing.T) {

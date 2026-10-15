@@ -69,6 +69,10 @@ type JobSource struct {
 	Format string
 
 	Variables JobVariables
+
+	// Index is the JobModifyIndex of the job as read, which check-and-set
+	// compares.
+	Index uint64
 }
 
 // JobVariables are the values of the variables of an HCL job: the -var flags
@@ -79,7 +83,7 @@ type JobVariables struct {
 }
 
 // JobSpec is the file the job was submitted with, or ErrNoSource when the
-// cluster did not keep it.
+// cluster did not keep it, with the job as JSON.
 func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (JobSource, error) {
 	// The running version is requested first: a submission is kept per
 	// version, and version zero is the first file ever submitted, not the
@@ -89,7 +93,20 @@ func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (JobSourc
 		return JobSource{}, err
 	}
 
+	read := valueOf(job.JobModifyIndex)
+
+	// Without a file the job is edited as JSON, from the same read as its
+	// index.
 	submission, err := c.submissionOf(ctx, namespace, jobID, versionOf(job))
+	if errors.Is(err, ErrNoSource) {
+		spec, jsonErr := asJSON(job)
+		if jsonErr != nil {
+			return JobSource{}, jsonErr
+		}
+
+		return JobSource{Source: spec, Format: FormatJSON, Index: read}, err
+	}
+
 	if err != nil {
 		return JobSource{}, err
 	}
@@ -98,6 +115,7 @@ func (c *Client) JobSpec(ctx context.Context, namespace, jobID string) (JobSourc
 		Source:    submission.Source,
 		Format:    submission.Format,
 		Variables: JobVariables{Flags: submission.VariableFlags, File: submission.Variables},
+		Index:     read,
 	}, nil
 }
 
