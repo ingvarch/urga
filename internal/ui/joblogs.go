@@ -78,7 +78,7 @@ type jobLogsState struct {
 	// streams are the logs open now, by the allocation they read; tags say
 	// which allocation a line came from.
 	streams map[*nomad.LogStream]string
-	tags    map[string]tag
+	tags    map[string]*tag
 
 	// all are the allocations that run the task, the newest first, and
 	// allocs the ones read: no more than the limit.
@@ -373,7 +373,7 @@ func (p jobLogsPage) read(client filesClient, allocs []nomad.Alloc) (jobLogsPage
 	p.logs = jobLogsState{
 		reading: p.logs.reading,
 		streams: map[*nomad.LogStream]string{},
-		tags:    map[string]tag{},
+		tags:    map[string]*tag{},
 		all:     allocs,
 		allocs:  read,
 	}
@@ -383,7 +383,7 @@ func (p jobLogsPage) read(client filesClient, allocs []nomad.Alloc) (jobLogsPage
 
 	for i, alloc := range read {
 		style := lipgloss.NewStyle().Foreground(tagColours[i%len(tagColours)])
-		p.logs.tags[alloc.ID] = tag{text: shortID(alloc.ID) + " │ ", style: style}
+		p.logs.tags[alloc.ID] = &tag{text: shortID(alloc.ID) + " │ ", style: style}
 
 		id := alloc.ID
 		cmds = append(cmds, func() tea.Msg {
@@ -482,8 +482,7 @@ func (p jobLogsPage) reloaded(client filesClient, allocs []nomad.Alloc) (page, o
 // lines adds lines of an allocation, all with the one time they arrived, in
 // a style of their own when they are not something the task wrote.
 func (p jobLogsPage) lines(allocID string, style *lipgloss.Style, lines ...string) jobLogsPage {
-	label := p.logs.tags[allocID]
-	p.content.add(lines, time.Now(), &label, style)
+	p.content.add(lines, time.Now(), p.logs.tags[allocID], style)
 
 	return p
 }

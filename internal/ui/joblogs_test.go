@@ -90,7 +90,7 @@ func TestJobLogs_OfATaskGroupWithOneTask(t *testing.T) {
 	r.Contains(out, "Autoscroll:On")
 
 	// Each allocation in a colour of its own.
-	r.NotEqual(opening(m.text.tags[0].style), opening(m.text.tags[1].style))
+	r.NotEqual(opening(m.text.tagAt(0).style), opening(m.text.tagAt(1).style))
 }
 
 func TestJobLogs_AskWhichTask(t *testing.T) {
