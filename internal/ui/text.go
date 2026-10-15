@@ -153,7 +153,7 @@ func (t *textContent) add(lines []string, arrived time.Time, label *tag, style *
 	}
 
 	for _, line := range lines {
-		t.lines = append(t.lines, line)
+		t.lines = append(t.lines, cleanLine(line))
 		t.stamps = append(t.stamps, arrived)
 
 		if tagged {

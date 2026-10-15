@@ -36,7 +36,9 @@ type moments map[int]time.Time
 
 // add puts cells at the end of a row, as they read.
 func (r *tableRow) add(cells ...string) {
-	r.cells = append(r.cells, cells...)
+	for _, cell := range cells {
+		r.cells = append(r.cells, oneLine(cell))
+	}
 }
 
 // addAge puts at the end of a row how long ago a moment was, and keeps the
