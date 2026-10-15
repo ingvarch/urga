@@ -2,6 +2,8 @@ module github.com/ingvarch/urga
 
 go 1.27.0
 
+toolchain go1.27.2
+
 require (
 	charm.land/bubbletea/v2 v2.0.10
 	charm.land/lipgloss/v2 v2.0.6

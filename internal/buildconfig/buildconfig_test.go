@@ -138,6 +138,15 @@ func TestWorkflows_TakeTheGoVersionFromTheModule(t *testing.T) {
 	}
 }
 
+func TestModule_PinsThePatchReleaseOfGo(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "go.mod"))
+	require.NoError(t, err)
+
+	// setup-go builds with the toolchain line, or with the go line as it is
+	// written: go 1.27.0 alone ships 1.27.0 without the fixes that came after.
+	require.Regexp(t, `(?m)^toolchain go\d+\.\d+\.\d+$`, string(data))
+}
+
 func TestWorkflows_UseActionsThatAreStillThere(t *testing.T) {
 	r := require.New(t)
 
