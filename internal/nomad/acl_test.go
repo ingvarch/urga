@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -265,4 +266,114 @@ func subset(body map[string]any, keys ...string) map[string]any {
 	}
 
 	return out
+}
+
+func TestCreateACL_APolicyWhoseNameIsTakenIsRefused(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := aclCluster(t)
+
+	_, err := client.CreateACL(context.Background(), nomad.ACLPolicy, "read", "namespace \"*\" {}\n")
+	r.EqualError(err, "policy read already exists")
+
+	for _, req := range *asked {
+		r.Equal("/v1/acl/policy/read", req.path)
+		r.Nil(req.body)
+	}
+}
+
+// readsAnswer is a cluster that answers every read with a status and takes
+// every write, recording the requests as they come.
+func readsAnswer(t *testing.T, status int) (*nomad.Client, *[]string) {
+	t.Helper()
+
+	var asked []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		asked = append(asked, req.Method+" "+req.URL.Path)
+
+		if req.Method == http.MethodGet {
+			http.Error(w, "no", status)
+
+			return
+		}
+
+		_, _ = w.Write([]byte(`{"Name": "fresh"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	return client, &asked
+}
+
+func TestCreateACL_APolicyWhoseNameIsFreeIsWritten(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := readsAnswer(t, http.StatusNotFound)
+
+	written, err := client.CreateACL(context.Background(), nomad.ACLPolicy, "fresh", "namespace \"*\" {}\n")
+	r.NoError(err)
+	r.Equal(nomad.ACLWritten{ID: "fresh", Name: "fresh"}, written)
+	r.Equal([]string{"GET /v1/acl/policy/fresh", "PUT /v1/acl/policy/fresh"}, *asked)
+}
+
+func TestCreateACL_AnAuthMethodWhoseNameIsTakenIsRefused(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/acl/auth-method/okta": `{"Name": "okta", "Type": "OIDC"}`,
+	})
+
+	_, err := client.CreateACL(context.Background(), nomad.ACLAuthMethod, "", `{"Name": "okta", "Type": "OIDC"}`)
+	r.EqualError(err, "auth method okta already exists")
+
+	for _, req := range *asked {
+		r.Nil(req.body)
+	}
+}
+
+func TestCreateACL_AnAuthMethodWhoseNameIsFreeIsWritten(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := readsAnswer(t, http.StatusNotFound)
+
+	written, err := client.CreateACL(context.Background(), nomad.ACLAuthMethod, "", `{"Name": "fresh", "Type": "OIDC"}`)
+	r.NoError(err)
+	r.Equal("fresh", written.Name)
+	r.Equal([]string{"GET /v1/acl/auth-method/fresh", "PUT /v1/acl/auth-method"}, *asked)
+}
+
+func TestCreateACL_AnErrorOtherThanNotFoundStopsIt(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := readsAnswer(t, http.StatusForbidden)
+
+	_, err := client.CreateACL(context.Background(), nomad.ACLPolicy, "fresh", "namespace \"*\" {}\n")
+	r.True(nomad.Forbidden(err))
+	r.Equal([]string{"GET /v1/acl/policy/fresh"}, *asked)
+}
+
+func TestCreateACL_OtherKindsAreWrittenAsTheyAre(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/acl/token": `{"AccessorID": "a9", "SecretID": "s3cr3t", "Name": "ci"}`,
+	})
+
+	written, err := client.CreateACL(context.Background(), nomad.ACLToken, "", `{"Name": "ci", "Type": "client"}`)
+	r.NoError(err)
+	r.Equal("a9", written.ID)
+	r.Len(*asked, 1)
+}
+
+func TestCreateACL_AnAuthMethodThatIsNotJSONIsReportedWithoutAskingTheCluster(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{})
+
+	_, err := client.CreateACL(context.Background(), nomad.ACLAuthMethod, "", `{"Name": "okta",`)
+	r.ErrorContains(err, "the auth method is not valid JSON")
+	r.Empty(*asked)
 }

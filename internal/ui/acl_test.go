@@ -222,6 +222,23 @@ func TestACL_ANewPolicyIsNamedFirst(t *testing.T) {
 	r.Contains(plain(m.render()), "Policy deploy created.")
 }
 
+func TestACL_ANewPolicyWhoseNameIsTakenOpensTheEditorAgain(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{refusals: []error{errors.New("policy deploy already exists")}, aclWritten: nomad.ACLWritten{ID: "deploy", Name: "deploy"}}
+	m, editor := withEditor(t, client, "policies", "namespace \"default\" {}\n")
+
+	m, _ = m.update(key('n'))
+	m = typeIn(m, "deploy")
+	m, cmd := m.update(enter())
+	m = playOut(m, cmd)
+
+	r.Len(editor.seen, 2)
+	r.Contains(editor.seen[1], "# Not saved: policy deploy already exists.")
+	r.Equal([]string{"CreateACL"}, client.writes)
+	r.NotContains(plain(m.render()), "created")
+}
+
 func TestACL_APolicyNeedsAName(t *testing.T) {
 	r := require.New(t)
 
