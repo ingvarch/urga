@@ -92,7 +92,13 @@ func (c *Client) File(ctx context.Context, namespace, allocID, name string) (*Lo
 
 	frames, errs := c.api.AllocFS().Stream(alloc, name, "start", from, cancel, c.query(context.Background(), namespace))
 
-	lines := streamLines(frames, func(*api.StreamFrame) bool { return from > 0 }, cancel)
+	// An empty file has no end to reach: all of it is read by whole lines.
+	var atEnd func(*api.StreamFrame) bool
+	if info.Size > 0 {
+		atEnd = func(frame *api.StreamFrame) bool { return frame.Offset >= info.Size }
+	}
+
+	lines := streamLines(frames, func(*api.StreamFrame) bool { return from > 0 }, atEnd, cancel)
 
 	return &LogStream{Lines: lines, Err: failures(errs, cancel), Size: info.Size, From: from, cancel: cancel}, nil
 }
