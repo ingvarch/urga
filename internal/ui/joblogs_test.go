@@ -659,3 +659,78 @@ func TestJobLogs_AStreamOfTheReadingIsKeptWhateverTheOrder(t *testing.T) {
 	r.NotNil(out.cmd)
 	r.Equal("af1f37df", next.(jobLogsPage).logs.streams[stream])
 }
+
+// allNamespaces is the list of allocations in every namespace, the logs of
+// which are asked for.
+func allNamespaces(client *fakeClient) Model {
+	m := New(client, Options{Namespace: nomad.AllNamespaces, Version: "v-test", PollEvery: time.Millisecond})
+	m, _ = m.update(sizeMsg())
+	m, _ = m.update(openMsg{allocationsPage{read: time.Now(), allocs: client.allocs}})
+
+	return m
+}
+
+func TestJobLogs_ReadAgainInAllNamespacesAsksInTheNamespaceOfTheTask(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		allocs:      webAllocs("server")[:2],
+		logsByAlloc: map[string]*nomad.LogStream{newer: writing(), older: writing()},
+	}
+
+	m := allNamespaces(client)
+	m, cmd := m.update(key('l'))
+	m = playOut(m, cmd)
+	r.IsType(jobLogsPage{}, m.screen.page)
+
+	client.logsOpened, client.logsByAlloc = nil, map[string]*nomad.LogStream{newer: writing(), older: writing()}
+
+	m, cmd = m.update(key('r'))
+	m = playOut(m, cmd)
+
+	r.Equal("production/web", client.lists["allocations"][len(client.lists["allocations"])-1])
+	r.Equal("production", client.askedNamespace)
+	r.Equal([]string{newer, older}, client.logsOpened)
+	r.NotContains(plain(m.render()), "runs in no allocation now")
+}
+
+func TestJobLogs_TheSameTaskInTwoNamespacesIsTwoChoices(t *testing.T) {
+	r := require.New(t)
+
+	prod := webAllocs("server")[:2]
+	staging := []nomad.Alloc{
+		{ID: "eeee5555-0000-0000-0000-000000000000", Namespace: "staging", JobID: "web", TaskGroup: "frontend", Status: "running", Tasks: []nomad.Task{{Name: "server", State: "running"}}, Created: time.Now()},
+	}
+
+	client := &fakeClient{
+		allocs: append(prod, staging...),
+		logsByAlloc: map[string]*nomad.LogStream{
+			newer: writing(), older: writing(), staging[0].ID: writing(),
+		},
+	}
+
+	m := allNamespaces(client)
+	m, cmd := m.update(key('l'))
+	m = playOut(m, cmd)
+
+	r.IsType(logTasksPage{}, m.screen.page)
+	r.Contains(fileRow(t, m, 0), "production/web/frontend/server")
+	r.Contains(fileRow(t, m, 0), "2 running")
+	r.Contains(fileRow(t, m, 1), "staging/web/frontend/server")
+	r.Contains(fileRow(t, m, 1), "1 running")
+
+	m, _ = m.update(key('j'))
+	m, cmd = m.update(enter())
+	m = playOut(m, cmd)
+
+	r.Equal([]string{staging[0].ID}, client.logsOpened)
+	r.Equal("staging", client.askedNamespace)
+
+	client.logsOpened = nil
+	client.logsByAlloc = map[string]*nomad.LogStream{newer: writing(), older: writing(), staging[0].ID: writing()}
+
+	m, cmd = m.update(key('r'))
+	m = playOut(m, cmd)
+
+	r.Equal([]string{staging[0].ID}, client.logsOpened)
+}

@@ -64,8 +64,8 @@ type logScope struct {
 
 // logChoice is a task and the allocations that run it.
 type logChoice struct {
-	job, group, task string
-	allocs           []nomad.Alloc
+	namespace, job, group, task string
+	allocs                      []nomad.Alloc
 }
 
 // jobLogsState is the log of one task, read from every allocation that runs
@@ -154,7 +154,7 @@ func allocsOf(client logsClient, s logScope) func(ctx context.Context) ([]nomad.
 // choices are the tasks that run in the allocations of a list, each with
 // the allocations that run it, the newest first.
 func choices(scope logScope, allocs []nomad.Alloc) []logChoice {
-	byTask := map[[3]string]*logChoice{}
+	byTask := map[[4]string]*logChoice{}
 
 	for _, alloc := range allocs {
 		if alloc.Status != statusRunning || !inScope(scope, alloc) {
@@ -162,9 +162,9 @@ func choices(scope logScope, allocs []nomad.Alloc) []logChoice {
 		}
 
 		for _, task := range alloc.Tasks {
-			key := [3]string{alloc.JobID, alloc.TaskGroup, task.Name}
+			key := [4]string{alloc.Namespace, alloc.JobID, alloc.TaskGroup, task.Name}
 			if byTask[key] == nil {
-				byTask[key] = &logChoice{job: alloc.JobID, group: alloc.TaskGroup, task: task.Name}
+				byTask[key] = &logChoice{namespace: alloc.Namespace, job: alloc.JobID, group: alloc.TaskGroup, task: task.Name}
 			}
 
 			byTask[key].allocs = append(byTask[key].allocs, alloc)
@@ -178,10 +178,15 @@ func choices(scope logScope, allocs []nomad.Alloc) []logChoice {
 	}
 
 	slices.SortFunc(out, func(a, b logChoice) int {
-		return strings.Compare(a.job+"/"+a.group+"/"+a.task, b.job+"/"+b.group+"/"+b.task)
+		return strings.Compare(a.path(), b.path())
 	})
 
 	return out
+}
+
+// path names the task with its namespace, job and group.
+func (c logChoice) path() string {
+	return c.namespace + "/" + c.job + "/" + c.group + "/" + c.task
 }
 
 // inScope says the allocation is in the job, the group and the state of the
@@ -257,19 +262,23 @@ func (p logTasksPage) rows(env) []tableRow { return logTaskRows(p.choices) }
 var logTaskTitles = []string{"Task", "Allocations"}
 
 // logTaskRows are the tasks to pick from. The job is named when there are
-// tasks of several.
+// tasks of several, and the namespace when they are of several.
 func logTaskRows(found []logChoice) []tableRow {
-	jobs := map[string]bool{}
+	jobs, namespaces := map[string]bool{}, map[string]bool{}
 	for _, choice := range found {
-		jobs[choice.job] = true
+		jobs[choice.job], namespaces[choice.namespace] = true, true
 	}
 
 	rows := make([]tableRow, 0, len(found))
 
 	for _, choice := range found {
 		name := choice.group + "/" + choice.task
-		if len(jobs) > 1 {
+		if len(jobs) > 1 || len(namespaces) > 1 {
 			name = choice.job + "/" + name
+		}
+
+		if len(namespaces) > 1 {
+			name = choice.namespace + "/" + name
 		}
 
 		rows = append(rows, tableRow{cells: []string{name, fmt.Sprintf("%d running", len(choice.allocs))}})
@@ -317,7 +326,7 @@ type jobLogsPage struct {
 // runs it, on top of the screen it was asked from: escape closes them all
 // and goes back.
 func jobLogsOf(scope logScope, choice logChoice) jobLogsPage {
-	scope.jobID, scope.group, scope.fault = choice.job, choice.group, noFault
+	scope.namespace, scope.jobID, scope.group, scope.fault = choice.namespace, choice.job, choice.group, noFault
 
 	return jobLogsPage{scope: scope, task: choice.task, source: nomad.LogStdout, first: choice.allocs}
 }
@@ -466,7 +475,7 @@ func (p jobLogsPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 // reloaded opens the logs of the allocations read again.
 func (p jobLogsPage) reloaded(client filesClient, allocs []nomad.Alloc) (page, outcome, bool) {
 	for _, choice := range choices(p.scope, allocs) {
-		if choice.task == p.task {
+		if choice.task == p.task && choice.namespace == p.scope.namespace {
 			p, cmd := p.read(client, choice.allocs)
 
 			return p, outcome{cmd: cmd, reading: true}, true
