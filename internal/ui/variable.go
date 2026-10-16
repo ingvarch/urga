@@ -352,7 +352,7 @@ func variableFile(client variablesClient, namespace, path string) load {
 // makes a new one where there is none. What the cluster refuses goes back to
 // the editor instead of being lost. A variable changed, deleted or found
 // there since it was read is overwritten by the next save, and the header of
-// the file warns about it; a locked one is sent at the old index again.
+// the file warns about it; a locked or held one is sent at the old index again.
 func saveVariable(client variablesClient, namespace, path string, index uint64) func(source string) tea.Cmd {
 	return func(source string) tea.Cmd {
 		return func() tea.Msg {
@@ -372,7 +372,7 @@ func saveVariable(client variablesClient, namespace, path string, index uint64) 
 			next, advice := index, ""
 
 			var conflict *nomad.VariableConflict
-			if errors.As(err, &conflict) && conflict.Lock == nil {
+			if errors.As(err, &conflict) && conflict.Lock == nil && !conflict.Held {
 				next, advice = conflict.Index, "Saving again replaces that change."
 
 				switch {

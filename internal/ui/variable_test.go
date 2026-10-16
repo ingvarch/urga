@@ -394,6 +394,38 @@ func TestVariable_ALockedVariableIsNotSavedOver(t *testing.T) {
 	r.Equal(uint64(769), client.submittedIndex)
 }
 
+func TestVariable_AHeldVariableIsNotSavedOverEither(t *testing.T) {
+	r := require.New(t)
+
+	edit := "DB_HOST = \"10.0.0.6\"\n"
+	held := &nomad.VariableConflict{Path: "nomad/jobs/web", Held: true, Index: 769}
+	client := &fakeClient{refusals: []error{held}}
+	m, editor := editingWeb(t, client, edit, edit)
+
+	m, cmd := m.update(key('e'))
+	follow(m, cmd, 16)
+
+	// The lock is not shown to this token, so the reason is the only advice.
+	r.Contains(editor.seen[1], "# Not saved: "+held.Error()+".\n")
+	r.NotContains(editor.seen[1], "Saving again")
+	r.Equal(uint64(769), client.submittedIndex)
+}
+
+func TestVariables_DeleteOfAHeldVariableSaysWhy(t *testing.T) {
+	r := require.New(t)
+
+	held := &nomad.VariableConflict{Path: "nomad/jobs/web", Held: true, Index: 769}
+	client := &fakeClient{actionErr: held}
+	m, _ := onVariables(t, client, "production")
+	m, _ = m.update(key('j'))
+
+	m, _ = m.update(ctrlKey('d'))
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	r.Contains(plain(m.render()), "is locked: only the holder of its lock can change it")
+}
+
 func TestVariable_ARefusedSaveSaysWhoseTokenWasRefused(t *testing.T) {
 	r := require.New(t)
 
