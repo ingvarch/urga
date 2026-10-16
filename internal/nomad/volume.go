@@ -88,9 +88,14 @@ func (c *Client) Volumes(ctx context.Context, namespace string) ([]Volume, error
 	return volumes, nil
 }
 
-// nodeNames are the names of the nodes of the cluster, by ID.
+// nodeNames are the names of the nodes of the cluster, by ID. A token
+// without node:read gets none, and the volumes go without node names.
 func (c *Client) nodeNames(ctx context.Context) (map[string]string, error) {
 	nodes, _, err := c.api.Nodes().List(c.query(ctx, ""))
+	if Forbidden(err) {
+		return map[string]string{}, nil
+	}
+
 	if err != nil {
 		return nil, err
 	}
