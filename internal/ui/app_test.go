@@ -173,6 +173,12 @@ type fakeClient struct {
 	deploymentNamespace string
 	deploymentID        string
 
+	// jobDeployments are the deployments of a job, the newest first.
+	jobDeployments []nomad.DeploymentDetail
+
+	// newest is the newest evaluation of a job; nil is none.
+	newest *nomad.EvaluationDetail
+
 	// promotedGroups are the groups promoted on their own, paused whether
 	// each call asked to pause or to resume.
 	promotedGroups []string
@@ -406,6 +412,7 @@ func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.
 
 func (f *fakeClient) JobVersions(_ context.Context, namespace, jobID string) ([]nomad.JobVersion, error) {
 	f.askedNamespace, f.askedJobID = namespace, jobID
+	f.listed("versions", namespace)
 
 	return f.versions, f.err
 }
@@ -992,6 +999,18 @@ func (f *fakeClient) DeploymentAllocations(_ context.Context, namespace, id stri
 	f.deploymentNamespace, f.deploymentID = namespace, id
 
 	return f.deploymentAllocs, f.err
+}
+
+func (f *fakeClient) JobDeployments(_ context.Context, namespace, jobID string) ([]nomad.DeploymentDetail, error) {
+	f.listed("job deployments", namespace+"/"+jobID)
+
+	return f.jobDeployments, f.err
+}
+
+func (f *fakeClient) NewestEvaluation(_ context.Context, namespace, jobID string) (*nomad.EvaluationDetail, error) {
+	f.listed("newest evaluation", namespace+"/"+jobID)
+
+	return f.newest, f.err
 }
 
 func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {

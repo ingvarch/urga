@@ -31,13 +31,13 @@ var (
 	}
 
 	clientReads = []string{
-		"Address", "Region", "Agent", "Regions", "Datacenters", "AllocationChecks", "Files", "File", "Deployment", "DeploymentAllocations", "Token", "ServiceInstances",
+		"Address", "Region", "Agent", "Regions", "Datacenters", "AllocationChecks", "Files", "File", "Deployment", "JobDeployments", "DeploymentAllocations", "Token", "ServiceInstances",
 		"Jobs", "NextLaunch", "JobSpec", "JobVersions", "JobVersionDiff", "TaskGroups", "PlanJob", "PlanRevert",
 		"DescribeJob", "DescribeAllocation", "DescribeDeployment", "DescribeService",
 		"Allocations", "NodeAllocations", "Allocation", "Logs",
 		"Usage", "AllocationUsage", "TaskUsage", "NodeUsage",
 		"Node", "NodeDetail", "NodeMeta", "NodeMetaSpec", "Nodes", "NodePools", "PoolJobs", "PoolNodes",
-		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "EvaluationAllocations", "FailedPlacement", "Variables", "Variable", "VariableSpec",
+		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "EvaluationAllocations", "FailedPlacement", "NewestEvaluation", "Variables", "Variable", "VariableSpec",
 		"Servers", "Server", "RaftPeers", "Events",
 		"Volumes", "Volume", "DescribeVolume", "Plugins", "Plugin", "DescribePlugin",
 		"Find", "DispatchForm", "ServerHealth",

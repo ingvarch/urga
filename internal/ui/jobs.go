@@ -183,6 +183,7 @@ var jobsKeys = []pageKey[jobsPage]{
 	{press: "u", label: "Revert", do: revertJob, writes: true},
 	{press: "v", label: "Versions", do: openVersions},
 	{press: "l", label: "Logs", do: jobLogs, offered: runsItself},
+	{press: "w", label: "Watch", do: watchJob, offered: runsItself},
 	{press: "e", label: "Edit", do: editJob, writes: true},
 	{press: "p", label: "Placement", do: jobPlacement, offered: jobWaits},
 }
@@ -266,8 +267,9 @@ const (
 	statusFailed  = "failed"
 	statusPaused  = "paused"
 
-	typeService = "service"
-	typeBatch   = "batch"
+	typeService  = "service"
+	typeBatch    = "batch"
+	typeSysbatch = "sysbatch"
 )
 
 // openJobAllocations drills into the job under the cursor: the allocations

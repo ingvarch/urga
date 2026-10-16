@@ -108,6 +108,7 @@ type (
 	deploymentsClient interface {
 		Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error)
 		Deployment(ctx context.Context, namespace, deploymentID string) (nomad.DeploymentDetail, error)
+		JobDeployments(ctx context.Context, namespace, jobID string) ([]nomad.DeploymentDetail, error)
 		DescribeDeployment(ctx context.Context, namespace, deploymentID string) (string, error)
 		PromoteDeployment(ctx context.Context, namespace, deploymentID string) error
 		PromoteGroups(ctx context.Context, namespace, deploymentID string, groups []string) error
@@ -155,6 +156,7 @@ type (
 		Evaluations(ctx context.Context, namespace string) ([]nomad.Evaluation, error)
 		Evaluation(ctx context.Context, namespace, evalID string) (nomad.EvaluationDetail, error)
 		FailedPlacement(ctx context.Context, namespace, jobID string) (nomad.EvaluationDetail, error)
+		NewestEvaluation(ctx context.Context, namespace, jobID string) (*nomad.EvaluationDetail, error)
 	}
 
 	variablesClient interface {

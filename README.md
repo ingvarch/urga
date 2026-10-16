@@ -26,6 +26,8 @@ One binary, no config to write, no browser.
 - Lists jobs, allocations, tasks, task groups, deployments, evaluations,
   services, namespaces, variables, clients, node pools, servers, volumes,
   CSI plugins and the ACL objects.
+- Watches the deploy of a job with `w`: the newest evaluation, the deployment
+  and its allocations, until it ends.
 - Updates the screen when the cluster changes, using the Nomad event stream,
   and shows the stream itself on `:events`.
 - Counts on one screen what needs attention: dead jobs, failed allocations,

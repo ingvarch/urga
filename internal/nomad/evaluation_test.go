@@ -142,3 +142,37 @@ func TestEvaluationAllocations(t *testing.T) {
 	r.Equal("web", allocs[0].TaskGroup)
 	r.Equal("failed", allocs[1].Status)
 }
+
+func TestNewestEvaluation(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `[
+		{"ID": "old", "JobID": "web", "Status": "complete", "CreateIndex": 5},
+		{"ID": "blocked", "JobID": "web", "Status": "blocked", "CreateIndex": 30, "JobModifyIndex": 25,
+		 "FailedTGAllocs": {"web": {"NodesEvaluated": 3, "NodesExhausted": 3}}},
+		{"ID": "middle", "JobID": "web", "Status": "complete", "CreateIndex": 20}
+	]`)
+
+	eval, err := client.NewestEvaluation(context.Background(), "production", "web")
+	r.NoError(err)
+
+	r.Equal("/v1/job/web/evaluations", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+
+	r.NotNil(eval)
+	r.Equal("blocked", eval.ID)
+	// When it was made says it is of a version or not, even for a submit that
+	// changed nothing, which gives the evaluation no job index.
+	r.Equal(uint64(30), eval.CreateIndex)
+	r.Equal(3, eval.Failures[0].NodesExhausted)
+}
+
+func TestNewestEvaluation_WhenTheJobHasNone(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[]`)
+
+	eval, err := client.NewestEvaluation(context.Background(), "production", "web")
+	r.NoError(err)
+	r.Nil(eval)
+}

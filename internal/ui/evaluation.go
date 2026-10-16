@@ -286,7 +286,7 @@ func placementLines(failures []nomad.PlacementFailure) []string {
 			lines = append(lines, "")
 		}
 
-		lines = append(lines, fmt.Sprintf("Task group %q failed to place %s:", failure.Group, plural(failure.Unplaced, "allocation")))
+		lines = append(lines, failureHeading(failure))
 
 		for _, reason := range placementReasons(failure) {
 			lines = append(lines, "  * "+reason)
@@ -294,6 +294,12 @@ func placementLines(failures []nomad.PlacementFailure) []string {
 	}
 
 	return lines
+}
+
+// failureHeading says which group was not placed, and how many of its
+// allocations.
+func failureHeading(failure nomad.PlacementFailure) string {
+	return fmt.Sprintf("Task group %q failed to place %s:", failure.Group, plural(failure.Unplaced, "allocation"))
 }
 
 // placementReasons are the reasons one group was not placed: first the

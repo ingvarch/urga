@@ -4,6 +4,8 @@ import (
 	"context"
 	"sort"
 	"time"
+
+	"github.com/hashicorp/nomad/api"
 )
 
 // Active says the deployment is not over: it can still be promoted, paused
@@ -56,6 +58,29 @@ func (c *Client) Deployment(ctx context.Context, namespace, deploymentID string)
 		return DeploymentDetail{}, err
 	}
 
+	return newDeploymentDetail(d), nil
+}
+
+// JobDeployments are the deployments of a job, the newest first: one for
+// each version that made one. A batch job has none.
+func (c *Client) JobDeployments(ctx context.Context, namespace, jobID string) ([]DeploymentDetail, error) {
+	list, _, err := c.api.Jobs().Deployments(jobID, false, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]DeploymentDetail, 0, len(list))
+
+	for _, d := range list {
+		if d != nil {
+			out = append(out, newDeploymentDetail(d))
+		}
+	}
+
+	return out, nil
+}
+
+func newDeploymentDetail(d *api.Deployment) DeploymentDetail {
 	detail := DeploymentDetail{Deployment: Deployment{
 		ID:                d.ID,
 		JobID:             d.JobID,
@@ -87,7 +112,7 @@ func (c *Client) Deployment(ctx context.Context, namespace, deploymentID string)
 
 	sort.Slice(detail.Groups, func(i, j int) bool { return detail.Groups[i].Name < detail.Groups[j].Name })
 
-	return detail, nil
+	return detail
 }
 
 // DeploymentAllocations are the allocations a deployment placed, with how

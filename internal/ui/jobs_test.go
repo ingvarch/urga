@@ -89,6 +89,7 @@ func TestJobs_TheKeysOfAJob(t *testing.T) {
 		{Key: "<u>", Description: "Revert"},
 		{Key: "<v>", Description: "Versions"},
 		{Key: "<l>", Description: "Logs"},
+		{Key: "<w>", Description: "Watch"},
 		{Key: "<e>", Description: "Edit"},
 	}
 	r.Equal(keys, m.hints())
