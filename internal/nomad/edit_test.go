@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"testing"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -294,4 +296,124 @@ func TestSubmitNamespace(t *testing.T) {
 
 	// A namespace is written to the collection, not to its own path.
 	r.Equal("/v1/namespace", asked.URL.Path)
+}
+
+// variablesSent submits an HCL job with the variables and returns the one
+// variables file the cluster was asked to parse.
+func variablesSent(t *testing.T, vars nomad.JobVariables) string {
+	t.Helper()
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/jobs/parse": `{"ID": "web", "Name": "web"}`,
+		"/v1/jobs":       `{"EvalID": "eval-1"}`,
+	})
+
+	require.NoError(t, client.SubmitJob(context.Background(), "production", "job \"web\" {}", vars, 0))
+
+	text, ok := (*asked)[0].body["Variables"].(string)
+	require.True(t, ok)
+
+	return text
+}
+
+func TestSubmitJob_FlagReplacesTheSameVariableOfAnHCLFile(t *testing.T) {
+	r := require.New(t)
+
+	text := variablesSent(t, nomad.JobVariables{
+		Flags: map[string]string{"image": "v2"},
+		File:  "image = \"v1\"\ncount = 3\n",
+	})
+
+	file, diags := hclsyntax.ParseConfig([]byte(text), "vars.hcl", hcl.InitialPos)
+	r.False(diags.HasErrors(), diags.Error())
+
+	attrs, diags := file.Body.JustAttributes()
+	r.False(diags.HasErrors(), diags.Error())
+	r.Len(attrs, 2)
+
+	image, diags := attrs["image"].Expr.Value(nil)
+	r.False(diags.HasErrors(), diags.Error())
+	r.Equal("v2", image.AsString())
+	r.Contains(text, "count = 3")
+}
+
+func TestSubmitJob_FlagReplacesTheSameVariableOfAJSONFile(t *testing.T) {
+	r := require.New(t)
+
+	text := variablesSent(t, nomad.JobVariables{
+		Flags: map[string]string{"image": "v2"},
+		File:  ` {"image": "v1", "count": 3}`,
+	})
+
+	var got map[string]any
+	r.NoError(json.Unmarshal([]byte(text), &got))
+	r.Equal(map[string]any{"image": "v2", "count": float64(3)}, got)
+}
+
+func TestSubmitJob_FlagTheFileLacksIsAddedAndAFileAloneIsSentAsWritten(t *testing.T) {
+	r := require.New(t)
+
+	text := variablesSent(t, nomad.JobVariables{
+		Flags: map[string]string{"region": "eu"},
+		File:  "count = 3\n",
+	})
+	r.Equal("count  = 3\nregion = \"eu\"\n", text)
+
+	file := "# keep me\ncount   = 3\n"
+	r.Equal(file, variablesSent(t, nomad.JobVariables{File: file}))
+}
+
+func TestSubmitJob_FlagValuesStayTextInAFile(t *testing.T) {
+	r := require.New(t)
+
+	text := variablesSent(t, nomad.JobVariables{
+		Flags: map[string]string{"greeting": "say \"hi\"\n${name} %{ok}\\"},
+		File:  "count = 3\n",
+	})
+
+	file, diags := hclsyntax.ParseConfig([]byte(text), "vars.hcl", hcl.InitialPos)
+	r.False(diags.HasErrors(), diags.Error())
+
+	attrs, _ := file.Body.JustAttributes()
+	value, diags := attrs["greeting"].Expr.Value(nil)
+	r.False(diags.HasErrors(), diags.Error())
+	r.Equal("say \"hi\"\n${name} %{ok}\\", value.AsString())
+}
+
+func TestSubmitJob_VariablesFileThatDoesNotParse(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `{}`)
+
+	err := client.SubmitJob(context.Background(), "production", "job \"web\" {}",
+		nomad.JobVariables{Flags: map[string]string{"a": "b"}, File: "count = = 3"}, 0)
+
+	r.ErrorContains(err, "the variables file of the job does not parse")
+}
+
+func TestSubmitJob_JSONFileKeepsNumbersTheFlagDoesNotTouch(t *testing.T) {
+	text := variablesSent(t, nomad.JobVariables{
+		Flags: map[string]string{"image": "v2"},
+		File:  `{"build": 12345678901234567890, "image": "v1"}`,
+	})
+
+	require.Contains(t, text, "12345678901234567890")
+}
+
+func TestSubmitJob_JSONVariablesFileThatDoesNotParse(t *testing.T) {
+	client, _ := recorder(t, `{}`)
+
+	err := client.SubmitJob(context.Background(), "production", "job \"web\" {}",
+		nomad.JobVariables{
+			Flags: map[string]string{"a": "b"},
+			File:  "{\"image\": \"v1\"}\n{\"count\": 3}\n",
+		}, 0)
+
+	require.ErrorContains(t, err, "the variables file of the job does not parse")
+}
+
+func TestSubmitJob_FileAloneIsSentAsWrittenWhateverItHolds(t *testing.T) {
+	for _, file := range []string{"count = = 3", "{\"a\": 1}\n{\"b\": 2}"} {
+		require.Equal(t, file, variablesSent(t, nomad.JobVariables{File: file}))
+	}
 }

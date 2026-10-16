@@ -10,7 +10,10 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/hashicorp/nomad/api"
+	"github.com/zclconf/go-cty/cty"
 )
 
 // SubmitJob sends a job file to the cluster. HCL and JSON are both taken,
@@ -73,7 +76,12 @@ func (c *Client) parseJob(ctx context.Context, namespace, source string, vars Jo
 		return job, &api.JobSubmission{Source: source, Format: FormatJSON}, nil
 	}
 
-	request := &api.JobsParseRequest{JobHCL: source, Variables: vars.file(), Canonicalize: true}
+	variables, err := vars.file()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	request := &api.JobsParseRequest{JobHCL: source, Variables: variables, Canonicalize: true}
 
 	// The client of the API parses without a namespace, which is the default
 	// one, and a token may be allowed to parse jobs in its own namespace only.
@@ -91,35 +99,53 @@ func (c *Client) parseJob(ctx context.Context, namespace, source string, vars Jo
 }
 
 // file is the variables as one variables file, the only form the cluster
-// parses them in. A flag becomes a line of its own, its value a string: the
-// type of the variable converts it, the way it does for a value typed after
-// -var.
-func (v JobVariables) file() string {
-	var b strings.Builder
-
-	for _, name := range slices.Sorted(maps.Keys(v.Flags)) {
-		fmt.Fprintf(&b, "%s = %s\n", name, hclString(v.Flags[name]))
+// parses them in. A flag replaces the variable of its name in the file, as
+// -var does on the command line, or is added to it. Its value is a string:
+// the type of the variable converts it, the way it does for a value typed
+// after -var.
+func (v JobVariables) file() (string, error) {
+	if len(v.Flags) == 0 {
+		return v.File, nil
 	}
 
-	b.WriteString(v.File)
+	if strings.HasPrefix(strings.TrimSpace(v.File), "{") {
+		return v.jsonFile()
+	}
 
-	return b.String()
+	file, diags := hclwrite.ParseConfig([]byte(v.File), "variables.hcl", hcl.InitialPos)
+	if diags.HasErrors() {
+		return "", fmt.Errorf("the variables file of the job does not parse: %w", diags)
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(v.Flags)) {
+		file.Body().SetAttributeValue(name, cty.StringVal(v.Flags[name]))
+	}
+
+	return string(file.Bytes()), nil
 }
 
-// hclString quotes text as an HCL string. Beyond the escapes, ${ and %{ are
-// doubled: in HCL they start a template, and a flag holds plain text.
-func hclString(text string) string {
-	quoted := strings.NewReplacer(
-		`\`, `\\`,
-		`"`, `\"`,
-		"\n", `\n`,
-		"\r", `\r`,
-		"\t", `\t`,
-		"${", "$${",
-		"%{", "%%{",
-	).Replace(text)
+// jsonFile sets the flags in a variables file written as JSON.
+func (v JobVariables) jsonFile() (string, error) {
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(v.File), &values); err != nil {
+		return "", fmt.Errorf("the variables file of the job does not parse: %w", err)
+	}
 
-	return `"` + quoted + `"`
+	for name, value := range v.Flags {
+		text, err := json.Marshal(value)
+		if err != nil {
+			return "", err
+		}
+
+		values[name] = text
+	}
+
+	out, err := json.Marshal(values)
+	if err != nil {
+		return "", err
+	}
+
+	return string(out), nil
 }
 
 // NamespaceSpec is a namespace as a file, which is how it is edited.
