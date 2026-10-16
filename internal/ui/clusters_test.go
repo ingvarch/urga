@@ -1,6 +1,7 @@
 package ui
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"errors"
 	"testing"
 
@@ -30,7 +31,7 @@ func (c *twoClusters) connect(name string) (Connection, error) {
 		return Connection{Name: "prod", Color: "red", ReadOnly: true, Client: c.prod, Namespace: "payments"}, nil
 	}
 
-	return Connection{Name: "dev", Client: c.dev}, nil
+	return Connection{Name: name, Client: c.dev}, nil
 }
 
 func onDev(t *testing.T) (Model, *twoClusters) {
@@ -204,4 +205,124 @@ func TestClusters_AnAnswerOfTheClusterLeftIsDropped(t *testing.T) {
 
 	m, _ = m.update(connectionMsg{connection: m.connection, msg: agentMsg{Version: "2.0.7"}})
 	r.Contains(plain(m.render()), "2.0.7")
+}
+
+// askedForProdThenQa is a session on dev that has asked for prod and then for qa,
+// and holds the answers of both, still to arrive.
+func askedForProdThenQa(t *testing.T) (Model, *twoClusters, tea.Msg, tea.Msg) {
+	t.Helper()
+
+	m, clusters := onDev(t)
+	m.opts.Clusters = append(m.opts.Clusters, "qa")
+
+	m, prod := m.switchCluster("prod")
+	askedProd := prod()
+	m, qa := m.switchCluster("qa")
+
+	return m, clusters, askedProd, qa()
+}
+
+func TestClusters_TheClusterAskedForLastWinsWhenAnswersComeOutOfOrder(t *testing.T) {
+	r := require.New(t)
+
+	m, _, prod, qa := askedForProdThenQa(t)
+
+	m, _ = m.update(qa)
+	m, _ = m.update(prod)
+
+	r.Equal("qa", m.opts.Cluster)
+	r.Contains(plain(m.render()), "Connected to qa.")
+	r.NotContains(plain(m.render()), "Connected to prod.")
+}
+
+func TestClusters_AnEarlierConnectThatFailsLateIsNotShown(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+	m.opts.Clusters = append(m.opts.Clusters, "qa")
+
+	clusters.refuse = errors.New("cluster \"prod\": NOMAD_TOKEN_PROD is not set")
+	m, prod := m.switchCluster("prod")
+	failed := prod()
+
+	clusters.refuse = nil
+	m, qa := m.switchCluster("qa")
+
+	m, _ = m.update(qa())
+	m, _ = m.update(failed)
+
+	r.Equal("qa", m.opts.Cluster)
+	r.NotContains(plain(m.render()), "NOMAD_TOKEN_PROD")
+}
+
+func TestClusters_NamespacesOfTheClusterLeftAreForgotten(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onDev(t)
+	m, _ = m.update(connectionMsg{connection: m.connection, msg: namespacesMsg{{Name: "staging"}}})
+
+	// Connected to prod; its list of namespaces has not come yet.
+	m, connect := m.switchCluster("prod")
+	m, _ = m.update(connect())
+	r.Equal("prod", m.opts.Cluster)
+
+	m = typeCommand(m, "jobs staging")
+	r.Contains(plain(m.render()), "no such namespace: staging")
+
+	// Opened without running its commands: the render is before the new list.
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "ns")
+	m, _ = m.update(enter())
+	r.NotContains(plain(m.render()), "staging")
+}
+
+func TestClusters_AskingForTheClusterInUseDropsTheConnectPending(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onDev(t)
+	m, prod := m.switchCluster("prod")
+	asked := prod()
+
+	m = typeCommand(m, "ctx dev")
+	m, _ = m.update(asked)
+
+	r.Equal("dev", m.opts.Cluster)
+	r.Contains(plain(m.render()), "Staying on dev.")
+	r.NotContains(plain(m.render()), "Connecting")
+}
+
+func TestClusters_PickingTheClusterInUseDropsTheConnectPending(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onDev(t)
+	m, prod := m.switchCluster("prod")
+	asked := prod()
+
+	m = typeCommand(m, "ctx")
+	m, cmd := m.update(enter())
+	m = playOut(m, cmd)
+	m, _ = m.update(asked)
+
+	r.Equal("dev", m.opts.Cluster)
+	r.Contains(plain(m.render()), "Staying on dev.")
+}
+
+func TestClusters_AskingForTheClusterInUseWithNothingPendingDoesNothing(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+	m = typeCommand(m, "ctx dev")
+
+	r.Empty(clusters.connected)
+	r.NotContains(plain(m.render()), "Staying")
+}
+
+func TestClusters_AnAnswerClearsTheConnectPending(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onDev(t)
+	m = typeCommand(m, "ctx prod")
+	m = typeCommand(m, "ctx prod")
+
+	r.NotContains(plain(m.render()), "Staying")
 }

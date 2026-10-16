@@ -140,7 +140,7 @@ func TestToken_OfTheClusterLeftGoesWithIt(t *testing.T) {
 	r.Contains(plain(statusLine(m)), "Token: dev-bot")
 
 	// Connected to prod, before prod said whose token it is.
-	m, _ = m.update(connectedMsg(Connection{Name: "prod", Client: clusters.prod}))
+	m, _ = m.update(connectedMsg{conn: Connection{Name: "prod", Client: clusters.prod}})
 
 	r.NotContains(plain(statusLine(m)), "dev-bot")
 }
@@ -152,7 +152,7 @@ func TestToken_ARefusalOfTheClusterLeftIsNotExplainedByTheNext(t *testing.T) {
 	m, clusters := onDev(t)
 	m, _ = m.update(errMsg{err: forbidden(t)})
 
-	m, _ = m.update(connectedMsg(Connection{Name: "prod", Client: clusters.prod}))
+	m, _ = m.update(connectedMsg{conn: Connection{Name: "prod", Client: clusters.prod}})
 	m, _ = m.update(tokenMsg(nomad.Token{Anonymous: true}))
 
 	r.NotContains(plain(statusLine(m)), "no token is set")
