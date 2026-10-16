@@ -268,7 +268,7 @@ func TestClient_AnAnswerClearsTheErrorAndAsksAgain(t *testing.T) {
 	m, _ := pressed(t, key('a'))
 
 	m, _ = m.update(errMsg{err: errTest})
-	m, _ = m.update(pollMsg{})
+	m, _ = m.update(pollMsg{tick: m.pollTick})
 
 	m, cmd := m.update(nodeDetailMsg(clientDetail()))
 
@@ -283,7 +283,7 @@ func TestClient_WhatAnotherMachineSaysIsNotShownHere(t *testing.T) {
 	r := require.New(t)
 
 	m, _ := pressed(t, key('a'))
-	m, _ = m.update(pollMsg{})
+	m, _ = m.update(pollMsg{tick: m.pollTick})
 
 	other := clientDetail()
 	other.ID = "node-9"

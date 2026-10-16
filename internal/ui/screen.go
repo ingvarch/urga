@@ -423,6 +423,9 @@ func (m Model) enter() (Model, tea.Cmd) {
 	// what it shows, if the cluster can stream.
 	m.watch = m.watch.end()
 
+	// The timer of the screen that was left may be a slow one.
+	m = m.restartPoll()
+
 	return m, tea.Batch(m.fetch(), stream, m.watchScreen())
 }
 

@@ -208,7 +208,7 @@ func (m Model) keepingUp(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return taken(m.takeError(msg.err))
 
 	case pollMsg:
-		return taken(m.poll())
+		return taken(m.poll(msg))
 
 	case usageMsg:
 		return taken(m.keepClusterUsage(msg))
@@ -232,7 +232,7 @@ func (m Model) keepingUp(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return taken(m.settled())
 
 	case watchEndedMsg:
-		return m.watchEnded(msg), nil, true
+		return taken(m.watchEnded(msg))
 
 	case flashOverMsg:
 		return m.clearFlash(msg), nil, true

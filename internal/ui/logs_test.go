@@ -659,7 +659,7 @@ func TestLogs_DoNotPoll(t *testing.T) {
 	m := openLog(t, client, &nomad.LogStream{Lines: make(chan string)})
 
 	// What a task writes arrives on the stream: a poll would open it again.
-	_, cmd := m.update(pollMsg{})
+	_, cmd := m.update(pollMsg{tick: m.pollTick})
 	r.Nil(cmd)
 }
 

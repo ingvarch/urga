@@ -246,7 +246,7 @@ func TestServer_AnAnswerClearsTheErrorAndAsksAgain(t *testing.T) {
 	m, _ := serverScreen(t)
 
 	m, _ = m.update(errMsg{err: errTest})
-	m, _ = m.update(pollMsg{})
+	m, _ = m.update(pollMsg{tick: m.pollTick})
 
 	m, cmd := m.update(serverMsg(aServer()))
 
@@ -263,7 +263,7 @@ func TestServer_AnAnswerAfterTheServerWasLeftIsDropped(t *testing.T) {
 	m, _ := serverScreen(t)
 
 	m, _ = m.update(escape())
-	m, _ = m.update(pollMsg{})
+	m, _ = m.update(pollMsg{tick: m.pollTick})
 	before := plain(m.render())
 
 	m, cmd := m.update(serverMsg(nomad.Server{Name: "server-09.global"}))

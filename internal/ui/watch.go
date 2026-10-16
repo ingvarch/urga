@@ -168,17 +168,18 @@ func (m Model) settled() (Model, tea.Cmd) {
 }
 
 // watchEnded drops the stream that stopped.
-func (m Model) watchEnded(msg watchEndedMsg) Model {
+func (m Model) watchEnded(msg watchEndedMsg) (Model, tea.Cmd) {
 	// A cluster that does not stream is polled, as it was before. No
-	// error is shown over the rows, and the poll timer it already has
-	// keeps running.
+	// error is shown over the rows.
 	if !m.watch.current(msg.id) {
-		return m
+		return m, nil
 	}
 
 	m.watch = m.watch.end()
 
-	return m.noteWatchEnded(msg.err)
+	// The timer set while the stream was up is slow: the screen polls at
+	// its own pace from now on.
+	return m.noteWatchEnded(msg.err).restartPoll().schedulePoll()
 }
 
 // noteWatchEnded warns that the screen is no longer live, when urga did not

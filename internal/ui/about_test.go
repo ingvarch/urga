@@ -182,7 +182,7 @@ func TestAbout_AsksForTheReleasesOnce(t *testing.T) {
 	for range 3 {
 		var cmd tea.Cmd
 
-		m, cmd = m.update(pollMsg{})
+		m, cmd = m.update(pollMsg{tick: m.pollTick})
 		m = playOut(m, cmd)
 	}
 

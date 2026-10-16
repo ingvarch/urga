@@ -564,7 +564,7 @@ func TestPlan_DoesNotPoll(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
-	_, cmd := m.update(pollMsg{})
+	_, cmd := m.update(pollMsg{tick: m.pollTick})
 	r.Nil(cmd)
 }
 

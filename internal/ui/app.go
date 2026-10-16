@@ -135,7 +135,7 @@ type (
 
 	agentMsg nomad.Agent
 	errMsg   struct{ err error }
-	pollMsg  struct{}
+	pollMsg  struct{ tick int }
 )
 
 // Model is the whole interface. It owns the screen, the keyboard and the last
@@ -193,6 +193,10 @@ type Model struct {
 	// answer would otherwise schedule one, and a screen that gets answers
 	// from several requests would end up with a timer per answer.
 	polling bool
+
+	// pollTick numbers the poll timers, so that one set for a screen that
+	// is gone, or at a rate it no longer has, asks for nothing when it fires.
+	pollTick int
 
 	// watch is the event stream that signals when the screen is stale.
 	watch watchState
@@ -648,12 +652,27 @@ func (m Model) schedulePoll() (Model, tea.Cmd) {
 	}
 
 	m.polling = true
+	tick := m.pollTick
 
-	return m, tea.Tick(m.pollEvery(), func(time.Time) tea.Msg { return pollMsg{} })
+	return m, tea.Tick(m.pollEvery(), func(time.Time) tea.Msg { return pollMsg{tick: tick} })
+}
+
+// restartPoll drops the timer that is running, so that the next schedule
+// uses the rate the screen has now. The dropped timer asks for nothing
+// when it fires.
+func (m Model) restartPoll() Model {
+	m.pollTick++
+	m.polling = false
+
+	return m
 }
 
 // poll asks for the screen again.
-func (m Model) poll() (Model, tea.Cmd) {
+func (m Model) poll(msg pollMsg) (Model, tea.Cmd) {
+	if msg.tick != m.pollTick {
+		return m, nil
+	}
+
 	// The timer has fired, so the next one may be set. The answer to this
 	// request sets it.
 	m.polling = false

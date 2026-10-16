@@ -598,7 +598,7 @@ func TestJobLogs_DoNotPoll(t *testing.T) {
 	m, _ := oneTask(t)
 
 	// What a task writes arrives over its stream: a poll would open it again.
-	_, cmd := m.update(pollMsg{})
+	_, cmd := m.update(pollMsg{tick: m.pollTick})
 	r.Nil(cmd)
 }
 

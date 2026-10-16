@@ -1200,7 +1200,7 @@ func TestModel_PollsTheCluster(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs()}
 	m := newTestModel(client)
 
-	_, cmd := m.update(pollMsg{})
+	_, cmd := m.update(pollMsg{tick: m.pollTick})
 	r.NotNil(cmd)
 
 	// A poll asks the cluster and comes back as a message. Nothing writes to
