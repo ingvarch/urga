@@ -65,7 +65,7 @@ func TestReadOnly_AWriteKeyChangesNothing(t *testing.T) {
 			r.Equal(shellCommand{}, shell.opened, "%s on the %s screen", k.press, name)
 
 			// A key that does nothing and shows no message looks broken.
-			r.Contains(plain(m.render()), "read-only", "%s on the %s screen", k.press, name)
+			r.Contains(plain(m.render()), "read-only: ", "%s on the %s screen", k.press, name)
 		}
 	}
 }

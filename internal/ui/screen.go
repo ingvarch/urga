@@ -151,15 +151,28 @@ func (m Model) withheld(k keyHint) bool {
 }
 
 // withheldKey is the key of the open page that read-only mode hides, when
-// the press is one.
+// the press is one. Of several keys on one press, the one the page offers
+// now comes first.
 func (m Model) withheldKey(press string) (keyHint, bool) {
+	var first keyHint
+
+	found := false
+
 	for _, k := range m.pageKeys() {
-		if k.press == press && m.withheld(k) {
+		if k.press != press || !m.withheld(k) {
+			continue
+		}
+
+		if k.offered {
 			return k, true
+		}
+
+		if !found {
+			first, found = k, true
 		}
 	}
 
-	return keyHint{}, false
+	return first, found
 }
 
 // hints are the keys the open resource answers. Keys that work everywhere

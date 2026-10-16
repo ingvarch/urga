@@ -32,6 +32,21 @@ func TestUntagVersion(t *testing.T) {
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 }
 
+func TestMarkStable(t *testing.T) {
+	r := require.New(t)
+
+	for stable := range map[bool]bool{true: true, false: true} {
+		client, asked := clusterServer(t, map[string]string{"/v1/job/web/stable": `{}`})
+
+		r.NoError(client.MarkStable(context.Background(), "production", "web", 3, stable))
+
+		sent := (*asked)[0]
+		r.Equal("production", sent.namespace)
+		r.InDelta(3, sent.body["JobVersion"], 0)
+		r.Equal(stable, sent.body["Stable"] == true)
+	}
+}
+
 func TestSetAllocHealth(t *testing.T) {
 	r := require.New(t)
 

@@ -67,6 +67,7 @@ type (
 		EvaluateJob(ctx context.Context, namespace, jobID string) error
 		TagVersion(ctx context.Context, namespace, jobID string, version uint64, name string) error
 		UntagVersion(ctx context.Context, namespace, jobID, name string) error
+		MarkStable(ctx context.Context, namespace, jobID string, version uint64, stable bool) error
 		DispatchForm(ctx context.Context, namespace, jobID string) (nomad.DispatchForm, error)
 		DispatchJob(ctx context.Context, namespace, jobID string, meta map[string]string, payload []byte) (string, error)
 		NextLaunch(ctx context.Context, namespace, jobID string) (time.Time, error)

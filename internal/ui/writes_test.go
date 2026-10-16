@@ -24,7 +24,7 @@ var (
 		"DrainNode", "SetNodeEligible",
 		"PromoteDeployment", "FailDeployment",
 		"DetachVolume", "ReleaseClaim", "DispatchJob", "EvaluateJob",
-		"TagVersion", "UntagVersion", "SetAllocHealth", "ReleaseLock",
+		"TagVersion", "UntagVersion", "MarkStable", "SetAllocHealth", "ReleaseLock",
 		"SubmitACL", "CreateACL", "DeleteACL", "SubmitScheduler",
 		"DeleteVariable", "CreateNamespace", "DeleteNamespace",
 		"PurgeJob", "PurgeNode", "CollectNode", "CollectGarbage",

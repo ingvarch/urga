@@ -266,6 +266,7 @@ type fakeClient struct {
 	// and whether healthy; releasedLock the last lock released.
 	tagged       string
 	untagged     string
+	stabled      string
 	marked       []string
 	markedHealth bool
 	releasedLock string
@@ -715,6 +716,19 @@ func (f *fakeClient) TagVersion(_ context.Context, namespace, jobID string, vers
 func (f *fakeClient) UntagVersion(_ context.Context, namespace, jobID, name string) error {
 	f.wrote("UntagVersion")
 	f.askedNamespace, f.untagged = namespace, jobID+"="+name
+
+	return f.actionErr
+}
+
+func (f *fakeClient) MarkStable(_ context.Context, namespace, jobID string, version uint64, stable bool) error {
+	f.wrote("MarkStable")
+	f.stabled = fmt.Sprintf("%s/%s@%d=%t", namespace, jobID, version, stable)
+
+	for i := range f.versions {
+		if f.versions[i].Version == version {
+			f.versions[i].Stable = stable
+		}
+	}
 
 	return f.actionErr
 }

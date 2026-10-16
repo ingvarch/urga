@@ -157,6 +157,10 @@ version carries one tag, so on a tagged version the line starts with its tag,
 and a new name renames it. `ctrl-t` takes the tag off, after you confirm.
 Tags need Nomad 1.9 or later.
 
+`s` marks the version under the cursor stable, or unstable when it is. When
+a deployment fails and reverts by itself, Nomad goes back to the newest
+stable version.
+
 ## Why a job is not placed
 
 When a job or task group has allocations waiting to be placed, `p` opens the
