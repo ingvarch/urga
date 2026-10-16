@@ -56,6 +56,7 @@ Other commands:
 | `ctx` | List the clusters and pick one. |
 | `find web` | Find anything in the cluster by its name or ID. `search` works too. See [Find](#find). |
 | `gc` | Collect the garbage of the cluster now, after you confirm: dead jobs, evaluations and allocations that ended, and clients that are down. Not in read-only mode. |
+| `run web.nomad.hcl` | Plan a job file from your disk as a new job; `y` submits it. Not in read-only mode. See [Creating a job](jobs.md#creating-a-job). |
 | `q`, `quit`, `exit` | Quit. |
 
 In a list of regions, datacenters or clusters, the current one is marked.

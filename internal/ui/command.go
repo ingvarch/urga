@@ -74,6 +74,9 @@ var findNames = []string{"find", "search"}
 // last.
 var gcNames = []string{"gc"}
 
+// runNames are the words that plan a job file, offered after the others.
+var runNames = []string{"run"}
+
 var scopeAliases = map[string]scope{
 	"ctx":     scopeCluster,
 	"cluster": scopeCluster,
@@ -97,6 +100,9 @@ type command struct {
 
 	// collecting says the line collects the garbage of the cluster.
 	collecting bool
+
+	// running says the line plans a job file, text is its path.
+	running bool
 }
 
 // parseCommand reads "<resource> [namespace]", for example "jobs production",
@@ -119,11 +125,16 @@ func parseCommand(input string) (command, bool) {
 		return command{bail: true}, true
 	}
 
-	// What to find is the rest of the line, spaces and all.
-	if slices.Contains(findNames, word) {
-		rest := strings.TrimPrefix(strings.TrimSpace(input), fields[0])
+	// What to find, and the path to run, is the rest of the line, spaces and
+	// all.
+	rest := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(input), fields[0]))
 
-		return command{finding: true, text: strings.TrimSpace(rest)}, true
+	if slices.Contains(findNames, word) {
+		return command{finding: true, text: rest}, true
+	}
+
+	if slices.Contains(runNames, word) {
+		return command{running: true, text: rest}, true
 	}
 
 	if slices.Contains(gcNames, word) {
@@ -200,7 +211,7 @@ func matchingCommands(typed string) []string {
 		matches = append(matches, nameOf(named))
 	}
 
-	for _, name := range slices.Concat(commandNames, scopeNames, findNames[:1], gcNames) {
+	for _, name := range slices.Concat(commandNames, scopeNames, findNames[:1], gcNames, runNames) {
 		if strings.HasPrefix(name, word) && !slices.Contains(matches, name) {
 			matches = append(matches, name)
 		}
