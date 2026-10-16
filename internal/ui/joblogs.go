@@ -42,9 +42,9 @@ type (
 )
 
 // logScope is what the logs are read of: the allocations of a job, of one
-// group of it, of a client, or of a deployment.
+// group of it, of a client, of a deployment, or of an evaluation.
 type logScope struct {
-	namespace, jobID, group string
+	namespace, jobID, group, evalID string
 
 	// nodeID and deploymentID read the allocations of a client or of a
 	// deployment rather than those of the job; label names the client.
@@ -133,7 +133,7 @@ type logsClient interface {
 }
 
 // allocsOf reads the allocations of a list: of a volume, of a deployment, of
-// a client, of a job, or of the namespace.
+// an evaluation, of a client, of a job, or of the namespace.
 func allocsOf(client logsClient, s logScope) func(ctx context.Context) ([]nomad.Alloc, error) {
 	return func(ctx context.Context) ([]nomad.Alloc, error) {
 		switch {
@@ -143,6 +143,8 @@ func allocsOf(client logsClient, s logScope) func(ctx context.Context) ([]nomad.
 			return v.Allocs, err
 		case s.deploymentID != "":
 			return client.DeploymentAllocations(ctx, s.namespace, s.deploymentID)
+		case s.evalID != "":
+			return client.EvaluationAllocations(ctx, s.namespace, s.evalID)
 		case s.nodeID != "":
 			return client.NodeAllocations(ctx, s.nodeID)
 		}
@@ -211,6 +213,8 @@ func scopeName(scope logScope) string {
 		return "the list of " + scope.fault.String() + " allocations"
 	case scope.deploymentID != "":
 		return "deployment " + shortID(scope.deploymentID)
+	case scope.evalID != "":
+		return "evaluation " + shortID(scope.evalID)
 	}
 
 	return "the namespace"

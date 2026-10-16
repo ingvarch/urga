@@ -84,6 +84,7 @@ type (
 		Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error)
 		NodeAllocations(ctx context.Context, nodeID string) ([]nomad.Alloc, error)
 		DeploymentAllocations(ctx context.Context, namespace, deploymentID string) ([]nomad.Alloc, error)
+		EvaluationAllocations(ctx context.Context, namespace, evalID string) ([]nomad.Alloc, error)
 		Allocation(ctx context.Context, namespace, allocID string) (nomad.Alloc, error)
 		DescribeAllocation(ctx context.Context, namespace, allocID string) (string, error)
 		AllocationUsage(ctx context.Context, namespace, allocID string) (nomad.ResourceUse, error)

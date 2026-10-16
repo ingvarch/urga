@@ -183,7 +183,8 @@ nothing of a system job.
 
 `:evaluations` lists the evaluations of the namespace. `enter` opens one: its
 status, what triggered it, related evaluations, and the placement failures, if
-there are any.
+there are any. `a`, on the list or on the evaluation, opens the allocations it
+placed or changed.
 
 ## Deployments
 

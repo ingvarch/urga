@@ -18,7 +18,13 @@ type describeMsg struct {
 	// lines are a description urga drew, some of it in a colour of its
 	// own; it takes the place of content.
 	lines []paintedLine
+
+	// evaluation is the evaluation the description shows, when it is one.
+	evaluation evalRef
 }
+
+// evalRef names an evaluation by where it lives; the zero one names none.
+type evalRef struct{ namespace, id string }
 
 // The screens that can be described each request what the cursor is on, as
 // the cluster returns it. With nothing under the cursor, nothing is sent.
@@ -88,7 +94,7 @@ func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
 		text = paintedText(msg.lines)
 	}
 
-	return m.push(screen{page: describePage{label: msg.label, content: text.textContent}})
+	return m.push(screen{page: describePage{label: msg.label, content: text.textContent, evaluation: msg.evaluation}})
 }
 
 // describePage is a description: what the cluster says of a resource, or
@@ -96,11 +102,14 @@ func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
 type describePage struct {
 	noAnswers
 
-	label   string
-	content textContent
+	label      string
+	content    textContent
+	evaluation evalRef
 }
 
-var describeKeys = textKeys[describePage]()
+var describeKeys = append([]pageKey[describePage]{
+	{press: "a", label: "Allocations", do: openDescribedEvalAllocs, offered: showsEvaluation},
+}, textKeys[describePage]()...)
 
 func (p describePage) title(env, int) string    { return p.label }
 func (describePage) titles() []string           { return nil }

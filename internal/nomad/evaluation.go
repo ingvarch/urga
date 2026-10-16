@@ -155,3 +155,13 @@ func (c *Client) FailedPlacement(ctx context.Context, namespace, jobID string) (
 
 	return newEvaluationDetail(newest), nil
 }
+
+// EvaluationAllocations are the allocations an evaluation placed or changed.
+func (c *Client) EvaluationAllocations(ctx context.Context, namespace, evalID string) ([]Alloc, error) {
+	stubs, _, err := c.api.Evaluations().Allocations(evalID, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	return allocsOf(stubs), nil
+}

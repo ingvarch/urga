@@ -107,7 +107,10 @@ func evaluationColor(e nomad.Evaluation) color.Color {
 	return nil
 }
 
-var evaluationsKeys = []pageKey[evaluationsPage]{{press: "enter", label: "Details", do: openEvaluation}}
+var evaluationsKeys = []pageKey[evaluationsPage]{
+	{press: "enter", label: "Details", do: openEvaluation},
+	{press: "a", label: "Allocations", do: openListedEvalAllocs},
+}
 
 func (p evaluationsPage) keys(e env) []keyHint { return hintsOf(p, e, evaluationsKeys) }
 
@@ -126,16 +129,42 @@ func openEvaluation(p evaluationsPage, e env) (evaluationsPage, outcome) {
 	return p, outcome{cmd: describeEvaluation(e.client, eval.Namespace, eval.ID)}
 }
 
+// openListedEvalAllocs opens the allocations the evaluation under the cursor
+// placed or changed.
+func openListedEvalAllocs(p evaluationsPage, e env) (evaluationsPage, outcome) {
+	eval, ok := pickedFrom(e, p.visible(e))
+	if !ok {
+		return p, outcome{}
+	}
+
+	return p, then(openMsg{evalAllocations(evalRef{eval.Namespace, eval.ID})})
+}
+
+// openDescribedEvalAllocs does the same from the screen of the evaluation.
+func openDescribedEvalAllocs(p describePage, _ env) (describePage, outcome) {
+	return p, then(openMsg{evalAllocations(p.evaluation)})
+}
+
+func showsEvaluation(p describePage, _ env) bool { return p.evaluation != evalRef{} }
+
+func evalAllocations(eval evalRef) page {
+	return allocationsPage{namespace: eval.namespace, evalID: eval.id}
+}
+
 // describeEvaluation reads one evaluation in full.
 func describeEvaluation(client evaluationsClient, namespace, id string) tea.Cmd {
-	return describe(fmt.Sprintf("Evaluation %s", shortID(id)), func(ctx context.Context) (string, error) {
-		detail, err := client.Evaluation(ctx, namespace, id)
-		if err != nil {
-			return "", err
-		}
+	return request(func(ctx context.Context) (nomad.EvaluationDetail, error) {
+		return client.Evaluation(ctx, namespace, id)
+	}, func(eval nomad.EvaluationDetail) tea.Msg { return evaluationScreen(eval) })
+}
 
-		return evaluationText(detail), nil
-	})
+// evaluationScreen is an evaluation as a page, with its namespace and ID for the allocations key.
+func evaluationScreen(eval nomad.EvaluationDetail) describeMsg {
+	return describeMsg{
+		label:      fmt.Sprintf("Evaluation %s", shortID(eval.ID)),
+		content:    evaluationText(eval),
+		evaluation: evalRef{eval.Namespace, eval.ID},
+	}
 }
 
 // jobWaits and groupWaits say the row under the cursor has allocations that
@@ -175,23 +204,28 @@ func groupPlacement(p taskGroupsPage, e env) (taskGroupsPage, outcome) {
 // placementOf opens the newest evaluation of the job that failed to place
 // something.
 func placementOf(client evaluationsClient, namespace, jobID string) tea.Cmd {
-	return describe(fmt.Sprintf("Placement (Job: %s)", jobID), func(ctx context.Context) (string, error) {
+	label := fmt.Sprintf("Placement (Job: %s)", jobID)
+
+	return request(func(ctx context.Context) (describeMsg, error) {
 		eval, err := client.FailedPlacement(ctx, namespace, jobID)
 
 		// Then the page explains the missing evaluation: the scheduler may not
 		// have got to the job yet, or its evaluations were collected.
 		if errors.Is(err, nomad.ErrNoFailures) {
-			return fmt.Sprintf(
+			return describeMsg{label: label, content: fmt.Sprintf(
 				"No evaluation of %s says why it waits.\n\n"+
-					"The scheduler may not have got to it yet, or its evaluations were collected.", jobID), nil
+					"The scheduler may not have got to it yet, or its evaluations were collected.", jobID)}, nil
 		}
 
 		if err != nil {
-			return "", err
+			return describeMsg{}, err
 		}
 
-		return evaluationText(eval), nil
-	})
+		screen := evaluationScreen(eval)
+		screen.label = label
+
+		return screen, nil
+	}, func(msg describeMsg) tea.Msg { return msg })
 }
 
 // evaluationText is an evaluation as a page: its fields, why each group it

@@ -122,3 +122,23 @@ func TestFailedPlacement_WhenNoneFailed(t *testing.T) {
 	_, err := client.FailedPlacement(context.Background(), "production", "web")
 	r.ErrorIs(err, nomad.ErrNoFailures)
 }
+
+func TestEvaluationAllocations(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `[
+		{"ID": "a1", "TaskGroup": "web", "JobID": "web", "ClientStatus": "running"},
+		{"ID": "a2", "TaskGroup": "api", "JobID": "web", "ClientStatus": "failed"}
+	]`)
+
+	allocs, err := client.EvaluationAllocations(context.Background(), "production", "e1")
+	r.NoError(err)
+
+	r.Equal("/v1/evaluation/e1/allocations", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+
+	r.Len(allocs, 2)
+	r.Equal("a1", allocs[0].ID)
+	r.Equal("web", allocs[0].TaskGroup)
+	r.Equal("failed", allocs[1].Status)
+}
