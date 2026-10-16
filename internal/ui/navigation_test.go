@@ -279,7 +279,7 @@ func allocationLists(t *testing.T) map[string]Model {
 func TestAllocations_EachListAnswersItsOwnKeys(t *testing.T) {
 	r := require.New(t)
 
-	allocKeys := []string{"enter Tasks", "d Describe", "r Restart", "ctrl+k Stop", "l Logs", "space Mark", "ctrl+a Mark All"}
+	allocKeys := []string{"enter Tasks", "d Describe", "r Restart", "ctrl+r Restart All", "ctrl+k Stop", "l Logs", "space Mark", "ctrl+a Mark All"}
 
 	want := map[string][]string{
 		"job": allocKeys,

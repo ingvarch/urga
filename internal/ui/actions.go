@@ -196,7 +196,10 @@ func revertJob(p jobsPage, e env) (jobsPage, outcome) {
 // and the report name it.
 type allocAction struct {
 	verb, done string
-	do         func(context.Context, nomad.Alloc) error
+
+	// also ends the question: what the action does beyond what the verb says.
+	also string
+	do   func(context.Context, nomad.Alloc) error
 }
 
 // restarting restarts every task of an allocation.
@@ -204,6 +207,17 @@ func restarting(client allocsClient) allocAction {
 	return allocAction{verb: "restart", done: "Restarted", do: func(ctx context.Context, alloc nomad.Alloc) error {
 		return client.RestartAllocation(ctx, alloc.Namespace, alloc.ID)
 	}}
+}
+
+// restartingAll restarts every task of an allocation, the finished prestart
+// tasks and the sidecars among them.
+func restartingAll(client allocsClient) allocAction {
+	return allocAction{
+		verb: "restart every task of", done: "Restarted every task of", also: ", prestart and sidecar tasks too",
+		do: func(ctx context.Context, alloc nomad.Alloc) error {
+			return client.RestartAllTasks(ctx, alloc.Namespace, alloc.ID)
+		},
+	}
 }
 
 // stopping stops an allocation. The scheduler places a new one when the job
@@ -221,7 +235,7 @@ func (a allocAction) asked(allocs []nomad.Alloc) askMsg {
 	label := allocLabel(allocs)
 
 	return askMsg{
-		question: fmt.Sprintf("Really %s %s?", a.verb, label),
+		question: fmt.Sprintf("Really %s %s%s?", a.verb, label, a.also),
 		apply:    each(a.done, label, allocs, allocMark, a.do),
 	}
 }

@@ -138,6 +138,7 @@ func allocKeys[P allocLister]() []pageKey[P] {
 		{press: "enter", label: "Tasks", do: openAllocTasks[P]},
 		{press: "d", label: "Describe", do: describeAlloc[P]},
 		{press: "r", label: "Restart", do: restartAllocs[P], writes: true},
+		{press: "ctrl+r", label: "Restart All", do: restartAllTasks[P], writes: true},
 		{press: "ctrl+k", label: "Stop", do: stopAllocs[P], writes: true},
 		{press: "l", label: "Logs", do: allocLogs[P]},
 		markKey[P](),
@@ -177,6 +178,12 @@ func allocDescription(client allocsClient, alloc nomad.Alloc) tea.Cmd {
 // restartAllocs restarts every task of the allocations the key acts on.
 func restartAllocs[P allocLister](p P, e env) (P, outcome) {
 	return p, eachAllocAsked(e, p.visible(e), restarting(e.client))
+}
+
+// restartAllTasks restarts every task, finished ones included, of the
+// allocations the key acts on.
+func restartAllTasks[P allocLister](p P, e env) (P, outcome) {
+	return p, eachAllocAsked(e, p.visible(e), restartingAll(e.client))
 }
 
 // stopAllocs stops the allocations the key acts on. The scheduler places new

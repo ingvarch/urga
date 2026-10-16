@@ -81,6 +81,7 @@ type fakeClient struct {
 	stopped       int
 	started       int
 	restarted     int
+	restartedAll  int
 	stoppedAllocs int
 	drained       bool
 	drainCalls    int
@@ -781,6 +782,14 @@ func (f *fakeClient) ScaleJob(_ context.Context, namespace, jobID, group string,
 	f.askedNamespace, f.askedID, f.askedGroup = namespace, jobID, group
 	f.scaled++
 	f.scaledTo = count
+
+	return f.actionErr
+}
+
+func (f *fakeClient) RestartAllTasks(_ context.Context, namespace, allocID string) error {
+	f.wrote("RestartAllTasks")
+	f.askedNamespace, f.askedID = namespace, allocID
+	f.restartedAll++
 
 	return f.actionErr
 }

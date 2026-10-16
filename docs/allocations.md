@@ -28,8 +28,9 @@ A running allocation whose task was restarted or killed for its memory in the
 last hour is painted in the attention color, and `!` keeps it: that is a
 crash loop going on now. A restart of a month ago leaves the row as it is.
 
-`r` restarts an allocation and `ctrl-k` stops it, after you confirm. With
-several allocations marked, they act on all of them. When you stop an
+`r` restarts the tasks of an allocation that run, `ctrl-r` restarts all of
+its tasks, the prestart and sidecar ones too, and `ctrl-k` stops it, after
+you confirm. With several allocations marked, they act on all of them. When you stop an
 allocation, the scheduler places a new one if the job still needs it.
 
 ## Tasks of an allocation

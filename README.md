@@ -44,7 +44,8 @@ One binary, no config to write, no browser.
 - Lists the launches of periodic and parameterized jobs, shows when a
   periodic job runs next, runs it now, and dispatches a parameterized job
   with its meta and payload.
-- Starts, stops, scales and restarts jobs and allocations, restarts and
+- Starts, stops, scales and restarts jobs and allocations, restarts every
+  task of an allocation with its prestart and sidecar tasks, restarts and
   signals single tasks, and opens a shell in a task.
 - Drains clients and shows their CPU and memory over time. Purges clients
   that are down, stopped jobs, and collects the garbage of a client or of

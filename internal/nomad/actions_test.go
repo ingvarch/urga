@@ -258,6 +258,22 @@ func TestRestartAllocation(t *testing.T) {
 	r.Equal("/v1/client/allocation/af1f37df/restart", asked.URL.Path)
 }
 
+func TestRestartAllTasks(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/allocation/af1f37df":                `{"ID": "af1f37df"}`,
+		"/v1/client/allocation/af1f37df/restart": `{}`,
+	})
+
+	r.NoError(client.RestartAllTasks(context.Background(), "production", "af1f37df"))
+
+	restart := (*asked)[len(*asked)-1]
+	r.Equal("/v1/client/allocation/af1f37df/restart", restart.path)
+	r.Equal("production", restart.namespace)
+	r.Equal(true, restart.body["AllTasks"])
+}
+
 func TestStopAllocation(t *testing.T) {
 	r := require.New(t)
 
