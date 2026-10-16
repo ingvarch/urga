@@ -86,6 +86,8 @@ func (p tasksPage) restart() page {
 
 func (p tasksPage) rows(e env) []tableRow { return taskRows(p.alloc.Tasks, e.usage) }
 
+func (p tasksPage) ids(env) []string { return names(p.alloc.Tasks, taskMark) }
+
 // readings are the tasks on the screen that run: a task that ended or has
 // not started has nothing to report.
 func (p tasksPage) readings(e env) []rowRef {

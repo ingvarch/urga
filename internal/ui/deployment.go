@@ -95,6 +95,8 @@ func deploymentJobMark(d nomad.Deployment) string {
 
 func (p deploymentsPage) rows(e env) []tableRow { return deploymentRows(p.visible(e)) }
 
+func (p deploymentsPage) ids(e env) []string { return names(p.visible(e), deploymentMark) }
+
 // inView is the deployment under the cursor.
 func (p deploymentsPage) inView(e env) (nomad.Deployment, bool) {
 	return pickedFrom(e, p.visible(e))

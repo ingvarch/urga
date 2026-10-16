@@ -98,6 +98,8 @@ func (p aclPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, true
 }
 
+func (p aclPage) ids(env) []string { return names(p.objects, aclMark) }
+
 func (p aclPage) rows(env) []tableRow {
 	kind, now := aclKinds[p.kind], time.Now()
 	rows := make([]tableRow, 0, len(p.objects))

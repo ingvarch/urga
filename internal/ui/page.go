@@ -330,9 +330,10 @@ func markAllKey[P page]() pageKey[P] {
 	return pageKey[P]{press: "ctrl+a", label: "Mark All", do: func(p P, _ env) (P, outcome) { return p, then(markAllMsg{}) }}
 }
 
-// marking is a page whose rows can be marked: ids name the resource of each
-// row, in the order of the rows, so that a mark belongs to the resource and
-// not to the line it sits on.
+// marking is a page whose rows are named: ids name the resource of each row,
+// in the order of the rows, so that the cursor and a mark belong to the
+// resource and not to the line they sit on. The rows can be marked only on a
+// page that has markKey, so a page can have ids with no marks.
 type marking interface {
 	ids(e env) []string
 }

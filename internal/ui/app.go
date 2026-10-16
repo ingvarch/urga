@@ -510,9 +510,9 @@ func (m Model) headerData() header {
 
 // cursorLine is where the row under the cursor is drawn inside the box: the
 // top border and the header of the table come before it. A screen that reads
-// as text has no such row.
+// as text has no such row, and neither has a list whose cursor is on no row.
 func (m Model) cursorLine() int {
-	if m.readsAsText() {
+	if m.readsAsText() || m.list.table.cursor == noRow {
 		return -1
 	}
 

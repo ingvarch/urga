@@ -18,6 +18,8 @@ const (
 
 	minColumnWidth = 1
 	maxColumnWidth = 48
+
+	noRow = -1
 )
 
 // tableRow is one resource. The color shows what state it is in, and marked
@@ -62,6 +64,8 @@ type tableModel struct {
 	// ids name the resource of each row, when the screen names them.
 	ids []string
 
+	// cursor is the row it is on, or noRow when the resource it was on is
+	// gone.
 	cursor int
 	top    int
 
@@ -86,7 +90,11 @@ func (t *tableModel) setSize(width, height int) {
 func (t *tableModel) show(rows []tableRow, order sortState) {
 	t.sort = order
 	t.rows = rows
-	t.cursor = max(0, min(t.cursor, len(rows)-1))
+
+	if t.cursor != noRow {
+		t.cursor = max(0, min(t.cursor, len(rows)-1))
+	}
+
 	t.follow()
 }
 
@@ -99,13 +107,22 @@ func (t tableModel) chosen() (string, bool) {
 	return t.ids[t.cursor], true
 }
 
-// choose puts the cursor on the row of a resource, when it is still there.
-func (t *tableModel) choose(id string) {
-	if at := slices.Index(t.ids, id); at >= 0 {
-		t.cursor = at
-		t.follow()
+// choose puts the cursor on the row of a resource, and says whether it is
+// still there.
+func (t *tableModel) choose(id string) bool {
+	at := slices.Index(t.ids, id)
+	if at < 0 {
+		return false
 	}
+
+	t.cursor = at
+	t.follow()
+
+	return true
 }
+
+// leave takes the cursor off every row: the next move puts it on one.
+func (t *tableModel) leave() { t.cursor = noRow }
 
 // selected is the row the cursor is on.
 func (t tableModel) selected() (tableRow, bool) {
@@ -124,7 +141,7 @@ func (t *tableModel) move(delta int) {
 // follow keeps the cursor inside the window, and the window over the rows: a
 // window that starts past what is left shows blank lines under a full list.
 func (t *tableModel) follow() {
-	if t.cursor < t.top {
+	if t.cursor != noRow && t.cursor < t.top {
 		t.top = t.cursor
 	}
 

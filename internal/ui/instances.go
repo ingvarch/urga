@@ -234,6 +234,8 @@ func (p serviceInstancesPage) readChecks(e env) tea.Cmd {
 
 func (p serviceInstancesPage) rows(env) []tableRow { return instanceRows(p.instances, p.byAlloc) }
 
+func (p serviceInstancesPage) ids(env) []string { return names(p.instances, instanceMark) }
+
 var serviceInstanceKeys = []pageKey[serviceInstancesPage]{
 	{press: "enter", label: "Tasks", do: openInstanceAlloc, offered: instanceAllocHeld},
 	{press: "ctrl+d", label: "Delete", do: deleteRegistration, writes: true, offered: instanceStale},

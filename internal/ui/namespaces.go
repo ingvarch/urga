@@ -24,6 +24,8 @@ func (namespacesPage) fetch(e env) tea.Cmd {
 	return fetchList(e.client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) })
 }
 
+func (namespacesPage) ids(e env) []string { return names(e.namespaces, namespaceMark) }
+
 func (namespacesPage) rows(e env) []tableRow {
 	rows := make([]tableRow, 0, len(e.namespaces))
 
