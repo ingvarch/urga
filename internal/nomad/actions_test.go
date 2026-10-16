@@ -120,6 +120,21 @@ func TestEvaluateJob(t *testing.T) {
 	r.Equal("production", asked.URL.Query().Get("namespace"))
 }
 
+func TestRescheduleFailed(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{"/v1/job/web/evaluate": `{"EvalID": "eval-1"}`})
+
+	r.NoError(client.RescheduleFailed(context.Background(), "production", "web"))
+
+	evaluate := (*asked)[len(*asked)-1]
+	r.Equal("/v1/job/web/evaluate", evaluate.path)
+	r.Equal("production", evaluate.namespace)
+
+	options, _ := evaluate.body["EvalOptions"].(map[string]any)
+	r.Equal(true, options["ForceReschedule"])
+}
+
 func TestStartJob(t *testing.T) {
 	r := require.New(t)
 

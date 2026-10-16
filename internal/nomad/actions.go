@@ -26,6 +26,14 @@ func (c *Client) EvaluateJob(ctx context.Context, namespace, jobID string) error
 	return err
 }
 
+// RescheduleFailed evaluates a job and places its failed allocations again
+// now: without waiting for their reschedule delay, and past their attempts.
+func (c *Client) RescheduleFailed(ctx context.Context, namespace, jobID string) error {
+	_, _, err := c.api.Jobs().EvaluateWithOpts(jobID, api.EvalOptions{ForceReschedule: true}, c.write(ctx, namespace))
+
+	return err
+}
+
 // LaunchJob launches a periodic job now, out of its schedule.
 func (c *Client) LaunchJob(ctx context.Context, namespace, jobID string) error {
 	_, _, err := c.api.Jobs().PeriodicForce(jobID, c.write(ctx, namespace))

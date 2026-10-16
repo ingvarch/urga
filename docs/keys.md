@@ -218,6 +218,7 @@ start, stop, restart or drain then applies to every marked row.
 | `ctrl-s` | Start a stopped job, or stop a running one | yes |
 | `ctrl-p` | Purge a stopped job: it leaves the cluster with its versions. Shown on a stopped job. | yes |
 | `ctrl-e` | Evaluate the job again: the scheduler places what it can now | yes |
+| `ctrl-r` | Evaluate the job and place its failed allocations again now. Shown on a service or batch job. | yes |
 | `r` | Run a periodic job now, out of its schedule, or dispatch a parameterized one. Shown for those jobs. | yes |
 | `u` | Revert to the previous version | yes |
 | `p` | Why the job is not placed. Shown when allocations are waiting. | |

@@ -161,17 +161,41 @@ func startStopJob(p jobsPage, e env) (jobsPage, outcome) {
 // under the cursor, again as they stand: what waits may be placed now, on
 // clients that joined since.
 func evaluateJobs(p jobsPage, e env) (jobsPage, outcome) {
+	return evaluating(p, e, "Evaluated", func(int) string { return "" }, e.client.EvaluateJob)
+}
+
+// reschedules says Nomad reschedules the failed allocations of the job under
+// the cursor: a system or sysbatch job has no reschedule policy.
+func reschedules(p jobsPage, e env) bool {
+	job, ok := p.picked(e)
+
+	return ok && runsItself(p, e) && (job.Type == typeService || job.Type == typeBatch)
+}
+
+// rescheduleFailed evaluates the marked jobs, or the one under the cursor,
+// and places their failed allocations again now, without waiting for their
+// reschedule delay.
+func rescheduleFailed(p jobsPage, e env) (jobsPage, outcome) {
+	also := func(count int) string {
+		return " and place " + byCount(count, "its", "their") + " failed allocations again now"
+	}
+
+	return evaluating(p, e, "Rescheduled the failed allocations of", also, e.client.RescheduleFailed)
+}
+
+// evaluating asks about the marked jobs, or the one under the cursor, and
+// evaluates each of them with do. also ends the question, by the number of
+// jobs.
+func evaluating(p jobsPage, e env, done string, also func(int) string, do func(ctx context.Context, namespace, jobID string) error) (jobsPage, outcome) {
 	jobs := markedFrom(e, p.visible(e), jobMark)
 	if len(jobs) == 0 {
 		return p, outcome{}
 	}
 
-	client := e.client
-
 	return p, then(askMsg{
-		question: fmt.Sprintf("Really evaluate %s?", jobLabel(jobs)),
-		apply: each("Evaluated", jobLabel(jobs), jobs, jobMark, func(ctx context.Context, job nomad.Job) error {
-			return client.EvaluateJob(ctx, job.Namespace, job.ID)
+		question: fmt.Sprintf("Really evaluate %s%s?", jobLabel(jobs), also(len(jobs))),
+		apply: each(done, jobLabel(jobs), jobs, jobMark, func(ctx context.Context, job nomad.Job) error {
+			return do(ctx, job.Namespace, job.ID)
 		}),
 	})
 }

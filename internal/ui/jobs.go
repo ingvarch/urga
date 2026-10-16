@@ -177,6 +177,7 @@ var jobsKeys = []pageKey[jobsPage]{
 	// The cluster evaluates the launches of a job, not the job that makes
 	// them.
 	{press: "ctrl+e", label: "Evaluate", do: evaluateJobs, writes: true, offered: runsItself},
+	{press: "ctrl+r", label: "Reschedule Failed", do: rescheduleFailed, writes: true, offered: reschedules},
 	// The list of jobs reverts to the version before the one that runs;
 	// the list of versions reverts to the one under the cursor.
 	{press: "u", label: "Revert", do: revertJob, writes: true},

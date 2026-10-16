@@ -261,6 +261,10 @@ type fakeClient struct {
 	// evaluated are the jobs evaluated, in turn.
 	evaluated []string
 
+	// rescheduled are the jobs whose failed allocations were placed again, as
+	// "namespace/job".
+	rescheduled []string
+
 	// tagged is the last tag put on a version, as "job@version=name", and
 	// untagged the last one taken off; marked the allocations last marked
 	// and whether healthy; releasedLock the last lock released.
@@ -602,6 +606,13 @@ func (f *fakeClient) DispatchJob(_ context.Context, namespace, jobID string, met
 	f.dispatchedMeta, f.dispatchedPayload = meta, payload
 
 	return jobID + "/dispatch-1790611292-1fcb1371", f.refused(f.actionErr)
+}
+
+func (f *fakeClient) RescheduleFailed(_ context.Context, namespace, jobID string) error {
+	f.wrote("RescheduleFailed")
+	f.rescheduled = append(f.rescheduled, namespace+"/"+jobID)
+
+	return f.actionErr
 }
 
 func (f *fakeClient) EvaluateJob(_ context.Context, namespace, jobID string) error {

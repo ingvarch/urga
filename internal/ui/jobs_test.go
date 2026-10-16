@@ -85,6 +85,7 @@ func TestJobs_TheKeysOfAJob(t *testing.T) {
 		{Key: "<h>", Description: "Job Spec"},
 		{Key: "<ctrl-s>", Description: "Start/Stop"},
 		{Key: "<ctrl-e>", Description: "Evaluate"},
+		{Key: "<ctrl-r>", Description: "Reschedule Failed"},
 		{Key: "<u>", Description: "Revert"},
 		{Key: "<v>", Description: "Versions"},
 		{Key: "<l>", Description: "Logs"},
