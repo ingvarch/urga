@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +100,23 @@ func TestPlanText(t *testing.T) {
 	r.Equal(opening(styleCanary), style("    ● 1 canary allocation will be deployed"))
 	r.Equal(opening(styleMuted), style("    ● 1 allocation unchanged"))
 	r.Equal(opening(styleMuted), style("    No changes - 3 allocations will remain unchanged"))
+}
+
+func TestPlanText_CountsKept(t *testing.T) {
+	r := require.New(t)
+
+	plan := changedEnv()
+	plan.Kept = []nomad.KeptCount{{Group: "web", Kept: 5, File: 1}}
+
+	lines := texts(planText(plan, false))
+
+	// The kept counts come above what will happen, after the warnings.
+	i := slices.Index(lines, "Counts kept as the job runs them")
+	r.Positive(i)
+	r.Equal([]string{"Counts kept as the job runs them", "", `  Task group "web": 5, the file says 1`, ""}, lines[i:i+4])
+	r.Equal("What will happen when you submit this job:", lines[i+4])
+
+	r.NotContains(strings.Join(texts(planText(changedEnv(), false)), "\n"), "Counts kept")
 }
 
 func TestPlanText_EveryUpdate(t *testing.T) {

@@ -2,8 +2,10 @@ package nomad_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -35,7 +37,7 @@ func TestPlanJob(t *testing.T) {
 
 	client, asked := clusterServer(t, map[string]string{"/v1/job/web/plan": webPlan})
 
-	plan, err := client.PlanJob(context.Background(), "production", `{"ID": "web", "Name": "web"}`, nomad.JobVariables{})
+	plan, err := client.PlanJob(context.Background(), "production", `{"ID": "web", "Name": "web"}`, nomad.JobVariables{}, nil)
 	r.NoError(err)
 
 	// The plan is requested in the namespace of the job, with the diff:
@@ -74,7 +76,7 @@ func TestPlanJob_HCLIsReadByTheClusterFirst(t *testing.T) {
 
 	vars := nomad.JobVariables{Flags: map[string]string{"image": "nginx:1.27"}}
 
-	_, err := client.PlanJob(context.Background(), "production", "job \"web\" {}", vars)
+	_, err := client.PlanJob(context.Background(), "production", "job \"web\" {}", vars, nil)
 	r.NoError(err)
 
 	// The file is planned the way it would be submitted: with its variables.
@@ -89,7 +91,7 @@ func TestSubmitJob_AtTheIndexOfItsPlan(t *testing.T) {
 
 	client, asked := clusterServer(t, map[string]string{"/v1/jobs": `{"EvalID": "eval-1"}`})
 
-	r.NoError(client.SubmitJob(context.Background(), "production", `{"ID": "web"}`, nomad.JobVariables{}, 42))
+	r.NoError(client.SubmitJob(context.Background(), "production", `{"ID": "web"}`, nomad.JobVariables{}, 42, nil))
 
 	// What was planned is what is submitted, or nothing: a job that changed
 	// since the plan is refused.
@@ -111,7 +113,7 @@ func TestSubmitJob_WhenTheJobChangedSinceItsPlan(t *testing.T) {
 	client, err := nomad.New(nomad.Config{Address: server.URL})
 	r.NoError(err)
 
-	err = client.SubmitJob(context.Background(), "production", `{"ID": "web"}`, nomad.JobVariables{}, 42)
+	err = client.SubmitJob(context.Background(), "production", `{"ID": "web"}`, nomad.JobVariables{}, 42, nil)
 	r.ErrorIs(err, nomad.ErrJobChanged)
 }
 
@@ -225,4 +227,218 @@ func TestRevertJobTo_WhenTheJobChangedSinceItsPlan(t *testing.T) {
 	r.NoError(err)
 
 	r.ErrorIs(client.RevertJobTo(context.Background(), "production", "web", 4, 5), nomad.ErrJobChanged)
+}
+
+// runningWeb is web as it runs: scaled to 5 after its file said 1.
+const runningWeb = `{"ID": "web", "Name": "web", "TaskGroups": [{"Name": "web", "Count": 5}]}`
+
+// fileOfWeb is what the cluster reads out of the file of web.
+func fileOfWeb(counts ...int) string {
+	groups := make([]string, len(counts))
+	for i, count := range counts {
+		name := []string{"web", "api"}[i]
+		groups[i] = fmt.Sprintf(`{"Name": %q, "Count": %d}`, name, count)
+	}
+
+	return `{"ID": "web", "Name": "web", "TaskGroups": [` + strings.Join(groups, ",") + `]}`
+}
+
+// countsSent are the counts of the groups in the job a request carried.
+func countsSent(t *testing.T, body map[string]any) map[string]float64 {
+	t.Helper()
+
+	job, ok := body["Job"].(map[string]any)
+	require.True(t, ok)
+
+	groups, _ := job["TaskGroups"].([]any)
+	counts := map[string]float64{}
+
+	for _, group := range groups {
+		g, _ := group.(map[string]any)
+		counts[g["Name"].(string)], _ = g["Count"].(float64)
+	}
+
+	return counts
+}
+
+func keepCountsServer(t *testing.T, file string) (*nomad.Client, *[]sent) {
+	t.Helper()
+
+	return clusterServer(t, map[string]string{
+		"/v1/jobs/parse":   file,
+		"/v1/job/web":      runningWeb,
+		"/v1/job/web/plan": webPlan,
+		"/v1/jobs":         `{"EvalID": "eval-1"}`,
+	})
+}
+
+func TestPlanAndSubmitJob_KeepTheCountTheJobRunsWith(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := keepCountsServer(t, fileOfWeb(1))
+	opened := map[string]int{"web": 1}
+
+	plan, err := client.PlanJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, opened)
+	r.NoError(err)
+
+	r.Equal([]nomad.KeptCount{{Group: "web", Kept: 5, File: 1}}, plan.Kept)
+
+	r.NoError(client.SubmitJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, 42, opened))
+
+	// The plan and the submit send the same counts: what was planned is
+	// what runs.
+	var bodies []map[string]any
+
+	for _, req := range *asked {
+		if req.path == "/v1/job/web/plan" || req.path == "/v1/jobs" {
+			bodies = append(bodies, req.body)
+		}
+	}
+
+	r.Len(bodies, 2)
+
+	for _, body := range bodies {
+		r.Equal(map[string]float64{"web": 5}, countsSent(t, body))
+	}
+}
+
+func TestPlanJob_ACountChangedInTheEditorIsTheCountOfTheFile(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := keepCountsServer(t, fileOfWeb(3))
+
+	plan, err := client.PlanJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, map[string]int{"web": 1})
+	r.NoError(err)
+
+	r.Empty(plan.Kept)
+	r.Equal(map[string]float64{"web": 3}, countsSent(t, plannedRequest(t, *asked)))
+}
+
+func TestPlanJob_ANewGroupHasTheCountOfTheFile(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := keepCountsServer(t, fileOfWeb(1, 2))
+
+	plan, err := client.PlanJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, map[string]int{"web": 1})
+	r.NoError(err)
+
+	r.Equal([]nomad.KeptCount{{Group: "web", Kept: 5, File: 1}}, plan.Kept)
+	r.Equal(map[string]float64{"web": 5, "api": 2}, countsSent(t, plannedRequest(t, *asked)))
+}
+
+// planWith plans file against a job that runs as running, with the counts
+// the editor opened.
+func planWith(t *testing.T, file, running string, opened map[string]int) (nomad.Plan, []sent) {
+	t.Helper()
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/jobs/parse":   file,
+		"/v1/job/web":      running,
+		"/v1/job/web/plan": webPlan,
+	})
+
+	plan, err := client.PlanJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, opened)
+	require.NoError(t, err)
+
+	return plan, *asked
+}
+
+func TestPlanJob_AJobThatCannotBeReadIsAnError(t *testing.T) {
+	r := require.New(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		switch req.URL.Path {
+		case "/v1/jobs/parse":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(fileOfWeb(1)))
+		case "/v1/job/web":
+			http.Error(w, "no leader", http.StatusInternalServerError)
+		default:
+			http.Error(w, "not found", http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	// Planning without the counts it runs would reset them: it says why
+	// instead.
+	_, err = client.PlanJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, map[string]int{"web": 1})
+	r.ErrorContains(err, "no leader")
+}
+
+func TestPlanJob_AJobThatIsGoneHasTheCountsOfTheFile(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/jobs/parse":   fileOfWeb(1),
+		"/v1/job/web/plan": webPlan,
+	})
+
+	plan, err := client.PlanJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, map[string]int{"web": 1})
+	r.NoError(err)
+
+	r.Empty(plan.Kept)
+	r.Equal(map[string]float64{"web": 1}, countsSent(t, plannedRequest(t, *asked)))
+}
+
+func TestPlanJob_AGroupTheJobDoesNotRunHasTheCountOfTheFile(t *testing.T) {
+	r := require.New(t)
+
+	plan, asked := planWith(t, fileOfWeb(1, 1), runningWeb, map[string]int{"web": 1, "api": 1})
+
+	r.Equal([]nomad.KeptCount{{Group: "web", Kept: 5, File: 1}}, plan.Kept)
+	r.Equal(map[string]float64{"web": 5, "api": 1}, countsSent(t, plannedRequest(t, asked)))
+}
+
+func TestPlanJob_ACountThatIsTheCountOfTheFileKeepsNothing(t *testing.T) {
+	r := require.New(t)
+
+	running := `{"ID": "web", "Name": "web", "TaskGroups": [{"Name": "web", "Count": 1}]}`
+	plan, asked := planWith(t, fileOfWeb(1), running, map[string]int{"web": 1})
+
+	r.Empty(plan.Kept)
+	r.Equal(map[string]float64{"web": 1}, countsSent(t, plannedRequest(t, asked)))
+}
+
+func TestPlanJob_AGroupTheFileAddsHasItsCountEvenWhenTheJobRunsOneOfThatName(t *testing.T) {
+	r := require.New(t)
+
+	running := `{"ID": "web", "Name": "web", "TaskGroups": [{"Name": "web", "Count": 5}, {"Name": "api", "Count": 3}]}`
+	plan, asked := planWith(t, fileOfWeb(1, 0), running, map[string]int{"web": 1})
+
+	r.Equal([]nomad.KeptCount{{Group: "web", Kept: 5, File: 1}}, plan.Kept)
+	r.Equal(map[string]float64{"web": 5, "api": 0}, countsSent(t, plannedRequest(t, asked)))
+}
+
+func TestPlanJob_WithoutOpenedCountsEveryCountIsAsWritten(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := keepCountsServer(t, fileOfWeb(1))
+
+	plan, err := client.PlanJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, nil)
+	r.NoError(err)
+
+	r.Empty(plan.Kept)
+	r.Equal(map[string]float64{"web": 1}, countsSent(t, plannedRequest(t, *asked)))
+
+	// A new job asks nothing about a job that runs.
+	for _, req := range *asked {
+		r.NotEqual("/v1/job/web", req.path)
+	}
+}
+
+func plannedRequest(t *testing.T, asked []sent) map[string]any {
+	t.Helper()
+
+	for _, req := range asked {
+		if req.path == "/v1/job/web/plan" {
+			return req.body
+		}
+	}
+
+	t.Fatal("no plan was asked for")
+
+	return nil
 }

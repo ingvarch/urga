@@ -70,6 +70,13 @@ type fakeClient struct {
 	submittedSource string
 	submittedVars   nomad.JobVariables
 	submittedIndex  uint64
+	submittedOpened map[string]int
+
+	// counts are what the job file read says about its groups, openedWith what
+	// the plan was last asked to keep counts for.
+	counts     map[string]int
+	countsErr  error
+	openedWith map[string]int
 
 	plan                nomad.Plan
 	target              nomad.JobTarget
@@ -873,8 +880,16 @@ func (f *fakeClient) TaskGroups(_ context.Context, namespace, jobID string) ([]n
 	return f.groups, f.err
 }
 
-func (f *fakeClient) PlanJob(_ context.Context, namespace, source string, vars nomad.JobVariables) (nomad.Plan, error) {
-	f.askedNamespace, f.plannedSource, f.plannedVars = namespace, source, vars
+func (f *fakeClient) JobCounts(context.Context, string, string, nomad.JobVariables) (map[string]int, error) {
+	if f.countsErr != nil {
+		return nil, f.countsErr
+	}
+
+	return f.counts, f.err
+}
+
+func (f *fakeClient) PlanJob(_ context.Context, namespace, source string, vars nomad.JobVariables, opened map[string]int) (nomad.Plan, error) {
+	f.askedNamespace, f.plannedSource, f.plannedVars, f.openedWith = namespace, source, vars, opened
 	f.planCalls++
 
 	return f.plan, f.refused(f.err)
@@ -886,8 +901,9 @@ func (f *fakeClient) JobTarget(_ context.Context, namespace, _ string) (nomad.Jo
 	return f.target, f.refused(f.err)
 }
 
-func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error {
+func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string, vars nomad.JobVariables, index uint64, opened map[string]int) error {
 	f.wrote("SubmitJob")
+	f.submittedOpened = opened
 	f.askedNamespace, f.submittedSource, f.submittedVars = namespace, source, vars
 	f.submittedIndex = index
 	f.submitted++

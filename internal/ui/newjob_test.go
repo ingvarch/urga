@@ -81,6 +81,10 @@ func TestNewJob_GoesToTheNamespaceTheFileNames(t *testing.T) {
 
 	r.Equal("staging", client.askedNamespace)
 	r.Equal(1, client.submitted)
+
+	// A new job has no counts to keep.
+	r.Nil(client.openedWith)
+	r.Nil(client.submittedOpened)
 }
 
 func TestNewJob_FromAllNamespacesGoesToTheOneTheClientDecided(t *testing.T) {

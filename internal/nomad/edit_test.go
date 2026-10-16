@@ -81,7 +81,7 @@ func TestSubmitJob_JSON(t *testing.T) {
 	client, asked := clusterServer(t, map[string]string{"/v1/jobs": `{"EvalID": "eval-1"}`})
 
 	source := `{"ID": "web", "Name": "web"}`
-	r.NoError(client.SubmitJob(context.Background(), "production", source, nomad.JobVariables{}, 0))
+	r.NoError(client.SubmitJob(context.Background(), "production", source, nomad.JobVariables{}, 0, nil))
 
 	// A file that is already JSON goes straight to the cluster, and is saved
 	// with the new version: the next edit opens it again.
@@ -98,7 +98,7 @@ func TestSubmitJob_JSONUnderAJobKey(t *testing.T) {
 	client, asked := clusterServer(t, map[string]string{"/v1/jobs": `{"EvalID": "eval-1"}`})
 
 	source := `{"Job": {"ID": "web", "Name": "web"}}`
-	r.NoError(client.SubmitJob(context.Background(), "production", source, nomad.JobVariables{}, 0))
+	r.NoError(client.SubmitJob(context.Background(), "production", source, nomad.JobVariables{}, 0, nil))
 
 	// A JSON job file holds the job or wraps it in a Job key, and the nomad
 	// command keeps either one as it was written. Read as the job itself,
@@ -118,7 +118,7 @@ func TestSubmitJob_HCLGoesThroughTheCluster(t *testing.T) {
 		"/v1/jobs":       `{"EvalID": "eval-1"}`,
 	})
 
-	r.NoError(client.SubmitJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, 0))
+	r.NoError(client.SubmitJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, 0, nil))
 
 	// HCL is read by Nomad itself, urga does not parse job files.
 	r.Len(*asked, 2)
@@ -134,7 +134,7 @@ func TestSubmitJob_ParsesInTheNamespace(t *testing.T) {
 		"/v1/jobs":       `{"EvalID": "eval-1"}`,
 	})
 
-	r.NoError(client.SubmitJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, 0))
+	r.NoError(client.SubmitJob(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{}, 0, nil))
 
 	// A token may parse jobs in its own namespace only. Asking without one
 	// asks in the default namespace, where it is refused.
@@ -155,7 +155,7 @@ func TestSubmitJob_HCLKeepsTheSourceAndVariables(t *testing.T) {
 		File:  "count = 3\n",
 	}
 
-	r.NoError(client.SubmitJob(context.Background(), "production", source, vars, 0))
+	r.NoError(client.SubmitJob(context.Background(), "production", source, vars, 0, nil))
 
 	// The cluster reads variables only as a file, so the flags are written
 	// into one next to the file the job was run with.
@@ -181,7 +181,7 @@ func TestSubmitJob_FlagValuesStayText(t *testing.T) {
 
 	vars := nomad.JobVariables{Flags: map[string]string{"greeting": "say \"hi\"\n${name} %{ok}\\"}}
 
-	r.NoError(client.SubmitJob(context.Background(), "production", "job \"web\" {}", vars, 0))
+	r.NoError(client.SubmitJob(context.Background(), "production", "job \"web\" {}", vars, 0, nil))
 
 	// A flag was typed as text. Written into HCL as it is, a quote ends the
 	// string early and ${ reads another variable instead of the characters.
@@ -193,7 +193,7 @@ func TestSubmitJob_BrokenJSON(t *testing.T) {
 
 	client, _ := recorder(t, `{}`)
 
-	err := client.SubmitJob(context.Background(), "production", "{not json", nomad.JobVariables{}, 0)
+	err := client.SubmitJob(context.Background(), "production", "{not json", nomad.JobVariables{}, 0, nil)
 
 	r.ErrorContains(err, "not valid JSON")
 }
@@ -308,7 +308,7 @@ func variablesSent(t *testing.T, vars nomad.JobVariables) string {
 		"/v1/jobs":       `{"EvalID": "eval-1"}`,
 	})
 
-	require.NoError(t, client.SubmitJob(context.Background(), "production", "job \"web\" {}", vars, 0))
+	require.NoError(t, client.SubmitJob(context.Background(), "production", "job \"web\" {}", vars, 0, nil))
 
 	text, ok := (*asked)[0].body["Variables"].(string)
 	require.True(t, ok)
@@ -386,7 +386,7 @@ func TestSubmitJob_VariablesFileThatDoesNotParse(t *testing.T) {
 	client, _ := recorder(t, `{}`)
 
 	err := client.SubmitJob(context.Background(), "production", "job \"web\" {}",
-		nomad.JobVariables{Flags: map[string]string{"a": "b"}, File: "count = = 3"}, 0)
+		nomad.JobVariables{Flags: map[string]string{"a": "b"}, File: "count = = 3"}, 0, nil)
 
 	r.ErrorContains(err, "the variables file of the job does not parse")
 }
@@ -407,7 +407,7 @@ func TestSubmitJob_JSONVariablesFileThatDoesNotParse(t *testing.T) {
 		nomad.JobVariables{
 			Flags: map[string]string{"a": "b"},
 			File:  "{\"image\": \"v1\"}\n{\"count\": 3}\n",
-		}, 0)
+		}, 0, nil)
 
 	require.ErrorContains(t, err, "the variables file of the job does not parse")
 }
@@ -416,4 +416,21 @@ func TestSubmitJob_FileAloneIsSentAsWrittenWhateverItHolds(t *testing.T) {
 	for _, file := range []string{"count = = 3", "{\"a\": 1}\n{\"b\": 2}"} {
 		require.Equal(t, file, variablesSent(t, nomad.JobVariables{File: file}))
 	}
+}
+
+func TestJobCounts_AGroupWithoutACountHasOne(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{"/v1/jobs/parse": `{"ID": "web", "TaskGroups": [
+		{"Name": "web", "Count": 3},
+		{"Name": "api"}
+	]}`})
+
+	counts, err := client.JobCounts(context.Background(), "production", "job \"web\" {}", nomad.JobVariables{})
+	r.NoError(err)
+
+	r.Equal(map[string]int{"web": 3, "api": 1}, counts)
+
+	// Read the way the plan reads it: the cluster fills in what is left out.
+	r.Equal(true, (*asked)[0].body["Canonicalize"])
 }

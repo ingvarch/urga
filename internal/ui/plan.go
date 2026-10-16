@@ -31,6 +31,14 @@ type planState struct {
 	read   uint64
 	index  uint64
 
+	// opened are the counts of the groups in the file as it was opened. Nil
+	// for a new job and a revert: they keep no counts.
+	opened map[string]int
+
+	// uncounted says the counts of the file as opened could not be read, so
+	// none is kept.
+	uncounted bool
+
 	// revert goes back to the version to, from the version the job had when
 	// it was planned. A nil to means the version before the one that runs.
 	revert bool
@@ -87,6 +95,10 @@ func planOf(plan nomad.Plan, state planState) planPage {
 		lines = append(changedSinceRead(state.jobID), lines...)
 	}
 
+	if state.uncounted {
+		lines = append(countsOfTheFile(), lines...)
+	}
+
 	return planPage{planState: state, content: paintedText(lines).textContent}
 }
 
@@ -98,6 +110,18 @@ func changedSinceRead(jobID string) []paintedLine {
 		{text: jobID + " changed while the file was open."},
 		{text: "The changes below compare your file with the job as it is now."},
 		{text: "Submitting undoes that change, where your file differs from it."},
+		{},
+	}
+}
+
+// countsOfTheFile warns that no count is kept: the file could not be read for
+// its counts when it was opened.
+func countsOfTheFile() []paintedLine {
+	return []paintedLine{
+		{text: "Counts as the file says them", style: &styleWarn},
+		{},
+		{text: "The counts of the file could not be read when it was opened."},
+		{text: "Submitting sets every count to the one in the file."},
 		{},
 	}
 }
@@ -245,7 +269,7 @@ func planFor(client jobsClient, state planState) tea.Cmd {
 			return client.PlanRevert(ctx, state.namespace, state.jobID, state.to)
 		}
 
-		return client.PlanJob(ctx, state.namespace, state.source, state.vars)
+		return client.PlanJob(ctx, state.namespace, state.source, state.vars, state.opened)
 	}, func(plan nomad.Plan) tea.Msg { return openMsg{planOf(plan, state)} })
 }
 
@@ -272,7 +296,7 @@ func planNewJob(ctx context.Context, client jobsClient, namespace, source string
 		fresh:     true,
 	}
 
-	plan, err := client.PlanJob(ctx, state.namespace, state.source, state.vars)
+	plan, err := client.PlanJob(ctx, state.namespace, state.source, state.vars, nil)
 
 	return planOf(plan, state), err
 }
@@ -295,7 +319,7 @@ func submitPlan(p planPage, e env) (planPage, outcome) {
 			said = fmt.Sprintf("Job %s reverted to version %d.", state.jobID, *state.to)
 			err = client.RevertJobTo(ctx, state.namespace, state.jobID, *state.to, state.from)
 		} else {
-			err = client.SubmitJob(ctx, state.namespace, state.source, state.vars, submitIndex(state))
+			err = client.SubmitJob(ctx, state.namespace, state.source, state.vars, submitIndex(state), state.opened)
 		}
 
 		switch {
@@ -329,7 +353,7 @@ func replan(p planPage, e env) (planPage, outcome) {
 }
 
 // planText is a plan as a page: first the placement failures and the
-// warnings, then what the scheduler would do to each group, then what would
+// warnings, the counts kept, then what the scheduler would do to each group, then what would
 // change, line by line.
 func planText(plan nomad.Plan, revert bool) []paintedLine {
 	lines := []paintedLine{}
@@ -343,6 +367,16 @@ func planText(plan nomad.Plan, revert bool) []paintedLine {
 	if plan.Warnings != "" {
 		lines = append(lines, paintedLine{text: "Warnings", style: &styleWarn}, paintedLine{})
 		lines = append(lines, plainLines(strings.TrimRight(plan.Warnings, "\n"))...)
+		lines = append(lines, paintedLine{})
+	}
+
+	if len(plan.Kept) > 0 {
+		lines = append(lines, paintedLine{text: "Counts kept as the job runs them", style: &styleWarn}, paintedLine{})
+
+		for _, kept := range plan.Kept {
+			lines = append(lines, paintedLine{text: fmt.Sprintf("  Task group %q: %d, the file says %d", kept.Group, kept.Kept, kept.File)})
+		}
+
 		lines = append(lines, paintedLine{})
 	}
 

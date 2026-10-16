@@ -119,6 +119,10 @@ func jobFile(client jobsClient, job nomad.Job) load {
 			return file{}, err
 		}
 
+		// The cluster parses a job without the files it reads: a file that
+		// calls file() still opens, and its plan says the counts are its own.
+		opened, countsErr := client.JobCounts(ctx, job.Namespace, spec.Source, spec.Variables)
+
 		// The editor gets the file only, the values of the variables are
 		// sent back with it. The edited job is planned first: a changed
 		// file can restart every allocation of the job.
@@ -133,6 +137,8 @@ func jobFile(client jobsClient, job nomad.Job) load {
 				source:    source,
 				vars:      spec.Variables,
 				read:      spec.Index,
+				opened:    opened,
+				uncounted: countsErr != nil,
 			})
 		})}, nil
 	}
