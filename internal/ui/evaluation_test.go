@@ -229,6 +229,9 @@ func TestPlacement_WhenNoEvaluationSaysWhy(t *testing.T) {
 	// have got to the job yet.
 	r.IsType(describePage{}, m.screen.page)
 	r.Contains(plain(m.render()), "No evaluation of web says why")
+
+	// There is no evaluation to list the allocations of.
+	r.False(offers(m, "a"))
 }
 
 func TestEvaluations_TheListOfTheNamespaceAndItsKeys(t *testing.T) {
@@ -256,7 +259,7 @@ func TestEvaluations_TheListOfTheNamespaceAndItsKeys(t *testing.T) {
 	// A blocked one waits for room the cluster does not have.
 	r.Equal(colorAttention, m.list.table.rows[0].color)
 
-	r.Equal([]hint{{Key: "<enter>", Description: "Details"}}, m.hints())
+	r.Equal([]hint{{Key: "<enter>", Description: "Details"}, {Key: "<a>", Description: "Allocations"}}, m.hints())
 }
 
 func TestEvaluations_TroubleKeepsABlockedOne(t *testing.T) {
@@ -322,4 +325,143 @@ func TestEvaluations_OfTheRegionLeftAreLetGo(t *testing.T) {
 	out := plain(m.render())
 	r.Contains(out, "Evaluations (production) [0]")
 	r.NotContains(out, "1ad88fd0")
+}
+
+func evaluationAllocs() []nomad.Alloc {
+	return []nomad.Alloc{
+		{ID: "af1f37df-7b19-6b1c-da67-5e8f482b5a15", Namespace: "production", JobID: "web", TaskGroup: "frontend", Status: "running",
+			Tasks: []nomad.Task{{Name: "server", State: "running"}}},
+		{ID: "b2222222-0000-0000-0000-000000000000", Namespace: "production", JobID: "web", TaskGroup: "backend", Status: "pending"},
+	}
+}
+
+func TestEvaluations_AOpensTheAllocationsOfTheOneUnderTheCursor(t *testing.T) {
+	r := require.New(t)
+
+	other := nomad.Evaluation{ID: "e2222222-0000-0000-0000-000000000000", JobID: "billing", Namespace: "default", Status: "complete"}
+	listed := []nomad.Evaluation{shortOfRoom().Evaluation, other}
+	client := &fakeClient{evaluations: listed, evalAllocs: evaluationAllocs()}
+
+	m, _ := runLine(newTestModel(client), "evals")
+	m, _ = m.update(key('0'))
+	m, _ = m.update(evaluationsMsg(listed))
+	m, _ = m.update(down())
+
+	m, cmd := m.update(key('a'))
+	m = drain(m, cmd)
+
+	// Asked in the namespace of the evaluation, not of the session.
+	r.Equal("default", client.askedNamespace)
+	r.Equal(other.ID, client.askedID)
+
+	r.IsType(allocationsPage{}, m.screen.page)
+	r.Contains(plain(m.render()), "Allocations (Evaluation: e2222222) [2]")
+	r.Contains(plain(m.render()), "frontend")
+
+	// The keys of an allocation list work on it.
+	m, _ = m.update(enter())
+	r.IsType(tasksPage{}, m.screen.page)
+
+	m, _ = m.update(escape())
+	m, _ = m.update(escape())
+	r.IsType(evaluationsPage{}, m.screen.page)
+}
+
+func TestEvaluation_AOpensItsAllocationsFromTheScreen(t *testing.T) {
+	r := require.New(t)
+
+	listed := []nomad.Evaluation{shortOfRoom().Evaluation}
+	client := &fakeClient{evaluations: listed, evaluation: shortOfRoom(), evalAllocs: evaluationAllocs()}
+
+	m, _ := runLine(newTestModel(client), "evals")
+	m, _ = m.update(evaluationsMsg(listed))
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	r.IsType(describePage{}, m.screen.page)
+	r.True(offers(m, "a"))
+
+	m, cmd = m.update(key('a'))
+	m = drain(m, cmd)
+
+	r.Equal("production", client.askedNamespace)
+	r.Equal("1ad88fd0-6b1c-da67-5e8f-482b5a15af1f", client.askedID)
+	r.IsType(allocationsPage{}, m.screen.page)
+	r.Contains(plain(m.render()), "Allocations (Evaluation: 1ad88fd0) [2]")
+
+	// Escape comes back to the screen where a was pressed.
+	m, _ = m.update(escape())
+	r.IsType(describePage{}, m.screen.page)
+}
+
+func TestEvaluation_AnEvaluationThatPlacedNothingOpensAnEmptyList(t *testing.T) {
+	r := require.New(t)
+
+	listed := []nomad.Evaluation{shortOfRoom().Evaluation}
+	client := &fakeClient{evaluations: listed}
+
+	m, _ := runLine(newTestModel(client), "evals")
+	m, _ = m.update(evaluationsMsg(listed))
+
+	m, cmd := m.update(key('a'))
+	m = drain(m, cmd)
+
+	r.Contains(plain(m.render()), "Allocations (Evaluation: 1ad88fd0) [0]")
+}
+
+func TestEvaluation_PlacementScreenOffersItsEvaluationsAllocations(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: waiting(), evaluation: shortOfRoom(), evalAllocs: evaluationAllocs()}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(waiting()))
+
+	m, cmd := m.update(key('p'))
+	m = drain(m, cmd)
+
+	r.True(offers(m, "a"))
+
+	m, cmd = m.update(key('a'))
+	m = drain(m, cmd)
+
+	r.Equal("1ad88fd0-6b1c-da67-5e8f-482b5a15af1f", client.askedID)
+	r.Contains(plain(m.render()), "Allocations (Evaluation: 1ad88fd0) [2]")
+}
+
+func TestEvaluations_LogsAreReadOfTheAllocationsOfTheEvaluation(t *testing.T) {
+	r := require.New(t)
+
+	listed := []nomad.Evaluation{shortOfRoom().Evaluation}
+	client := &fakeClient{evaluations: listed, evalAllocs: evaluationAllocs()}
+
+	m, _ := runLine(newTestModel(client), "evals")
+	m, _ = m.update(evaluationsMsg(listed))
+	m, cmd := m.update(key('a'))
+	m = drain(m, cmd)
+
+	client.askedID, client.askedNamespace = "", ""
+
+	_, cmd = m.update(key('l'))
+	drain(m, cmd)
+
+	r.Equal("1ad88fd0-6b1c-da67-5e8f-482b5a15af1f", client.askedID)
+	r.Equal("production", client.askedNamespace)
+}
+
+func TestEvaluations_LogsOfAnEvaluationWithNothingRunningWarnWithItsName(t *testing.T) {
+	r := require.New(t)
+
+	listed := []nomad.Evaluation{shortOfRoom().Evaluation}
+	pending := evaluationAllocs()[1:]
+	client := &fakeClient{evaluations: listed, evalAllocs: pending}
+
+	m, _ := runLine(newTestModel(client), "evals")
+	m, _ = m.update(evaluationsMsg(listed))
+	m, cmd := m.update(key('a'))
+	m = drain(m, cmd)
+
+	m, cmd = m.update(key('l'))
+	m = drain(m, cmd)
+
+	r.Contains(plain(m.render()), "evaluation 1ad88fd0 has no allocation running")
 }

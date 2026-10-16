@@ -32,6 +32,7 @@ type fakeClient struct {
 	services    []nomad.Service
 	evaluations []nomad.Evaluation
 	evaluation  nomad.EvaluationDetail
+	evalAllocs  []nomad.Alloc
 
 	placementErr error
 	nodes        []nomad.Node
@@ -383,6 +384,12 @@ func (f *fakeClient) Evaluation(_ context.Context, namespace, evalID string) (no
 	f.askedNamespace, f.askedID = namespace, evalID
 
 	return f.evaluation, f.err
+}
+
+func (f *fakeClient) EvaluationAllocations(_ context.Context, namespace, evalID string) ([]nomad.Alloc, error) {
+	f.askedNamespace, f.askedID = namespace, evalID
+
+	return f.evalAllocs, f.err
 }
 
 func (f *fakeClient) FailedPlacement(_ context.Context, namespace, jobID string) (nomad.EvaluationDetail, error) {

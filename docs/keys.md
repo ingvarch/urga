@@ -350,6 +350,7 @@ On an open file:
 | Key | What it does |
 | --- | --- |
 | `enter` | Details of the evaluation |
+| `a` | Allocations the evaluation placed or changed. On the evaluation too. |
 
 ### Events
 

@@ -37,7 +37,7 @@ var (
 		"Allocations", "NodeAllocations", "Allocation", "Logs",
 		"Usage", "AllocationUsage", "TaskUsage", "NodeUsage",
 		"Node", "NodeDetail", "NodeMeta", "NodeMetaSpec", "Nodes", "NodePools", "PoolJobs", "PoolNodes",
-		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "FailedPlacement", "Variables", "Variable", "VariableSpec",
+		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "EvaluationAllocations", "FailedPlacement", "Variables", "Variable", "VariableSpec",
 		"Servers", "Server", "RaftPeers", "Events",
 		"Volumes", "Volume", "DescribeVolume", "Plugins", "Plugin", "DescribePlugin",
 		"Find", "DispatchForm", "ServerHealth",

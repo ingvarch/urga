@@ -13,11 +13,11 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-// allocationsPage is the allocations of a job, or of one group of it. Opened
-// by name it has no job, and lists those of the namespace the session looks
-// at.
+// allocationsPage is the allocations of a job, or of one group of it, or the
+// ones an evaluation placed or changed. Opened by name it has none of them,
+// and lists those of the namespace the session looks at.
 type allocationsPage struct {
-	namespace, jobID, group string
+	namespace, jobID, group, evalID string
 
 	allocs []nomad.Alloc
 
@@ -35,6 +35,10 @@ func (p allocationsPage) title(e env, count int) string {
 		return sprintf("Allocations (Group: %s) [%d]", p.group, count)
 	}
 
+	if p.evalID != "" {
+		return sprintf("Allocations (Evaluation: %s) [%d]", shortID(p.evalID), count)
+	}
+
 	// The command line opens the allocations of the namespace, with no job
 	// to name.
 	if p.jobID == "" {
@@ -45,16 +49,17 @@ func (p allocationsPage) title(e env, count int) string {
 }
 
 // followsSession: the allocations the command line opens are those of the
-// namespace the session looks at; those of a job stay where the job lives.
-func (p allocationsPage) followsSession() bool { return p.jobID == "" }
+// namespace the session looks at; those of a job or an evaluation stay where
+// they live.
+func (p allocationsPage) followsSession() bool { return p.jobID == "" && p.evalID == "" }
 
 func (allocationsPage) titles() []string { return allocTitles }
 func (allocationsPage) topics() []string { return []string{nomad.TopicAllocation} }
 
 // where is the namespace the allocations are asked in: the one of the job,
-// or the session's for those of no job.
+// or of the evaluation, or the session's for those of neither.
 func (p allocationsPage) where(e env) string {
-	if p.jobID == "" {
+	if p.followsSession() {
 		return e.namespace
 	}
 
@@ -62,9 +67,13 @@ func (p allocationsPage) where(e env) string {
 }
 
 func (p allocationsPage) fetch(e env) tea.Cmd {
-	client, namespace, jobID := e.client, p.where(e), p.jobID
+	client, namespace, jobID, evalID := e.client, p.where(e), p.jobID, p.evalID
 
 	return fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
+		if evalID != "" {
+			return client.EvaluationAllocations(ctx, namespace, evalID)
+		}
+
 		return client.Allocations(ctx, namespace, jobID)
 	}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
 }
@@ -108,7 +117,7 @@ func (allocationsPage) reading(ctx context.Context, client Client, ref rowRef) (
 // logsOf is what the logs of the page are read of: the allocations of the
 // job, of the group, or of the namespace, narrowed to the fault.
 func (p allocationsPage) logsOf(e env) logScope {
-	return logScope{namespace: p.where(e), jobID: p.jobID, group: p.group, fault: p.fault, read: p.read}
+	return logScope{namespace: p.where(e), jobID: p.jobID, group: p.group, evalID: p.evalID, fault: p.fault, read: p.read}
 }
 
 var allocationsKeys = allocKeys[allocationsPage]()
