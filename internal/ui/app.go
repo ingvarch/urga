@@ -209,6 +209,13 @@ type Model struct {
 	// from a cluster the session left is dropped.
 	connection int
 
+	// attempt counts the connects asked for. Only the answer of the last
+	// one is taken.
+	attempt int
+
+	// connecting is the cluster the last connect asked for, until it answers.
+	connecting string
+
 	// token is the token the session sends, as the cluster sees it; nil
 	// until the cluster answers.
 	token *nomad.Token

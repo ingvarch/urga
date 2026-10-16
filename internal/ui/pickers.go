@@ -47,6 +47,18 @@ func switchTo(e env, choices []string, inUse string, move func(string) tea.Msg) 
 	return then(move(choice))
 }
 
+// switchToCluster is switchTo for clusters. The one in use is asked for too,
+// to drop a connect still pending.
+func switchToCluster(e env) outcome {
+	move := func(name string) tea.Msg { return switchClusterMsg(name) }
+
+	if choice, ok := pickedFrom(e, e.clusters); ok && choice == e.cluster {
+		return then(backMsg{}, move(choice))
+	}
+
+	return switchTo(e, e.clusters, e.cluster, move)
+}
+
 func (regionsPage) title(_ env, count int) string             { return sprintf("Regions [%d]", count) }
 func (regionsPage) titles() []string                          { return choiceTitles }
 func (regionsPage) topics() []string                          { return nil }
@@ -104,7 +116,7 @@ func (clustersPage) rows(e env) []tableRow                     { return choiceRo
 
 var clusterKeys = []pageKey[clustersPage]{
 	{press: "enter", label: "Switch", do: func(p clustersPage, e env) (clustersPage, outcome) {
-		return p, switchTo(e, e.clusters, e.cluster, func(name string) tea.Msg { return switchClusterMsg(name) })
+		return p, switchToCluster(e)
 	}},
 }
 

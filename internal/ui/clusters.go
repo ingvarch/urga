@@ -30,7 +30,16 @@ type (
 	}
 
 	// connectedMsg is a cluster connected to.
-	connectedMsg Connection
+	connectedMsg struct {
+		attempt int
+		conn    Connection
+	}
+
+	// connectFailedMsg is a cluster that could not be connected to.
+	connectFailedMsg struct {
+		attempt int
+		err     error
+	}
 )
 
 // errNoClusters is a session started without clusters in its settings.
@@ -55,19 +64,60 @@ func (m Model) clusterCommand(name string) (Model, tea.Cmd) {
 // a command, outside the code that handles keys.
 func (m Model) switchCluster(name string) (Model, tea.Cmd) {
 	if name == m.opts.Cluster {
-		return m, nil
+		return m.stay(), nil
 	}
 
 	connect := m.opts.Connect
 
+	m.attempt++
+	m.connecting = name
+	attempt := m.attempt
+
 	return m.say(fmt.Sprintf("Connecting to %s...", name)), func() tea.Msg {
 		conn, err := connect(name)
 		if err != nil {
-			return errMsg{err: err}
+			return connectFailedMsg{attempt: attempt, err: err}
 		}
 
-		return connectedMsg(conn)
+		return connectedMsg{attempt: attempt, conn: conn}
 	}
+}
+
+// stay drops the connect pending, if any, when the cluster in use is asked
+// for again.
+func (m Model) stay() Model {
+	if m.connecting == "" {
+		return m
+	}
+
+	m.attempt++
+	m.connecting = ""
+
+	return m.say(fmt.Sprintf("Staying on %s.", m.opts.Cluster))
+}
+
+// takeConnected switches to the cluster of the connect asked for last, and
+// drops the answer of an earlier one, whenever it comes.
+func (m Model) takeConnected(msg connectedMsg) (Model, tea.Cmd) {
+	if msg.attempt != m.attempt {
+		return m, nil
+	}
+
+	m.connecting = ""
+
+	return m.connected(msg.conn)
+}
+
+// takeConnectFailed shows why the connect asked for last failed, and drops
+// the error of an earlier one.
+func (m Model) takeConnectFailed(msg connectFailedMsg) (Model, tea.Cmd) {
+	if msg.attempt != m.attempt {
+		return m, nil
+	}
+
+	m.connecting = ""
+
+	return m.update(errMsg{err: msg.err})
 }
 
 // connected switches the session to the cluster it connected to. What it
@@ -85,7 +135,7 @@ func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 	m = m.forgetRegion()
 	m.regionState, m.nomadVersion, m.token = regionState{}, "", nil
 
-	m.namespace, m.namespaceOrder = NamespaceOrAll(conn.Namespace), nil
+	m.namespace, m.namespaceOrder, m.namespaces = NamespaceOrAll(conn.Namespace), nil, nil
 	m.screen, m.history = jobsView.opened(), nil
 	m = m.restore()
 

@@ -164,7 +164,10 @@ func (m Model) fromSession(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return taken(m.switchNamespace(string(msg)))
 
 	case connectedMsg:
-		return taken(m.connected(Connection(msg)))
+		return taken(m.takeConnected(msg))
+
+	case connectFailedMsg:
+		return taken(m.takeConnectFailed(msg))
 
 	case connectionMsg:
 		return taken(m.takeConnection(msg))
