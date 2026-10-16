@@ -90,9 +90,10 @@ func TestNamespaces_TheDefaultOneIsNotOfferedForDelete(t *testing.T) {
 	m := onNamespaces(t, &fakeClient{}, &fakeEditor{})
 	m, _ = m.update(namespacesMsg([]nomad.Namespace{{Name: nomad.DefaultNamespace}, {Name: "production"}}))
 
-	// The cluster refuses it anyway.
-	r.False(offers(m, "ctrl-d"))
-
-	m, _ = m.update(key('j'))
+	// The cursor stays on production, which is now the second row.
 	r.True(offers(m, "ctrl-d"))
+
+	// The cluster refuses it anyway.
+	m, _ = m.update(key('k'))
+	r.False(offers(m, "ctrl-d"))
 }

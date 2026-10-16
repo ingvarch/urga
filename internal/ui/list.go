@@ -20,10 +20,19 @@ type list struct {
 	// by the ids the screen names them with.
 	marks map[string]bool
 
+	// looked is what the rows were narrowed by the last time they were read.
+	looked narrowing
+
 	// shown and held are how many rows are on the screen out of how many
 	// the cluster answered with.
 	shown int
 	held  int
+}
+
+// narrowing is how a list is cut down to the rows on the screen.
+type narrowing struct {
+	filter   string
+	troubled bool
 }
 
 // newList is a list with these columns and nothing read into it yet.
@@ -35,10 +44,17 @@ func newList(titles []string) list {
 // trouble when troubled is set, in the sort order, with the marks on the
 // rows of the resources that carry one. ids name the resource of each row,
 // nil for a list without marks. The cursor stays on the resource it was on:
-// a row that appears above it must not move a key to another resource.
+// a row that appears above it must not move a key to another resource. When
+// the resource is gone from rows read the same way as before, the cursor is
+// on no row, and a key that acts on a row does nothing. A new filter slides
+// it to the row that has its number, since the person asked for the view.
 func (l list) read(all []tableRow, titles, ids []string, troubled bool) list {
 	l.held = len(all)
 	chosen, chose := l.table.chosen()
+
+	now := narrowing{filter: l.filter, troubled: troubled}
+	reread := now == l.looked
+	l.looked = now
 
 	rows, index := filterRows(all, l.filter)
 
@@ -59,8 +75,8 @@ func (l list) read(all []tableRow, titles, ids []string, troubled bool) list {
 	l.table.show(rows, l.sort)
 	l.table.ids = rowIDs
 
-	if chose {
-		l.table.choose(chosen)
+	if chose && !l.table.choose(chosen) && reread {
+		l.table.leave()
 	}
 
 	return l

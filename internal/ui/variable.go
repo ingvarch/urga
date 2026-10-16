@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -57,6 +59,8 @@ func (p variablesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 }
 
 func (p variablesPage) rows(env) []tableRow { return variableRows(p.variables) }
+
+func (p variablesPage) ids(env) []string { return names(p.variables, variableMark) }
 
 func variableRows(variables []nomad.Variable) []tableRow {
 	rows := make([]tableRow, 0, len(variables))
@@ -149,6 +153,9 @@ func (p variablePage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 }
 
 func (p variablePage) rows(env) []tableRow { return variableItemRows(p.detail.Items, p.shown) }
+
+// ids are the keys, in the order fieldRows lists them.
+func (p variablePage) ids(env) []string { return slices.Sorted(maps.Keys(p.detail.Items)) }
 
 // variable is the one the page is open on, with the lock from its last
 // read.

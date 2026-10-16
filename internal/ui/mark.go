@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strconv"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -62,6 +64,22 @@ func jobMark(job nomad.Job) string { return job.Namespace + "/" + job.ID }
 func allocMark(alloc nomad.Alloc) string { return alloc.ID }
 
 func nodeMark(node nomad.Node) string { return node.ID }
+
+func aclMark(object nomad.ACLObject) string { return object.ID }
+
+func variableMark(v nomad.Variable) string { return v.Namespace + "/" + v.Path }
+
+func namespaceMark(namespace nomad.Namespace) string { return namespace.Name }
+
+func versionMark(version nomad.JobVersion) string { return strconv.FormatUint(version.Version, 10) }
+
+func deploymentMark(d nomad.Deployment) string { return d.ID }
+
+func instanceMark(instance nomad.ServiceInstance) string { return instance.ID }
+
+func groupMark(group nomad.TaskGroup) string { return group.Name }
+
+func taskMark(task nomad.Task) string { return task.Name }
 
 func names[T any](items []T, mark func(T) string) []string {
 	out := make([]string, 0, len(items))

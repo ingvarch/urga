@@ -50,6 +50,8 @@ func (p taskGroupsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 func (p taskGroupsPage) rows(env) []tableRow { return taskGroupRows(p.groups) }
 
+func (p taskGroupsPage) ids(env) []string { return names(p.groups, groupMark) }
+
 // picked is the group under the cursor.
 func (p taskGroupsPage) picked(e env) (nomad.TaskGroup, bool) { return pickedFrom(e, p.groups) }
 

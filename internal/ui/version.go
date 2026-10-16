@@ -54,6 +54,8 @@ func (p versionsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 func (p versionsPage) rows(env) []tableRow { return versionRows(p.versions) }
 
+func (p versionsPage) ids(env) []string { return names(p.versions, versionMark) }
+
 // picked is the version under the cursor.
 func (p versionsPage) picked(e env) (nomad.JobVersion, bool) { return pickedFrom(e, p.versions) }
 
