@@ -1,8 +1,11 @@
 package ui
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
@@ -316,4 +319,114 @@ func TestUsage_ShownOnTheTasks(t *testing.T) {
 	r.Equal(1, client.usageCalls)
 	r.Equal("production", client.usageNamespace)
 	r.Equal("af1f37df-7b19-6b1c-da67-5e8f482b5a15", client.askedID)
+}
+
+func runningAllocs(n int) []nomad.Alloc {
+	allocs := make([]nomad.Alloc, 0, n)
+	for i := range n {
+		allocs = append(allocs, nomad.Alloc{
+			ID:        fmt.Sprintf("alloc-%03d", i),
+			Namespace: "production",
+			JobID:     "web",
+			TaskGroup: "frontend",
+			Status:    "running",
+		})
+	}
+
+	return allocs
+}
+
+func TestUsage_AsksForTheRowsInTheWindowOnly(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: runningAllocs(50)}
+
+	m := allocationsOf(t, client)
+	m.list.table.setSize(100, 10)
+
+	window := func(m Model) []string {
+		return m.list.table.ids[m.list.table.top : m.list.table.top+10]
+	}
+
+	first := window(m)
+	drain(m, m.fetchUsage())
+	r.ElementsMatch(first, client.usageIDs)
+
+	client.usageIDs = nil
+	m = m.scroll(19)
+	next := window(m)
+	r.NotEqual(first, next)
+
+	drain(m, m.fetchUsage())
+	r.ElementsMatch(next, client.usageIDs)
+}
+
+func TestUsage_ASlowReadDoesNotTakeTheTimeOfTheOthers(t *testing.T) {
+	r := require.New(t)
+
+	refs := []rowRef{{id: "slow"}, {id: "b"}, {id: "c"}}
+
+	read := func(ctx context.Context, _ Client, ref rowRef) (nomad.ResourceUse, error) {
+		if ref.id == "slow" {
+			<-ctx.Done()
+
+			return nomad.ResourceUse{}, ctx.Err()
+		}
+
+		return nomad.ResourceUse{CPUTicks: 1}, ctx.Err()
+	}
+
+	out := takeReadings(nil, refs, read, 20*time.Millisecond)
+
+	r.Len(out.readings, 2)
+	r.Equal(1, out.missing)
+}
+
+func TestUsage_AScrolledScreenWithoutReadingsAsksForNothing(t *testing.T) {
+	r := require.New(t)
+
+	listed := make([]nomad.Evaluation, 0, 60)
+	for i := range 60 {
+		listed = append(listed, nomad.Evaluation{ID: fmt.Sprintf("eval-%03d", i), JobID: "web", Namespace: "production"})
+	}
+
+	m := newTestModel(&fakeClient{evaluations: listed})
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "evals")
+	m, _ = m.update(enter())
+	m, _ = m.update(evaluationsMsg(listed))
+	m = m.scroll(59)
+
+	r.NotPanics(func() { m, _ = m.update(evaluationsMsg(listed)) })
+	r.Nil(m.fetchUsage())
+}
+
+func TestUsage_RowsScrolledIntoViewAreReadAtTheNextRound(t *testing.T) {
+	r := require.New(t)
+
+	allocs := runningAllocs(100)
+	for i := range 40 {
+		allocs[i].Status = "complete"
+	}
+
+	client := &fakeClient{jobs: twoJobs(), allocs: allocs}
+
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(client.jobs))
+	m, _ = m.update(enter())
+	m, cmd := m.update(allocsMsg(allocs))
+
+	// Nothing runs in the first window; the chain of readings goes on.
+	m = drain(m, cmd)
+	r.True(m.usage.rowsDue)
+
+	m = m.scroll(len(allocs))
+	client.usageIDs = nil
+
+	m, cmd = m.update(pollUsageRow{})
+	drain(m, cmd)
+
+	table := m.list.table
+	r.NotEmpty(client.usageIDs)
+	r.ElementsMatch(table.ids[table.top:table.top+table.height], client.usageIDs)
 }

@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -142,42 +143,67 @@ func (m Model) readings() ([]rowRef, readRow) {
 }
 
 // fetchUsage reads what the rows on the screen take. Rows nobody is looking
-// at are not asked about, and a screen with no readings asks nothing.
+// at are not asked about, and a screen with no readings asks nothing. A
+// window with nothing to read still answers, so the timer goes on and the
+// rows scrolled into view are read at the next round.
 func (m Model) fetchUsage() tea.Cmd {
 	refs, read := m.readings()
 	if len(refs) == 0 {
 		return nil
 	}
 
+	refs = inWindow(refs, m.list.table)
 	client := m.client
 
 	return askedFor(m.asked, func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-		defer cancel()
+		return takeReadings(client, refs, read, defaultTimeout)
+	})
+}
 
-		out := rowUsageMsg{readings: make(map[string]nomad.ResourceUse, len(refs))}
+// inWindow keeps the refs of the rows the table shows, by the ids of its
+// rows.
+func inWindow(refs []rowRef, table tableModel) []rowRef {
+	shown := make(map[string]bool, table.height)
+	for i := table.top; i < len(table.ids) && i < table.top+table.height; i++ {
+		shown[table.ids[i]] = true
+	}
 
-		for _, ref := range refs {
-			use, err := read(ctx, client, ref)
+	return slices.DeleteFunc(slices.Clone(refs), func(ref rowRef) bool { return !shown[ref.id] })
+}
 
-			// A machine that does not answer leaves its row empty; the rest
-			// of the list is still worth showing. Its error is kept: a dash
-			// in a column explains nothing by itself.
-			if err != nil {
-				out.missing++
+// takeReadings reads the refs one after another. Each read has its own
+// timeout, so a machine that does not answer does not use up the time of
+// the rows after it.
+func takeReadings(client Client, refs []rowRef, read readRow, timeout time.Duration) rowUsageMsg {
+	out := rowUsageMsg{readings: make(map[string]nomad.ResourceUse, len(refs))}
 
-				if out.reason == nil {
-					out.reason = err
-				}
+	for _, ref := range refs {
+		use, err := readWithin(client, ref, read, timeout)
 
-				continue
+		// A machine that does not answer leaves its row empty; the rest
+		// of the list is still worth showing. Its error is kept: a dash
+		// in a column explains nothing by itself.
+		if err != nil {
+			out.missing++
+
+			if out.reason == nil {
+				out.reason = err
 			}
 
-			out.readings[ref.id] = use
+			continue
 		}
 
-		return out
-	})
+		out.readings[ref.id] = use
+	}
+
+	return out
+}
+
+func readWithin(client Client, ref rowRef, read readRow, timeout time.Duration) (nomad.ResourceUse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return read(ctx, client, ref)
 }
 
 // usageOnce takes the readings when a screen that has them is filled, and
