@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -53,31 +54,56 @@ func TestScheduler_ShowsHowTheClusterPlacesWork(t *testing.T) {
 func TestScheduler_EditSavesOverWhatWasRead(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{schedulerSpec: `{"SchedulerAlgorithm": "spread", "ModifyIndex": 42}`}
-	editor := &fakeEditor{replace: `{"SchedulerAlgorithm": "binpack", "ModifyIndex": 42}`}
+	client := &fakeClient{schedulerSpec: nomad.SchedulerSource{Source: `{"SchedulerAlgorithm": "spread"}`, Index: 42}}
+	editor := &fakeEditor{replace: `{"SchedulerAlgorithm": "binpack"}`}
 	m := onScheduler(t, client, editor)
 
 	m, cmd := m.update(key('e'))
 	m = follow(m, cmd, 5)
 
 	r.Equal([]string{"SubmitScheduler"}, client.writes)
-	r.Equal(`{"SchedulerAlgorithm": "binpack", "ModifyIndex": 42}`, client.submittedSource)
+	r.Equal(`{"SchedulerAlgorithm": "binpack"}`, client.submittedSource)
+	r.Equal(uint64(42), client.submittedIndex)
 	r.Contains(plain(m.render()), "Scheduler configuration saved.")
 }
 
-func TestScheduler_AnEditOverAChangedOneOpensAgain(t *testing.T) {
+func TestScheduler_AnEditOverAChangedOneOpensAgainAtTheNewIndex(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{schedulerSpec: `{"ModifyIndex": 42}`, refusals: []error{nomad.ErrSchedulerChanged}}
-	editor := &fakeEditor{edits: []string{`{"SchedulerAlgorithm": "binpack", "ModifyIndex": 42}`}}
+	edit := `{"SchedulerAlgorithm": "binpack"}`
+	conflict := &nomad.SchedulerConflict{Index: 77}
+	client := &fakeClient{schedulerSpec: nomad.SchedulerSource{Source: `{}`, Index: 42}, refusals: []error{conflict}}
+
+	// The second time, the lines of the refusal are deleted.
+	editor := &fakeEditor{edits: []string{edit, edit}}
+	m := onScheduler(t, client, editor)
+
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 16)
+
+	// What was typed is not lost, and the advice says what saving does.
+	r.Len(editor.seen, 2)
+	r.Equal("# Not saved: "+conflict.Error()+".\n# Saving again replaces that change.\n"+
+		"# To save, change the file: delete these lines at least.\n# To drop your edit, quit without saving.\n"+edit, editor.seen[1])
+
+	r.Equal([]string{"SubmitScheduler", "SubmitScheduler"}, client.writes)
+	r.Equal(uint64(77), client.submittedIndex)
+	r.Contains(plain(m.render()), "Scheduler configuration saved.")
+}
+
+func TestScheduler_AnotherRefusalReopensAtTheSameIndex(t *testing.T) {
+	r := require.New(t)
+
+	edit := `{"SchedulerAlgorithm": "binpack"}`
+	client := &fakeClient{schedulerSpec: nomad.SchedulerSource{Source: `{}`, Index: 42}, refusals: []error{errors.New("not valid JSON")}}
+	editor := &fakeEditor{edits: []string{edit, edit}}
 	m := onScheduler(t, client, editor)
 
 	m, cmd := m.update(key('e'))
 	_ = follow(m, cmd, 16)
 
-	// What was typed is not lost.
-	r.Len(editor.seen, 2)
-	r.Equal(reasonFor(nomad.ErrSchedulerChanged.Error())+`{"SchedulerAlgorithm": "binpack", "ModifyIndex": 42}`, editor.seen[1])
+	r.NotContains(editor.seen[1], "Saving again")
+	r.Equal(uint64(42), client.submittedIndex)
 }
 
 func TestScheduler_CopiesTheValueUnderTheCursor(t *testing.T) {

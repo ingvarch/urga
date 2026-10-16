@@ -254,7 +254,7 @@ type fakeClient struct {
 	// scheduler is how the scheduler places work, schedulerSpec the same
 	// as a file.
 	scheduler     nomad.SchedulerConfig
-	schedulerSpec string
+	schedulerSpec nomad.SchedulerSource
 
 	// evaluated are the jobs evaluated, in turn.
 	evaluated []string
@@ -692,13 +692,13 @@ func (f *fakeClient) Scheduler(context.Context) (nomad.SchedulerConfig, error) {
 	return f.scheduler, f.err
 }
 
-func (f *fakeClient) SchedulerSpec(context.Context) (string, error) {
+func (f *fakeClient) SchedulerSpec(context.Context) (nomad.SchedulerSource, error) {
 	return f.schedulerSpec, f.err
 }
 
-func (f *fakeClient) SubmitScheduler(_ context.Context, source string) error {
+func (f *fakeClient) SubmitScheduler(_ context.Context, source string, index uint64) error {
 	f.wrote("SubmitScheduler")
-	f.submittedSource = source
+	f.submittedSource, f.submittedIndex = source, index
 
 	return f.refused(f.actionErr)
 }
