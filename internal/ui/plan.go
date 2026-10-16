@@ -252,24 +252,29 @@ func planFor(client jobsClient, state planState) tea.Cmd {
 // planNew reads where a new job goes, and opens the plan of it there.
 func planNew(client jobsClient, namespace, source string) tea.Cmd {
 	return request(func(ctx context.Context) (planPage, error) {
-		target, err := client.JobTarget(ctx, namespace, source)
-		if err != nil {
-			return planPage{}, err
-		}
-
-		state := planState{
-			namespace: target.Namespace,
-			jobID:     target.ID,
-			jobType:   target.Type,
-			launches:  target.Launches,
-			source:    source,
-			fresh:     true,
-		}
-
-		plan, err := client.PlanJob(ctx, state.namespace, state.source, state.vars)
-
-		return planOf(plan, state), err
+		return planNewJob(ctx, client, namespace, source)
 	}, func(page planPage) tea.Msg { return openMsg{page} })
+}
+
+// planNewJob plans a job file as a new job, in the namespace it names.
+func planNewJob(ctx context.Context, client jobsClient, namespace, source string) (planPage, error) {
+	target, err := client.JobTarget(ctx, namespace, source)
+	if err != nil {
+		return planPage{}, err
+	}
+
+	state := planState{
+		namespace: target.Namespace,
+		jobID:     target.ID,
+		jobType:   target.Type,
+		launches:  target.Launches,
+		source:    source,
+		fresh:     true,
+	}
+
+	plan, err := client.PlanJob(ctx, state.namespace, state.source, state.vars)
+
+	return planOf(plan, state), err
 }
 
 // submitPlan sends what was planned: the file at the index it was planned

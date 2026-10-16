@@ -77,7 +77,7 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal([]string{
 		"about", "allocations", "authmethods", "bindingrules", "clients", "deployments",
 		"evaluations", "events", "jobs", "namespaces", "nodepools", "overview", "plugins", "policies", "roles",
-		"scaling", "scheduler", "servers", "services", "tokens", "variables", "volumes", "ctx", "dc", "region", "find", "gc",
+		"scaling", "scheduler", "servers", "services", "tokens", "variables", "volumes", "ctx", "dc", "region", "find", "gc", "run",
 	}, matchingCommands(""))
 
 	// A word that is an alias of its own comes first, whatever other names
@@ -137,7 +137,8 @@ func TestMatchingCommands_OfferTheSwitchesAfterTheResources(t *testing.T) {
 
 	r.Equal([]string{"deployments", "dc"}, matchingCommands("d"))
 	r.Equal([]string{"dc"}, matchingCommands("dc"))
-	r.Equal([]string{"roles", "region"}, matchingCommands("r"))
+	r.Equal([]string{"roles", "region", "run"}, matchingCommands("r"))
+	r.Equal([]string{"run"}, matchingCommands("ru"))
 	r.Equal([]string{"region"}, matchingCommands("region eu"))
 }
 
@@ -160,4 +161,21 @@ func TestParseCommand_Find(t *testing.T) {
 	}
 
 	r.Equal([]string{"find"}, matchingCommands("f"))
+}
+
+func TestParseCommand_Run(t *testing.T) {
+	r := require.New(t)
+
+	// The rest of the line is the path, spaces and all.
+	for input, path := range map[string]string{
+		"run web.nomad.hcl":      "web.nomad.hcl",
+		"  run   my jobs/a.hcl ": "my jobs/a.hcl",
+		"RUN ~/web.hcl":          "~/web.hcl",
+		"run":                    "",
+	} {
+		cmd, ok := parseCommand(input)
+		r.True(ok, input)
+		r.True(cmd.running, input)
+		r.Equal(path, cmd.text, input)
+	}
 }

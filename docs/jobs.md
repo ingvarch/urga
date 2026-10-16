@@ -128,6 +128,13 @@ at all of them.
 A new job never replaces one. If a job with the same name exists, the plan
 says so and offers no submit.
 
+`:run web.nomad.hcl` does the same for a job file on your disk: HCL, or JSON
+when the file starts with `{`. The rest of the line is the path, spaces
+included. A path that starts with `~/` is in your home directory, a relative
+one is from where urga runs. The file opens as a plan, and `y` submits it.
+A file that cannot be read says why, and the screen stays. In read-only mode
+`:run` is off.
+
 ## The plan
 
 The plan shows, from top to bottom:

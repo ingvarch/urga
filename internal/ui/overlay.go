@@ -333,6 +333,10 @@ func (m Model) commit() (Model, tea.Cmd) {
 		return m.collectGarbage()
 	}
 
+	if cmd.running {
+		return m.run(cmd.text)
+	}
+
 	switch cmd.switching {
 	case scopeRegion:
 		return m.regionCommand(cmd.name)
