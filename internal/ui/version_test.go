@@ -166,6 +166,7 @@ func TestVersions_TheKeysOfAVersion(t *testing.T) {
 		{Key: "<u>", Description: "Revert"},
 		{Key: "<t>", Description: "Tag"},
 		{Key: "<ctrl-t>", Description: "Untag"},
+		{Key: "<s>", Description: "Mark Unstable"},
 	}, m.hints())
 }
 
@@ -199,4 +200,50 @@ func TestVersions_AreAskedWhereTheJobLives(t *testing.T) {
 	drain(next, cmd)
 	r.Equal("default", client.askedNamespace)
 	r.Equal(uint64(2), *client.plannedTo)
+
+	next, cmd = m.update(key('s'))
+	drain(next, cmd)
+	r.Equal("default/web@2=true", client.stabled)
+}
+
+func TestVersions_MarkAVersionStableOrUnstable(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onVersions(t)
+
+	// Version 3 is stable: the same key takes the mark off.
+	r.Contains(m.hints(), hint{Key: "<s>", Description: "Mark Unstable"})
+	r.NotContains(m.hints(), hint{Key: "<s>", Description: "Mark Stable"})
+
+	m, _ = m.update(key('j'))
+	r.Contains(m.hints(), hint{Key: "<s>", Description: "Mark Stable"})
+
+	// No question: the key changes a flag and the same key undoes it.
+	m, cmd := m.update(key('s'))
+	m = playOut(m, cmd)
+
+	r.Equal([]string{"MarkStable"}, client.writes)
+	r.Equal("production/web@2=true", client.stabled)
+	r.Contains(plain(m.render()), "Version 2 of web marked stable.")
+	r.Contains(m.hints(), hint{Key: "<s>", Description: "Mark Unstable"})
+
+	m, cmd = m.update(key('s'))
+	m = playOut(m, cmd)
+
+	r.Equal("production/web@2=false", client.stabled)
+	r.Contains(plain(m.render()), "Version 2 of web marked unstable.")
+	r.Contains(m.hints(), hint{Key: "<s>", Description: "Mark Stable"})
+}
+
+func TestVersions_ReadOnlyMarksNothing(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onVersions(t)
+	m.opts.ReadOnly = true
+
+	r.NotContains(m.hints(), hint{Key: "<s>", Description: "Mark Unstable"})
+
+	m, _ = m.update(key('s'))
+	r.Contains(plain(m.render()), "read-only: Mark Unstable is off")
+	r.Empty(client.writes)
 }

@@ -250,6 +250,7 @@ On what was done to the count of a group, `d` describes its policy.
 | `u` | Revert to this version | yes |
 | `t` | Tag the version, or rename its tag | yes |
 | `ctrl-t` | Take the tag off the version. Shown on a tagged one. | yes |
+| `s` | Mark the version stable, or unstable when it is stable | yes |
 
 ### Plan
 

@@ -20,6 +20,14 @@ func (c *Client) UntagVersion(ctx context.Context, namespace, jobID, name string
 	return err
 }
 
+// MarkStable marks a version of a job stable or unstable. An auto-revert of a
+// later deployment goes back to the newest stable version.
+func (c *Client) MarkStable(ctx context.Context, namespace, jobID string, version uint64, stable bool) error {
+	_, _, err := c.api.Jobs().Stable(jobID, version, stable, c.write(ctx, namespace))
+
+	return err
+}
+
 // SetAllocHealth marks allocations of a deployment healthy or unhealthy by
 // hand, for a group that checks its health that way.
 func (c *Client) SetAllocHealth(ctx context.Context, namespace, deploymentID string, allocIDs []string, healthy bool) error {

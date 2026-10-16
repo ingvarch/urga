@@ -64,6 +64,8 @@ var versionKeys = []pageKey[versionsPage]{
 	{press: "u", label: "Revert", do: revertToVersion, writes: true},
 	{press: "t", label: "Tag", do: tagVersion, writes: true},
 	{press: "ctrl+t", label: "Untag", do: untagVersion, writes: true, offered: versionTagged},
+	{press: "s", label: "Mark Stable", do: markVersion, writes: true, offered: versionUnstable},
+	{press: "s", label: "Mark Unstable", do: markVersion, writes: true, offered: versionStable},
 }
 
 func (p versionsPage) keys(e env) []keyHint { return hintsOf(p, e, versionKeys) }
@@ -220,4 +222,39 @@ func versionTagged(p versionsPage, e env) bool {
 	version, ok := p.picked(e)
 
 	return ok && version.Tag != ""
+}
+
+// versionStable says the version under the cursor is marked stable.
+func versionStable(p versionsPage, e env) bool {
+	version, ok := p.picked(e)
+
+	return ok && version.Stable
+}
+
+// versionUnstable says the version under the cursor is not marked stable.
+func versionUnstable(p versionsPage, e env) bool {
+	version, ok := p.picked(e)
+
+	return ok && !version.Stable
+}
+
+// markVersion flips the stable mark of the version under the cursor. It asks
+// nothing: the same key flips it back.
+func markVersion(p versionsPage, e env) (versionsPage, outcome) {
+	version, ok := p.picked(e)
+	if !ok {
+		return p, outcome{}
+	}
+
+	client, namespace, jobID := e.client, p.namespace, p.jobID
+	stable := !version.Stable
+
+	word := "stable"
+	if !stable {
+		word = "unstable"
+	}
+
+	return p, outcome{cmd: act(fmt.Sprintf("Version %d of %s marked %s.", version.Version, jobID, word), func(ctx context.Context) error {
+		return client.MarkStable(ctx, namespace, jobID, version.Version, stable)
+	})}
 }

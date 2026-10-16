@@ -39,7 +39,7 @@ One binary, no config to write, no browser.
   a variable as a lock, and releases a lock left held. Creates, edits and
   deletes variables with check-and-set.
 - Creates, edits and deletes namespaces.
-- Shows the versions of a job, reverts to any of them, and tags them.
+- Shows the versions of a job, reverts to any of them, tags them, and marks them stable or unstable.
 - Explains why a job is not placed, and has the scheduler evaluate it again.
 - Lists the launches of periodic and parameterized jobs, shows when a
   periodic job runs next, runs it now, and dispatches a parameterized job
