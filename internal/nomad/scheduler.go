@@ -47,36 +47,77 @@ func (c *Client) Scheduler(ctx context.Context) (SchedulerConfig, error) {
 	}, nil
 }
 
-// SchedulerSpec is the configuration of the scheduler as a file, with the
-// index it was read at.
-func (c *Client) SchedulerSpec(ctx context.Context) (string, error) {
+// SchedulerConflict is a configuration saved over one that changed since it
+// was read: the index the configuration has now, which a save must give to
+// replace it.
+type SchedulerConflict struct {
+	Index uint64
+}
+
+func (e *SchedulerConflict) Error() string { return ErrSchedulerChanged.Error() }
+
+func (e *SchedulerConflict) Unwrap() error { return ErrSchedulerChanged }
+
+// SchedulerSource is the configuration of the scheduler as a file, and the
+// index it was read at: the save succeeds only if the configuration is still
+// at that index.
+type SchedulerSource struct {
+	Source string
+	Index  uint64
+}
+
+// SchedulerSpec is the configuration of the scheduler as a file. The indexes
+// are not settings, so the file holds none.
+func (c *Client) SchedulerSpec(ctx context.Context) (SchedulerSource, error) {
 	config, err := c.scheduler(ctx)
 	if err != nil {
-		return "", err
+		return SchedulerSource{}, err
 	}
 
-	return asJSON(config)
+	raw, err := json.Marshal(config)
+	if err != nil {
+		return SchedulerSource{}, err
+	}
+
+	var fields map[string]any
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return SchedulerSource{}, err
+	}
+
+	delete(fields, "CreateIndex")
+	delete(fields, "ModifyIndex")
+
+	source, err := asJSON(fields)
+
+	return SchedulerSource{Source: source, Index: config.ModifyIndex}, err
 }
 
 // SubmitScheduler sends the configuration of the scheduler back, over the
-// one it was read from: a configuration that changed since is not
-// overwritten.
-func (c *Client) SubmitScheduler(ctx context.Context, source string) error {
+// one at index: a configuration that changed since is not overwritten, and
+// the error carries the index it has now.
+func (c *Client) SubmitScheduler(ctx context.Context, source string, index uint64) error {
 	var config api.SchedulerConfiguration
 	if err := json.Unmarshal([]byte(source), &config); err != nil {
 		return fmt.Errorf("the scheduler configuration is not valid JSON: %w", err)
 	}
+
+	config.ModifyIndex = index
 
 	answer, _, err := c.api.Operator().SchedulerCASConfiguration(&config, c.write(ctx, ""))
 	if err != nil {
 		return err
 	}
 
-	if !answer.Updated {
-		return ErrSchedulerChanged
+	if answer.Updated {
+		return nil
 	}
 
-	return nil
+	now, err := c.scheduler(ctx)
+	if err != nil {
+		return fmt.Errorf("%w, and reading it again failed: %w", ErrSchedulerChanged, err)
+	}
+
+	return &SchedulerConflict{Index: now.ModifyIndex}
 }
 
 func (c *Client) scheduler(ctx context.Context) (*api.SchedulerConfiguration, error) {

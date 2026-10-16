@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"context"
+	"errors"
+
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -76,7 +79,44 @@ func (p schedulerPage) press(k string, e env) (page, outcome, bool) {
 // editScheduler opens the configuration in the editor, with the index it was
 // read at: the cluster keeps a configuration that changed since.
 func editScheduler(p schedulerPage, e env) (schedulerPage, outcome) {
-	client := e.client
+	return p, outcome{cmd: openEditor(schedulerFile(e.client))}
+}
 
-	return p, outcome{cmd: openEditor(jsonFile(client.SchedulerSpec, "Scheduler configuration saved.", client.SubmitScheduler))}
+// schedulerFile is the configuration as a file, saved over the version it was
+// read at.
+func schedulerFile(client schedulerClient) load {
+	return func(ctx context.Context) (file, error) {
+		spec, err := client.SchedulerSpec(ctx)
+
+		return file{extension: "json", content: spec.Source, submit: saveScheduler(client, spec.Index)}, err
+	}
+}
+
+// saveScheduler sends an edit of the configuration read at index. A refusal
+// goes back to the editor instead of being lost; one for a change made since
+// is sent at the index the configuration has now, so saving again replaces
+// that change.
+func saveScheduler(client schedulerClient, index uint64) func(source string) tea.Cmd {
+	return func(source string) tea.Cmd {
+		return func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			defer cancel()
+
+			err := client.SubmitScheduler(ctx, source, index)
+			if err == nil {
+				return doneMsg{said: "Scheduler configuration saved."}
+			}
+
+			next, advice := index, ""
+
+			var conflict *nomad.SchedulerConflict
+			if errors.As(err, &conflict) {
+				next, advice = conflict.Index, "Saving again replaces that change."
+			}
+
+			again := file{extension: "json", content: source, submit: saveScheduler(client, next)}
+
+			return refusedEditMsg{err: err, advice: advice, again: again}
+		}
+	}
 }

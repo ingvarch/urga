@@ -209,7 +209,7 @@ type (
 	// schedulerClient is how the scheduler of the cluster places work.
 	schedulerClient interface {
 		Scheduler(ctx context.Context) (nomad.SchedulerConfig, error)
-		SchedulerSpec(ctx context.Context) (string, error)
-		SubmitScheduler(ctx context.Context, source string) error
+		SchedulerSpec(ctx context.Context) (nomad.SchedulerSource, error)
+		SubmitScheduler(ctx context.Context, source string, index uint64) error
 	}
 )
