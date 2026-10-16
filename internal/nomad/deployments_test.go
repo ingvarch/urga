@@ -122,3 +122,42 @@ func TestDeployment_Active(t *testing.T) {
 		r.False(nomad.Deployment{Status: status}.Active(), status)
 	}
 }
+
+func TestJobDeployments_NewestFirst(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `[
+		{"ID": "dep-7", "JobID": "web", "JobVersion": 7, "Status": "cancelled", "CreateIndex": 20,
+		 "StatusDescription": "Cancelled due to newer version of job"},
+		{"ID": "dep-8", "JobID": "web", "JobVersion": 8, "Status": "running", "CreateIndex": 30,
+		 "TaskGroups": {"web": {"DesiredTotal": 2}, "api": {"DesiredTotal": 1}}},
+		{"ID": "dep-6", "JobID": "web", "JobVersion": 6, "Status": "successful", "CreateIndex": 10}
+	]`)
+
+	deployments, err := client.JobDeployments(context.Background(), "production", "web")
+	r.NoError(err)
+
+	r.Equal("/v1/job/web/deployments", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+	r.Equal("false", asked.URL.Query().Get("all"))
+
+	ids := []string{}
+	for _, d := range deployments {
+		ids = append(ids, d.ID)
+	}
+
+	r.Equal([]string{"dep-8", "dep-7", "dep-6"}, ids)
+	r.Equal(uint64(7), deployments[1].JobVersion)
+	r.Equal("Cancelled due to newer version of job", deployments[1].StatusDescription)
+	r.Equal([]string{"api", "web"}, []string{deployments[0].Groups[0].Name, deployments[0].Groups[1].Name})
+}
+
+func TestJobDeployments_WhenTheJobHasNone(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[]`)
+
+	deployments, err := client.JobDeployments(context.Background(), "production", "batch-job")
+	r.NoError(err)
+	r.Empty(deployments)
+}

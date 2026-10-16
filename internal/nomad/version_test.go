@@ -13,7 +13,7 @@ const jobVersions = `{
 	"Versions": [
 		{
 			"ID": "web", "Name": "web", "Namespace": "production",
-			"Version": 3, "Stable": true, "SubmitTime": 1758499200000000000,
+			"Version": 3, "Stable": true, "SubmitTime": 1758499200000000000, "JobModifyIndex": 40,
 			"VersionTag": {"Name": "golden", "Description": "the one that works"}
 		},
 		{"ID": "web", "Name": "web", "Version": 2, "Stable": false, "SubmitTime": 1758412800000000000},
@@ -54,6 +54,7 @@ func TestJobVersions_Read(t *testing.T) {
 	r.True(versions[0].Current)
 	r.True(versions[0].Stable)
 	r.Equal("golden", versions[0].Tag)
+	r.Equal(uint64(40), versions[0].JobModifyIndex)
 	r.False(versions[0].Submitted.IsZero())
 
 	r.False(versions[1].Current)

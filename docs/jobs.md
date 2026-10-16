@@ -232,3 +232,26 @@ nothing left to promote, pause or fail.
 
 System jobs have deployments since Nomad 1.11. They have no canaries, so
 their Canaries and Promoted columns show `-`.
+
+## Watching a deploy
+
+`w` on a job opens `Deploy (Job: web, Version: 7)`: the screen of the
+deployment of the version the job runs, which updates as the deploy goes. At
+the top, urga shows the newest evaluation of the job and, when it blocked or
+failed to place something, why, in the words of the evaluation screen. Under
+it, one line says how the deploy stands:
+
+- `Waiting for the deployment of version 7.` until the job has a deployment
+  of that version. The table lists the allocations of the job at that
+  version, with the keys of an allocation.
+- The status and description of the deployment while it runs, then
+  `Deployment successful.`, `Deployment failed: ...` or
+  `Deployment cancelled: ...` when it ends.
+- `web has no deployment for version 7: its allocations are below.` for a
+  batch or sysbatch job, and for a version that made none: the newest
+  evaluation of the job saw the version, completed, and no deployment came of
+  it (a stopped job, an update with `max_parallel = 0`).
+
+Below are the groups of the deployment and its allocations, with the keys of
+the deployment screen. `esc` leaves the screen; the deploy goes on. `w` is not
+shown on a periodic or parameterized job, and it works in read-only mode.

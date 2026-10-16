@@ -16,6 +16,9 @@ type EvaluationDetail struct {
 
 	StatusDescription string
 
+	// CreateIndex is the index of the cluster when the evaluation was made.
+	CreateIndex uint64
+
 	// BlockedEval waits for room to place what this one could not;
 	// PreviousEval and NextEval are the decisions before and after it.
 	BlockedEval  string
@@ -68,6 +71,7 @@ func newEvaluationDetail(eval *api.Evaluation) EvaluationDetail {
 	detail := EvaluationDetail{
 		Evaluation:        newEvaluation(eval),
 		StatusDescription: eval.StatusDescription,
+		CreateIndex:       eval.CreateIndex,
 		BlockedEval:       eval.BlockedEval,
 		PreviousEval:      eval.PreviousEval,
 		NextEval:          eval.NextEval,
@@ -137,10 +141,39 @@ func (c *Client) FailedPlacement(ctx context.Context, namespace, jobID string) (
 		return EvaluationDetail{}, err
 	}
 
+	newest := newestOf(evals, func(eval *api.Evaluation) bool { return len(eval.FailedTGAllocs) > 0 })
+
+	if newest == nil {
+		return EvaluationDetail{}, ErrNoFailures
+	}
+
+	return newEvaluationDetail(newest), nil
+}
+
+// NewestEvaluation is the newest evaluation of the job, nil when it has none.
+func (c *Client) NewestEvaluation(ctx context.Context, namespace, jobID string) (*EvaluationDetail, error) {
+	evals, _, err := c.api.Jobs().Evaluations(jobID, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	newest := newestOf(evals, func(*api.Evaluation) bool { return true })
+	if newest == nil {
+		return nil, nil
+	}
+
+	detail := newEvaluationDetail(newest)
+
+	return &detail, nil
+}
+
+// newestOf is the evaluation with the highest create index among those that
+// pass wanted, nil when none does.
+func newestOf(evals []*api.Evaluation, wanted func(*api.Evaluation) bool) *api.Evaluation {
 	var newest *api.Evaluation
 
 	for _, eval := range evals {
-		if eval == nil || len(eval.FailedTGAllocs) == 0 {
+		if eval == nil || !wanted(eval) {
 			continue
 		}
 
@@ -149,11 +182,7 @@ func (c *Client) FailedPlacement(ctx context.Context, namespace, jobID string) (
 		}
 	}
 
-	if newest == nil {
-		return EvaluationDetail{}, ErrNoFailures
-	}
-
-	return newEvaluationDetail(newest), nil
+	return newest
 }
 
 // EvaluationAllocations are the allocations an evaluation placed or changed.

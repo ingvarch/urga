@@ -249,6 +249,11 @@ type deploymentPage struct {
 	read       bool
 
 	allocs []nomad.Alloc
+
+	// version narrows the logs to the allocations of that version, when
+	// versioned: the watch of a deploy has rows of one version only.
+	version   uint64
+	versioned bool
 }
 
 // deploymentOf is the page of a deployment in its namespace, which is where
@@ -329,7 +334,7 @@ func (deploymentPage) reading(ctx context.Context, client Client, ref rowRef) (n
 
 // logsOf: the logs of the allocations the deployment placed for its job.
 func (p deploymentPage) logsOf(env) logScope {
-	return logScope{namespace: p.namespace, jobID: p.jobID, deploymentID: p.deploymentID}
+	return logScope{namespace: p.namespace, jobID: p.jobID, deploymentID: p.deploymentID, version: p.version, versioned: p.versioned}
 }
 
 // inView is the deployment the page read.

@@ -54,6 +54,11 @@ type logScope struct {
 	// names it.
 	volumeKind, volumeID string
 
+	// version narrows the allocations to those of that version, when
+	// versioned.
+	version   uint64
+	versioned bool
+
 	// fault narrows the allocations to those in that state, for the logs of
 	// a list the overview opened.
 	fault fault
@@ -191,11 +196,12 @@ func (c logChoice) path() string {
 	return c.namespace + "/" + c.job + "/" + c.group + "/" + c.task
 }
 
-// inScope says the allocation is in the job, the group and the state of the
-// scope.
+// inScope says the allocation is in the job, the group, the version and the
+// state of the scope.
 func inScope(scope logScope, alloc nomad.Alloc) bool {
 	return (scope.jobID == "" || alloc.JobID == scope.jobID) &&
 		(scope.group == "" || alloc.TaskGroup == scope.group) &&
+		(!scope.versioned || alloc.JobVersion == scope.version) &&
 		allocHasFault(alloc, scope.fault, scope.read)
 }
 

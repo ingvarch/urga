@@ -214,6 +214,7 @@ start, stop, restart or drain then applies to every marked row.
 | `h` | Job file the job was submitted with | |
 | `v` | Versions | |
 | `l` | Logs of a task in every allocation of the job. Not shown for a periodic or parameterized job. | |
+| `w` | Watch the deploy of the job at the version it runs. Not shown for a periodic or parameterized job. | |
 | `e` | Edit the job in your editor | yes |
 | `ctrl-s` | Start a stopped job, or stop a running one | yes |
 | `ctrl-p` | Purge a stopped job: it leaves the cluster with its versions. Shown on a stopped job. | yes |
@@ -392,6 +393,13 @@ keys of [Allocations](#allocations), and these:
 
 These keys are shown only while the deployment is active. `p` is shown only
 when the group under the cursor has canaries waiting to be promoted.
+
+### A deploy
+
+The deploy screen, opened with `w` on a job, has the keys of
+[A deployment](#a-deployment) once the job has a deployment of the version it
+watches. Before that it has the keys of [Allocations](#allocations). `esc`
+leaves it; the deploy goes on.
 
 ### Namespaces and services
 

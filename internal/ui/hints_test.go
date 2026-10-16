@@ -39,6 +39,15 @@ func everyScreen(t *testing.T) map[string]Model {
 	return open
 }
 
+// runningAtVersionThree is the deployment of the list as the newest of web,
+// at the version it runs.
+func runningAtVersionThree() []nomad.DeploymentDetail {
+	return []nomad.DeploymentDetail{{
+		Deployment: nomad.Deployment{ID: "dep-1", JobID: "web", Namespace: "production", JobVersion: 3, Status: "running"},
+		Groups:     []nomad.DeploymentGroup{{Name: "frontend", DesiredTotal: 2, Placed: 1, DesiredCanaries: 1, PlacedCanaries: 1}},
+	}}
+}
+
 // everyScreenClient is a cluster with something on every screen.
 func everyScreenClient() *fakeClient {
 	return &fakeClient{
@@ -71,6 +80,7 @@ func everyScreenClient() *fakeClient {
 		deploymentAllocs: []nomad.Alloc{
 			{ID: "canary-1", Namespace: "production", JobID: "web", TaskGroup: "frontend", Status: "running", Canary: true},
 		},
+		jobDeployments: runningAtVersionThree(),
 
 		// The directory of the task server, with a file to open.
 		files: map[string][]nomad.File{
@@ -169,6 +179,9 @@ func openOfAJob(open map[string]Model) {
 
 	tasks, _ := allocs.update(enter())
 	open["tasks"] = tasks
+
+	watch, cmd := jobs.update(key('w'))
+	open["deployWatch"] = drain(watch, cmd)
 
 	groups, _ := jobs.update(key('t'))
 	groups, _ = groups.update(taskGroupsMsg(twoGroups()))

@@ -30,6 +30,10 @@ type JobVersion struct {
 
 	Submitted time.Time
 
+	// JobModifyIndex is the index of the cluster when the version was made:
+	// an evaluation of the job at or above it has seen this version.
+	JobModifyIndex uint64
+
 	// Changes is how many fields differ from the version before this one.
 	Changes int
 }
@@ -53,6 +57,8 @@ func (c *Client) JobVersions(ctx context.Context, namespace, jobID string) ([]Jo
 			Version: valueOf(job.Version),
 			Stable:  valueOf(job.Stable),
 			Current: i == 0,
+
+			JobModifyIndex: valueOf(job.JobModifyIndex),
 		}
 
 		if job.VersionTag != nil {
