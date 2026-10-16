@@ -210,3 +210,26 @@ func TestSession_TheNextRunOpensTheOverviewAgain(t *testing.T) {
 	r.IsType(overviewPage{}, next.screen.page)
 	r.Equal(overviewView, next.screen.view)
 }
+
+func TestSession_TheSavedFileIsTheSessionAsRemembered(t *testing.T) {
+	r := require.New(t)
+
+	m, cfg := sessionModel(t, &fakeClient{namespaces: threeNamespaces()})
+	m, _ = m.update(namespacesMsg(threeNamespaces()))
+
+	next, _ := m.update(key('3'))
+	cmd := next.remember()
+
+	// The config changes after the command was made, as the next key would.
+	cfg.UseNamespace("later")
+	cfg.Of("other").Screen = "jobs"
+
+	r.NotNil(cmd)
+	cmd()
+
+	again, err := config.Load()
+	r.NoError(err)
+	r.NotNil(again.Namespace)
+	r.Equal("staging", *again.Namespace)
+	r.Empty(again.Clusters)
+}
