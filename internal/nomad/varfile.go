@@ -20,6 +20,7 @@ type VariableConflict struct {
 	Path    string
 	Deleted bool
 	Exists  bool
+	Held    bool
 	Lock    *VariableLock
 	Index   uint64
 }
@@ -30,6 +31,8 @@ func (e *VariableConflict) Error() string {
 		return fmt.Sprintf("variable %s was deleted since it was read", e.Path)
 	case e.Exists:
 		return fmt.Sprintf("variable %s already exists", e.Path)
+	case e.Held:
+		return fmt.Sprintf("variable %s is locked: only the holder of its lock can change it", e.Path)
 	case e.Lock != nil:
 		return fmt.Sprintf("variable %s is locked: only the holder of lock %s can change it", e.Path, e.Lock.ID)
 	}
@@ -101,7 +104,14 @@ func (c *Client) variableConflict(ctx context.Context, namespace, path string, i
 		return &VariableConflict{Path: path, Deleted: true}
 	}
 
-	return &VariableConflict{Path: path, Exists: index == 0, Lock: lockOf(now.Lock), Index: now.ModifyIndex}
+	lock := lockOf(now.Lock)
+
+	// Nomad hides the lock from a token that is not management, and refuses a
+	// write it may not make before any index is checked: a variable still at
+	// the index of the write that was refused is locked.
+	held := lock == nil && now.ModifyIndex == index
+
+	return &VariableConflict{Path: path, Exists: index == 0, Held: held, Lock: lock, Index: now.ModifyIndex}
 }
 
 // variableFile writes the items of a variable as TOML, one key per line, by

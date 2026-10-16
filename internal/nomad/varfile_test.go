@@ -220,6 +220,47 @@ func TestSubmitVariable_SaysTheVariableIsLocked(t *testing.T) {
 	r.EqualError(conflict, "variable nomad/jobs/web is locked: only the holder of lock 874ae5d0-f47a-afb0-804f-fcdb04a14a0b can change it")
 }
 
+func TestSubmitVariable_NamesTheLockWhenItWasTakenBeforeTheRead(t *testing.T) {
+	r := require.New(t)
+
+	// A token that sees the lock gets it named, even though the index is the
+	// one the save was sent at.
+	client := conflicted(t, `{"Namespace": "production", "Path": "nomad/jobs/web", "ModifyIndex": 769,
+		"Lock": {"ID": "874ae5d0-f47a-afb0-804f-fcdb04a14a0b", "TTL": "30m0s", "LockDelay": "15s"}}`)
+
+	conflict := conflictOf(t, client)
+
+	r.False(conflict.Held)
+	r.EqualError(conflict, "variable nomad/jobs/web is locked: only the holder of lock 874ae5d0-f47a-afb0-804f-fcdb04a14a0b can change it")
+}
+
+func TestSubmitVariable_SaysTheVariableIsHeldWhenNothingChangedIt(t *testing.T) {
+	r := require.New(t)
+
+	// A token that is not management is not shown the lock, and the index
+	// is the one the save was sent at: nothing changed the variable.
+	client := conflicted(t, `{"Namespace": "production", "Path": "nomad/jobs/web", "ModifyIndex": 769}`)
+
+	conflict := conflictOf(t, client)
+
+	r.True(conflict.Held)
+	r.Nil(conflict.Lock)
+	r.Equal(uint64(769), conflict.Index)
+	r.EqualError(conflict, "variable nomad/jobs/web is locked: only the holder of its lock can change it")
+}
+
+func TestDeleteVariable_SaysTheVariableIsHeldWhenNothingChangedIt(t *testing.T) {
+	r := require.New(t)
+
+	client := conflicted(t, `{"Namespace": "production", "Path": "nomad/jobs/web", "ModifyIndex": 769}`)
+
+	err := client.DeleteVariable(context.Background(), "production", "nomad/jobs/web", 769)
+
+	var conflict *nomad.VariableConflict
+	r.True(errors.As(err, &conflict), "%v", err)
+	r.EqualError(conflict, "variable nomad/jobs/web is locked: only the holder of its lock can change it")
+}
+
 func TestSubmitVariable_AConflictItCannotReadAgain(t *testing.T) {
 	r := require.New(t)
 
