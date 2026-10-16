@@ -40,7 +40,7 @@ func (c *Client) SubmitJob(ctx context.Context, namespace, source string, vars J
 
 // jobOf reads a job file and puts the job in the namespace it is sent to.
 func (c *Client) jobOf(ctx context.Context, namespace, source string, vars JobVariables) (*api.Job, *api.JobSubmission, error) {
-	job, kept, err := c.parseJob(ctx, namespace, source, vars)
+	job, kept, err := c.parseJob(ctx, namespace, source, vars, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -53,8 +53,9 @@ func (c *Client) jobOf(ctx context.Context, namespace, source string, vars JobVa
 }
 
 // parseJob reads a job file the way the cluster does, and returns what of it
-// to keep with the version.
-func (c *Client) parseJob(ctx context.Context, namespace, source string, vars JobVariables) (*api.Job, *api.JobSubmission, error) {
+// to keep with the version. A canonical job has every field the file leaves
+// out filled in, its namespace too.
+func (c *Client) parseJob(ctx context.Context, namespace, source string, vars JobVariables, canonicalize bool) (*api.Job, *api.JobSubmission, error) {
 	if strings.HasPrefix(strings.TrimSpace(source), "{") {
 		// The file holds the job or wraps it in a Job key. The cluster takes
 		// both, and keeps the file as it was written.
@@ -81,7 +82,7 @@ func (c *Client) parseJob(ctx context.Context, namespace, source string, vars Jo
 		return nil, nil, err
 	}
 
-	request := &api.JobsParseRequest{JobHCL: source, Variables: variables, Canonicalize: true}
+	request := &api.JobsParseRequest{JobHCL: source, Variables: variables, Canonicalize: canonicalize}
 
 	// The client of the API parses without a namespace, which is the default
 	// one, and a token may be allowed to parse jobs in its own namespace only.
@@ -213,4 +214,76 @@ func namespaceOf(source string) (*api.Namespace, error) {
 	}
 
 	return namespace, nil
+}
+
+// JobTemplate is the file a new job starts from.
+const JobTemplate = `job "web" {
+  type = "service"
+
+  group "web" {
+    count = 1
+
+    network {
+      port "http" {
+        to = 80
+      }
+    }
+
+    task "server" {
+      driver = "docker"
+
+      config {
+        image = "nginx:1.27"
+        ports = ["http"]
+      }
+
+      resources {
+        cpu    = 100
+        memory = 128
+      }
+    }
+  }
+}
+`
+
+// JobTarget is where a job file sends its job: the job, the namespace it goes
+// to, and what the job is.
+type JobTarget struct {
+	ID        string
+	Namespace string
+	Type      string
+
+	// Launches says the job launches jobs of its own.
+	Launches bool
+}
+
+// JobTarget reads a job file for where it goes. The namespace is the one the
+// file names, or else the one of the session, and default when the session
+// looks at all of them.
+func (c *Client) JobTarget(ctx context.Context, namespace, source string) (JobTarget, error) {
+	if namespace == "" || namespace == AllNamespaces {
+		namespace = DefaultNamespace
+	}
+
+	job, _, err := c.parseJob(ctx, namespace, source, JobVariables{}, false)
+	if err != nil {
+		return JobTarget{}, err
+	}
+
+	target := JobTarget{
+		ID:        valueOf(job.ID),
+		Namespace: namespace,
+		Type:      valueOf(job.Type),
+		Launches:  job.IsPeriodic() || job.IsParameterized(),
+	}
+
+	if named := valueOf(job.Namespace); named != "" {
+		target.Namespace = named
+	}
+
+	if target.Type == "" {
+		target.Type = api.JobTypeService
+	}
+
+	return target, nil
 }

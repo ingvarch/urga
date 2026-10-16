@@ -114,6 +114,20 @@ the cluster for a plan and shows it. If the cluster cannot plan the file, for
 example because of a syntax error, urga opens the editor again with your edit
 and the reason at the top. See [Editor](configuration.md#editor).
 
+## Creating a job
+
+`n` opens a template of a job in your editor: a service with one group `web`
+and one task `server` that runs `nginx`. Change it into your job and save. If
+you save the file as it was, nothing is sent.
+
+Like an edit, the saved file is planned first and submitted with `y` from the
+plan. The job goes to the namespace its file names. A file that names none
+goes to the namespace of the session, and to `default` when the session looks
+at all of them.
+
+A new job never replaces one. If a job with the same name exists, the plan
+says so and offers no submit.
+
 ## The plan
 
 The plan shows, from top to bottom:

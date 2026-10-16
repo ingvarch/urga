@@ -80,7 +80,7 @@ func (c *Client) restoreScaling(ctx context.Context, namespace string, job *api.
 		return nil
 	}
 
-	submitted, _, err := c.parseJob(ctx, namespace, kept.Source, JobVariables{Flags: kept.VariableFlags, File: kept.Variables})
+	submitted, _, err := c.parseJob(ctx, namespace, kept.Source, JobVariables{Flags: kept.VariableFlags, File: kept.Variables}, true)
 	if err != nil {
 		return fmt.Errorf("the scaling policies could not be turned back on: %w", err)
 	}

@@ -185,6 +185,7 @@ var jobsKeys = []pageKey[jobsPage]{
 	{press: "l", label: "Logs", do: jobLogs, offered: runsItself},
 	{press: "w", label: "Watch", do: watchJob, offered: runsItself},
 	{press: "e", label: "Edit", do: editJob, writes: true},
+	{press: "n", label: "New", do: newJob, writes: true},
 	{press: "p", label: "Placement", do: jobPlacement, offered: jobWaits},
 }
 

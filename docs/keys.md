@@ -216,6 +216,7 @@ start, stop, restart or drain then applies to every marked row.
 | `l` | Logs of a task in every allocation of the job. Not shown for a periodic or parameterized job. | |
 | `w` | Watch the deploy of the job at the version it runs. Not shown for a periodic or parameterized job. | |
 | `e` | Edit the job in your editor | yes |
+| `n` | New job: opens a job template in your editor | yes |
 | `ctrl-s` | Start a stopped job, or stop a running one | yes |
 | `ctrl-p` | Purge a stopped job: it leaves the cluster with its versions. Shown on a stopped job. | yes |
 | `ctrl-e` | Evaluate the job again: the scheduler places what it can now | yes |
