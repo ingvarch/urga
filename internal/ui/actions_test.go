@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -178,4 +179,82 @@ func TestAction_ConfirmTakesTheKeys(t *testing.T) {
 
 	m, _ = m.update(key('j'))
 	r.Zero(m.list.table.cursor)
+}
+
+const longQuestion = "Really collect the garbage of the client web-01? Logs of its ended allocations are deleted."
+
+func askAt80(t *testing.T, question string) string {
+	t.Helper()
+
+	m := newTestModel(&fakeClient{})
+	m, _ = m.update(tea.WindowSizeMsg{Width: 80, Height: 30})
+	m, _ = m.ask(question, nil)
+
+	return dialogRows(plain(m.render()))
+}
+
+// dialogRows keeps the lines of the screen that belong to the question box,
+// the header above it has its own cut-off text.
+func dialogRows(screen string) string {
+	var rows []string
+
+	for _, line := range strings.Split(screen, "\n") {
+		if strings.Count(line, "│")+strings.Count(line, "╭")+strings.Count(line, "╰") >= 4 {
+			rows = append(rows, line)
+		}
+	}
+
+	return strings.Join(rows, "\n")
+}
+
+func TestConfirmView_ALongQuestionIsShownWhole(t *testing.T) {
+	r := require.New(t)
+
+	screen := askAt80(t, longQuestion)
+
+	r.NotContains(screen, "…")
+
+	for _, word := range strings.Fields(longQuestion) {
+		r.Contains(screen, word)
+	}
+
+	last := strings.Index(screen, "deleted.")
+	r.Positive(last)
+	r.Greater(strings.Index(screen, "cancel"), last)
+}
+
+func TestConfirmView_AShortQuestionIsOneLine(t *testing.T) {
+	r := require.New(t)
+
+	view := plain(confirmModel{question: "Really stop the job web?"}.view(74))
+
+	// Border, blank, question, blank, buttons, blank, border.
+	r.Len(strings.Split(view, "\n"), 7)
+	r.Contains(view, "Really stop the job web?")
+}
+
+func TestConfirmView_AnUnbrokenWordIsBrokenInside(t *testing.T) {
+	r := require.New(t)
+
+	path := "nomad/jobs/" + strings.Repeat("web_frontend/", 7) + "config"
+	screen := askAt80(t, "Really delete "+path+"?")
+
+	r.NotContains(screen, "…")
+
+	flat := strings.NewReplacer("\n", "", " ", "", "│", "").Replace(screen)
+	r.Contains(flat, path+"?")
+}
+
+func TestConfirmView_TheQuestionKeepsAMarginFromTheBorder(t *testing.T) {
+	r := require.New(t)
+
+	rows := strings.Split(plain(confirmModel{question: longQuestion}.view(72)), "\n")
+	r.Greater(len(rows), 2)
+
+	pad := strings.Repeat(" ", modalPadX)
+
+	for _, row := range rows[1 : len(rows)-1] {
+		r.True(strings.HasPrefix(row, "│"+pad), row)
+		r.True(strings.HasSuffix(row, pad+"│"), row)
+	}
 }

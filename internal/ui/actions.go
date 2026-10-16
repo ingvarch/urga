@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/ingvarch/urga/internal/nomad"
 )
@@ -38,13 +39,22 @@ type confirmModel struct {
 	choice int
 }
 
-// view is the question as a box to put over the screen.
+// view is the question as a box to put over the screen. A long question
+// wraps over as many lines as it takes, inside a word when it has to.
 func (c confirmModel) view(width int) string {
-	return dialog("Confirm", []string{
-		styleText.Render(c.question),
+	words := width - 2 - 2*modalPadX
+
+	lines := []string{}
+	for _, line := range strings.Split(ansi.Wrap(c.question, words, ""), "\n") {
+		lines = append(lines, styleText.Render(line))
+	}
+
+	lines = append(lines,
 		"",
-		button("cancel", c.choice == buttonCancel) + "   " + button("confirm", c.choice == buttonConfirm),
-	}, width)
+		button("cancel", c.choice == buttonCancel)+"   "+button("confirm", c.choice == buttonConfirm),
+	)
+
+	return dialog("Confirm", lines, width)
 }
 
 // button is one of the two of a question, filled when the cursor is on it.
