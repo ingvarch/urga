@@ -105,7 +105,7 @@ func TestFind_AsksOnce(t *testing.T) {
 	for range 3 {
 		var cmd tea.Cmd
 
-		m, cmd = m.update(pollMsg{})
+		m, cmd = m.update(pollMsg{tick: m.pollTick})
 		m = playOut(m, cmd)
 	}
 
@@ -289,7 +289,7 @@ func TestFind_AFailureIsShownOnce(t *testing.T) {
 
 	var cmd tea.Cmd
 
-	m, cmd = m.update(pollMsg{})
+	m, cmd = m.update(pollMsg{tick: m.pollTick})
 	playOut(m, cmd)
 
 	r.Equal(1, client.findCalls)

@@ -201,7 +201,7 @@ func TestWatch_OneTimerHoweverManyAnswersArrive(t *testing.T) {
 
 	// The timer that was set when the list first arrived has fired, so
 	// there is room for exactly one more.
-	m, _ = m.update(pollMsg{})
+	m, _ = m.update(pollMsg{tick: m.pollTick})
 
 	// Every answer from the cluster used to schedule a poll of its own, so
 	// a talkative cluster ended up with a timer per burst, for the rest of
@@ -220,7 +220,7 @@ func TestWatch_OneTimerHoweverManyAnswersArrive(t *testing.T) {
 	r.Equal(1, timers)
 
 	// The timer that fired makes room for the next one, and no more.
-	m, _ = m.update(pollMsg{})
+	m, _ = m.update(pollMsg{tick: m.pollTick})
 
 	m, cmd := m.update(jobsMsg(twoJobs()))
 	r.NotNil(cmd)

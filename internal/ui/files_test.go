@@ -149,7 +149,7 @@ func TestFiles_ADirectoryIsAskedAgain(t *testing.T) {
 	client.files["/server"] = append(client.files["/server"], nomad.File{Name: "late.log", Size: 7})
 	client.filesPath = ""
 
-	m, cmd := m.update(pollMsg{})
+	m, cmd := m.update(pollMsg{tick: m.pollTick})
 	m = drain(m, cmd)
 
 	r.Equal("/server", client.filesPath)
@@ -364,7 +364,7 @@ func TestFile_AnotherFileAskedMeanwhileIsLetGo(t *testing.T) {
 	m := onEnv(t, client)
 
 	client.files["/server/local"] = append(client.files["/server/local"], nomad.File{Name: "other.env", Size: 8})
-	m, listed := m.update(pollMsg{})
+	m, listed := m.update(pollMsg{tick: m.pollTick})
 	m = drain(m, listed)
 
 	// Both files are asked for, one after the other, before either answers.

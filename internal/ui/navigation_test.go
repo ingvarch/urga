@@ -161,7 +161,7 @@ func TestNavigation_PollKeepsToTheOpenScreen(t *testing.T) {
 
 	client.calls = 0
 
-	_, cmd := m.update(pollMsg{})
+	_, cmd := m.update(pollMsg{tick: m.pollTick})
 	r.NotNil(cmd)
 	r.IsType(allocsMsg{}, answered(t, cmd()))
 

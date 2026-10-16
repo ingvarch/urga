@@ -135,7 +135,7 @@ func TestDescribe_DoesNotPoll(t *testing.T) {
 
 	// A description is a snapshot, it does not go back to the cluster on a
 	// timer.
-	_, cmd = m.update(pollMsg{})
+	_, cmd = m.update(pollMsg{tick: m.pollTick})
 	r.Nil(cmd)
 }
 
