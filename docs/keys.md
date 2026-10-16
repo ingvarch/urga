@@ -265,6 +265,8 @@ On what was done to the count of a group, `d` describes its policy.
 | `w` | Wrap long lines | |
 | `ctrl-s` | Save the plan to a file | |
 | `c` | Copy the plan to the clipboard | |
+| `f` | Find a word: every line stays and the word is lit | |
+| `n`, `N` | Next or previous match. Shown once a word is found. | |
 
 ### Allocations
 
@@ -308,6 +310,8 @@ evaluation.
 | `p` | Same log in the allocation this one replaced |
 | `ctrl-s` | Save the log to a file |
 | `c` | Copy the log to the clipboard, the last 64 KiB at most |
+| `f` | Find a word: every line stays and the word is lit |
+| `n`, `N` | Next or previous match. Shown once a word is found. |
 
 ### Logs of every allocation
 
@@ -320,6 +324,8 @@ evaluation.
 | `w` | Wrap on or off |
 | `ctrl-s` | Save the logs to a file |
 | `c` | Copy the logs to the clipboard |
+| `f` | Find a word: every line stays and the word is lit |
+| `n`, `N` | Next or previous match. Shown once a word is found. |
 
 In the list of tasks that opens first when there are several, `enter` opens
 the logs of the task under the cursor.
@@ -338,6 +344,8 @@ On an open file:
 | `w` | Wrap on or off |
 | `ctrl-s` | Save the file to a local file |
 | `c` | Copy the file to the clipboard |
+| `f` | Find a word: every line stays and the word is lit |
+| `n`, `N` | Next or previous match. Shown once a word is found. |
 
 ### Overview
 
@@ -521,7 +529,18 @@ Descriptions, job files and diffs:
 | `w` | Wrap on or off |
 | `ctrl-s` | Save to a file |
 | `c` | Copy to the clipboard |
+| `f` | Find a word: every line stays and the word is lit |
+| `n`, `N` | Next or previous match. Shown once a word is found. |
 
 On every text screen, logs, files and plans included, `c` copies up to 64 KiB:
 the last whole lines when the text is longer, so the start of a long log is
 left out. `ctrl-s` saves all of it.
+
+On every text screen, `f` asks for a word and keeps every line on the screen,
+lighting the word where it is. The window goes to the first match from its
+top, and the status line says which one it is. `n` and `N` go to the next and
+the previous match, round past the end and the start; after you scroll away
+from a match, they start from what the window shows. An empty word drops the find, and
+`esc` keeps the word as it was. The filter (`/`) still narrows the lines, and
+find looks within what it left. Like the filter, the word is a regular
+expression when it is one, and matches in any case.

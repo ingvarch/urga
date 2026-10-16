@@ -81,6 +81,12 @@ func (m Model) fromPage(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case timesMsg:
 		return taken(showTimes(m))
 
+	case findWordMsg:
+		return taken(m.askFind())
+
+	case matchMsg:
+		return taken(m.goToMatch(int(msg)))
+
 	case reopenMsg:
 		return taken(m.openStream())
 

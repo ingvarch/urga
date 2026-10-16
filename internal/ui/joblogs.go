@@ -501,7 +501,7 @@ func (p jobLogsPage) lines(allocID string, style *lipgloss.Style, lines ...strin
 }
 
 // jobLogsKeys are the keys of the logs of a job.
-var jobLogsKeys = []pageKey[jobLogsPage]{
+var jobLogsKeys = append([]pageKey[jobLogsPage]{
 	{press: "r", label: "Reload", do: reloadJobLogs},
 	// The key that opens stderr from the tasks switches between stdout and
 	// stderr here, and its label names the one it switches to.
@@ -512,7 +512,7 @@ var jobLogsKeys = []pageKey[jobLogsPage]{
 	timesKey[jobLogsPage](),
 	saveKey[jobLogsPage](),
 	copyTextKey[jobLogsPage](),
-}
+}, findWordKeys[jobLogsPage]()...)
 
 func (p jobLogsPage) keys(e env) []keyHint { return hintsOf(p, e, jobLogsKeys) }
 

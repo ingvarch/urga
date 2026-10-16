@@ -136,7 +136,7 @@ func (p logsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 // logsKeys are the keys of a log: the ones of any text, and the ones of a
 // stream that is still being followed.
-var logsKeys = []pageKey[logsPage]{
+var logsKeys = append([]pageKey[logsPage]{
 	followKey[logsPage](),
 	// The key that opens stderr from the tasks switches to the other of
 	// the two here, and its label names the one it goes to.
@@ -147,7 +147,7 @@ var logsKeys = []pageKey[logsPage]{
 	timesKey[logsPage](),
 	saveKey[logsPage](),
 	copyTextKey[logsPage](),
-}
+}, findWordKeys[logsPage]()...)
 
 func (p logsPage) keys(e env) []keyHint { return hintsOf(p, e, logsKeys) }
 

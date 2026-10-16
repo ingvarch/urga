@@ -421,22 +421,37 @@ func matchIn(line, filter string) []int {
 		return nil
 	}
 
-	rx, err := regexp.Compile("(?i)" + filter)
+	return wordIn(line, filter)
+}
+
+// wordIn is where a word matches in a line, as it is written: a regular
+// expression, or the plain text when it is not one.
+func wordIn(line, word string) []int { return wordFinder(word)(line) }
+
+// wordFinder is wordIn with the word read once, for many lines.
+func wordFinder(word string) func(line string) []int {
+	rx, err := regexp.Compile("(?i)" + word)
 	if err != nil {
-		at := strings.Index(strings.ToLower(line), strings.ToLower(filter))
-		if at < 0 || filter == "" {
+		lower := strings.ToLower(word)
+
+		return func(line string) []int {
+			at := strings.Index(strings.ToLower(line), lower)
+			if at < 0 || word == "" {
+				return nil
+			}
+
+			return []int{at, at + len(word)}
+		}
+	}
+
+	return func(line string) []int {
+		at := rx.FindStringIndex(line)
+		if at == nil || at[0] == at[1] {
 			return nil
 		}
 
-		return []int{at, at + len(filter)}
+		return at
 	}
-
-	at := rx.FindStringIndex(line)
-	if at == nil || at[0] == at[1] {
-		return nil
-	}
-
-	return at
 }
 
 // The prefixes a filter can start with, which change how it matches.

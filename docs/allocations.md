@@ -119,6 +119,9 @@ A line under the title shows the state of three toggles:
 in the current directory, as the filter shows it. `c` copies it to the
 clipboard.
 
+`f` asks for a word and lights it in the log without hiding any line. `n` and
+`N` go to the next and the previous match.
+
 ## Logs of every allocation
 
 `l` on a job, a task group or a list of allocations opens the log of one task
@@ -139,7 +142,7 @@ shows the lines of one allocation.
   allocations again and opens the logs of the ones that run now, for example
   after a deployment.
 - `ctrl-e` switches every log between stdout and stderr.
-- Autoscroll, timestamps, wrap and saving work as on the log of one task.
+- Autoscroll, timestamps, wrap, find and saving work as on the log of one task.
 - `esc` closes every log and goes back.
 
 ## Files
@@ -161,7 +164,8 @@ The list shows the name, size and age of each file. Directories come first.
 - It opens at the top, with Autoscroll off. `s` turns Autoscroll on to follow
   the end as the file grows.
 - A file larger than 1 MiB opens at its last 1 MiB. The title says so.
-- `w` wraps long lines, `/` filters them, `ctrl-s` saves the file, `c` copies it.
+- `w` wraps long lines, `/` filters them, `f` finds a word without hiding
+  lines, `ctrl-s` saves the file, `c` copies it.
 
 urga does not open:
 
