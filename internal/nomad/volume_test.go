@@ -3,6 +3,7 @@ package nomad_test
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -266,4 +267,78 @@ func TestReleaseClaim(t *testing.T) {
 	r.Equal(http.MethodDelete, asked.Method)
 	r.Equal("/v1/volumes/claim/claim-1", asked.URL.Path)
 	r.Equal("production", asked.URL.Query().Get("namespace"))
+}
+
+// nodesRefused answers the volume reads and refuses the node list with a
+// status.
+func nodesRefused(t *testing.T, status int) *nomad.Client {
+	t.Helper()
+
+	answers := map[string]string{
+		"/v1/volumes?type=csi":                                 `[]`,
+		"/v1/volumes?type=host":                                hostList,
+		"/v1/volume/host/7f3c1a2b-0000-0000-0000-000000000000": hostVolume,
+		"/v1/volumes/claims":                                   `[]`,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		route := req.URL.Path
+		if kind := req.URL.Query().Get("type"); kind != "" {
+			route += "?type=" + kind
+		}
+
+		if route == "/v1/nodes" {
+			http.Error(w, "Permission denied", status)
+
+			return
+		}
+
+		answer, ok := answers[route]
+		if !ok {
+			http.Error(w, "not found", http.StatusNotFound)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(answer))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	return client
+}
+
+func TestVolumes_WithoutNodeReadAreListedWithoutNodeNames(t *testing.T) {
+	r := require.New(t)
+
+	volumes, err := nodesRefused(t, http.StatusForbidden).Volumes(context.Background(), "production")
+	r.NoError(err)
+	r.Len(volumes, 1)
+	r.Equal("scratch", volumes[0].Name)
+	r.Equal("node-1", volumes[0].NodeID)
+	r.Empty(volumes[0].NodeName)
+}
+
+func TestVolume_HostWithoutNodeReadHasNoNodeName(t *testing.T) {
+	r := require.New(t)
+
+	volume, err := nodesRefused(t, http.StatusForbidden).Volume(
+		context.Background(), "production", nomad.VolumeHost, "7f3c1a2b-0000-0000-0000-000000000000")
+	r.NoError(err)
+	r.Equal("scratch", volume.Name)
+	r.Empty(volume.NodeName)
+}
+
+func TestVolumes_ANodeListThatFailsOtherwiseIsAnError(t *testing.T) {
+	r := require.New(t)
+
+	_, err := nodesRefused(t, http.StatusInternalServerError).Volumes(context.Background(), "production")
+	r.Error(err)
+
+	_, err = nodesRefused(t, http.StatusInternalServerError).Volume(
+		context.Background(), "production", nomad.VolumeHost, "7f3c1a2b-0000-0000-0000-000000000000")
+	r.Error(err)
 }
