@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +17,13 @@ type textModel struct {
 
 	// filter keeps only the lines that match it.
 	filter string
+
+	// found is the word lit in the lines, which n and N go between the
+	// matches of. It hides no line.
+	found string
+
+	// at is the row of the match the window went to last.
+	at int
 
 	// wrap lays a long line over as many rows as it takes, instead of
 	// cutting it at the edge of the screen.
@@ -391,6 +399,7 @@ func (t *textModel) refresh() {
 		k.rows = k.rows[gone:]
 		k.counts = k.counts[t.dropped-first:]
 		t.top = max(t.top-gone, 0)
+		t.at = max(t.at-gone, 0)
 
 		rows, counts := t.draw(k.lines-t.dropped, len(t.lines))
 		k.rows = append(k.rows, rows...)
@@ -464,7 +473,7 @@ func (t textModel) view() string {
 	return strings.Join(rows, "\n")
 }
 
-// line draws one row in its colour, with the filter matches highlighted.
+// line draws one row in its colour, with the matches highlighted.
 func (t textModel) line(row textRow) string {
 	line := truncate(row.text, t.width)
 	gap := strings.Repeat(" ", max(t.width-ansi.StringWidth(line), 0))
@@ -487,20 +496,26 @@ func (t textModel) line(row textRow) string {
 		t.lit(ansi.TruncateLeft(line, row.tagTo, ""), style) + style.Render(gap)
 }
 
-// lit is a piece of a row in its style, with the filter matches highlighted.
+// lit is a piece of a row in its style, with the matches of the found word
+// highlighted, or of the filter when no word is found.
 func (t textModel) lit(piece string, style lipgloss.Style) string {
 	if piece == "" {
 		return ""
 	}
 
-	if t.filter == "" {
+	word, find := t.filter, matchIn
+	if t.found != "" {
+		word, find = t.found, wordIn
+	}
+
+	if word == "" {
 		return style.Render(piece)
 	}
 
 	out := strings.Builder{}
 
 	for rest := piece; rest != ""; {
-		at := matchIn(rest, t.filter)
+		at := find(rest, word)
 		if at == nil {
 			out.WriteString(style.Render(rest))
 
@@ -514,4 +529,47 @@ func (t textModel) lit(piece string, style lipgloss.Style) string {
 	}
 
 	return out.String()
+}
+
+// matchRows are the rows the found word is in.
+func (t textModel) matchRows() []int {
+	var hits []int
+
+	find := wordFinder(t.found)
+
+	for i, row := range t.rows() {
+		if find(row.text) != nil {
+			hits = append(hits, i)
+		}
+	}
+
+	return hits
+}
+
+// seek moves the window to the first match from row from on, or the last one
+// before it when backward, going round past the end. It says which match that
+// is out of how many; of is 0 when no row matches, and the window stays.
+func (t *textModel) seek(from int, backward bool) (nth, of int) {
+	hits := t.matchRows()
+	if len(hits) == 0 {
+		return 0, 0
+	}
+
+	i := sort.SearchInts(hits, from)
+	if backward {
+		i = sort.SearchInts(hits, from+1) - 1
+	}
+
+	// Past either end, it goes round.
+	if i < 0 {
+		i = len(hits) - 1
+	} else if i >= len(hits) {
+		i = 0
+	}
+
+	t.at = hits[i]
+	t.move(max(t.at-t.height/3, 0) - t.top)
+	t.following = false
+
+	return i + 1, len(hits)
 }

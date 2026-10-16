@@ -78,6 +78,9 @@ type env struct {
 	// readOnly takes away every key that changes the cluster.
 	readOnly bool
 
+	// found says a word is found in the text on the screen.
+	found bool
+
 	// build is this urga, for the about screen.
 	build buildInfo
 }
@@ -102,6 +105,7 @@ func (m Model) env() env {
 		clusters:    m.opts.Clusters,
 		namespaces:  m.namespaces,
 		readOnly:    m.opts.ReadOnly,
+		found:       m.text.found != "",
 		build: buildInfo{
 			version:    m.opts.Version,
 			commit:     m.opts.Commit,
@@ -249,6 +253,11 @@ type (
 	followMsg   struct{}
 	timesMsg    struct{}
 
+	// findWordMsg asks for a word to find in the text, and matchMsg goes to the
+	// next match of it, or the previous one when negative.
+	findWordMsg struct{}
+	matchMsg    int
+
 	// reopenMsg opens the stream of the page again, the way entering the
 	// page does, in the same window: the page now reads another stream.
 	reopenMsg struct{}
@@ -370,7 +379,18 @@ type reader interface {
 
 // textKeys are the keys of a page that reads as text.
 func textKeys[P page]() []pageKey[P] {
-	return []pageKey[P]{wrapKey[P](), saveKey[P](), copyTextKey[P]()}
+	return append([]pageKey[P]{wrapKey[P](), saveKey[P](), copyTextKey[P]()}, findWordKeys[P]()...)
+}
+
+// findWordKeys find a word in a text, and go between the matches of it.
+func findWordKeys[P page]() []pageKey[P] {
+	found := func(_ P, e env) bool { return e.found }
+
+	return []pageKey[P]{
+		windowKey[P]("f", "Find", findWordMsg{}),
+		{press: "n", label: "Next Match", offered: found, do: func(p P, _ env) (P, outcome) { return p, then(matchMsg(1)) }},
+		{press: "N", label: "Previous Match", offered: found, do: func(p P, _ env) (P, outcome) { return p, then(matchMsg(-1)) }},
+	}
 }
 
 func wrapKey[P page]() pageKey[P] { return windowKey[P]("w", "Toggle Wrap", wrapMsg{}) }

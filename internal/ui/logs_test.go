@@ -636,6 +636,7 @@ func TestLogs_TheHeaderSaysWhatALogCanDo(t *testing.T) {
 		{Key: "<t>", Description: "Toggle Timestamps"},
 		{Key: "<ctrl-s>", Description: "Save"},
 		{Key: "<c>", Description: "Copy"},
+		{Key: "<f>", Description: "Find"},
 	}, m.hints())
 
 	// The allocation before is offered where there is one.
@@ -649,6 +650,7 @@ func TestLogs_TheHeaderSaysWhatALogCanDo(t *testing.T) {
 		{Key: "<t>", Description: "Toggle Timestamps"},
 		{Key: "<ctrl-s>", Description: "Save"},
 		{Key: "<c>", Description: "Copy"},
+		{Key: "<f>", Description: "Find"},
 	}, m.hints())
 }
 
