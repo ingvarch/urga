@@ -33,9 +33,9 @@ type Alloc struct {
 
 	JobVersion uint64
 
-	// Health is what its deployment reports: healthy, unhealthy, or
-	// checking until the deployment decides. Outside a deployment it is
-	// empty.
+	// Health is what the client reported of its checks: healthy, unhealthy,
+	// or checking until it decides. One in a deployment with nothing
+	// reported yet is checking; one with neither has none.
 	Health string
 	Canary bool
 
@@ -153,16 +153,10 @@ func (c *Client) Allocation(ctx context.Context, namespace, allocID string) (All
 	return withDetail(newAlloc(stubOf(alloc)), alloc), nil
 }
 
-// withDetail adds the fields only a full allocation has: its job version,
-// its deployment health, its ports, the allocation before it and the
-// evaluation after it.
+// withDetail adds the fields only a full allocation has: its deployment
+// health, its ports, the allocation before it and the evaluation after it.
 func withDetail(out Alloc, alloc *api.Allocation) Alloc {
-	if alloc.Job != nil && alloc.Job.Version != nil {
-		out.JobVersion = *alloc.Job.Version
-	}
-
 	out.Health = healthOf(alloc.DeploymentID, alloc.DeploymentStatus)
-	out.Canary = alloc.DeploymentStatus != nil && alloc.DeploymentStatus.Canary
 
 	if alloc.AllocatedResources != nil {
 		for _, port := range alloc.AllocatedResources.Shared.Ports {
@@ -191,12 +185,23 @@ const (
 	HealthUnhealthy = "unhealthy"
 )
 
-// healthOf is the health the deployment reports for an allocation. One the
-// deployment has not decided on yet is checking.
+// healthOf is the health the client reported for an allocation, in a
+// deployment or not. The client checks a rescheduled or moved one too.
 func healthOf(deploymentID string, status *api.AllocDeploymentStatus) string {
 	switch {
-	case deploymentID == "":
-		return ""
+	case status != nil:
+		return statusHealth(status)
+	case deploymentID != "":
+		return HealthChecking
+	}
+
+	return ""
+}
+
+// statusHealth is the health a status holds, checking until the client
+// decides.
+func statusHealth(status *api.AllocDeploymentStatus) string {
+	switch {
 	case status == nil || status.Healthy == nil:
 		return HealthChecking
 	case *status.Healthy:
@@ -209,7 +214,7 @@ func healthOf(deploymentID string, status *api.AllocDeploymentStatus) string {
 // stubOf copies a full allocation into a list stub. The Stub method of the
 // API reads the type of the job without a nil check.
 func stubOf(alloc *api.Allocation) *api.AllocationListStub {
-	return &api.AllocationListStub{
+	stub := &api.AllocationListStub{
 		ID:            alloc.ID,
 		Name:          alloc.Name,
 		Namespace:     alloc.Namespace,
@@ -223,8 +228,21 @@ func stubOf(alloc *api.Allocation) *api.AllocationListStub {
 		CreateTime:    alloc.CreateTime,
 		ModifyTime:    alloc.ModifyTime,
 
-		NextAllocation: alloc.NextAllocation,
+		DeploymentStatus: alloc.DeploymentStatus,
+		NextAllocation:   alloc.NextAllocation,
 	}
+
+	if alloc.Job != nil {
+		if alloc.Job.Type != nil {
+			stub.JobType = *alloc.Job.Type
+		}
+
+		if alloc.Job.Version != nil {
+			stub.JobVersion = *alloc.Job.Version
+		}
+	}
+
+	return stub
 }
 
 func newAlloc(stub *api.AllocationListStub) Alloc {
@@ -242,6 +260,13 @@ func newAlloc(stub *api.AllocationListStub) Alloc {
 		Tasks:         newTasks(stub.TaskStates),
 		JobVersion:    stub.JobVersion,
 		Next:          stub.NextAllocation,
+	}
+
+	// A list stub has no deployment ID: its health is what the client
+	// reported.
+	if stub.DeploymentStatus != nil {
+		alloc.Health = statusHealth(stub.DeploymentStatus)
+		alloc.Canary = stub.DeploymentStatus.Canary
 	}
 
 	alloc.Created = unixTime(stub.CreateTime)

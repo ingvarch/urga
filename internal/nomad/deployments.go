@@ -103,9 +103,8 @@ func (c *Client) DeploymentAllocations(ctx context.Context, namespace, deploymen
 		alloc := newAlloc(stub)
 
 		// A stub does not say which deployment it is in; these are all in
-		// this one.
+		// this one, so one with nothing reported yet is checking.
 		alloc.Health = healthOf(deploymentID, stub.DeploymentStatus)
-		alloc.Canary = stub.DeploymentStatus != nil && stub.DeploymentStatus.Canary
 
 		allocs = append(allocs, alloc)
 	}
