@@ -213,7 +213,7 @@ func revertJob(p jobsPage, e env) (jobsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, outcome{cmd: planFor(e.client, planState{revert: true, namespace: job.Namespace, jobID: job.ID})}
+	return p, outcome{cmd: planFor(e.client, planState{revert: true, namespace: job.Namespace, jobID: job.ID, jobType: job.Type, launches: launchesOthers(job)})}
 }
 
 // allocAction is what a key does to each allocation, and how the question

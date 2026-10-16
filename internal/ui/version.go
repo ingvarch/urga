@@ -17,7 +17,8 @@ var versionTitles = []string{"Version", "State", "Tag", "Changes", "Age"}
 
 // versionsPage lists the versions of one job.
 type versionsPage struct {
-	namespace, jobID string
+	namespace, jobID, jobType string
+	launches                  bool
 
 	versions []nomad.JobVersion
 }
@@ -82,7 +83,7 @@ func openVersions(p jobsPage, e env) (jobsPage, outcome) {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg{versionsPage{namespace: job.Namespace, jobID: job.ID}})
+	return p, then(openMsg{versionsPage{namespace: job.Namespace, jobID: job.ID, jobType: job.Type, launches: launchesOthers(job)}})
 }
 
 func versionRows(versions []nomad.JobVersion) []tableRow {
@@ -167,7 +168,7 @@ func revertToVersion(p versionsPage, e env) (versionsPage, outcome) {
 
 	to := version.Version
 
-	return p, outcome{cmd: planFor(e.client, planState{revert: true, to: &to, namespace: p.namespace, jobID: p.jobID})}
+	return p, outcome{cmd: planFor(e.client, planState{revert: true, to: &to, namespace: p.namespace, jobID: p.jobID, jobType: p.jobType, launches: p.launches})}
 }
 
 // tagVersion asks for the name to give the version under the cursor, filled

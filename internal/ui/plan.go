@@ -19,6 +19,11 @@ type planState struct {
 	namespace string
 	jobID     string
 
+	// jobType is the type of the job when it was planned, launches says it
+	// launches jobs of its own: the watch opened after a submit needs both.
+	jobType  string
+	launches bool
+
 	// source and vars are the job file of an edit, read is the index the
 	// job had when the file was read, index the one it had when planned.
 	source string
@@ -102,7 +107,8 @@ func (p planPage) text(env) textContent { return p.content }
 
 // take puts a new plan of the same job in place of this one, not on top of
 // it: escape still goes back to where the plan was asked from. After a plan
-// is submitted, the screen goes back to where the edit started.
+// is submitted, the screen goes back to where the edit started, and the
+// watch of the deploy opens on top.
 func (p planPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	switch msg := msg.(type) {
 	case openMsg:
@@ -118,7 +124,14 @@ func (p planPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 			return p, outcome{}, false
 		}
 
-		return p, outcome{now: []tea.Msg{backMsg{}}, reading: true}, true
+		// The deploys of a job that launches others are those of its launches.
+		if p.launches {
+			return p, outcome{now: []tea.Msg{backMsg{}}, reading: true}, true
+		}
+
+		watch := deployWatchPage{namespace: p.namespace, jobID: p.jobID, jobType: p.jobType}
+
+		return p, outcome{now: []tea.Msg{backMsg{}, openMsg{watch}}, reading: true}, true
 	}
 
 	return p, outcome{}, false
