@@ -21,9 +21,10 @@ import (
 // makes, and so are the values of its variables: the next edit opens the same
 // file, and the job runs with the values it ran with before. It is submitted
 // at the index of its plan: a job that changed since is refused rather than
-// overwritten.
-func (c *Client) SubmitJob(ctx context.Context, namespace, source string, vars JobVariables, index uint64) error {
-	job, kept, err := c.jobOf(ctx, namespace, source, vars)
+// overwritten. The counts it opened with decide which counts the job keeps,
+// see keepCounts.
+func (c *Client) SubmitJob(ctx context.Context, namespace, source string, vars JobVariables, index uint64, opened map[string]int) error {
+	job, kept, _, err := c.jobOf(ctx, namespace, source, vars, opened)
 	if err != nil {
 		return err
 	}
@@ -38,18 +39,95 @@ func (c *Client) SubmitJob(ctx context.Context, namespace, source string, vars J
 	return err
 }
 
-// jobOf reads a job file and puts the job in the namespace it is sent to.
-func (c *Client) jobOf(ctx context.Context, namespace, source string, vars JobVariables) (*api.Job, *api.JobSubmission, error) {
-	job, kept, err := c.parseJob(ctx, namespace, source, vars, true)
+// jobOf reads a job file and puts the job in the namespace it is sent to,
+// with the counts it keeps from the job that runs.
+func (c *Client) jobOf(ctx context.Context, namespace, source string, vars JobVariables, opened map[string]int) (*api.Job, *api.JobSubmission, []KeptCount, error) {
+	job, submission, err := c.parseJob(ctx, namespace, source, vars, true)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if namespace != "" && namespace != AllNamespaces {
 		job.Namespace = &namespace
 	}
 
-	return job, kept, nil
+	kept, err := c.keepCounts(ctx, namespace, job, opened)
+
+	return job, submission, kept, err
+}
+
+// KeptCount is a group that keeps the count its job runs with, though the
+// file says another.
+type KeptCount struct {
+	Group string
+	Kept  int
+	File  int
+}
+
+// keepCounts sets the count of each group of an edited job. A group whose
+// count is as in the file when it was opened keeps the count the job runs it
+// with, which the autoscaler or a person may have changed since. A group
+// whose count was edited, a new group, and a job that is not running take
+// the count of the file. Nil opened counts keep nothing.
+func (c *Client) keepCounts(ctx context.Context, namespace string, job *api.Job, opened map[string]int) ([]KeptCount, error) {
+	if opened == nil {
+		return nil, nil
+	}
+
+	running, _, err := c.api.Jobs().Info(valueOf(job.ID), c.query(ctx, namespace))
+	if answered(err, http.StatusNotFound) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	var kept []KeptCount
+
+	for _, group := range job.TaskGroups {
+		name := valueOf(group.Name)
+		file := countOf(group)
+
+		was, wasOpened := opened[name]
+		now := slices.IndexFunc(running.TaskGroups, func(g *api.TaskGroup) bool { return valueOf(g.Name) == name })
+
+		if !wasOpened || was != file || now < 0 {
+			continue
+		}
+
+		if count := countOf(running.TaskGroups[now]); count != file {
+			group.Count = &count
+			kept = append(kept, KeptCount{Group: name, Kept: count, File: file})
+		}
+	}
+
+	return kept, nil
+}
+
+// countOf is the count of a group, which is 1 when the file leaves it out.
+func countOf(group *api.TaskGroup) int {
+	if group.Count == nil {
+		return 1
+	}
+
+	return *group.Count
+}
+
+// JobCounts reads the count of each group of a job file, the way a plan of
+// it would.
+func (c *Client) JobCounts(ctx context.Context, namespace, source string, vars JobVariables) (map[string]int, error) {
+	job, _, _, err := c.jobOf(ctx, namespace, source, vars, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	counts := make(map[string]int, len(job.TaskGroups))
+	for _, group := range job.TaskGroups {
+		counts[valueOf(group.Name)] = countOf(group)
+	}
+
+	return counts, nil
 }
 
 // parseJob reads a job file the way the cluster does, and returns what of it

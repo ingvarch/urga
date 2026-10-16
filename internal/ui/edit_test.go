@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -135,6 +136,56 @@ func TestEdit_KeepsTheVariables(t *testing.T) {
 
 	r.Equal(1, client.submitted)
 	r.Equal(vars, client.submittedVars)
+}
+
+func TestEdit_KeepsTheCountsOfTheFileAsOpened(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs:   twoJobs(),
+		spec:   nomad.JobSource{Source: "job \"web\" {}"},
+		counts: map[string]int{"web": 1},
+	}
+	m, editor := editModel(t, client)
+	editor.replace = "job \"web\" {\n  type = \"batch\"\n}"
+
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 6)
+
+	// The counts of the file as it was opened go to the plan and to the
+	// submit: they tell which counts the editor changed.
+	r.Equal(client.counts, client.openedWith)
+
+	m, cmd = m.update(key('y'))
+	drain(m, cmd)
+
+	r.Equal(client.counts, client.submittedOpened)
+}
+
+func TestEdit_OpensAFileWhoseCountsCannotBeRead(t *testing.T) {
+	r := require.New(t)
+
+	// The cluster parses a job without the files it reads, so a file that
+	// calls file() opens and is planned once the call is gone.
+	client := &fakeClient{
+		jobs:      twoJobs(),
+		spec:      nomad.JobSource{Source: "job \"web\" {}", Index: 42},
+		countsErr: errors.New("filesystem function disabled"),
+		plan:      changedEnv(),
+	}
+	m, editor := editModel(t, client)
+	editor.replace = "job \"web\" {\n  type = \"batch\"\n}"
+
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 6)
+
+	r.NotEmpty(editor.opened)
+	r.IsType(planPage{}, m.screen.page)
+	r.Nil(client.openedWith)
+
+	out := plain(m.render())
+	r.Contains(out, "Counts as the file says them")
+	r.Contains(out, "Submitting sets every count to the one in the file.")
 }
 
 func TestEdit_UnchangedFileChangesNothing(t *testing.T) {

@@ -57,10 +57,11 @@ type (
 		DescribeJob(ctx context.Context, namespace, jobID string) (string, error)
 		JobSpec(ctx context.Context, namespace, jobID string) (nomad.JobSource, error)
 		TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
-		PlanJob(ctx context.Context, namespace, source string, vars nomad.JobVariables) (nomad.Plan, error)
+		PlanJob(ctx context.Context, namespace, source string, vars nomad.JobVariables, opened map[string]int) (nomad.Plan, error)
+		JobCounts(ctx context.Context, namespace, source string, vars nomad.JobVariables) (map[string]int, error)
 		JobTarget(ctx context.Context, namespace, source string) (nomad.JobTarget, error)
 		PlanRevert(ctx context.Context, namespace, jobID string, to *uint64) (nomad.Plan, error)
-		SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error
+		SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables, index uint64, opened map[string]int) error
 		StartJob(ctx context.Context, namespace, jobID string) error
 		StopJob(ctx context.Context, namespace, jobID string) error
 		PurgeJob(ctx context.Context, namespace, jobID string) error

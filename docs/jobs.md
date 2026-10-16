@@ -114,6 +114,15 @@ the cluster for a plan and shows it. If the cluster cannot plan the file, for
 example because of a syntax error, urga opens the editor again with your edit
 and the reason at the top. See [Editor](configuration.md#editor).
 
+An edit keeps the count a group runs with. If the autoscaler or `s` scaled a
+group to 5 and you leave its `count` in the file alone, the job is submitted
+with 5, not with the number in the file. If you change the `count` in the
+editor, the number you wrote is used. A group the job does not run yet gets
+the count of the file. The plan lists the counts it kept above what will
+happen. When the cluster cannot read the counts of the file as it was
+opened, for example a file that calls `file()`, the editor still opens, and
+the plan says that every count is the one in the file.
+
 ## Creating a job
 
 `n` opens a template of a job in your editor: a service with one group `web`

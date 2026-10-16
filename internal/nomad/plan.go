@@ -29,6 +29,9 @@ type Plan struct {
 
 	Warnings string
 
+	// Kept are the groups that keep the count the job runs with.
+	Kept []KeptCount
+
 	// Index is the one the job had when it was planned. Submitting at it
 	// fails when the job changed in between.
 	Index uint64
@@ -55,9 +58,11 @@ type PlanGroup struct {
 	Ignore int
 }
 
-// PlanJob asks the cluster what submitting the job file would do.
-func (c *Client) PlanJob(ctx context.Context, namespace, source string, vars JobVariables) (Plan, error) {
-	job, _, err := c.jobOf(ctx, namespace, source, vars)
+// PlanJob asks the cluster what submitting the job file would do. The counts
+// the file had when it was opened decide which counts the job keeps, as they
+// do for SubmitJob; nil keeps none.
+func (c *Client) PlanJob(ctx context.Context, namespace, source string, vars JobVariables, opened map[string]int) (Plan, error) {
+	job, _, kept, err := c.jobOf(ctx, namespace, source, vars, opened)
 	if err != nil {
 		return Plan{}, err
 	}
@@ -67,7 +72,10 @@ func (c *Client) PlanJob(ctx context.Context, namespace, source string, vars Job
 		return Plan{}, err
 	}
 
-	return newPlan(answer), nil
+	plan := newPlan(answer)
+	plan.Kept = kept
+
+	return plan, nil
 }
 
 func newPlan(answer *api.JobPlanResponse) Plan {
