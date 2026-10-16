@@ -107,6 +107,17 @@ func (c *Client) RestartAllocation(ctx context.Context, namespace, allocID strin
 	return c.api.Allocations().Restart(alloc, "", c.query(ctx, namespace))
 }
 
+// RestartAllTasks restarts every task of an allocation, the prestart and
+// sidecar tasks and the ones that finished too.
+func (c *Client) RestartAllTasks(ctx context.Context, namespace, allocID string) error {
+	alloc, _, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))
+	if err != nil {
+		return err
+	}
+
+	return c.api.Allocations().RestartAllTasks(alloc, c.query(ctx, namespace))
+}
+
 // RestartTask restarts one task of an allocation, in place; the rest keep
 // running. The client refuses a task that is not running.
 func (c *Client) RestartTask(ctx context.Context, namespace, allocID, task string) error {

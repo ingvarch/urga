@@ -271,6 +271,7 @@ On what was done to the count of a group, `d` describes its policy.
 | `enter` | Tasks of the allocation | |
 | `d` | Describe | |
 | `r` | Restart | yes |
+| `ctrl-r` | Restart every task, the prestart and sidecar ones too | yes |
 | `ctrl-k` | Stop | yes |
 | `l` | Logs of a task in every allocation of the list | |
 | `space`, `ctrl-a` | Mark | |

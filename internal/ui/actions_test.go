@@ -103,6 +103,45 @@ func TestAction_RestartAnAllocation(t *testing.T) {
 	r.Contains(plain(m.render()), "Restarted the allocation af1f37df")
 }
 
+func TestAction_RestartEveryTaskOfAnAllocation(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(enter())
+	m, _ = m.update(allocsMsg(twoAllocs()))
+
+	m, _ = m.update(ctrlKey('r'))
+	r.Contains(plain(m.render()), "Really restart every task of the allocation af1f37df, prestart and sidecar tasks too?")
+
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
+
+	r.Equal(1, client.restartedAll)
+	r.Equal(0, client.restarted)
+	r.Contains(plain(m.render()), "Restarted every task of the allocation af1f37df.")
+}
+
+func TestAction_RestartEveryTaskOfTheMarkedAllocations(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+	m, _ = m.update(enter())
+	m, _ = m.update(allocsMsg(twoAllocs()))
+
+	m, _ = m.update(ctrlKey('a'))
+	m, _ = m.update(ctrlKey('r'))
+	r.Contains(plain(m.render()), "Really restart every task of 2 allocations, prestart and sidecar tasks too?")
+
+	m, cmd := answerYes(m)
+	drain(m, cmd)
+
+	r.Equal(2, client.restartedAll)
+}
+
 func TestAction_StopAnAllocation(t *testing.T) {
 	r := require.New(t)
 
