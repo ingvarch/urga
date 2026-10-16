@@ -320,6 +320,18 @@ func TestAllocation_HealthInItsDeployment(t *testing.T) {
 	r.Empty(alloc.Health)
 }
 
+func TestAllocation_HealthTheClientReportedOutsideADeployment(t *testing.T) {
+	r := require.New(t)
+
+	// The client checks an allocation moved off a drained node too, after its
+	// deployment ended: its screen shows that, the same as the lists do.
+	client, _ := recorder(t, `{"ID": "a", "DeploymentStatus": {"Healthy": false}}`)
+
+	alloc, err := client.Allocation(context.Background(), "production", "a")
+	r.NoError(err)
+	r.Equal("unhealthy", alloc.Health)
+}
+
 // servedChecks are the checks of an allocation of served: its page answers,
 // its admin port does not, and a check of the task has not run yet.
 const servedChecks = `{
@@ -380,4 +392,56 @@ func TestAllocationChecks_InTheOrderOfTheirNames(t *testing.T) {
 	}
 
 	r.Equal([]string{"api/z", "web/a", "web/b"}, names)
+}
+
+func TestAllocations_ReadTheHealthOfTheirDeployment(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[
+		{"ID": "a", "DeploymentStatus": {"Healthy": true}},
+		{"ID": "b", "DeploymentStatus": {"Healthy": false}},
+		{"ID": "c", "DeploymentStatus": {}},
+		{"ID": "d", "DeploymentStatus": {"Healthy": true, "Canary": true}},
+		{"ID": "e"}
+	]`)
+
+	allocs, err := client.Allocations(context.Background(), "production", "web")
+	r.NoError(err)
+	r.Len(allocs, 5)
+
+	r.Equal("healthy", allocs[0].Health)
+	r.Equal("unhealthy", allocs[1].Health)
+	r.Equal("checking", allocs[2].Health)
+	r.Equal("healthy", allocs[3].Health)
+	r.True(allocs[3].Canary)
+
+	// Without a status there is no health to show.
+	r.Empty(allocs[4].Health)
+	r.False(allocs[4].Canary)
+	r.False(allocs[0].Canary)
+}
+
+func TestNodeAllocations_ReadTheVersionAndHealth(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{
+		"ID": "a",
+		"Job": {"Version": 7, "Type": "batch"},
+		"DeploymentStatus": {"Healthy": false, "Canary": true}
+	}, {"ID": "b"}, {"ID": "c", "Job": {"Type": "service"}}]`)
+
+	allocs, err := client.NodeAllocations(context.Background(), "node-1")
+	r.NoError(err)
+	r.Len(allocs, 3)
+
+	r.Equal(uint64(7), allocs[0].JobVersion)
+	r.Equal("batch", allocs[0].JobType)
+	r.Equal("unhealthy", allocs[0].Health)
+	r.True(allocs[0].Canary)
+
+	r.Zero(allocs[1].JobVersion)
+	r.Empty(allocs[1].Health)
+
+	r.Equal("service", allocs[2].JobType)
+	r.Zero(allocs[2].JobVersion)
 }
