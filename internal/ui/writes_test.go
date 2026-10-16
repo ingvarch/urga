@@ -88,51 +88,135 @@ func TestFake_RecordsEveryWrite(t *testing.T) {
 }
 
 // playOut runs what a key started the way the program does, and answers
-// what it asks the way someone who means it would. A command that waits,
-// like a timer, is left waiting.
+// what it asks the way someone who means it would. A command that has not
+// answered after a moment keeps running, and its answer is taken when it
+// comes: a loaded machine can be slow. One still waiting when the rest is
+// done, like a timer, is left waiting.
 func playOut(m Model, cmd tea.Cmd) Model {
 	queue := []tea.Cmd{cmd}
+
+	var running []runningCmd
+
+	take := func(msg tea.Msg) {
+		switch msg := msg.(type) {
+		case nil:
+		case tea.BatchMsg:
+			queue = append(queue, msg...)
+		default:
+			var next tea.Cmd
+			m, next = m.update(msg)
+			queue = append(queue, next)
+		}
+	}
 
 	// A plan is answered when the key opened it. One that was on the screen
 	// before the key is not sent.
 	_, planned := m.screen.page.(planPage)
 
 	for range 300 {
+		running = takeAnswered(running, take)
+
 		if len(queue) == 0 {
 			if _, onPlan := m.screen.page.(planPage); planned && onPlan && m.overlay == overlayNone {
 				return m
 			}
 
 			next, answered, acted := answer(m)
-			if !acted {
-				return next
+			if acted {
+				m, queue = next, append(queue, answered)
+
+				continue
 			}
 
-			m, queue = next, append(queue, answered)
+			if running = waitForRecent(running, take); len(queue) > 0 {
+				continue
+			}
 
-			continue
+			return m
 		}
 
 		run := queue[0]
 		queue = queue[1:]
 
-		msg := within(run, 50*time.Millisecond)
-		if msg == nil {
+		if run == nil {
 			continue
 		}
 
-		if batch, ok := msg.(tea.BatchMsg); ok {
-			queue = append(queue, batch...)
+		started := runningCmd{answer: make(chan tea.Msg, 1), at: time.Now()}
+		go func() { started.answer <- run() }()
 
-			continue
+		select {
+		case msg := <-started.answer:
+			take(msg)
+		case <-time.After(50 * time.Millisecond):
+			running = append(running, started)
 		}
-
-		var next tea.Cmd
-		m, next = m.update(msg)
-		queue = append(queue, next)
 	}
 
 	return m
+}
+
+// runningCmd is a command that has not answered yet, and when it started.
+type runningCmd struct {
+	answer chan tea.Msg
+	at     time.Time
+}
+
+// lateAnswer is how long a command may take, started just before the rest
+// is done, before it is taken for a timer.
+const lateAnswer = 100 * time.Millisecond
+
+// takeAnswered takes the answers that came, and keeps the commands that
+// have none yet.
+func takeAnswered(running []runningCmd, take func(tea.Msg)) []runningCmd {
+	still := running[:0]
+
+	for _, r := range running {
+		select {
+		case msg := <-r.answer:
+			take(msg)
+		default:
+			still = append(still, r)
+		}
+	}
+
+	return still
+}
+
+// waitForRecent waits for an answer of a command started less than
+// lateAnswer ago, and takes the first that comes.
+func waitForRecent(running []runningCmd, take func(tea.Msg)) []runningCmd {
+	var until time.Time
+	for _, r := range running {
+		if end := r.at.Add(lateAnswer); end.After(until) {
+			until = end
+		}
+	}
+
+	for time.Now().Before(until) {
+		if still := takeAnswered(running, take); len(still) < len(running) {
+			return still
+		}
+
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	return running
+}
+
+func TestPlayOut_TakesAnAnswerThatComesLate(t *testing.T) {
+	m := loadedModel(t)
+
+	late := func() tea.Msg {
+		time.Sleep(80 * time.Millisecond)
+
+		return sayMsg("the answer came late")
+	}
+
+	m = playOut(m, late)
+
+	// A loaded machine can take longer than a moment for what is no timer.
+	require.Contains(t, plain(m.render()), "the answer came late")
 }
 
 // answer says yes to a question and to a plan, and answers a line with what
