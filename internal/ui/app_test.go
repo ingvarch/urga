@@ -61,6 +61,7 @@ type fakeClient struct {
 	usage         nomad.Usage
 	use           map[string]nomad.ResourceUse
 	usageCalls    int
+	usageIDs      []string
 	usageErr      error
 	namespaceSpec string
 
@@ -908,6 +909,7 @@ func (f *fakeClient) Usage(_ context.Context, datacenter string) (nomad.Usage, e
 
 func (f *fakeClient) AllocationUsage(_ context.Context, namespace, allocID string) (nomad.ResourceUse, error) {
 	f.usageCalls++
+	f.usageIDs = append(f.usageIDs, allocID)
 	f.usageNamespace = namespace
 
 	if f.usageErr != nil {
