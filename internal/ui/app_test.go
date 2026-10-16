@@ -72,6 +72,8 @@ type fakeClient struct {
 	submittedIndex  uint64
 
 	plan                nomad.Plan
+	target              nomad.JobTarget
+	targetAskedIn       string
 	planCalls           int
 	plannedSource       string
 	plannedVars         nomad.JobVariables
@@ -876,6 +878,12 @@ func (f *fakeClient) PlanJob(_ context.Context, namespace, source string, vars n
 	f.planCalls++
 
 	return f.plan, f.refused(f.err)
+}
+
+func (f *fakeClient) JobTarget(_ context.Context, namespace, _ string) (nomad.JobTarget, error) {
+	f.targetAskedIn = namespace
+
+	return f.target, f.refused(f.err)
 }
 
 func (f *fakeClient) SubmitJob(_ context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error {

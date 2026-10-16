@@ -58,6 +58,7 @@ type (
 		JobSpec(ctx context.Context, namespace, jobID string) (nomad.JobSource, error)
 		TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
 		PlanJob(ctx context.Context, namespace, source string, vars nomad.JobVariables) (nomad.Plan, error)
+		JobTarget(ctx context.Context, namespace, source string) (nomad.JobTarget, error)
 		PlanRevert(ctx context.Context, namespace, jobID string, to *uint64) (nomad.Plan, error)
 		SubmitJob(ctx context.Context, namespace, source string, vars nomad.JobVariables, index uint64) error
 		StartJob(ctx context.Context, namespace, jobID string) error

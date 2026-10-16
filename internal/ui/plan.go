@@ -37,9 +37,16 @@ type planState struct {
 	to     *uint64
 	from   uint64
 
+	// fresh says the plan is of a new job: it is submitted at index 0, and
+	// a job of that name already there is not replaced.
+	fresh bool
+
 	// failed says the cluster has no room for what was planned: there is
 	// nothing to send.
 	failed bool
+
+	// exists says a new job has the name of one that is there.
+	exists bool
 
 	// choice is the button at the foot of the plan the cursor is on. It
 	// starts on cancel: enter out of habit then sends nothing.
@@ -62,6 +69,7 @@ type planPage struct {
 func planOf(plan nomad.Plan, state planState) planPage {
 	state.index = plan.Index
 	state.failed = len(plan.Failures) > 0
+	state.exists = state.fresh && plan.Index != 0
 
 	// A revert is planned to a version and from one: the one it goes back
 	// to is known now, and the one the job has is what submitting checks.
@@ -71,7 +79,11 @@ func planOf(plan nomad.Plan, state planState) planPage {
 	}
 
 	lines := planText(plan, state.revert)
-	if !state.revert && state.read != state.index {
+	switch {
+	case state.exists:
+		lines = append(existsAlready(state.jobID), lines...)
+
+	case !state.revert && state.read != state.index:
 		lines = append(changedSinceRead(state.jobID), lines...)
 	}
 
@@ -86,6 +98,14 @@ func changedSinceRead(jobID string) []paintedLine {
 		{text: jobID + " changed while the file was open."},
 		{text: "The changes below compare your file with the job as it is now."},
 		{text: "Submitting undoes that change, where your file differs from it."},
+		{},
+	}
+}
+
+// existsAlready warns that a new job has the name of one that is there.
+func existsAlready(jobID string) []paintedLine {
+	return []paintedLine{
+		{text: fmt.Sprintf("A job named %s exists already: a new one cannot replace it.", jobID), style: &styleWarn},
 		{},
 	}
 }
@@ -150,12 +170,16 @@ func (p planPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, planKeys, k)
 }
 
-func planOfAnEdit(p planPage, _ env) bool { return !p.revert && !p.failed }
+func planOfAnEdit(p planPage, _ env) bool { return !p.revert && !p.refused() }
 
-func planOfARevert(p planPage, _ env) bool { return p.revert && !p.failed }
+func planOfARevert(p planPage, _ env) bool { return p.revert && !p.refused() }
+
+// refused says the plan cannot be sent: the cluster has no room for it, or
+// a new job has the name of one that is there.
+func (p planPage) refused() bool { return p.failed || p.exists }
 
 // sends says there is something to send, and a key to send it with.
-func (p planPage) sends(e env) bool { return !p.failed && !e.readOnly }
+func (p planPage) sends(e env) bool { return !p.refused() && !e.readOnly }
 
 // button moves between the buttons at the foot of a plan, and presses the
 // one the cursor is on.
@@ -196,8 +220,12 @@ func (p planPage) bar(_ env, width int) []string {
 	}
 
 	send := button(verb, p.choice == buttonConfirm)
-	if p.failed {
+	switch {
+	case p.failed:
 		send = styleButtonOff.Render(fmt.Sprintf(" Can't %s: placement failed ", strings.ToLower(verb)))
+
+	case p.exists:
+		send = styleButtonOff.Render(fmt.Sprintf(" Can't %s: job exists ", strings.ToLower(verb)))
 	}
 
 	buttons := button("Cancel", p.choice == buttonCancel) + "  " + send
@@ -221,6 +249,29 @@ func planFor(client jobsClient, state planState) tea.Cmd {
 	}, func(plan nomad.Plan) tea.Msg { return openMsg{planOf(plan, state)} })
 }
 
+// planNew reads where a new job goes, and opens the plan of it there.
+func planNew(client jobsClient, namespace, source string) tea.Cmd {
+	return request(func(ctx context.Context) (planPage, error) {
+		target, err := client.JobTarget(ctx, namespace, source)
+		if err != nil {
+			return planPage{}, err
+		}
+
+		state := planState{
+			namespace: target.Namespace,
+			jobID:     target.ID,
+			jobType:   target.Type,
+			launches:  target.Launches,
+			source:    source,
+			fresh:     true,
+		}
+
+		plan, err := client.PlanJob(ctx, state.namespace, state.source, state.vars)
+
+		return planOf(plan, state), err
+	}, func(page planPage) tea.Msg { return openMsg{page} })
+}
+
 // submitPlan sends what was planned: the file at the index it was planned
 // at, or the revert from the version it was planned from. The result shows
 // whether or not the plan is still open; when the job changed since the
@@ -239,7 +290,7 @@ func submitPlan(p planPage, e env) (planPage, outcome) {
 			said = fmt.Sprintf("Job %s reverted to version %d.", state.jobID, *state.to)
 			err = client.RevertJobTo(ctx, state.namespace, state.jobID, *state.to, state.from)
 		} else {
-			err = client.SubmitJob(ctx, state.namespace, state.source, state.vars, state.index)
+			err = client.SubmitJob(ctx, state.namespace, state.source, state.vars, submitIndex(state))
 		}
 
 		switch {
@@ -255,6 +306,16 @@ func submitPlan(p planPage, e env) (planPage, outcome) {
 			func() tea.Msg { return sayMsg(said) },
 		}
 	}}
+}
+
+// submitIndex is the index a plan is submitted at: a new job at 0, which the
+// cluster refuses when a job of that name has been made since.
+func submitIndex(state planState) uint64 {
+	if state.fresh {
+		return 0
+	}
+
+	return state.index
 }
 
 // replan asks about the same file, or the same version, again.

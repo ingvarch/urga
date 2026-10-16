@@ -78,6 +78,18 @@ func editJob(p jobsPage, e env) (jobsPage, outcome) {
 	return p, outcome{cmd: openEditor(jobFile(e.client, job))}
 }
 
+// newJob opens the template of a job in the editor. What is saved is planned
+// in the namespace its file names.
+func newJob(p jobsPage, e env) (jobsPage, outcome) {
+	client, namespace := e.client, e.namespace
+
+	return p, outcome{cmd: openEditor(func(context.Context) (file, error) {
+		return file{extension: "hcl", content: nomad.JobTemplate, submit: reopening("hcl", func(source string) tea.Cmd {
+			return planNew(client, namespace, source)
+		})}, nil
+	})}
+}
+
 func editMeta(p nodeMetaPage, e env) (nodeMetaPage, outcome) {
 	return p, outcome{cmd: openEditor(metaFile(e.client, p.nodeID, p.name))}
 }
