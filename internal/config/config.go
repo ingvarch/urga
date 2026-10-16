@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
+	"sync/atomic"
 )
 
 // MaxNamespaces is how many namespaces the number keys reach.
@@ -21,6 +23,17 @@ type Config struct {
 	Clusters map[string]*Session `json:"clusters,omitempty"`
 
 	path string
+
+	taken atomic.Uint64
+
+	mu      sync.Mutex
+	written uint64
+}
+
+// Snapshot is the config as it was when taken, ready to be written.
+type Snapshot struct {
+	number uint64
+	data   []byte
 }
 
 // Session is the namespace and the screen one cluster had open.
@@ -79,18 +92,80 @@ func Load() (*Config, error) {
 	return stored, nil
 }
 
-// Save writes the session down.
-func (c *Config) Save() error {
-	if err := os.MkdirAll(filepath.Dir(c.path), 0o755); err != nil {
+// Snapshot takes the config as it is now. Take it where the config changes,
+// then hand it to Write wherever the file is written.
+func (c *Config) Snapshot() (Snapshot, error) {
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return Snapshot{}, err
+	}
+
+	return Snapshot{number: c.taken.Add(1), data: data}, nil
+}
+
+// Write puts a snapshot in the file whole. One that is older than the last
+// written is skipped.
+func (c *Config) Write(s Snapshot) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if s.number <= c.written {
+		return nil
+	}
+
+	if err := writeWhole(c.path, s.data); err != nil {
 		return err
 	}
 
-	data, err := json.MarshalIndent(c, "", "  ")
+	c.written = s.number
+
+	return nil
+}
+
+// Save writes the session down.
+func (c *Config) Save() error {
+	s, err := c.Snapshot()
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(c.path, data, 0o600)
+	return c.Write(s)
+}
+
+// writeWhole replaces the file in one step, so a reader never sees it cut
+// short.
+func writeWhole(path string, data []byte) (err error) {
+	dir := filepath.Dir(path)
+
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(dir, filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err != nil {
+			_ = tmp.Close()
+			_ = os.Remove(tmp.Name())
+		}
+	}()
+
+	if _, err = tmp.Write(data); err != nil {
+		return err
+	}
+
+	if err = tmp.Sync(); err != nil {
+		return err
+	}
+
+	if err = tmp.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tmp.Name(), path)
 }
 
 // UseNamespace records the namespace in use.

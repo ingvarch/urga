@@ -50,7 +50,8 @@ func (m Model) session() *config.Session {
 }
 
 // remember saves the namespace and the screen of this session. It is a
-// command, so the file is written outside the code that handles keys.
+// command, so the file is written outside the code that handles keys, from
+// a copy made here.
 func (m Model) remember() tea.Cmd {
 	cfg := m.opts.Config
 	if cfg == nil {
@@ -65,8 +66,13 @@ func (m Model) remember() tea.Cmd {
 		session.Screen = v.stored
 	}
 
+	snapshot, err := cfg.Snapshot()
+	if err != nil {
+		return func() tea.Msg { return errMsg{err: err} }
+	}
+
 	return func() tea.Msg {
-		if err := cfg.Save(); err != nil {
+		if err := cfg.Write(snapshot); err != nil {
 			return errMsg{err: err}
 		}
 

@@ -162,3 +162,76 @@ func TestConfig_TheFileOfAnEarlierUrga(t *testing.T) {
 	r.Equal("jobs", session.Screen)
 	r.Equal([]string{"default", "staging"}, session.Namespaces)
 }
+
+func TestConfig_SaveLeavesAWholeFileAndNothingElse(t *testing.T) {
+	r := require.New(t)
+
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	cfg.UseNamespace("production")
+	r.NoError(cfg.Save())
+
+	again, err := config.Load()
+	r.NoError(err)
+	r.Equal("production", *again.Namespace)
+
+	folder := filepath.Join(dir, "urga")
+
+	entries, err := os.ReadDir(folder)
+	r.NoError(err)
+	r.Len(entries, 1)
+	r.Equal("config.json", entries[0].Name())
+
+}
+
+func TestConfig_AFailedRenameLeavesNoTempFile(t *testing.T) {
+	r := require.New(t)
+
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	folder := filepath.Join(dir, "urga")
+	blocker := filepath.Join(folder, "config.json")
+	r.NoError(os.MkdirAll(filepath.Join(blocker, "inner"), 0o755))
+
+	cfg.UseNamespace("production")
+	r.Error(cfg.Save())
+
+	entries, err := os.ReadDir(folder)
+	r.NoError(err)
+	r.Len(entries, 1)
+	r.Equal("config.json", entries[0].Name())
+}
+
+func TestConfig_AnEarlierSnapshotNeverOverwritesALaterOne(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	cfg, err := config.Load()
+	r.NoError(err)
+
+	cfg.UseNamespace("first")
+
+	first, err := cfg.Snapshot()
+	r.NoError(err)
+
+	cfg.UseNamespace("second")
+
+	second, err := cfg.Snapshot()
+	r.NoError(err)
+
+	r.NoError(cfg.Write(second))
+	r.NoError(cfg.Write(first))
+
+	again, err := config.Load()
+	r.NoError(err)
+	r.Equal("second", *again.Namespace)
+}
