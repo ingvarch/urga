@@ -40,7 +40,8 @@ One binary, no config to write, no browser.
   deletes variables with check-and-set.
 - Creates, edits and deletes namespaces.
 - Shows the versions of a job, reverts to any of them, tags them, and marks them stable or unstable.
-- Explains why a job is not placed, and has the scheduler evaluate it again.
+- Explains why a job is not placed, has the scheduler evaluate it again, and
+  places its failed allocations again without waiting for their delay.
 - Lists the launches of periodic and parameterized jobs, shows when a
   periodic job runs next, runs it now, and dispatches a parameterized job
   with its meta and payload.

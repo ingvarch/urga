@@ -65,6 +65,7 @@ type (
 		PurgeJob(ctx context.Context, namespace, jobID string) error
 		LaunchJob(ctx context.Context, namespace, jobID string) error
 		EvaluateJob(ctx context.Context, namespace, jobID string) error
+		RescheduleFailed(ctx context.Context, namespace, jobID string) error
 		TagVersion(ctx context.Context, namespace, jobID string, version uint64, name string) error
 		UntagVersion(ctx context.Context, namespace, jobID, name string) error
 		MarkStable(ctx context.Context, namespace, jobID string, version uint64, stable bool) error

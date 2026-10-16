@@ -23,7 +23,7 @@ var (
 		"RestartAllocation", "RestartAllTasks", "StopAllocation", "RestartTask", "SignalTask", "PromoteGroups", "PauseDeployment", "DeleteServiceRegistration",
 		"DrainNode", "SetNodeEligible",
 		"PromoteDeployment", "FailDeployment",
-		"DetachVolume", "ReleaseClaim", "DispatchJob", "EvaluateJob",
+		"DetachVolume", "ReleaseClaim", "DispatchJob", "EvaluateJob", "RescheduleFailed",
 		"TagVersion", "UntagVersion", "MarkStable", "SetAllocHealth", "ReleaseLock",
 		"SubmitACL", "CreateACL", "DeleteACL", "SubmitScheduler",
 		"DeleteVariable", "CreateNamespace", "DeleteNamespace",

@@ -174,6 +174,11 @@ client joined or was freed: the scheduler places what it can now. With several
 jobs marked, it evaluates all of them. It is not shown on a periodic or
 parameterized job: the scheduler evaluates their launches.
 
+`ctrl-r` evaluates a job too, and places its failed allocations again now,
+without waiting for their reschedule delay and past the attempts their
+policy allows. It is shown on a service or batch job: Nomad reschedules
+nothing of a system job.
+
 ## Evaluations
 
 `:evaluations` lists the evaluations of the namespace. `enter` opens one: its

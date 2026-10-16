@@ -205,7 +205,7 @@ func TestHeader_TheArtGivesWayToTheKeys(t *testing.T) {
 		version:    "v0.2.0",
 		namespaces: []namespaceKey{{Key: "0", Name: "all", Active: true}, {Key: "1", Name: "default"}},
 		hints:      jobKeys(),
-	}, 116))
+	}, 124))
 
 	// A key that is not in the header is one nobody learns about. The art
 	// is only art: when the keys need its place, they get it.
