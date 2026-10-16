@@ -116,6 +116,8 @@ func jobFile(client jobsClient, job nomad.Job) load {
 			return planFor(client, planState{
 				namespace: job.Namespace,
 				jobID:     job.ID,
+				jobType:   job.Type,
+				launches:  launchesOthers(job),
 				source:    source,
 				vars:      spec.Variables,
 				read:      spec.Index,

@@ -139,6 +139,12 @@ urga submits exactly what was planned. If someone changed the job after the
 plan, the cluster refuses the submit, and urga asks you to plan again with
 `r`.
 
+After a submit or a revert, urga goes back to where the edit or the revert
+started (the job list or the versions screen) and opens the watch of the deploy
+of the job on top of it. `esc` leaves the watch; the deploy goes
+on. A periodic or parameterized job has no deploy of its own, so after its
+submit urga only goes back.
+
 ## Versions and reverting
 
 `v` lists the versions the cluster keeps for a job. `enter` shows what a

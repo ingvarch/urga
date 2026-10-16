@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
@@ -183,8 +184,8 @@ func TestPlan_SubmitsAtItsIndex(t *testing.T) {
 	r.Equal("job \"web\" {\n  type = \"batch\"\n}", client.submittedSource)
 	r.Equal(uint64(42), client.submittedIndex)
 
-	// The plan is spent: the screen goes back to the job list.
-	r.IsType(jobsPage{}, m.screen.page)
+	// The plan is spent: the watch of the deploy is on top of the job list.
+	r.IsType(deployWatchPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Job web submitted")
 }
 
@@ -346,7 +347,7 @@ func TestPlan_EnterOnSubmitSendsIt(t *testing.T) {
 
 	r.Equal(1, client.submitted)
 	r.Equal(uint64(42), client.submittedIndex)
-	r.IsType(jobsPage{}, m.screen.page)
+	r.IsType(deployWatchPage{}, m.screen.page)
 }
 
 func TestPlan_WhatCannotBePlacedIsNotSent(t *testing.T) {
@@ -626,4 +627,177 @@ func TestPlan_OfAnotherJobGoesOnTop(t *testing.T) {
 	// The plan of cron is not the plan of web planned again.
 	m, _ = m.update(escape())
 	r.Contains(plain(m.render()), "Revert (Job: web, Version: 3)")
+}
+
+func TestPlan_ASubmitOpensTheWatchOfTheDeploy(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs: twoJobs(), versions: versionSeven(),
+		spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv(),
+	}
+	m := planned(t, client)
+
+	m, cmd := m.update(key('y'))
+	m = drain(m, cmd)
+
+	r.Equal(1, client.submitted)
+	r.IsType(deployWatchPage{}, m.screen.page)
+	r.Equal("web", m.screen.page.(deployWatchPage).jobID)
+	r.Contains(plain(m.render()), "Job web submitted.")
+
+	m, _ = m.update(escape())
+
+	r.IsType(jobsPage{}, m.screen.page)
+}
+
+func TestPlan_ARevertOpensTheWatchOfTheDeploy(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), versions: versionSeven(), plan: nomad.Plan{To: 3, Version: 4, Index: 42}}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, cmd := m.update(key('u'))
+	m = drain(m, cmd)
+
+	m, cmd = m.update(key('y'))
+	m = drain(m, cmd)
+
+	r.NotZero(client.revertedTo)
+	r.IsType(deployWatchPage{}, m.screen.page)
+	r.Contains(plain(m.render()), "reverted to version")
+
+	m, _ = m.update(escape())
+
+	r.IsType(jobsPage{}, m.screen.page)
+}
+
+func TestPlan_ASubmitThatFailsOpensNoWatch(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs:      twoJobs(),
+		spec:      nomad.JobSource{Source: "job \"web\" {}", Index: 42},
+		plan:      changedEnv(),
+		actionErr: errors.New("Unexpected response code: 500 (rpc error)"),
+	}
+	m := planned(t, client)
+
+	m, cmd := m.update(key('y'))
+	m = drain(m, cmd)
+
+	r.IsType(planPage{}, m.screen.page)
+}
+
+func TestPlan_TheWatchAfterASubmitReadsInTheNamespaceOfTheJob(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs: twoJobs(), versions: versionSeven(),
+		spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv(),
+	}
+	m, editor := editModel(t, client)
+	editor.replace = "job \"web\" {\n  type = \"batch\"\n}"
+
+	m, _ = m.update(key('0'))
+	r.Equal(nomad.AllNamespaces, m.namespace)
+
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 6)
+
+	m, cmd = m.update(key('y'))
+	m = drain(m, cmd)
+	m = drain(m, m.screen.page.fetch(m.env()))
+
+	r.IsType(deployWatchPage{}, m.screen.page)
+	r.Equal([]string{"production"}, client.lists["versions"])
+	r.Equal("production", namespaceOf(m.screen.page, m.env()))
+}
+
+// submittedFrom is the screen after y on the plan of a job, reached the way
+// the route says: the edit of its file, a revert from the list of jobs, or a
+// revert from its versions.
+func submittedFrom(t *testing.T, route string, job nomad.Job) Model {
+	t.Helper()
+
+	client := &fakeClient{
+		jobs: []nomad.Job{job}, versions: versionSeven(),
+		spec: nomad.JobSource{Source: "job \"" + job.ID + "\" {}", Index: 42}, plan: nomad.Plan{To: 6, Version: 7, Index: 42},
+	}
+
+	editor := &fakeEditor{replace: "job \"" + job.ID + "\" {\n  type = \"batch\"\n}"}
+
+	m := New(client, Options{Namespace: "production", Version: "v-test", Editor: editor, PollEvery: time.Millisecond})
+	m, _ = m.update(sizeMsg())
+	m, _ = m.update(jobsMsg(client.jobs))
+
+	switch route {
+	case "edit":
+		client.plan = changedEnv()
+		m, cmd := m.update(key('e'))
+		m = follow(m, cmd, 6)
+
+		return confirmedPlan(m)
+
+	case "revert":
+		m, cmd := m.update(key('u'))
+
+		return confirmedPlan(drain(m, cmd))
+	}
+
+	m, cmd := m.update(key('v'))
+	m, cmd = drain(m, cmd).update(key('u'))
+
+	return confirmedPlan(drain(m, cmd))
+}
+
+func confirmedPlan(m Model) Model {
+	m, cmd := m.update(key('y'))
+
+	return drain(m, cmd)
+}
+
+func TestPlan_TheWatchAfterASubmitOfABatchJobHasNoDeployment(t *testing.T) {
+	job := nomad.Job{ID: "nightly", Name: "nightly", Namespace: "production", Type: "batch", Status: "running"}
+
+	for _, route := range []string{"edit", "revert", "versions"} {
+		t.Run(route, func(t *testing.T) {
+			r := require.New(t)
+
+			m := submittedFrom(t, route, job)
+
+			r.IsType(deployWatchPage{}, m.screen.page)
+
+			m = drain(m, m.screen.page.fetch(m.env()))
+
+			out := plain(m.render())
+			r.Contains(out, "nightly has no deployment for version 7: its allocations are below.")
+			r.NotContains(out, "Waiting for the deployment")
+		})
+	}
+}
+
+func TestPlan_ASubmitOfAJobThatLaunchesOthersOpensNoWatch(t *testing.T) {
+	for name, job := range map[string]nomad.Job{
+		"periodic":      {ID: "cron", Name: "cron", Namespace: "production", Type: "batch", Status: "running", Periodic: true},
+		"parameterized": {ID: "mail", Name: "mail", Namespace: "production", Type: "batch", Status: "running", Parameterized: true},
+	} {
+		for _, route := range []string{"edit", "revert", "versions"} {
+			t.Run(name+" "+route, func(t *testing.T) {
+				r := require.New(t)
+
+				m := submittedFrom(t, route, job)
+
+				// Back where the plan started.
+				if route == "versions" {
+					r.IsType(versionsPage{}, m.screen.page)
+				} else {
+					r.IsType(jobsPage{}, m.screen.page)
+				}
+
+				r.Contains(plain(m.render()), "Job "+job.ID)
+			})
+		}
+	}
 }

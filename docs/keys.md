@@ -260,7 +260,7 @@ On what was done to the count of a group, `d` describes its policy.
 | --- | --- | --- |
 | `left`, `right`, `tab` | Choose Cancel or Submit | |
 | `enter` | Press the chosen button | |
-| `y` | Submit, or revert, at once | yes |
+| `y` | Submit, or revert, at once, and watch the deploy of a job that runs itself | yes |
 | `r` | Plan again | |
 | `esc` | Go back without submitting | |
 | `w` | Wrap long lines | |

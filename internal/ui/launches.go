@@ -75,8 +75,11 @@ func launcherColor(job nomad.Job, last map[string]nomad.Job) color.Color {
 func launchesJobs(p jobsPage, e env) bool {
 	job, ok := p.picked(e)
 
-	return ok && (job.Periodic || job.Parameterized)
+	return ok && launchesOthers(job)
 }
+
+// launchesOthers says the job is periodic or parameterized.
+func launchesOthers(job nomad.Job) bool { return job.Periodic || job.Parameterized }
 
 // runsItself says the job under the cursor has allocations of its own, when
 // there is one.
