@@ -76,10 +76,10 @@ func TestDeployments_Read(t *testing.T) {
 	r.NoError(err)
 	r.Len(deployments, 1)
 
-	r.Equal("dep-1", deployments[0].ID)
-	r.Equal("web", deployments[0].JobID)
-	r.Equal("running", deployments[0].Status)
-	r.Equal(uint64(3), deployments[0].JobVersion)
+	r.Equal(nomad.Deployment{
+		ID: "dep-1", JobID: "web", Namespace: "production", JobVersion: 3,
+		Status: "running", StatusDescription: "Deployment is running",
+	}, deployments[0])
 }
 
 func TestNamespaces_Read(t *testing.T) {
@@ -121,9 +121,11 @@ func TestEvaluations_Read(t *testing.T) {
 	r.NoError(err)
 	r.Len(evals, 1)
 
-	r.Equal("eval-1", evals[0].ID)
-	r.Equal("job-register", evals[0].TriggeredBy)
-	r.Equal("complete", evals[0].Status)
+	r.Equal(nomad.Evaluation{
+		ID: "eval-1", JobID: "web", Namespace: "production", Type: "service",
+		TriggeredBy: "job-register", Status: "complete",
+		Created: evals[0].Created,
+	}, evals[0])
 	r.False(evals[0].Created.IsZero())
 }
 
@@ -175,6 +177,7 @@ func TestVariables_Read(t *testing.T) {
 	r.Len(variables, 1)
 
 	r.Equal("nomad/jobs/web", variables[0].Path)
+	r.Equal("production", variables[0].Namespace)
 
 	// The index a delete gives, so that a variable changed since is kept.
 	r.Equal(uint64(769), variables[0].Index)
@@ -224,6 +227,16 @@ func TestNodePools_Read(t *testing.T) {
 	r.Equal("default", pools[0].Name)
 	r.Equal("the default pool", pools[0].Description)
 	r.Equal("binpack", pools[0].Scheduler)
+}
+
+func TestNodePools_WithoutASchedulerConfiguration(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{"Name": "gpu", "Description": "gpus"}]`)
+
+	pools, err := client.NodePools(context.Background())
+	r.NoError(err)
+	r.Equal([]nomad.NodePool{{Name: "gpu", Description: "gpus"}}, pools)
 }
 
 func TestPoolJobs(t *testing.T) {

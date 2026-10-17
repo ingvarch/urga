@@ -20,23 +20,19 @@ type Deployment struct {
 // Deployments lists the rollouts of a namespace.
 func (c *Client) Deployments(ctx context.Context, namespace string) ([]Deployment, error) {
 	list, _, err := c.api.Deployments().List(c.query(ctx, namespace))
-	if err != nil {
-		return nil, err
-	}
 
-	out := make([]Deployment, 0, len(list))
-	for _, d := range list {
-		out = append(out, Deployment{
-			ID:                d.ID,
-			JobID:             d.JobID,
-			Namespace:         d.Namespace,
-			JobVersion:        d.JobVersion,
-			Status:            d.Status,
-			StatusDescription: d.StatusDescription,
-		})
-	}
+	return listed(list, err, newDeployment)
+}
 
-	return out, nil
+func newDeployment(d *api.Deployment) Deployment {
+	return Deployment{
+		ID:                d.ID,
+		JobID:             d.JobID,
+		Namespace:         d.Namespace,
+		JobVersion:        d.JobVersion,
+		Status:            d.Status,
+		StatusDescription: d.StatusDescription,
+	}
 }
 
 // Namespace is one namespace of the cluster.
@@ -49,16 +45,12 @@ type Namespace struct {
 // Namespaces lists the namespaces of the cluster.
 func (c *Client) Namespaces(ctx context.Context) ([]Namespace, error) {
 	list, _, err := c.api.Namespaces().List(c.query(ctx, ""))
-	if err != nil {
-		return nil, err
-	}
 
-	out := make([]Namespace, 0, len(list))
-	for _, n := range list {
-		out = append(out, Namespace{Name: n.Name, Description: n.Description, Quota: n.Quota})
-	}
+	return listed(list, err, newNamespace)
+}
 
-	return out, nil
+func newNamespace(n *api.Namespace) Namespace {
+	return Namespace{Name: n.Name, Description: n.Description, Quota: n.Quota}
 }
 
 // Service is one name in the service catalog.
@@ -104,16 +96,8 @@ type Evaluation struct {
 // Evaluations lists the scheduling decisions of a namespace.
 func (c *Client) Evaluations(ctx context.Context, namespace string) ([]Evaluation, error) {
 	list, _, err := c.api.Evaluations().List(c.query(ctx, namespace))
-	if err != nil {
-		return nil, err
-	}
 
-	out := make([]Evaluation, 0, len(list))
-	for _, e := range list {
-		out = append(out, newEvaluation(e))
-	}
-
-	return out, nil
+	return listed(list, err, newEvaluation)
 }
 
 func newEvaluation(e *api.Evaluation) Evaluation {
@@ -208,16 +192,8 @@ type VariableDetail struct {
 // Variables lists what the variable store of a namespace holds.
 func (c *Client) Variables(ctx context.Context, namespace string) ([]Variable, error) {
 	list, _, err := c.api.Variables().List(c.query(ctx, namespace))
-	if err != nil {
-		return nil, err
-	}
 
-	out := make([]Variable, 0, len(list))
-	for _, v := range list {
-		out = append(out, variableOf(v))
-	}
-
-	return out, nil
+	return listed(list, err, variableOf)
 }
 
 // Variable reads a variable with its values.
@@ -264,22 +240,18 @@ type NodePool struct {
 // NodePools lists the pools nodes are grouped into.
 func (c *Client) NodePools(ctx context.Context) ([]NodePool, error) {
 	list, _, err := c.api.NodePools().List(c.query(ctx, ""))
-	if err != nil {
-		return nil, err
+
+	return listed(list, err, newNodePool)
+}
+
+func newNodePool(p *api.NodePool) NodePool {
+	pool := NodePool{Name: p.Name, Description: p.Description}
+
+	if p.SchedulerConfiguration != nil {
+		pool.Scheduler = string(p.SchedulerConfiguration.SchedulerAlgorithm)
 	}
 
-	out := make([]NodePool, 0, len(list))
-	for _, p := range list {
-		pool := NodePool{Name: p.Name, Description: p.Description}
-
-		if p.SchedulerConfiguration != nil {
-			pool.Scheduler = string(p.SchedulerConfiguration.SchedulerAlgorithm)
-		}
-
-		out = append(out, pool)
-	}
-
-	return out, nil
+	return pool
 }
 
 // PoolNodes lists the clients of a node pool, as the cluster counts them:

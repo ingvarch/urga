@@ -81,14 +81,7 @@ func (c *Client) JobDeployments(ctx context.Context, namespace, jobID string) ([
 }
 
 func newDeploymentDetail(d *api.Deployment) DeploymentDetail {
-	detail := DeploymentDetail{Deployment: Deployment{
-		ID:                d.ID,
-		JobID:             d.JobID,
-		Namespace:         d.Namespace,
-		JobVersion:        d.JobVersion,
-		Status:            d.Status,
-		StatusDescription: d.StatusDescription,
-	}}
+	detail := DeploymentDetail{Deployment: newDeployment(d)}
 
 	for name, state := range d.TaskGroups {
 		if state == nil {
