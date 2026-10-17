@@ -168,10 +168,10 @@ func (p deployWatchPage) panel(_ env, width, room int) []string {
 	head := []string{}
 
 	if p.eval != nil {
-		head = append(head, " "+watchedEvaluation(*p.eval, width-1))
+		head = append(head, panelRow(watchedEvaluation(*p.eval, width-tableIndent)))
 	}
 
-	head = append(head, " "+truncate(p.standing(), width-1))
+	head = append(head, panelRow(truncate(p.standing(), width-tableIndent)))
 
 	return fitPanel(head, groupBlock(p.deployment.deployment.Groups, p.deployment.active(), width), room)
 }

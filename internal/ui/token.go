@@ -145,7 +145,7 @@ func (m Model) withHint(table string, width int) string {
 		return table
 	}
 
-	return table + "\n " + styleMuted.Render(truncate(hint, width-1))
+	return table + "\n" + panelRow(styleMuted.Render(truncate(hint, width-tableIndent)))
 }
 
 // managementToken is the type of a token that may do anything.

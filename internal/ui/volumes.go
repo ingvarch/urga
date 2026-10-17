@@ -308,13 +308,7 @@ func volumePanel(v nomad.VolumeDetail, width, room int) []string {
 		lines = csiPanelLines(v)
 	}
 
-	rows := []string{}
-
-	for _, line := range lines {
-		if row := fieldLine(line, width-1); row != "" {
-			rows = append(rows, " "+row)
-		}
-	}
+	rows := fieldLineRows(lines, width)
 
 	return fitPanel(rows, panelBlock{}, room)
 }

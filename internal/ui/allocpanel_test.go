@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -238,4 +239,26 @@ func TestFitPanel_LeavesTheHeadItWasGiven(t *testing.T) {
 
 	r.Equal([]string{"status", "kept"}, backing)
 	r.Equal("status", rows[0])
+}
+
+func TestPanelRow_StartsWhereTheTableDoes(t *testing.T) {
+	require.Equal(t, strings.Repeat(" ", tableIndent)+"row", panelRow("row"))
+}
+
+func TestFieldLineRows(t *testing.T) {
+	lines := [][]field{
+		{{"Status", "running"}},
+		{{"Ports", ""}},
+		{{"Client", "node-1"}},
+	}
+
+	rows := fieldLineRows(lines, 40)
+
+	require.Len(t, rows, 2, "a line with no value is left out")
+	require.Equal(t, panelRow(fieldLine(lines[0], 40-tableIndent)), rows[0])
+	require.Equal(t, panelRow(fieldLine(lines[2], 40-tableIndent)), rows[1])
+
+	for _, row := range fieldLineRows(lines, 8) {
+		require.LessOrEqual(t, lipgloss.Width(row), 8)
+	}
 }

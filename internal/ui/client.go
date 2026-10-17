@@ -275,7 +275,7 @@ func (h hostModel) keep(use nomad.ResourceUse) hostModel {
 // of it, which keeps a column for the margin of the table and a gap between
 // them.
 func chartWidth(width int) int {
-	return max((width-1-columnGap)/2, 1)
+	return max((width-tableIndent-columnGap)/2, 1)
 }
 
 // chartHeight is how tall the plot of a chart is in a panel of room rows. A
@@ -337,7 +337,7 @@ func (p clientPage) panel(_ env, width, room int) []string {
 // is half wide and plot tall, and a plot of no height leaves them out.
 func (h hostModel) view(width, half, plot int, absolute bool) []string {
 	// One column of the panel goes to the margin the table keeps.
-	width--
+	width -= tableIndent
 
 	rows := []string{h.details(width), ""}
 
@@ -360,7 +360,7 @@ func (h hostModel) view(width, half, plot int, absolute bool) []string {
 
 	// The panel starts where the columns of the table do.
 	for i, row := range rows {
-		rows[i] = " " + row
+		rows[i] = panelRow(row)
 	}
 
 	return rows
