@@ -367,19 +367,14 @@ func (m Model) openStream() (Model, tea.Cmd) {
 // letGo closes a stream that was opened for a page that is no longer open:
 // nothing else would ever close it.
 func letGo(msg tea.Msg) {
-	switch opened := msg.(type) {
-	case logStreamMsg:
-		opened.stream.Close()
-	case fileMsg:
-		opened.stream.Close()
-	case jobLogOpenedMsg:
-		if opened.stream != nil {
-			opened.stream.Close()
-		}
-	case feedOpenedMsg:
-		opened.feed.Close()
+	if opened, ok := msg.(streamOpened); ok {
+		opened.release()
 	}
 }
+
+// streamOpened is a message that brings a stream: one no page takes is
+// closed, since nothing else would close it.
+type streamOpened interface{ release() }
 
 // returnTo puts a list back the way it was left. Its rows are still there,
 // so the cursor lands on the same one; the next answer keeps it there the
