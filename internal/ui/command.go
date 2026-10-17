@@ -4,6 +4,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	tea "charm.land/bubbletea/v2"
 )
 
 // commandAliases are the words the prompt understands for a resource. They
@@ -66,16 +68,35 @@ const (
 // offers them: after the resources, so that `d` stays the deployments.
 var scopeNames = []string{"ctx", "dc", "region"}
 
-// findNames are the words that search the cluster. The prompt offers the
-// first, after the scopes.
-var findNames = []string{"find", "search"}
+// verb is a word of the command line that does something with the rest of
+// the line, instead of opening a resource or switching a scope.
+type verb struct {
+	// names are the words for it; the prompt offers the first.
+	names []string
 
-// gcNames are the words that collect the garbage of the cluster, offered
-// last.
-var gcNames = []string{"gc"}
+	// writes says it changes the cluster, which read-only mode refuses.
+	writes bool
 
-// runNames are the words that plan a job file, offered after the others.
-var runNames = []string{"run"}
+	run func(m Model, rest string) (Model, tea.Cmd)
+}
+
+// verbs are offered after the scopes, in this order.
+var verbs = []verb{
+	{names: []string{"find", "search"}, run: Model.find},
+	{names: []string{"gc"}, writes: true, run: func(m Model, _ string) (Model, tea.Cmd) { return m.collectGarbage() }},
+	{names: []string{"run"}, writes: true, run: Model.run},
+}
+
+// verbNames are the words the prompt offers for the verbs.
+func verbNames() []string {
+	names := make([]string, 0, len(verbs))
+
+	for _, v := range verbs {
+		names = append(names, v.names[0])
+	}
+
+	return names
+}
 
 var scopeAliases = map[string]scope{
 	"ctx":     scopeCluster,
@@ -94,15 +115,9 @@ type command struct {
 	switching scope
 	name      string
 
-	// finding says the line searches the cluster, text for what.
-	finding bool
-	text    string
-
-	// collecting says the line collects the garbage of the cluster.
-	collecting bool
-
-	// running says the line plans a job file, text is its path.
-	running bool
+	// verb is what the line does with text, the rest of the line.
+	verb *verb
+	text string
 }
 
 // parseCommand reads "<resource> [namespace]", for example "jobs production",
@@ -129,16 +144,10 @@ func parseCommand(input string) (command, bool) {
 	// all.
 	rest := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(input), fields[0]))
 
-	if slices.Contains(findNames, word) {
-		return command{finding: true, text: rest}, true
-	}
-
-	if slices.Contains(runNames, word) {
-		return command{running: true, text: rest}, true
-	}
-
-	if slices.Contains(gcNames, word) {
-		return command{collecting: true}, true
+	for i, v := range verbs {
+		if slices.Contains(v.names, word) {
+			return command{verb: &verbs[i], text: rest}, true
+		}
 	}
 
 	if switching, ok := scopeAliases[word]; ok {
@@ -211,7 +220,7 @@ func matchingCommands(typed string) []string {
 		matches = append(matches, nameOf(named))
 	}
 
-	for _, name := range slices.Concat(commandNames, scopeNames, findNames[:1], gcNames, runNames) {
+	for _, name := range slices.Concat(commandNames, scopeNames, verbNames()) {
 		if strings.HasPrefix(name, word) && !slices.Contains(matches, name) {
 			matches = append(matches, name)
 		}

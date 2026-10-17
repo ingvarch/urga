@@ -325,16 +325,12 @@ func (m Model) commit() (Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 
-	if cmd.finding {
-		return m.find(cmd.text)
-	}
+	if cmd.verb != nil {
+		if cmd.verb.writes && m.opts.ReadOnly {
+			return m.warn("read-only: :" + cmd.verb.names[0] + " is off"), nil
+		}
 
-	if cmd.collecting {
-		return m.collectGarbage()
-	}
-
-	if cmd.running {
-		return m.run(cmd.text)
+		return cmd.verb.run(m, cmd.text)
 	}
 
 	switch cmd.switching {
