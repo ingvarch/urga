@@ -64,6 +64,23 @@ func openFollowUp(p tasksPage, e env) (tasksPage, outcome) {
 // field is a label and its value on a line of a panel.
 type field struct{ label, value string }
 
+// panelRow starts a row of a panel where the columns of the table do.
+func panelRow(row string) string { return strings.Repeat(" ", tableIndent) + row }
+
+// fieldLineRows are the rows of a panel for its lines of fields, cut to the
+// width left after the margin. A line where no field has a value is left out.
+func fieldLineRows(lines [][]field, width int) []string {
+	rows := []string{}
+
+	for _, line := range lines {
+		if row := fieldLine(line, width-tableIndent); row != "" {
+			rows = append(rows, panelRow(row))
+		}
+	}
+
+	return rows
+}
+
 // allocPanel is what the tasks of an allocation show above them: its status,
 // client, job version and deployment health, its ports, the allocations
 // before and after it, and its checks. A line with no values is left out,
@@ -112,14 +129,7 @@ func allocPanel(alloc nomad.Alloc, checks []nomad.Check, width, room int) []stri
 		},
 	}
 
-	rows := []string{}
-
-	for _, line := range lines {
-		if row := fieldLine(line, width-1); row != "" {
-			// The panel starts where the columns of the table do.
-			rows = append(rows, " "+row)
-		}
-	}
+	rows := fieldLineRows(lines, width)
 
 	return fitPanel(rows, checkBlock(checks, width), room)
 }
@@ -224,7 +234,7 @@ func checkBlock(checks []nomad.Check, width int) panelBlock {
 	}
 
 	return panelBlock{
-		title:   []string{" " + styleLabel.Render("Checks")},
+		title:   []string{panelRow(styleLabel.Render("Checks"))},
 		entries: entries,
 		more:    func(count int) string { return fmt.Sprintf("  + %d more checks", count) },
 	}

@@ -422,14 +422,10 @@ func fetchDeployment(client deploymentsClient, namespace, deploymentID string) t
 // deploymentPanel is the panel above the allocations of a deployment: what
 // the deployment is, and how far it got with each group.
 func deploymentPanel(d nomad.DeploymentDetail, width, room int) []string {
-	head := []string{}
-
-	if row := fieldLine([]field{{"Status", d.Status}, {"Job", d.JobID}, {"Version", fmt.Sprint(d.JobVersion)}}, width-1); row != "" {
-		head = append(head, " "+row)
-	}
+	head := fieldLineRows([][]field{{{"Status", d.Status}, {"Job", d.JobID}, {"Version", fmt.Sprint(d.JobVersion)}}}, width)
 
 	if d.StatusDescription != "" {
-		head = append(head, " "+styleMuted.Render(truncate(d.StatusDescription, width-1)))
+		head = append(head, panelRow(styleMuted.Render(truncate(d.StatusDescription, width-tableIndent))))
 	}
 
 	return fitPanel(head, groupBlock(d.Groups, d.Active(), width), room)
@@ -459,7 +455,7 @@ func groupBlock(groups []nomad.DeploymentGroup, active bool, width int) panelBlo
 			padded[i] = pad(cell, widths[i])
 		}
 
-		return truncate(" "+strings.TrimRight(strings.Join(padded, strings.Repeat(" ", columnGap)), " "), width)
+		return truncate(panelRow(strings.TrimRight(strings.Join(padded, strings.Repeat(" ", columnGap)), " ")), width)
 	}
 
 	entries := make([][]string, 0, len(groups))

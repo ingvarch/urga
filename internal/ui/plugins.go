@@ -165,14 +165,14 @@ func (p pluginPage) panel(_ env, width, room int) []string {
 		return nil
 	}
 
-	line := fieldLine([]field{
+	line := panelRow(fieldLine([]field{
 		{"Provider", strings.TrimSpace(p.plugin.Provider + " " + p.plugin.Version)},
 		{"Controller required", yesNo(p.plugin.ControllerRequired)},
 		{"Controllers", healthOf(p.plugin.Controllers)},
 		{"Nodes", healthOf(p.plugin.Nodes)},
-	}, width-1)
+	}, width-tableIndent))
 
-	return fitPanel([]string{" " + line}, panelBlock{}, room)
+	return fitPanel([]string{line}, panelBlock{}, room)
 }
 
 func (p pluginPage) rows(env) []tableRow {
