@@ -15,6 +15,22 @@ const AllNamespaces = "*"
 // DefaultNamespace is the namespace every cluster has, and keeps.
 const DefaultNamespace = "default"
 
+// EveryNamespace says the namespace stands for all of them: none named, or
+// AllNamespaces.
+func EveryNamespace(namespace string) bool {
+	return namespace == "" || namespace == AllNamespaces
+}
+
+// TargetNamespace is where something new goes from a session in namespace:
+// that namespace, or DefaultNamespace when the session looks at all of them.
+func TargetNamespace(namespace string) string {
+	if EveryNamespace(namespace) {
+		return DefaultNamespace
+	}
+
+	return namespace
+}
+
 // Config says which cluster to talk to. An empty address or region falls
 // back to the environment, the same variables the nomad command reads,
 // which is also where the token comes from.

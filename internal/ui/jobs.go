@@ -197,7 +197,7 @@ func (p jobsPage) press(k string, e env) (page, outcome, bool) {
 
 // namespaceLabel is the namespace as it reads in a title.
 func namespaceLabel(namespace string) string {
-	if namespace == "" || namespace == nomad.AllNamespaces {
+	if nomad.EveryNamespace(namespace) {
 		return "all"
 	}
 

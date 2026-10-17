@@ -273,10 +273,7 @@ func unlocked[P any](acted func(p P, e env) (nomad.Variable, bool)) func(p P, e 
 // editor. It goes to the namespace of the session, to default when the
 // session looks at every one.
 func newVariable(p variablesPage, e env) (variablesPage, outcome) {
-	namespace := e.namespace
-	if namespace == "" || namespace == nomad.AllNamespaces {
-		namespace = nomad.DefaultNamespace
-	}
+	namespace := nomad.TargetNamespace(e.namespace)
 
 	return p, then(lineMsg{
 		prefix: "new variable in " + namespace + " at: ",

@@ -47,7 +47,7 @@ func (c *Client) jobOf(ctx context.Context, namespace, source string, vars JobVa
 		return nil, nil, nil, err
 	}
 
-	if namespace != "" && namespace != AllNamespaces {
+	if !EveryNamespace(namespace) {
 		job.Namespace = &namespace
 	}
 
@@ -339,9 +339,7 @@ type JobTarget struct {
 // file names, or else the one of the session, and default when the session
 // looks at all of them.
 func (c *Client) JobTarget(ctx context.Context, namespace, source string) (JobTarget, error) {
-	if namespace == "" || namespace == AllNamespaces {
-		namespace = DefaultNamespace
-	}
+	namespace = TargetNamespace(namespace)
 
 	job, _, err := c.parseJob(ctx, namespace, source, JobVariables{}, false)
 	if err != nil {
