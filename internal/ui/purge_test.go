@@ -170,7 +170,7 @@ func TestGC_NotInReadOnlyMode(t *testing.T) {
 
 	r.Equal(overlayNone, m.overlay)
 	r.Empty(client.writes)
-	r.Contains(plain(m.render()), "Read-only: :gc changes the cluster.")
+	r.Contains(plain(m.render()), "read-only: :gc is off")
 }
 
 func TestCollect_TheGarbageOfTheMarkedClientsThatRun(t *testing.T) {

@@ -103,3 +103,25 @@ func TestReadOnly_AWritingSessionSaysNothing(t *testing.T) {
 	out := ansi.Strip(renderHeader(header{address: "https://nomad.example.com"}, 120))
 	r.NotContains(out, "read-only")
 }
+
+func TestReadOnly_AWriteVerbChangesNothing(t *testing.T) {
+	for _, v := range verbs {
+		if !v.writes {
+			continue
+		}
+
+		for _, name := range v.names {
+			r := require.New(t)
+
+			client := &fakeClient{}
+			m := newTestModel(client)
+			m.opts.ReadOnly = true
+
+			m, _ = runLine(m, name+" x")
+
+			r.Empty(client.writes, name)
+			r.Zero(client.planCalls, name)
+			r.Contains(plain(m.render()), "read-only: :"+v.names[0]+" is off", name)
+		}
+	}
+}

@@ -156,7 +156,7 @@ func TestParseCommand_Find(t *testing.T) {
 	} {
 		cmd, ok := parseCommand(input)
 		r.True(ok, input)
-		r.True(cmd.finding, input)
+		r.Equal("find", cmd.verb.names[0], input)
 		r.Equal(text, cmd.text, input)
 	}
 
@@ -175,7 +175,7 @@ func TestParseCommand_Run(t *testing.T) {
 	} {
 		cmd, ok := parseCommand(input)
 		r.True(ok, input)
-		r.True(cmd.running, input)
+		r.Equal("run", cmd.verb.names[0], input)
 		r.Equal(path, cmd.text, input)
 	}
 }

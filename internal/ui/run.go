@@ -14,11 +14,7 @@ import (
 
 // run reads a job file and opens the plan of it as a new job.
 func (m Model) run(path string) (Model, tea.Cmd) {
-	switch {
-	case m.opts.ReadOnly:
-		return m.warn("read-only: :run is off"), nil
-
-	case path == "":
+	if path == "" {
 		return m.warn(":run needs a job file"), nil
 	}
 

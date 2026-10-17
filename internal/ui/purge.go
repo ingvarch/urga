@@ -88,13 +88,8 @@ func collectNodes(p nodesPage, e env) (nodesPage, outcome) {
 }
 
 // collectGarbage makes the servers forget now what they would forget later,
-// after the user confirms. It changes the cluster: read-only mode refuses
-// it.
+// after the user confirms.
 func (m Model) collectGarbage() (Model, tea.Cmd) {
-	if m.opts.ReadOnly {
-		return m.warn("Read-only: :gc changes the cluster."), nil
-	}
-
 	return m.ask("Really collect the garbage of the cluster? Dead jobs, ended allocations and down clients go now.",
 		act("Garbage of the cluster collected.", m.client.CollectGarbage))
 }
