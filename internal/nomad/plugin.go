@@ -50,21 +50,17 @@ type PluginInstance struct {
 // Plugins lists the CSI plugins of the cluster.
 func (c *Client) Plugins(ctx context.Context) ([]Plugin, error) {
 	list, _, err := c.api.CSIPlugins().List(c.query(ctx, ""))
-	if err != nil {
-		return nil, err
-	}
 
-	out := make([]Plugin, 0, len(list))
-	for _, p := range list {
-		out = append(out, Plugin{
-			ID:          p.ID,
-			Provider:    p.Provider,
-			Controllers: Health{Healthy: p.ControllersHealthy, Expected: p.ControllersExpected},
-			Nodes:       Health{Healthy: p.NodesHealthy, Expected: p.NodesExpected},
-		})
-	}
+	return listed(list, err, newPlugin)
+}
 
-	return out, nil
+func newPlugin(p *api.CSIPluginListStub) Plugin {
+	return Plugin{
+		ID:          p.ID,
+		Provider:    p.Provider,
+		Controllers: Health{Healthy: p.ControllersHealthy, Expected: p.ControllersExpected},
+		Nodes:       Health{Healthy: p.NodesHealthy, Expected: p.NodesExpected},
+	}
 }
 
 // Plugin reads one CSI plugin.
