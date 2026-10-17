@@ -729,3 +729,30 @@ func TestRegionState_NarrowsToItsDatacenter(t *testing.T) {
 	// No datacenter chosen is every one of them.
 	r.True(regionState{}.inDatacenter("dc1"))
 }
+
+func TestAnswerOfAnotherScreen_ChangesNothing(t *testing.T) {
+	answers := map[string]tea.Msg{
+		"regions":     regionsMsg([]string{"eu", "us"}),
+		"datacenters": datacentersMsg{region: "", names: []string{"dc1"}},
+		"namespaces":  namespacesMsg(threeNamespaces()),
+	}
+
+	for name, msg := range answers {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			m := newTestModel(&fakeClient{})
+			m.answered = false
+			m = m.fail(errors.New("boom"))
+
+			m, cmd := m.update(msg)
+
+			r.False(m.answered)
+			r.Contains(m.flash.text, "boom")
+
+			if name != "namespaces" {
+				r.Nil(cmd)
+			}
+		})
+	}
+}

@@ -121,7 +121,7 @@ func (m Model) keepNamespaces(msg namespacesMsg) (Model, tea.Cmd) {
 	m.namespaces = msg
 	m.rememberNamespaces(msg)
 
-	next, cmd := m.applyList(namespacesView, func(*Model) {})
+	next, cmd := m.applyList(namespacesView)
 
 	return next, tea.Batch(cmd, next.remember())
 }
