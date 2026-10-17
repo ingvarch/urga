@@ -297,3 +297,15 @@ func TestNew_TheCertificatesOfANamedCluster(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "missing-ca.pem")
 }
+
+func TestEveryNamespace(t *testing.T) {
+	for namespace, want := range map[string]bool{"": true, "*": true, "default": false, "web": false} {
+		require.Equal(t, want, nomad.EveryNamespace(namespace), "namespace %q", namespace)
+	}
+}
+
+func TestTargetNamespace(t *testing.T) {
+	for namespace, want := range map[string]string{"": "default", "*": "default", "default": "default", "web": "web"} {
+		require.Equal(t, want, nomad.TargetNamespace(namespace), "namespace %q", namespace)
+	}
+}

@@ -101,7 +101,7 @@ func (s namespaceState) namespaceColumnData() []namespaceKey {
 	keys := []namespaceKey{{
 		Key:    "<0>",
 		Name:   "all",
-		Active: s.namespace == "" || s.namespace == nomad.AllNamespaces,
+		Active: nomad.EveryNamespace(s.namespace),
 	}}
 
 	for i, name := range s.namespaceOrder {
