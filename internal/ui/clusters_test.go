@@ -1,9 +1,11 @@
 package ui
 
 import (
-	tea "charm.land/bubbletea/v2"
 	"errors"
+	"path/filepath"
 	"testing"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/stretchr/testify/require"
 
@@ -37,10 +39,7 @@ func (c *twoClusters) connect(name string) (Connection, error) {
 func onDev(t *testing.T) (Model, *twoClusters) {
 	t.Helper()
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	cfg, err := config.Load()
-	require.NoError(t, err)
+	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
 
 	// Both clusters stream their events, like a cluster that allows it, so
 	// no warning about polling hides the messages of the switch.

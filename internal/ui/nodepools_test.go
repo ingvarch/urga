@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -41,10 +42,7 @@ func TestNodePools_ListsThePoolsOfTheCluster(t *testing.T) {
 func TestNodePools_ASessionStartsOnThem(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.Screen = "nodepools"
 
