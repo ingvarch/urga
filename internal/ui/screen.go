@@ -89,7 +89,7 @@ func (m Model) bar(width int) []string {
 // barRows is how many rows of the box the question at the foot of the page
 // takes.
 func (m Model) barRows() int {
-	return len(m.bar(m.width - 2*screenPadX - 2))
+	return len(m.bar(m.innerWidth()))
 }
 
 // took stores what the open page made of an answer, and applies what it

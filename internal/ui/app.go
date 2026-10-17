@@ -456,7 +456,7 @@ func (m Model) render() string {
 		parts = append(parts, indent(m.prompt.view(width), screenPadX))
 	}
 
-	title, body := m.body(width - 2)
+	title, body := m.body(m.innerWidth())
 
 	framed := paintedFrame(title, body, width, m.bodyHeight(), m.border())
 
@@ -588,6 +588,10 @@ func (m Model) statusLeft(width int) string {
 	return styleMuted.Render(truncate("<:> command   </> filter   <?> help   <q> quit", width))
 }
 
+// innerWidth is how wide the box is inside its border: what the table, the
+// text and the panel are drawn at.
+func (m Model) innerWidth() int { return m.width - 2*screenPadX - 2 }
+
 func (m Model) bodyHeight() int {
 	height := m.height - screenPadTop - headerHeight - statusHeight
 
@@ -615,7 +619,7 @@ func (m *Model) layout() {
 
 	// The table sits inside the box: the margin, its two border lines and the
 	// header row of the table itself are not rows.
-	m.list.table.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-3-m.panelHeight(), 1))
+	m.list.table.setSize(m.innerWidth(), max(m.bodyHeight()-3-m.panelHeight(), 1))
 
 	grew := false
 	if r, ok := m.screen.page.(reader); ok {
@@ -624,7 +628,7 @@ func (m *Model) layout() {
 		m.text.textContent = content
 	}
 
-	m.text.setSize(m.width-2*screenPadX-2, max(m.bodyHeight()-2-m.toggleRows()-m.barRows(), 1))
+	m.text.setSize(m.innerWidth(), max(m.bodyHeight()-2-m.toggleRows()-m.barRows(), 1))
 
 	m.text.filter = m.list.filter
 	m.text.follow()
