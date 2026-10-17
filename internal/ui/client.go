@@ -297,7 +297,7 @@ func chartHeight(room int) int {
 // panelHeight is how many rows the panel takes from the table, at the width
 // it is drawn at.
 func (m Model) panelHeight() int {
-	return len(m.panel(m.width - 2*screenPadX - 2))
+	return len(m.panel(m.innerWidth()))
 }
 
 // rowsForPanel is what is left of the box once the table has the rows it

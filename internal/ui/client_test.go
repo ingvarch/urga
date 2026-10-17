@@ -132,7 +132,7 @@ func TestClient_DrawsWhatTheHostIsDoing(t *testing.T) {
 
 // bodyOf is what the box of the screen holds, without its frame.
 func bodyOf(m Model) string {
-	_, content := m.body(m.width - 2*screenPadX - 2)
+	_, content := m.body(m.innerWidth())
 
 	return plain(content)
 }
@@ -289,7 +289,7 @@ func TestClient_ChartsShareOneScaleWidth(t *testing.T) {
 	// The first plot row carries no labels: its first bar per half is the
 	// axis both scales stand on. Cells, not bytes: the bar takes three of
 	// those. The table draws the panel without its margin space.
-	half := chartWidth(m.width - 2*screenPadX - 2)
+	half := chartWidth(m.innerWidth())
 	plot := strings.TrimSuffix(strings.TrimPrefix(lines[head+1], " │ "), " │")
 	cells := []rune(plot)
 	cpuAxis := slices.Index(cells[:half], '│')
@@ -600,7 +600,7 @@ func TestClient_ComingBackReadsAgain(t *testing.T) {
 
 // drawnPanel is how many rows the screen draws above its table.
 func drawnPanel(m Model) int {
-	width := m.width - 2*screenPadX - 2
+	width := m.innerWidth()
 	_, content := m.body(width)
 
 	return strings.Count(content, "\n") - strings.Count(m.withHint(m.list.table.view(), width), "\n")
@@ -633,7 +633,7 @@ func TestClient_ThePanelTakesWhatTheBoxHasRoomFor(t *testing.T) {
 		{width: 20, box: 40, panel: 2},
 	} {
 		sized, _ := m.update(tea.WindowSizeMsg{Width: tc.width, Height: tc.box + screenPadTop + headerHeight + statusHeight})
-		_, content := sized.body(sized.width - 2*screenPadX - 2)
+		_, content := sized.body(sized.innerWidth())
 		body := plain(content)
 
 		r.Equal(tc.panel, sized.panelHeight(), "%dx%d", tc.width, tc.box)
@@ -677,7 +677,7 @@ func TestClient_TheChartSaysHowFarBackItReaches(t *testing.T) {
 	m, _ = m.update(hostUseMsg{nodeID: "node-1", use: nomad.ResourceUse{CPUPercent: 29, CPUTicks: 1165}})
 	m, _ = m.update(tea.WindowSizeMsg{Width: 114, Height: 44})
 
-	half := chartWidth(m.width - 2*screenPadX - 2)
+	half := chartWidth(m.innerWidth())
 
 	// The left edge is as many readings back as the plot is wide, and the
 	// readings come at the pace of their own timer. The plot is what the

@@ -1390,3 +1390,9 @@ func newChanges() *fakeChanges {
 func (f *fakeChanges) stream() *nomad.Changes {
 	return nomad.NewStream(f.c, f.errs, func() { f.closed = true })
 }
+
+func TestInnerWidthIsTheBoxWithoutMarginAndBorder(t *testing.T) {
+	m := Model{width: 120}
+
+	require.Equal(t, 120-2*screenPadX-2, m.innerWidth())
+}
