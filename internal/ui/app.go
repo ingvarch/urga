@@ -283,10 +283,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return next, cmd
 }
 
-// applyList stores what the cluster sent, unless the screen it belongs to
-// was left: it would show up under the wrong title.
-func (m Model) applyList(v *view, store func(*Model)) (Model, tea.Cmd) {
-	return m.applyWhen(m.screen.view == v, store)
+// applyList shows what the cluster sent, the caller having stored it, unless
+// the screen it belongs to was left: it would show up under the wrong title.
+func (m Model) applyList(v *view) (Model, tea.Cmd) {
+	if m.screen.view != v {
+		return m, nil
+	}
+
+	return m.markAnswered()
 }
 
 // takeError shows the error. The rows that are on the screen stay there:
@@ -305,13 +309,8 @@ func (m Model) takeError(err error) (Model, tea.Cmd) {
 	return m.fail(err).schedulePoll()
 }
 
-// applyWhen stores an answer for what is open, and schedules the next poll.
-func (m Model) applyWhen(ours bool, store func(*Model)) (Model, tea.Cmd) {
-	if !ours {
-		return m, nil
-	}
-
-	store(&m)
+// markAnswered marks what is open as answered, and schedules the next poll.
+func (m Model) markAnswered() (Model, tea.Cmd) {
 	m.answered = true
 	m = m.forget()
 	m.layout()

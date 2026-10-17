@@ -37,7 +37,7 @@ func (m Model) keepRegions(names regionsMsg) (Model, tea.Cmd) {
 	// against them.
 	m.regions = names
 
-	return m.applyList(regionsView, func(*Model) {})
+	return m.applyList(regionsView)
 }
 
 // keepDatacenters keeps the datacenters of the region in use.
@@ -49,7 +49,7 @@ func (m Model) keepDatacenters(msg datacentersMsg) (Model, tea.Cmd) {
 
 	m.datacenters = msg.names
 
-	return m.applyList(datacentersView, func(*Model) {})
+	return m.applyList(datacentersView)
 }
 
 // regionCommand switches to a region by name, or opens the list of them to

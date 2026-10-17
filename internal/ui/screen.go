@@ -98,14 +98,13 @@ func (m Model) barRows() int {
 // timer of the page does not.
 func (m Model) took(next page, out outcome) (Model, tea.Cmd) {
 	out.cmd = askedFor(m.asked, out.cmd)
+	m.screen.page = next
 
 	if out.reading {
-		m.screen.page = next
-
 		return m.apply(out)
 	}
 
-	m, poll := m.applyWhen(true, func(m *Model) { m.screen.page = next })
+	m, poll := m.markAnswered()
 	m, cmd := m.apply(out)
 
 	// Rows that show their resource usage are read once they are filled.
