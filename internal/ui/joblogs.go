@@ -41,6 +41,12 @@ type (
 	}
 )
 
+func (m jobLogOpenedMsg) release() {
+	if m.stream != nil {
+		m.stream.Close()
+	}
+}
+
 // logScope is what the logs are read of: the allocations of a job, of one
 // group of it, of a client, of a deployment, or of an evaluation.
 type logScope struct {

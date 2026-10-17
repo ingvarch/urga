@@ -33,6 +33,8 @@ type (
 	}
 )
 
+func (m feedOpenedMsg) release() { m.feed.Close() }
+
 // feedEvent is an event as the page keeps it, numbered in the order it
 // arrived: the cursor stays on an event by its number.
 type feedEvent struct {

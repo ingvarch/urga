@@ -134,6 +134,8 @@ type fileMsg struct {
 	allocID, path string
 }
 
+func (m fileMsg) release() { m.stream.Close() }
+
 // openFile reads the file under the cursor like a log. A pipe is not
 // requested: its client would wait on it for as long as the task writes
 // nothing.

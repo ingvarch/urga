@@ -280,3 +280,17 @@ func TestEvents_ASessionStartsOnThem(t *testing.T) {
 	r.IsType(feedPage{}, m.screen.page)
 	r.Equal("Events (all) [2]", m.title())
 }
+
+func TestEvents_AFeedNextToTheOneReadIsClosed(t *testing.T) {
+	r := require.New(t)
+
+	feed, closed := feedOf(someEvents()...)
+	m := onEvents(t, &fakeClient{feed: feed})
+
+	second, secondClosed := feedOf()
+	m, _ = m.update(feedOpenedMsg{feed: second})
+
+	r.True(*secondClosed)
+	r.False(*closed)
+	r.Same(feed, m.screen.page.(feedPage).feed)
+}

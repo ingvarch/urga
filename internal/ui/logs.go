@@ -31,6 +31,8 @@ type (
 	logEndMsg struct{ stream *nomad.LogStream }
 )
 
+func (m logStreamMsg) release() { m.stream.Close() }
+
 // logState is what a stream is read through: the stream, the lines it sent
 // so far, and what it reported about itself when it was opened.
 type logState struct {

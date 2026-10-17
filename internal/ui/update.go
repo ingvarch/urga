@@ -142,10 +142,10 @@ func (m Model) fromAction(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case doneMsg:
 		return taken(m.done(msg))
 
-	case logStreamMsg, fileMsg, jobLogOpenedMsg:
+	case streamOpened:
 		// A stream no page took: the page it was opened for is gone, so it
 		// is closed.
-		letGo(msg)
+		msg.release()
 
 		return m, nil, true
 	}
