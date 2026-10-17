@@ -10,13 +10,27 @@ import (
 	"github.com/ingvarch/urga/internal/config"
 )
 
+// write snapshots and writes, the way the UI does.
+func write(cfg *config.Config) error {
+	s, err := cfg.Snapshot()
+	if err != nil {
+		return err
+	}
+
+	return cfg.Write(s)
+}
+
+func save(t *testing.T, cfg *config.Config) {
+	t.Helper()
+	require.NoError(t, write(cfg))
+}
+
 func TestConfig_RoundTrip(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "config.json")
 
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(path)
 	r.Nil(cfg.Namespace)
 	r.Empty(cfg.Screen)
 
@@ -24,10 +38,9 @@ func TestConfig_RoundTrip(t *testing.T) {
 	cfg.Screen = "deployments"
 	cfg.Namespaces = []string{"production", "staging"}
 
-	r.NoError(cfg.Save())
+	save(t, cfg)
 
-	again, err := config.Load()
-	r.NoError(err)
+	again := config.Load(path)
 
 	r.Equal("production", *again.Namespace)
 	r.Equal("deployments", again.Screen)
@@ -37,18 +50,16 @@ func TestConfig_RoundTrip(t *testing.T) {
 func TestConfig_AllNamespacesSurvives(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "config.json")
 
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(path)
 
 	// Every namespace at once ("*") is saved like any other namespace. A
 	// session that ends on it starts on it again.
 	cfg.UseNamespace("*")
-	r.NoError(cfg.Save())
+	save(t, cfg)
 
-	again, err := config.Load()
-	r.NoError(err)
+	again := config.Load(path)
 
 	r.NotNil(again.Namespace)
 	r.Equal("*", *again.Namespace)
@@ -57,10 +68,9 @@ func TestConfig_AllNamespacesSurvives(t *testing.T) {
 func TestConfig_UseNamespaceKeepsTheOrder(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "config.json")
 
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(path)
 
 	cfg.Remember([]string{"default", "production", "staging"})
 	cfg.Remember([]string{"staging", "default", "production"})
@@ -73,10 +83,9 @@ func TestConfig_UseNamespaceKeepsTheOrder(t *testing.T) {
 func TestConfig_ANamespaceThatIsGoneLosesItsKey(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "config.json")
 
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(path)
 
 	cfg.Remember([]string{"default", "ml", "staging"})
 
@@ -93,47 +102,39 @@ func TestConfig_ANamespaceThatIsGoneLosesItsKey(t *testing.T) {
 func TestConfig_MissingFileIsNoError(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "nothing", "here"))
-
-	cfg, err := config.Load()
+	cfg := config.Load(filepath.Join(t.TempDir(), "nothing", "here", "config.json"))
 
 	// A first run has nothing to read, and that is not a failure.
-	r.NoError(err)
 	r.NotNil(cfg)
 }
 
 func TestConfig_BrokenFileIsNoError(t *testing.T) {
 	r := require.New(t)
 
-	home := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", home)
+	path := filepath.Join(t.TempDir(), "config.json")
 
-	r.NoError(os.MkdirAll(filepath.Join(home, "urga"), 0o755))
-	r.NoError(os.WriteFile(filepath.Join(home, "urga", "config.json"), []byte("{not json"), 0o600))
+	r.NoError(os.WriteFile(path, []byte("{not json"), 0o600))
 
-	cfg, err := config.Load()
+	cfg := config.Load(path)
 
 	// A file that cannot be read starts the session fresh instead of
 	// stopping it.
-	r.NoError(err)
 	r.Nil(cfg.Namespace)
 }
 
 func TestConfig_ASessionForEachCluster(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "config.json")
 
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(path)
 
 	cfg.Of("prod").UseNamespace("batch")
 	cfg.Of("prod").Screen = "nodes"
 	cfg.Of("").UseNamespace("default")
-	r.NoError(cfg.Save())
+	save(t, cfg)
 
-	again, err := config.Load()
-	r.NoError(err)
+	again := config.Load(path)
 
 	// Each cluster starts again on the namespace and screen it was left on,
 	// and so does the cluster of the environment.
@@ -146,15 +147,12 @@ func TestConfig_ASessionForEachCluster(t *testing.T) {
 func TestConfig_TheFileOfAnEarlierUrga(t *testing.T) {
 	r := require.New(t)
 
-	home := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", home)
+	path := filepath.Join(t.TempDir(), "config.json")
 
-	r.NoError(os.MkdirAll(filepath.Join(home, "urga"), 0o755))
-	r.NoError(os.WriteFile(filepath.Join(home, "urga", "config.json"),
+	r.NoError(os.WriteFile(path,
 		[]byte(`{"namespace": "staging", "screen": "jobs", "namespaces": ["default", "staging"]}`), 0o600))
 
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(path)
 
 	// What an earlier urga wrote is read as the session of the environment.
 	session := cfg.Of("")
@@ -166,20 +164,16 @@ func TestConfig_TheFileOfAnEarlierUrga(t *testing.T) {
 func TestConfig_SaveLeavesAWholeFileAndNothingElse(t *testing.T) {
 	r := require.New(t)
 
-	dir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", dir)
+	folder := filepath.Join(t.TempDir(), "urga")
+	path := filepath.Join(folder, "config.json")
 
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(path)
 
 	cfg.UseNamespace("production")
-	r.NoError(cfg.Save())
+	save(t, cfg)
 
-	again, err := config.Load()
-	r.NoError(err)
+	again := config.Load(path)
 	r.Equal("production", *again.Namespace)
-
-	folder := filepath.Join(dir, "urga")
 
 	entries, err := os.ReadDir(folder)
 	r.NoError(err)
@@ -191,18 +185,14 @@ func TestConfig_SaveLeavesAWholeFileAndNothingElse(t *testing.T) {
 func TestConfig_AFailedRenameLeavesNoTempFile(t *testing.T) {
 	r := require.New(t)
 
-	dir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", dir)
-
-	cfg, err := config.Load()
-	r.NoError(err)
-
-	folder := filepath.Join(dir, "urga")
+	folder := t.TempDir()
 	blocker := filepath.Join(folder, "config.json")
 	r.NoError(os.MkdirAll(filepath.Join(blocker, "inner"), 0o755))
 
+	cfg := config.Load(blocker)
+
 	cfg.UseNamespace("production")
-	r.Error(cfg.Save())
+	r.Error(write(cfg))
 
 	entries, err := os.ReadDir(folder)
 	r.NoError(err)
@@ -213,10 +203,9 @@ func TestConfig_AFailedRenameLeavesNoTempFile(t *testing.T) {
 func TestConfig_AnEarlierSnapshotNeverOverwritesALaterOne(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	path := filepath.Join(t.TempDir(), "config.json")
 
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(path)
 
 	cfg.UseNamespace("first")
 
@@ -231,7 +220,6 @@ func TestConfig_AnEarlierSnapshotNeverOverwritesALaterOne(t *testing.T) {
 	r.NoError(cfg.Write(second))
 	r.NoError(cfg.Write(first))
 
-	again, err := config.Load()
-	r.NoError(err)
+	again := config.Load(path)
 	r.Equal("second", *again.Namespace)
 }

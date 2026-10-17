@@ -79,10 +79,7 @@ func open(cl cmdline) (ui.Model, error) {
 
 	// What the last session was looking at. A session that cannot be read
 	// starts fresh.
-	cfg, err := config.Load()
-	if err != nil {
-		return ui.Model{}, err
-	}
+	cfg := config.Load(filepath.Join(dir, "config.json"))
 
 	// Without clusters in the settings there is nothing to switch to.
 	var connect func(string) (ui.Connection, error)

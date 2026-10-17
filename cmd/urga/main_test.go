@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -255,6 +256,21 @@ address = "http://127.0.0.1:4646"
 
 	_, err = open(cmdline{cluster: "stage"})
 	r.ErrorContains(err, `no cluster "stage": dev`)
+}
+
+func TestOpen_ReturnsToTheScreenOfTheSessionFile(t *testing.T) {
+	r := require.New(t)
+
+	home := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", home)
+	r.NoError(os.MkdirAll(filepath.Join(home, "urga"), 0o700))
+	r.NoError(os.WriteFile(filepath.Join(home, "urga", "config.json"), []byte(`{"screen": "nodes"}`), 0o600))
+
+	m, err := open(cmdline{})
+	r.NoError(err)
+
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	r.Contains(next.View().Content, "Clients [")
 }
 
 func TestUpdateHint(t *testing.T) {

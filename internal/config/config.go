@@ -67,29 +67,25 @@ func (c *Config) Of(cluster string) *Session {
 	return c.Clusters[cluster]
 }
 
-// Load reads the saved sessions. A first run, or a file that cannot be
-// read, gives an empty config instead of an error that would stop urga.
-func Load() (*Config, error) {
-	path, err := configPath()
-	if err != nil {
-		return nil, err
-	}
-
+// Load reads the saved sessions from the file at path. A first run, or a
+// file that cannot be read, gives an empty config instead of an error that
+// would stop urga.
+func Load(path string) *Config {
 	cfg := &Config{path: path}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return cfg, nil
+		return cfg
 	}
 
 	stored := &Config{}
 	if err := json.Unmarshal(data, stored); err != nil {
-		return cfg, nil
+		return cfg
 	}
 
 	stored.path = path
 
-	return stored, nil
+	return stored
 }
 
 // Snapshot takes the config as it is now. Take it where the config changes,
@@ -120,16 +116,6 @@ func (c *Config) Write(s Snapshot) error {
 	c.written = s.number
 
 	return nil
-}
-
-// Save writes the session down.
-func (c *Config) Save() error {
-	s, err := c.Snapshot()
-	if err != nil {
-		return err
-	}
-
-	return c.Write(s)
 }
 
 // writeWhole replaces the file in one step, so a reader never sees it cut
@@ -200,15 +186,6 @@ func Ordered(known, seen []string) []string {
 	}
 
 	return order
-}
-
-func configPath() (string, error) {
-	dir, err := Dir()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(dir, "config.json"), nil
 }
 
 // Dir is where urga keeps what it remembers, and where the user writes its

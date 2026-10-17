@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -13,10 +14,13 @@ import (
 func sessionModel(t *testing.T, client Client) (Model, *config.Config) {
 	t.Helper()
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	return sessionModelAt(t, client, filepath.Join(t.TempDir(), "config.json"))
+}
 
-	cfg, err := config.Load()
-	require.NoError(t, err)
+func sessionModelAt(t *testing.T, client Client, path string) (Model, *config.Config) {
+	t.Helper()
+
+	cfg := config.Load(path)
 
 	m := New(client, Options{Namespace: "production", Version: "v-test", Config: cfg, PollEvery: time.Millisecond})
 	m, _ = m.update(sizeMsg())
@@ -68,10 +72,7 @@ func TestSession_RemembersTheOrderOfTheKeys(t *testing.T) {
 func TestSession_StartsWhereItStopped(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.UseNamespace(nomad.AllNamespaces)
 	cfg.Screen = "nodes"
@@ -89,10 +90,7 @@ func TestSession_StartsWhereItStopped(t *testing.T) {
 func TestSession_ANamespaceGivenOnTheCommandLineWins(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.UseNamespace("staging")
 	cfg.Screen = "nodes"
@@ -171,10 +169,7 @@ func TestSession_RemembersTheScreenAfterGoingBack(t *testing.T) {
 func TestSession_EachClusterComesBackToItsOwn(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.Of("").UseNamespace("default")
 	cfg.Of("prod").UseNamespace("batch")
@@ -214,7 +209,9 @@ func TestSession_TheNextRunOpensTheOverviewAgain(t *testing.T) {
 func TestSession_TheSavedFileIsTheSessionAsRemembered(t *testing.T) {
 	r := require.New(t)
 
-	m, cfg := sessionModel(t, &fakeClient{namespaces: threeNamespaces()})
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	m, cfg := sessionModelAt(t, &fakeClient{namespaces: threeNamespaces()}, path)
 	m, _ = m.update(namespacesMsg(threeNamespaces()))
 
 	next, _ := m.update(key('3'))
@@ -227,8 +224,7 @@ func TestSession_TheSavedFileIsTheSessionAsRemembered(t *testing.T) {
 	r.NotNil(cmd)
 	cmd()
 
-	again, err := config.Load()
-	r.NoError(err)
+	again := config.Load(path)
 	r.NotNil(again.Namespace)
 	r.Equal("staging", *again.Namespace)
 	r.Empty(again.Clusters)

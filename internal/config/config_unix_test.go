@@ -18,16 +18,14 @@ import (
 func TestConfig_SaveKeepsTheFilePrivate(t *testing.T) {
 	r := require.New(t)
 
-	dir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", dir)
+	path := filepath.Join(t.TempDir(), "urga", "config.json")
 
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(path)
 
 	cfg.UseNamespace("production")
-	r.NoError(cfg.Save())
+	save(t, cfg)
 
-	info, err := os.Stat(filepath.Join(dir, "urga", "config.json"))
+	info, err := os.Stat(path)
 	r.NoError(err)
 	r.Equal(os.FileMode(0o600), info.Mode().Perm())
 }
@@ -35,17 +33,13 @@ func TestConfig_SaveKeepsTheFilePrivate(t *testing.T) {
 func TestConfig_AFailedWriteKeepsTheOldFile(t *testing.T) {
 	r := require.New(t)
 
-	dir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", dir)
+	folder := filepath.Join(t.TempDir(), "urga")
+	file := filepath.Join(folder, "config.json")
 
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(file)
 
 	cfg.UseNamespace("production")
-	r.NoError(cfg.Save())
-
-	folder := filepath.Join(dir, "urga")
-	file := filepath.Join(folder, "config.json")
+	save(t, cfg)
 
 	before, err := os.ReadFile(file)
 	r.NoError(err)
@@ -54,7 +48,7 @@ func TestConfig_AFailedWriteKeepsTheOldFile(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(folder, 0o700) })
 
 	cfg.UseNamespace("staging")
-	r.Error(cfg.Save())
+	r.Error(write(cfg))
 
 	after, err := os.ReadFile(file)
 	r.NoError(err)

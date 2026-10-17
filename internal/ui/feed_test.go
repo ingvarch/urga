@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -262,10 +263,7 @@ func TestEvents_WhatWaitsArrivesAtOnce(t *testing.T) {
 func TestEvents_ASessionStartsOnThem(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-
-	cfg, err := config.Load()
-	r.NoError(err)
+	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.Screen = "events"
 
