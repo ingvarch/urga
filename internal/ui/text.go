@@ -38,6 +38,9 @@ type textModel struct {
 
 	top int
 
+	// shift is how many cells the window is moved right.
+	shift int
+
 	width  int
 	height int
 
@@ -71,6 +74,9 @@ type rowCache struct {
 	// counts are the rows of each of those lines: none when filtered out.
 	counts []int
 	rows   []textRow
+
+	// widest is the width of the widest row, in cells.
+	widest int
 }
 
 // maxTextLines is how many lines a text keeps. The tails of the logs fit,
@@ -235,6 +241,9 @@ type textRow struct {
 	// width on screen.
 	tagFrom, tagTo int
 	tagStyle       *lipgloss.Style
+
+	// width is the cells the row takes on screen.
+	width int
 }
 
 // paintedLine is a line to put on a text screen, in a style of its own when
@@ -297,6 +306,7 @@ func (t textModel) draw(from, to int) (rows []textRow, counts []int) {
 		}
 
 		if !t.wrap {
+			row.width = ansi.StringWidth(onScreen(row.text))
 			rows = append(rows, row)
 			counts = append(counts, 1)
 
@@ -307,7 +317,7 @@ func (t textModel) draw(from, to int) (rows []textRow, counts []int) {
 		// tag is on the first of them.
 		parts := wrapLine(row.text, t.width)
 		for n, part := range parts {
-			out := textRow{text: part, style: row.style}
+			out := textRow{text: part, style: row.style, width: ansi.StringWidth(onScreen(part))}
 			if n == 0 {
 				out.tagFrom, out.tagTo, out.tagStyle = row.tagFrom, row.tagTo, row.tagStyle
 			}
@@ -396,6 +406,11 @@ func (t *textModel) refresh() {
 			gone += count
 		}
 
+		// The rows left are measured again only when the widest one left.
+		if gone > 0 && widestOf(k.rows[:gone]) == k.widest {
+			k.widest = widestOf(k.rows[gone:])
+		}
+
 		k.rows = k.rows[gone:]
 		k.counts = k.counts[t.dropped-first:]
 		t.top = max(t.top-gone, 0)
@@ -405,12 +420,23 @@ func (t *textModel) refresh() {
 		k.rows = append(k.rows, rows...)
 		k.counts = append(k.counts, counts...)
 		k.lines = t.total()
+		k.widest = max(k.widest, widestOf(rows))
 
 		return
 	}
 
 	rows, counts := t.draw(0, len(t.lines))
-	*k = rowCache{id: t.id, settings: settings, lines: t.total(), counts: counts, rows: rows}
+	*k = rowCache{id: t.id, settings: settings, lines: t.total(), counts: counts, rows: rows, widest: widestOf(rows)}
+}
+
+// widestOf is the width of the widest of rows, in cells.
+func widestOf(rows []textRow) int {
+	widest := 0
+	for _, row := range rows {
+		widest = max(widest, row.width)
+	}
+
+	return widest
 }
 
 // wrapLine breaks a line into rows of the given width, counted in cells on
@@ -456,9 +482,11 @@ func (t *textModel) toEnd() {
 	t.move(t.length())
 }
 
-// follow moves the window back inside the lines: a move by zero does that.
+// follow moves the window back inside the lines: a move by zero does that,
+// down and sideways.
 func (t *textModel) follow() {
 	t.move(0)
+	t.slide(0)
 }
 
 func (t textModel) view() string {
@@ -475,12 +503,6 @@ func (t textModel) view() string {
 
 // line draws one row in its colour, with the matches highlighted.
 func (t textModel) line(row textRow) string {
-	line := truncate(row.text, t.width)
-	gap := strings.Repeat(" ", max(t.width-ansi.StringWidth(line), 0))
-
-	// The edge may cut the row inside the tag, in the middle of the "…"
-	// mark: splitting the row by cells ends every piece on a whole
-	// character.
 	style := styleText
 	if row.style != nil {
 		style = *row.style
@@ -491,9 +513,48 @@ func (t textModel) line(row textRow) string {
 		label = *row.tagStyle
 	}
 
-	return t.lit(ansi.Cut(line, 0, row.tagFrom), style) +
-		t.lit(ansi.Cut(line, row.tagFrom, row.tagTo), label) +
-		t.lit(ansi.TruncateLeft(line, row.tagTo, ""), style) + style.Render(gap)
+	// The whole row is lit first, so that a match the left edge cuts is lit
+	// on the part that shows; TruncateLeft keeps the styles it drops.
+	// tagFrom and tagTo count cells: splitting the row by cells ends every
+	// piece on a whole character.
+	text := onScreen(row.text)
+	lit := t.lit(ansi.Cut(text, 0, row.tagFrom), style) +
+		t.lit(ansi.Cut(text, row.tagFrom, row.tagTo), label) +
+		t.lit(ansi.TruncateLeft(text, row.tagTo, ""), style)
+
+	// TruncateLeft keeps a wide character whole when the edge cuts it in
+	// half. The half that shows is drawn as a blank, so the row starts at
+	// the shift.
+	cut := ansi.TruncateLeft(lit, t.shift, "")
+	if ansi.StringWidth(cut) > max(row.width-t.shift, 0) {
+		cut = style.Render(" ") + ansi.TruncateLeft(lit, t.shift+1, "")
+	}
+
+	shown := truncate(cut, t.width)
+	gap := strings.Repeat(" ", max(t.width-ansi.StringWidth(shown), 0))
+
+	return shown + style.Render(gap)
+}
+
+// tabSpaces is a tab as lipgloss draws it.
+var tabSpaces = strings.Repeat(" ", tabWidth)
+
+// onScreen is a row as it is drawn, so that its width and the edges that cut
+// it count the same cells. The lines keep their tabs for saving and copying.
+func onScreen(text string) string {
+	return strings.ReplaceAll(text, "\t", tabSpaces)
+}
+
+// slide moves the window sideways by that many cells, from the start of the
+// lines to where the widest one meets the right edge. A wrapped text has no
+// sides.
+func (t *textModel) slide(by int) {
+	if t.wrap {
+		return
+	}
+
+	t.refresh()
+	t.shift = max(0, min(t.shift+by, t.kept.widest-t.width))
 }
 
 // lit is a piece of a row in its style, with the matches of the found word

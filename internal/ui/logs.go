@@ -333,6 +333,10 @@ func (m Model) logToggles(width int) string {
 		cells = append(cells, styleLabel.Render(toggle.name+":")+state)
 	}
 
+	if m.text.shift > 0 {
+		cells = append(cells, styleLabel.Render("Column:")+styleTitle.Render(sprintf("%d", m.text.shift+1)))
+	}
+
 	// Centered under the title, which is centered too.
 	line := strings.Join(cells, strings.Repeat(" ", logToggleGap))
 	left := max((width-ansi.StringWidth(line))/2, 0)
@@ -371,6 +375,7 @@ func showTimes(m Model) (Model, tea.Cmd) {
 // a task, a description, a job file. Pressed again, it unwraps them.
 func wrapLines(m Model) (Model, tea.Cmd) {
 	m.text.wrap = !m.text.wrap
+	m.text.shift = 0
 	m.text.follow()
 
 	return m, nil

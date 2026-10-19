@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -19,6 +20,16 @@ func drawnInFull(t textModel) []textRow {
 	rows, _ := t.draw(0, len(t.lines))
 
 	return rows
+}
+
+// widestDrawn is the width in cells of the widest row of a text drawn in full.
+func widestDrawn(t textModel) int {
+	widest := 0
+	for _, row := range drawnInFull(t) {
+		widest = max(widest, ansi.StringWidth(row.text))
+	}
+
+	return widest
 }
 
 // arrivedAt is the time the test lines arrive: fixed, so the stamp never
@@ -107,6 +118,7 @@ func TestText_KeptRowsEqualRowsDrawnInFull(t *testing.T) {
 		// The rows come from the cache, not from a draw in full.
 		require.True(t, text.kept.matches(text), "%s: the rows are kept up to date", step.name)
 		require.Equal(t, drawnInFull(text), text.kept.rows, step.name)
+		require.Equal(t, widestDrawn(text), text.kept.widest, step.name)
 	}
 }
 
@@ -222,6 +234,7 @@ func TestText_ALongTextHasItsFrontDroppedWithoutMissingRows(t *testing.T) {
 
 		require.True(t, slices.Equal(drawnInFull(text), text.rows()), step.name)
 		require.True(t, text.kept.matches(text), "%s: the rows are kept up to date", step.name)
+		require.Equal(t, widestDrawn(text), text.kept.widest, step.name)
 	}
 }
 

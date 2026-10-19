@@ -430,6 +430,12 @@ func TestHints_EveryKeyThatDoesSomethingIsInTheHeader(t *testing.T) {
 		}
 
 		for _, press := range screenKeys() {
+			// On a text screen h and l move the window sideways, and help
+			// names them, as it names j and k.
+			if m.readsAsText() && (press.String() == "h" || press.String() == "l") {
+				continue
+			}
+
 			// The buttons at the foot of a plan are chosen and pressed the
 			// way the buttons of a question are: those keys are the
 			// dialog's, and help names them.
@@ -463,7 +469,7 @@ func TestHints_EveryKeyIsNamedInOneOrTwoWords(t *testing.T) {
 		}
 	}
 
-	for _, h := range slices.Concat(generalHints, navigationHints) {
+	for _, h := range slices.Concat(generalHints, navigationHints, textNavigationHints) {
 		named(h.Key+" in help", h.Description)
 	}
 }

@@ -201,7 +201,15 @@ func (m Model) offeredKey(press string) (keyHint, bool) {
 // title labels the box with what it holds and how much of it. The count is
 // what is on the screen, which the filter narrows.
 func (m Model) title() string {
-	return m.screen.page.title(m.env(), len(m.list.table.rows))
+	title := m.screen.page.title(m.env(), len(m.list.table.rows))
+
+	// A screen with a line of toggles says the column there: a log or file
+	// title is long, and the edge would cut the column off.
+	if m.readsAsText() && m.toggleRows() == 0 && m.text.shift > 0 {
+		title += sprintf(", from column %d", m.text.shift+1)
+	}
+
+	return title
 }
 
 // rows are what the open screen shows.

@@ -199,8 +199,8 @@ and highlights what matched.
 | `esc` | Go back to the previous screen, to the same row, filter and sort order. |
 | `up`, `k` / `down`, `j` | Move the cursor. |
 | `pgup`, `ctrl-b` / `pgdn`, `ctrl-f` | Move one page. |
-| `g`, `home` / `G`, `end` | Go to the top or the bottom. |
-| `left`, `right` | Choose a button in a dialog. |
+| `g`, `home` / `G`, `end` | Go to the top or the bottom. On a text screen moved sideways, `home` first goes back to the start of the lines. |
+| `left`, `h` / `right`, `l` | On a text screen with wrap off, move sideways by a quarter of the screen. In a dialog, and on a plan, choose a button. |
 | `q`, `ctrl-c` | Quit. |
 
 ## Marking rows
@@ -267,7 +267,7 @@ On what was done to the count of a group, `d` describes its policy.
 
 | Key | What it does | Changes |
 | --- | --- | --- |
-| `left`, `right`, `tab` | Choose Cancel or Submit | |
+| `left`, `h`, `right`, `l`, `tab` | Choose Cancel or Submit | |
 | `enter` | Press the chosen button | |
 | `y` | Submit, or revert, at once, and watch the deploy of a job that runs itself | yes |
 | `r` | Plan again | |
@@ -563,3 +563,11 @@ from a match, they start from what the window shows. An empty word drops the fin
 `esc` keeps the word as it was. The filter (`/`) still narrows the lines, and
 find looks within what it left. Like the filter, the word is a regular
 expression when it is one, and matches in any case.
+
+With wrap off, a long line is cut at the edge. `left` and `right`, or `h` and
+`l`, move the window sideways by a quarter of its width; on a plan they choose
+a button instead. On a log or a file, the line of toggles under the title says
+from which column the window shows, for example `Column:41`. Other text
+screens say it in the title, for example `from column 41`. `home` and turning
+wrap on go back to the start of the lines. The filter and find light their
+matches where they are. Saving and copying keep whole lines.

@@ -19,13 +19,37 @@ func (m Model) scrollKey(msg tea.KeyPressMsg) (Model, bool) {
 		return m.scroll(-page), true
 	case "pgdown", "ctrl+f":
 		return m.scroll(page), true
-	case "home", "g":
+	case "home":
+		if m.text.shift > 0 && m.readsAsText() {
+			m.text.shift = 0
+
+			return m, true
+		}
+
 		return m.scroll(-end), true
+	case "g":
+		return m.scroll(-end), true
+	case "left", "h":
+		return m.slide(-1)
+	case "right", "l":
+		return m.slide(1)
 	case "end", "G":
 		return m.scroll(end), true
 	}
 
 	return m, false
+}
+
+// slide moves a text without wrap sideways by a quarter of its width. On a
+// list, and with wrap on, the key is not taken.
+func (m Model) slide(direction int) (Model, bool) {
+	if !m.readsAsText() || m.text.wrap {
+		return m, false
+	}
+
+	m.text.slide(direction * max(m.text.width/4, 1))
+
+	return m, true
 }
 
 // scroll moves the screen by that many lines.

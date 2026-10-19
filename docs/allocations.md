@@ -116,7 +116,9 @@ A line under the title shows the state of three toggles:
 - **Timestamps**: show when urga received each line. Nomad does not store a
   time for log lines, so this is the only time there is. `t` turns it on or
   off.
-- **Wrap**: wrap long lines. `w` turns it on or off.
+- **Wrap**: wrap long lines. `w` turns it on or off. With wrap off, `left` and
+  `right` (`h`, `l`) move sideways, and the line adds from which column the
+  log shows, for example `Column:41`.
 
 `ctrl-e` switches between stdout and stderr. `ctrl-s` saves the log to a file
 in the current directory, as the filter shows it. `c` copies it to the
