@@ -149,8 +149,10 @@ without saving.
 Most screens, such as jobs, allocations and clients, follow the Nomad event
 stream: urga reloads the screen when something on it changes. It also reloads
 every 30 seconds in case an event is missed. Screens that the event stream
-does not cover, such as namespaces, variables and servers, reload every 2
-seconds.
+does not cover, such as namespaces and servers, reload every 2 seconds.
+Volumes and CSI plugins follow the stream on Nomad 1.10 and later, variables
+on Nomad 2.0 and later. On an older cluster, or when urga cannot read the
+version of the cluster, they are read every 2 seconds.
 
 If the event stream is not available, which usually means the ACL token does
 not allow it, urga reloads every screen every 2 seconds instead. The status

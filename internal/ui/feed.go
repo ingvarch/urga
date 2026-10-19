@@ -294,6 +294,14 @@ func matchOf(event nomad.Event) nomad.Match {
 		m.Kind = nomad.MatchNode
 	case nomad.TopicService:
 		m.Kind = nomad.MatchService
+	case nomad.TopicCSIVolume:
+		m.Kind = nomad.MatchVolume
+	case nomad.TopicHostVolume:
+		m.Kind = nomad.MatchHostVolume
+	case nomad.TopicCSIPlugin:
+		m.Kind = nomad.MatchPlugin
+	case nomad.TopicVariable:
+		m.Kind = nomad.MatchVariable
 	}
 
 	return m

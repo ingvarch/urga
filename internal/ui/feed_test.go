@@ -164,6 +164,30 @@ func TestEvents_EnterOpensWhatTheEventIsAbout(t *testing.T) {
 	r.NotContains(m.hints(), hint{Key: "<enter>", Description: "Open"})
 }
 
+func TestEvents_EnterOpensAVariableAndAHostVolume(t *testing.T) {
+	r := require.New(t)
+
+	feed, _ := feedOf(nomad.Event{Topic: nomad.TopicVariable, Namespace: "staging", Key: "app/db", Name: "app/db"})
+	m := onEvents(t, &fakeClient{feed: feed})
+
+	m, cmd := m.update(enter())
+	m = playOut(m, cmd)
+
+	r.IsType(variablePage{}, m.screen.page)
+	r.Equal("staging", m.screen.page.(variablePage).namespace)
+	r.Equal("app/db", m.screen.page.(variablePage).path)
+
+	feed, _ = feedOf(nomad.Event{Topic: nomad.TopicHostVolume, Namespace: "staging", Key: "h1", Name: "cache"})
+	m = onEvents(t, &fakeClient{feed: feed})
+
+	m, cmd = m.update(enter())
+	m = playOut(m, cmd)
+
+	r.IsType(volumePage{}, m.screen.page)
+	r.Equal("staging", m.screen.page.(volumePage).namespace)
+	r.Equal(nomad.VolumeHost, m.screen.page.(volumePage).kind)
+}
+
 func TestEvents_TheFeedFollowsTheSession(t *testing.T) {
 	r := require.New(t)
 
@@ -198,6 +222,8 @@ func TestEvents_WhatEachTopicOpens(t *testing.T) {
 		nomad.TopicJob: nomad.MatchJob, nomad.TopicAllocation: nomad.MatchAlloc,
 		nomad.TopicDeployment: nomad.MatchDeployment, nomad.TopicEvaluation: nomad.MatchEval,
 		nomad.TopicNode: nomad.MatchNode, nomad.TopicService: nomad.MatchService,
+		nomad.TopicCSIVolume: nomad.MatchVolume, nomad.TopicHostVolume: nomad.MatchHostVolume,
+		nomad.TopicCSIPlugin: nomad.MatchPlugin, nomad.TopicVariable: nomad.MatchVariable,
 		nomad.TopicNodePool: "", "ACLToken": "",
 	} {
 		m := matchOf(nomad.Event{Topic: topic, Key: "k1", Name: "web", Namespace: "production"})

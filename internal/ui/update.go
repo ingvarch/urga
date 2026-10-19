@@ -182,7 +182,9 @@ func (m Model) fromSession(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return m.keepToken(msg), nil, true
 
 	case agentMsg:
-		return m.keepAgent(msg), nil, true
+		m = m.keepAgent(msg)
+
+		return m, m.watchOnVersion(), true
 
 	case namespacesMsg:
 		return taken(m.keepNamespaces(msg))

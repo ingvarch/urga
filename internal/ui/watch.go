@@ -70,7 +70,7 @@ type watchState struct {
 // way it always was.
 func (m Model) watchScreen() tea.Cmd {
 	topics := m.screen.page.topics()
-	if len(topics) == 0 {
+	if len(topics) == 0 || !nomad.Streams(m.nomadVersion, topics) {
 		return nil
 	}
 
@@ -84,6 +84,18 @@ func (m Model) watchScreen() tea.Cmd {
 
 		return watchingMsg{id: id, changes: changes}
 	}
+}
+
+// watchOnVersion opens the stream of a screen whose topics need to know the
+// version of the cluster, which arrives after the screen asked. A screen of
+// older topics has its stream on the way already.
+func (m Model) watchOnVersion() tea.Cmd {
+	topics := m.screen.page.topics()
+	if m.watch.live() || nomad.Streams("", topics) {
+		return nil
+	}
+
+	return m.watchScreen()
 }
 
 // waitForChange waits for the next message on the stream.

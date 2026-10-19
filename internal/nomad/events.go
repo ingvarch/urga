@@ -2,6 +2,9 @@ package nomad
 
 import (
 	"context"
+	"encoding/json"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -16,7 +19,86 @@ const (
 	TopicNode       = "Node"
 	TopicNodePool   = "NodePool"
 	TopicService    = "Service"
+
+	// Nomad's api module has no constant for these.
+	TopicCSIVolume  = "CSIVolume"
+	TopicCSIPlugin  = "CSIPlugin"
+	TopicHostVolume = "HostVolume"
+	TopicVariable   = "Variable"
 )
+
+// since is the first version of Nomad that sends the events of a topic. A
+// topic not in it is older than any cluster urga reads.
+var since = map[string]string{
+	TopicCSIVolume:  "1.10.0",
+	TopicCSIPlugin:  "1.10.0",
+	TopicHostVolume: "1.10.0",
+	TopicVariable:   "2.0.0",
+}
+
+// Streams says a cluster of that version sends the events of every one of
+// the topics. A cluster that does not know a topic opens the stream anyway
+// and never sends anything for it, so the version is checked before it is
+// asked.
+func Streams(version string, topics []string) bool {
+	for _, topic := range topics {
+		if minimum, ok := since[topic]; ok && !AtLeast(version, minimum) {
+			return false
+		}
+	}
+
+	return true
+}
+
+var numbers = regexp.MustCompile(`^(\d+)\.(\d+)\.(\d+)`)
+
+// AtLeast says version reads as major.minor.patch at its start, and is at or
+// above the minimum. What follows the patch (-beta.1, +ent) is not compared.
+func AtLeast(version, minimum string) bool {
+	have, ok := triple(version)
+	if !ok {
+		return false
+	}
+
+	need, ok := triple(minimum)
+	if !ok {
+		return false
+	}
+
+	return have.compare(need) >= 0
+}
+
+type release [3]int
+
+func (a release) compare(b release) int {
+	for i := range a {
+		if a[i] != b[i] {
+			return a[i] - b[i]
+		}
+	}
+
+	return 0
+}
+
+func triple(version string) (release, bool) {
+	parts := numbers.FindStringSubmatch(version)
+	if parts == nil {
+		return release{}, false
+	}
+
+	var r release
+
+	for i := range r {
+		n, err := strconv.Atoi(parts[i+1])
+		if err != nil {
+			return release{}, false
+		}
+
+		r[i] = n
+	}
+
+	return r, true
+}
 
 // Change reports that something in the cluster changed. It carries no new
 // state: the screen reads that with its usual request.
@@ -133,9 +215,62 @@ func newEvent(e api.Event) Event {
 		if sr, err := e.Service(); err == nil && sr != nil {
 			event.Namespace, event.Name = sr.Namespace, sr.ServiceName
 		}
+	default:
+		event.readStored(e)
 	}
 
 	return event
+}
+
+// readStored names an event of a topic the api module cannot decode.
+func (event *Event) readStored(e api.Event) {
+	switch e.Topic {
+	case TopicCSIVolume:
+		if v, ok := payloadOf(e, "Volume"); ok {
+			event.Namespace, event.Name, event.State, event.At = v.Namespace, v.Name, csiState(v.Schedulable), unixTime(v.ModifyTime)
+		}
+	case TopicHostVolume:
+		if v, ok := payloadOf(e, "Volume"); ok {
+			event.Namespace, event.Name, event.State, event.At = v.Namespace, v.Name, v.State, unixTime(v.ModifyTime)
+
+			// A deleted volume has no key of its own.
+			if event.Key == "" {
+				event.Key = v.ID
+			}
+		}
+	case TopicCSIPlugin:
+		if v, ok := payloadOf(e, "Plugin"); ok {
+			event.Name, event.At = v.ID, unixTime(v.ModifyTime)
+		}
+	case TopicVariable:
+		if v, ok := payloadOf(e, "Metadata"); ok {
+			event.Namespace, event.Name, event.At = v.Namespace, v.Path, unixTime(v.ModifyTime)
+		}
+	}
+}
+
+// stored is the fields urga reads of an object the api module cannot decode.
+type stored struct {
+	ID, Name, Namespace, Path, State string
+	Schedulable                      bool
+	ModifyTime                       int64
+}
+
+// payloadOf reads the object an event carries under a key of its payload.
+func payloadOf(e api.Event, key string) (stored, bool) {
+	raw, ok := e.Payload[key]
+	if !ok {
+		return stored{}, false
+	}
+
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return stored{}, false
+	}
+
+	var v stored
+
+	return v, json.Unmarshal(data, &v) == nil
 }
 
 // streamBuffer is how many events of a stream wait for the reader.

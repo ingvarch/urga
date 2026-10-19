@@ -147,13 +147,13 @@ the events that report a failure.
 
 With the cursor on the top row, it stays there and shows each event as it
 arrives. Moved down, it stays on its event. `enter` opens what the event is
-about: a job, an allocation, a deployment, an evaluation, a client or a
-service. `esc` comes back to the events as they were, and the ones that
-happened meanwhile are added on top.
+about: a job, an allocation, a deployment, an evaluation, a client, a
+service, a volume, a CSI plugin or a variable. `esc` comes back to the
+events as they were, and the ones that happened meanwhile are added on top.
 
-The list follows the namespace of the session. Events of clients belong to no
-namespace and show in every one. In another namespace it starts again from
-what the cluster keeps.
+The list follows the namespace of the session. Events of clients and CSI
+plugins belong to no namespace and show in every one. In another namespace it
+starts again from what the cluster keeps.
 
 ## Sort
 

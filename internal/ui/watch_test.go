@@ -312,7 +312,7 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 	r := require.New(t)
 
 	// A list the cluster has a topic for is watched; one it does not, like
-	// the namespaces or the variables, is asked for on a timer.
+	// the namespaces or the servers, is asked for on a timer.
 	watched := map[*view][]string{
 		jobsView:        {nomad.TopicJob},
 		allocationsView: {nomad.TopicAllocation},
@@ -321,6 +321,9 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 		nodesView:       {nomad.TopicNode},
 		servicesView:    {nomad.TopicService},
 		nodePoolsView:   {nomad.TopicNodePool},
+		volumesView:     {nomad.TopicCSIVolume, nomad.TopicHostVolume, nomad.TopicCSIPlugin},
+		pluginsView:     {nomad.TopicCSIPlugin},
+		variablesView:   {nomad.TopicVariable},
 	}
 
 	// Each is checked the way the program opens it, page and all.
@@ -328,9 +331,84 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 		r.Equal(topics, v.open().topics(), nameOf(v))
 	}
 
-	for _, v := range []*view{namespacesView, variablesView, serversView} {
+	for _, v := range []*view{namespacesView, serversView} {
 		r.Empty(v.open().topics(), nameOf(v))
 	}
+}
+
+func TestWatch_ThePagesOfStorageAndVariablesWatchTheirOwn(t *testing.T) {
+	r := require.New(t)
+
+	for _, c := range []struct {
+		page   page
+		topics []string
+	}{
+		{volumePage{kind: nomad.VolumeCSI}, []string{nomad.TopicCSIVolume, nomad.TopicCSIPlugin, nomad.TopicAllocation}},
+		{volumePage{kind: nomad.VolumeHost}, []string{nomad.TopicHostVolume, nomad.TopicAllocation}},
+		{pluginPage{id: "ebs"}, []string{nomad.TopicCSIPlugin}},
+		{variablePage{path: "app/db"}, []string{nomad.TopicVariable}},
+	} {
+		r.Equal(c.topics, c.page.topics(), "%T", c.page)
+	}
+
+	// A variable is watched in its own namespace, whatever the session looks at.
+	for _, session := range []string{"production", nomad.AllNamespaces} {
+		client := &fakeClient{changes: newChanges()}
+		m := newTestModel(client)
+		m.nomadVersion = "2.0.7"
+		m.namespace = session
+		m.screen.page = variablePage{namespace: "staging", path: "app/db"}
+
+		m.update(m.watchScreen()())
+		r.Equal("staging", client.watchedNamespace, session)
+	}
+}
+
+func TestWatch_AClusterOlderThanTheTopicIsPolled(t *testing.T) {
+	r := require.New(t)
+
+	for version, topics := range map[string][]string{
+		"1.11.3": nil,
+		"":       nil,
+		"2.0.7":  {nomad.TopicVariable},
+	} {
+		client := &fakeClient{changes: newChanges()}
+		m := newTestModel(client)
+		m.nomadVersion = version
+		m = typeCommand(m, "variables")
+
+		r.Equal(topics, client.watchedTopics, version)
+
+		if topics == nil {
+			r.Equal(time.Millisecond, m.pollEvery(), version)
+		}
+	}
+}
+
+func TestWatch_TheVersionArrivingAfterTheScreenOpensItsStream(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{changes: newChanges()}
+	m := typeCommand(newTestModel(client), "variables")
+	r.Empty(client.watchedTopics)
+
+	m, cmd := m.update(agentMsg{Version: "2.0.7"})
+	drain(m, cmd)
+	r.Equal([]string{nomad.TopicVariable}, client.watchedTopics)
+
+	// The stream is open: another answer about the version does not open a second.
+	m, _ = m.update(m.watchScreen()())
+	r.True(m.watch.live())
+
+	_, cmd = m.update(agentMsg{Version: "2.0.7"})
+	r.Nil(cmd)
+
+	// A screen of topics every cluster streams already asked on its own.
+	client = &fakeClient{jobs: twoJobs(), changes: newChanges()}
+	m = newTestModel(client)
+
+	_, cmd = m.update(agentMsg{Version: "2.0.7"})
+	r.Nil(cmd)
 }
 
 func TestWatch_AClusterThatWillNotStreamSaysSo(t *testing.T) {
