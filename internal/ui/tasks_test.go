@@ -147,6 +147,7 @@ func TestTasks_TheKeysOfATask(t *testing.T) {
 	keys := []hint{
 		{Key: "<enter>", Description: "Logs"},
 		{Key: "<e>", Description: "Events"},
+		{Key: "<o>", Description: "Alloc Events"},
 		{Key: "<ctrl-e>", Description: "Stderr"},
 		{Key: "<s>", Description: "Shell"},
 		{Key: "<r>", Description: "Restart"},

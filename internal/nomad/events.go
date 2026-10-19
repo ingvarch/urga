@@ -168,13 +168,36 @@ type Event struct {
 // Feed is what happens in the cluster, event by event.
 type Feed = Stream[Event]
 
-// Feed follows every topic of the cluster in a namespace, from the event of
-// an index on: 1 is the oldest the cluster still keeps. The caller closes it
-// when it stops reading.
-func (c *Client) Feed(ctx context.Context, namespace string, from uint64) (*Feed, error) {
+// Subject is what a feed follows: one job, one allocation, or, when it is
+// empty, the whole namespace.
+type Subject struct{ JobID, AllocID string }
+
+// topics are what the cluster is asked for. An allocation, an evaluation and
+// a deployment carry the ID of their job as a filter key, so the cluster
+// sends the work of a job by the job's ID. Services are left out: their
+// filter keys hold the service name, which another job's service can share.
+func (s Subject) topics() map[api.Topic][]string {
+	switch {
+	case s.AllocID != "":
+		return map[api.Topic][]string{api.TopicAllocation: {s.AllocID}}
+	case s.JobID != "":
+		key := []string{s.JobID}
+
+		return map[api.Topic][]string{
+			api.TopicJob: key, api.TopicAllocation: key, api.TopicEvaluation: key, api.TopicDeployment: key,
+		}
+	}
+
+	return map[api.Topic][]string{api.TopicAll: nil}
+}
+
+// Feed follows the subject in a namespace, from the event of an index on: 1
+// is the oldest the cluster still keeps. The caller closes it when it stops
+// reading.
+func (c *Client) Feed(ctx context.Context, namespace string, subject Subject, from uint64) (*Feed, error) {
 	// Asked for an index past its newest event, the cluster starts at that
 	// event again: what came before the index was read already.
-	return follow(ctx, c, namespace, map[api.Topic][]string{api.TopicAll: nil}, from, func(event api.Event) (Event, bool) {
+	return follow(ctx, c, namespace, subject.topics(), from, func(event api.Event) (Event, bool) {
 		return newEvent(event), event.Index >= from
 	})
 }

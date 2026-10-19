@@ -46,7 +46,9 @@ type feedEvent struct {
 // feedPage is what happens in the cluster, event by event, newest first. It
 // shows the events as they came; no other screen is built out of them.
 type feedPage struct {
-	ofTheSession
+	// subject is what the page follows; the zero subject is the namespace
+	// of the session.
+	subject nomad.Subject
 
 	feed   *nomad.Feed
 	events []feedEvent
@@ -54,15 +56,38 @@ type feedPage struct {
 
 	// namespace is the one the events were read in, and last the index of
 	// the newest of them: back on the same namespace, the page goes on after
-	// it.
+	// it. A page with a subject stays in the namespace of the job or
+	// allocation.
 	namespace string
 	last      uint64
 }
 
 var feedTitles = []string{"Topic", "Type", "Namespace", "Name", "State", "Age"}
 
-func (feedPage) title(e env, count int) string {
+// subjectEvents is the events of a job or an allocation of a namespace.
+func subjectEvents(namespace string, subject nomad.Subject) feedPage {
+	return feedPage{namespace: namespace, subject: subject}
+}
+
+func (p feedPage) title(e env, count int) string {
+	switch {
+	case p.subject.AllocID != "":
+		return sprintf("Events (Allocation: %s) [%d]", shortID(p.subject.AllocID), count)
+	case p.subject.JobID != "":
+		return sprintf("Events (Job: %s) [%d]", p.subject.JobID, count)
+	}
+
 	return sprintf("Events (%s) [%d]", namespaceLabel(e.namespace), count)
+}
+
+func (p feedPage) followsSession() bool { return p.subject == nomad.Subject{} }
+
+func (p feedPage) where(e env) string {
+	if p.followsSession() {
+		return e.namespace
+	}
+
+	return p.namespace
 }
 
 func (feedPage) titles() []string { return feedTitles }
@@ -79,19 +104,21 @@ func (feedPage) newestOnTop()      {}
 func (p feedPage) open(e env) (page, tea.Cmd) {
 	p.stop()
 
+	namespace := p.where(e)
+
 	from := uint64(1)
-	if p.namespace == e.namespace && p.last > 0 {
+	if p.namespace == namespace && p.last > 0 {
 		from = p.last + 1
 	} else {
 		p.events, p.last = nil, 0
 	}
 
-	p.namespace = e.namespace
+	p.namespace = namespace
 
-	client, namespace := e.client, e.namespace
+	client, subject := e.client, p.subject
 
 	return p, func() tea.Msg {
-		feed, err := client.Feed(context.Background(), namespace, from)
+		feed, err := client.Feed(context.Background(), namespace, subject, from)
 		if err != nil {
 			return errMsg{err: err}
 		}

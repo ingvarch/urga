@@ -150,6 +150,7 @@ func allocKeys[P allocLister]() []pageKey[P] {
 		{press: "ctrl+r", label: "Restart All", do: restartAllTasks[P], writes: true},
 		{press: "ctrl+k", label: "Stop", do: stopAllocs[P], writes: true},
 		{press: "l", label: "Logs", do: allocLogs[P]},
+		{press: "o", label: "Alloc Events", do: openAllocEvents[P]},
 		markKey[P](),
 		markAllKey[P](),
 	}
@@ -164,6 +165,16 @@ func openAllocTasks[P allocLister](p P, e env) (P, outcome) {
 	}
 
 	return p, then(openMsg{listedTasks(alloc)})
+}
+
+// openAllocEvents opens the events of the allocation under the cursor.
+func openAllocEvents[P allocLister](p P, e env) (P, outcome) {
+	alloc, ok := pickedFrom(e, p.visible(e))
+	if !ok {
+		return p, outcome{}
+	}
+
+	return p, then(openMsg{subjectEvents(alloc.Namespace, nomad.Subject{AllocID: alloc.ID})})
 }
 
 // describeAlloc requests the allocation under the cursor, as the cluster

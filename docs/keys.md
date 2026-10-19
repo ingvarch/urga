@@ -155,6 +155,12 @@ The list follows the namespace of the session. Events of clients and CSI
 plugins belong to no namespace and show in every one. In another namespace it
 starts again from what the cluster keeps.
 
+`o` on a job or an allocation opens the same screen with only the events of
+it. The cluster sends only those, from what it still keeps. The title names
+the job or the allocation, and the screen stays on it when you switch
+namespace. These need only a token that can read the job, while the events
+of the whole namespace need a management token.
+
 ## Sort
 
 Shift and a letter order the list by a column; the same key again turns the
@@ -216,6 +222,7 @@ start, stop, restart or drain then applies to every marked row.
 | `v` | Versions | |
 | `l` | Logs of a task in every allocation of the job. Not shown for a periodic or parameterized job. | |
 | `w` | Watch the deploy of the job at the version it runs. Not shown for a periodic or parameterized job. | |
+| `o` | Events of the job, its allocations, evaluations and deployments. Not shown for a periodic or parameterized job. | |
 | `e` | Edit the job in your editor | yes |
 | `n` | New job: opens a job template in your editor | yes |
 | `ctrl-s` | Start a stopped job, or stop a running one | yes |
@@ -281,6 +288,7 @@ On what was done to the count of a group, `d` describes its policy.
 | `ctrl-r` | Restart every task, the prestart and sidecar ones too | yes |
 | `ctrl-k` | Stop | yes |
 | `l` | Logs of a task in every allocation of the list | |
+| `o` | Events of the allocation | |
 | `space`, `ctrl-a` | Mark | |
 
 ### Tasks
@@ -290,6 +298,7 @@ On what was done to the count of a group, `d` describes its policy.
 | `enter` | Logs, stdout | |
 | `ctrl-e` | Logs, stderr | |
 | `e` | Events of the task | |
+| `o` | Events of the allocation | |
 | `b` | Files of the task | |
 | `s` | Shell in the task | yes |
 | `r` | Restart the task. Shown when it is running. | yes |

@@ -28,6 +28,8 @@ A running allocation whose task was restarted or killed for its memory in the
 last hour is painted in the attention color, and `!` keeps it: that is a
 crash loop going on now. A restart of a month ago leaves the row as it is.
 
+`o` opens the events of the allocation under the cursor.
+
 `r` restarts the tasks of an allocation that run, `ctrl-r` restarts all of
 its tasks, the prestart and sidecar ones too, and `ctrl-k` stops it, after
 you confirm. With several allocations marked, they act on all of them. When you stop an
@@ -61,7 +63,8 @@ From here:
 
 - `c` opens the client the allocation runs on;
 - `p` opens the previous allocation, `n` the next one;
-- `f` opens the follow-up evaluation.
+- `f` opens the follow-up evaluation;
+- `o` opens the events of the allocation.
 
 ## Checks
 

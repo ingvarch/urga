@@ -262,6 +262,7 @@ type fakeClient struct {
 	// asked for last.
 	feed          *nomad.Feed
 	feedNamespace string
+	feedSubject   nomad.Subject
 	feedFrom      uint64
 
 	// scalingPolicies are the policies of the list, groupScaling how the
@@ -701,8 +702,8 @@ func (f *fakeClient) DeleteNamespace(_ context.Context, name string) error {
 	return f.actionErr
 }
 
-func (f *fakeClient) Feed(_ context.Context, namespace string, from uint64) (*nomad.Feed, error) {
-	f.feedNamespace, f.feedFrom = namespace, from
+func (f *fakeClient) Feed(_ context.Context, namespace string, subject nomad.Subject, from uint64) (*nomad.Feed, error) {
+	f.feedNamespace, f.feedSubject, f.feedFrom = namespace, subject, from
 
 	return f.feed, f.err
 }
