@@ -29,8 +29,9 @@ still being made (`pending`) is yellow. A CSI volume whose plugin has fewer
 healthy controllers or node plugins than expected has the attention color:
 attaching it may fail. `!` shows only those volumes.
 
-The cluster reports no change of a CSI volume in its event stream, so the
-storage screens are polled, not watched.
+The storage screens follow the event stream on Nomad 1.10 and later. On an
+older cluster, or when urga cannot read the version of the cluster, they are
+read every 2 seconds.
 
 ## A volume
 

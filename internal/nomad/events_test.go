@@ -280,3 +280,98 @@ func waitForChange(t *testing.T, changes *nomad.Changes) nomad.Change {
 
 	return nomad.Change{}
 }
+
+func TestAtLeast(t *testing.T) {
+	for _, c := range []struct {
+		version, minimum string
+		want             bool
+	}{
+		{"1.10.0", "1.10.0", true},
+		{"1.10.0-beta.1", "1.10.0", true},
+		{"2.0.7+ent", "2.0.0", true},
+		{"10.0.0", "2.0.0", true},
+		{"1.11.3", "1.10.0", true},
+		{"1.9.7", "1.10.0", false},
+		{"1.11.4+ent", "2.0.0", false},
+		{"1.10.0", "1.10.1", false},
+		{"", "1.10.0", false},
+		{"dev", "1.10.0", false},
+		{"1.10", "1.10.0", false},
+		{"v1.10.0", "1.10.0", false},
+	} {
+		require.Equal(t, c.want, nomad.AtLeast(c.version, c.minimum), "%q >= %q", c.version, c.minimum)
+	}
+}
+
+func TestStreams(t *testing.T) {
+	for _, c := range []struct {
+		version string
+		topics  []string
+		want    bool
+	}{
+		{"", []string{nomad.TopicJob, nomad.TopicAllocation}, true},
+		{"1.9.7", []string{nomad.TopicNode}, true},
+		{"", []string{nomad.TopicCSIVolume}, false},
+		{"dev", []string{nomad.TopicCSIVolume}, false},
+		{"1.9.7", []string{nomad.TopicCSIVolume}, false},
+		{"1.10.0", []string{nomad.TopicCSIVolume}, true},
+		{"1.10.0-beta.1", []string{nomad.TopicHostVolume}, true},
+		{"1.11.3", []string{nomad.TopicCSIVolume, nomad.TopicHostVolume, nomad.TopicCSIPlugin}, true},
+		{"1.11.4+ent", []string{nomad.TopicVariable}, false},
+		{"2.0.0", []string{nomad.TopicVariable}, true},
+		{"10.0.0", []string{nomad.TopicVariable}, true},
+		{"1.11.3", []string{nomad.TopicCSIPlugin, nomad.TopicVariable}, false},
+		{"1.11.3", []string{nomad.TopicAllocation, nomad.TopicCSIVolume}, true},
+	} {
+		require.Equal(t, c.want, nomad.Streams(c.version, c.topics), "%q %v", c.version, c.topics)
+	}
+}
+
+func TestFeed_NamesVolumesPluginsAndVariables(t *testing.T) {
+	r := require.New(t)
+
+	for _, c := range []struct {
+		name, topic, payload, key string
+		want                      nomad.Event
+	}{
+		{
+			"csi volume", "CSIVolume",
+			`{"Volume": {"ID": "v1", "Name": "data", "Namespace": "ml", "Schedulable": false, "ModifyTime": 1790671900000000000}}`, "v1",
+			nomad.Event{Key: "v1", Name: "data", Namespace: "ml", State: "unschedulable"},
+		},
+		{
+			"host volume", "HostVolume",
+			`{"Volume": {"ID": "h1", "Name": "cache", "Namespace": "ml", "State": "ready", "ModifyTime": 1790671900000000000}}`, "h1",
+			nomad.Event{Key: "h1", Name: "cache", Namespace: "ml", State: "ready"},
+		},
+		{
+			"deleted host volume", "HostVolume",
+			`{"Volume": {"ID": "h2", "Name": "cache", "Namespace": "ml", "State": "ready", "ModifyTime": 1790671900000000000}}`, "",
+			nomad.Event{Key: "h2", Name: "cache", Namespace: "ml", State: "ready"},
+		},
+		{
+			"plugin", "CSIPlugin",
+			`{"Plugin": {"ID": "ebs", "ModifyTime": 1790671900000000000}}`, "ebs",
+			nomad.Event{Key: "ebs", Name: "ebs"},
+		},
+		{
+			"variable", "Variable",
+			`{"Metadata": {"Path": "nomad/jobs/web", "Namespace": "ml", "ModifyTime": 1790671900000000000}}`, "nomad/jobs/web",
+			nomad.Event{Key: "nomad/jobs/web", Name: "nomad/jobs/web", Namespace: "ml"},
+		},
+	} {
+		client, _ := eventServer(t, `{"Index": 3, "Events": [{"Topic": "`+c.topic+`", "Type": "Updated", "Key": "`+c.key+`", "Index": 3, "Payload": `+c.payload+`}]}`)
+
+		feed, err := client.Feed(context.Background(), "", 1)
+		r.NoError(err, c.name)
+
+		event := waitForEvent(t, feed)
+		feed.Close()
+
+		r.Equal(c.want.Key, event.Key, c.name)
+		r.Equal(c.want.Name, event.Name, c.name)
+		r.Equal(c.want.Namespace, event.Namespace, c.name)
+		r.Equal(c.want.State, event.State, c.name)
+		r.WithinDuration(time.Unix(0, 1790671900000000000), event.At, time.Microsecond, c.name)
+	}
+}

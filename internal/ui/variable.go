@@ -37,7 +37,7 @@ func (variablesPage) title(e env, count int) string {
 }
 
 func (variablesPage) titles() []string { return variableTitles }
-func (variablesPage) topics() []string { return nil }
+func (variablesPage) topics() []string { return []string{nomad.TopicVariable} }
 
 func (variablesPage) fetch(e env) tea.Cmd {
 	client, namespace := e.client, e.namespace
@@ -129,7 +129,10 @@ func (p variablePage) title(_ env, count int) string {
 }
 
 func (variablePage) titles() []string { return variableItemTitles }
-func (variablePage) topics() []string { return nil }
+func (variablePage) topics() []string { return []string{nomad.TopicVariable} }
+
+// where: a variable lives in its namespace, whatever the session looks at.
+func (p variablePage) where(env) string { return p.namespace }
 
 // fetch reads the variable the page is open on.
 func (p variablePage) fetch(e env) tea.Cmd {

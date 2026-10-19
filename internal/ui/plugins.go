@@ -33,9 +33,7 @@ func (pluginsPage) title(_ env, count int) string { return sprintf("Plugins [%d]
 
 func (pluginsPage) titles() []string { return pluginsTitles }
 
-// topics: none. The cluster reports no change of a plugin; the list is
-// polled.
-func (pluginsPage) topics() []string { return nil }
+func (pluginsPage) topics() []string { return []string{nomad.TopicCSIPlugin} }
 
 func (pluginsPage) fetch(e env) tea.Cmd {
 	return fetchList(e.client.Plugins, func(items []nomad.Plugin) tea.Msg { return pluginsMsg(items) })
@@ -137,8 +135,7 @@ func (p pluginPage) title(_ env, count int) string { return sprintf("Plugin %s [
 
 func (pluginPage) titles() []string { return pluginTitles }
 
-// topics: none, as for the list.
-func (pluginPage) topics() []string { return nil }
+func (pluginPage) topics() []string { return []string{nomad.TopicCSIPlugin} }
 
 func (p pluginPage) fetch(e env) tea.Cmd {
 	client, id := e.client, p.id

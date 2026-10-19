@@ -33,9 +33,11 @@ func (volumesPage) title(e env, count int) string {
 
 func (volumesPage) titles() []string { return volumesTitles }
 
-// topics: none. The cluster reports no change of a CSI volume, and a topic
-// for half the list would leave the other half stale; the list is polled.
-func (volumesPage) topics() []string { return nil }
+// topics: the plugin as well, because the colour of a CSI volume follows the
+// health of its plugin, which only a plugin event reports.
+func (volumesPage) topics() []string {
+	return []string{nomad.TopicCSIVolume, nomad.TopicHostVolume, nomad.TopicCSIPlugin}
+}
 
 func (volumesPage) fetch(e env) tea.Cmd {
 	client, namespace := e.client, e.namespace
@@ -189,8 +191,14 @@ func (p volumePage) title(_ env, count int) string {
 
 func (volumePage) titles() []string { return allocTitles }
 
-// topics: none, as for the list.
-func (volumePage) topics() []string { return nil }
+// topics: the rows are allocations, as on the deployment screen.
+func (p volumePage) topics() []string {
+	if p.kind == nomad.VolumeHost {
+		return []string{nomad.TopicHostVolume, nomad.TopicAllocation}
+	}
+
+	return []string{nomad.TopicCSIVolume, nomad.TopicCSIPlugin, nomad.TopicAllocation}
+}
 
 // where: a volume lives in its namespace, whatever the session looks at.
 func (p volumePage) where(env) string { return p.namespace }
