@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/x/ansi"
@@ -35,6 +36,14 @@ var navigationHints = []hint{
 	{Key: "<g/G>", Description: "Top/Bottom"},
 }
 
+// textNavigationHints are how to move a text sideways. A list leaves them
+// out: there h and l are keys of some screens.
+var textNavigationHints = []hint{
+	{Key: "<h/left>", Description: "Left"},
+	{Key: "<l/right>", Description: "Right"},
+	{Key: "<home>", Description: "Line Start"},
+}
+
 // helpSections are what the help window holds: what this screen can do, then
 // what works everywhere.
 func (m Model) helpSections() []helpSection {
@@ -48,9 +57,14 @@ func (m Model) helpSections() []helpSection {
 		sections = append(sections, helpSection{title: "SORT", hints: hints})
 	}
 
+	navigation := navigationHints
+	if _, buttons := m.screen.page.(buttoned); m.readsAsText() && !buttons {
+		navigation = slices.Concat(navigationHints, textNavigationHints)
+	}
+
 	return append(sections,
 		helpSection{title: "GENERAL", hints: generalHints},
-		helpSection{title: "NAVIGATION", hints: navigationHints},
+		helpSection{title: "NAVIGATION", hints: navigation},
 	)
 }
 
