@@ -124,7 +124,7 @@ func TestFeed_ReadsWhatHappened(t *testing.T) {
 		]}`,
 	)
 
-	feed, err := client.Feed(context.Background(), "production", 1)
+	feed, err := client.Feed(context.Background(), "production", nomad.Subject{}, 1)
 	r.NoError(err)
 
 	defer feed.Close()
@@ -174,7 +174,7 @@ func TestFeed_NamesEachKindOfObject(t *testing.T) {
 	} {
 		client, _ := eventServer(t, `{"Index": 3, "Events": [{"Topic": "`+topic+`", "Type": "Updated", "Key": "k1", "Index": 3, "Payload": `+want.payload+`}]}`)
 
-		feed, err := client.Feed(context.Background(), "", 1)
+		feed, err := client.Feed(context.Background(), "", nomad.Subject{}, 1)
 		r.NoError(err, topic)
 
 		event := waitForEvent(t, feed)
@@ -202,13 +202,38 @@ func TestFeed_GoesOnFromAnIndex(t *testing.T) {
 
 	client, asked := eventServer(t)
 
-	feed, err := client.Feed(context.Background(), "production", 58)
+	feed, err := client.Feed(context.Background(), "production", nomad.Subject{}, 58)
 	r.NoError(err)
 
 	defer feed.Close()
 
 	// What was read before is not read again.
 	r.Equal("58", asked.URL.Query().Get("index"))
+}
+
+func TestFeed_AsksForTheTopicsOfItsSubject(t *testing.T) {
+	r := require.New(t)
+
+	for name, want := range map[string]struct {
+		subject nomad.Subject
+		topics  []string
+	}{
+		"namespace":  {nomad.Subject{}, []string{"*"}},
+		"job":        {nomad.Subject{JobID: "web"}, []string{"Job:web", "Allocation:web", "Evaluation:web", "Deployment:web"}},
+		"allocation": {nomad.Subject{AllocID: "af1f37df"}, []string{"Allocation:af1f37df"}},
+	} {
+		client, asked := eventServer(t)
+
+		feed, err := client.Feed(context.Background(), "ml", want.subject, 7)
+		r.NoError(err, name)
+
+		feed.Close()
+
+		query := asked.URL.Query()
+		r.ElementsMatch(want.topics, query["topic"], name)
+		r.Equal("ml", query.Get("namespace"), name)
+		r.Equal("7", query.Get("index"), name)
+	}
 }
 
 func TestFeed_KeepsWhatArrivesWhileNobodyReads(t *testing.T) {
@@ -220,7 +245,7 @@ func TestFeed_KeepsWhatArrivesWhileNobodyReads(t *testing.T) {
 		`{"Index": 9, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "db", "Index": 9}]}`,
 	)
 
-	feed, err := client.Feed(context.Background(), "", 1)
+	feed, err := client.Feed(context.Background(), "", nomad.Subject{}, 1)
 	r.NoError(err)
 
 	defer feed.Close()
@@ -240,7 +265,7 @@ func TestFeed_LeavesOutWhatCameBeforeTheIndex(t *testing.T) {
 		`{"Index": 19, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "web", "Index": 19}]}`,
 	)
 
-	feed, err := client.Feed(context.Background(), "", 19)
+	feed, err := client.Feed(context.Background(), "", nomad.Subject{}, 19)
 	r.NoError(err)
 
 	defer feed.Close()
@@ -362,7 +387,7 @@ func TestFeed_NamesVolumesPluginsAndVariables(t *testing.T) {
 	} {
 		client, _ := eventServer(t, `{"Index": 3, "Events": [{"Topic": "`+c.topic+`", "Type": "Updated", "Key": "`+c.key+`", "Index": 3, "Payload": `+c.payload+`}]}`)
 
-		feed, err := client.Feed(context.Background(), "", 1)
+		feed, err := client.Feed(context.Background(), "", nomad.Subject{}, 1)
 		r.NoError(err, c.name)
 
 		event := waitForEvent(t, feed)

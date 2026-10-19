@@ -114,6 +114,7 @@ var tasksKeys = []pageKey[tasksPage]{
 	// The same key opens the events of a task here and edits elsewhere,
 	// because a screen never offers both.
 	{press: "e", label: "Events", do: openTaskEvents},
+	{press: "o", label: "Alloc Events", do: openAllocationEvents},
 	{press: "ctrl+e", label: "Stderr", do: followStderr},
 	// The same key opens a shell here and scales a task group elsewhere.
 	{press: "s", label: "Shell", do: shell, writes: true},
@@ -179,6 +180,12 @@ func openTaskEvents(p tasksPage, e env) (tasksPage, outcome) {
 	}
 
 	return p, then(openMsg{taskEventsPage{namespace: p.namespace, allocID: p.allocID, task: task.Name, alloc: p.alloc}})
+}
+
+// openAllocationEvents opens the events of the allocation the page is open
+// on.
+func openAllocationEvents(p tasksPage, _ env) (tasksPage, outcome) {
+	return p, then(openMsg{subjectEvents(p.namespace, nomad.Subject{AllocID: p.allocID})})
 }
 
 // taskEventsPage is what happened to one task of an allocation.

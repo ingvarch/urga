@@ -184,9 +184,21 @@ var jobsKeys = []pageKey[jobsPage]{
 	{press: "v", label: "Versions", do: openVersions},
 	{press: "l", label: "Logs", do: jobLogs, offered: runsItself},
 	{press: "w", label: "Watch", do: watchJob, offered: runsItself},
+	{press: "o", label: "Events", do: openJobEvents, offered: runsItself},
 	{press: "e", label: "Edit", do: editJob, writes: true},
 	{press: "n", label: "New", do: newJob, writes: true},
 	{press: "p", label: "Placement", do: jobPlacement, offered: jobWaits},
+}
+
+// openJobEvents opens the events of the job under the cursor, in the
+// namespace of the job.
+func openJobEvents(p jobsPage, e env) (jobsPage, outcome) {
+	job, ok := p.picked(e)
+	if !ok {
+		return p, outcome{}
+	}
+
+	return p, then(openMsg{subjectEvents(job.Namespace, nomad.Subject{JobID: job.ID})})
 }
 
 func (p jobsPage) keys(e env) []keyHint { return hintsOf(p, e, jobsKeys) }

@@ -19,7 +19,8 @@ From the list:
 - `t` opens its task groups;
 - `d` shows the job as the cluster describes it;
 - `h` shows the job file it was submitted with;
-- `v` opens its versions.
+- `v` opens its versions;
+- `o` shows the events of the job.
 
 ## Periodic and parameterized jobs
 

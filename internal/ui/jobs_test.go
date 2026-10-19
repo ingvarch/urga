@@ -90,6 +90,7 @@ func TestJobs_TheKeysOfAJob(t *testing.T) {
 		{Key: "<v>", Description: "Versions"},
 		{Key: "<l>", Description: "Logs"},
 		{Key: "<w>", Description: "Watch"},
+		{Key: "<o>", Description: "Events"},
 		{Key: "<e>", Description: "Edit"},
 		{Key: "<n>", Description: "New"},
 	}
