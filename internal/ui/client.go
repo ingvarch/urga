@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"strconv"
 	"strings"
 	"time"
 
@@ -23,13 +24,10 @@ const (
 	hostChartShort  = 7
 	hostChartRest   = 2
 
-	// hostPanelRest is the panel around the charts: the details of the
-	// machine, a line under them and an empty line above the allocations.
+	// hostPanelRest is the panel around the charts: the first row of the
+	// details of the machine, a line under them and an empty line above the
+	// allocations. chartHeight counts the other rows of details.
 	hostPanelRest = 3
-
-	// hostPanelRows is the panel without a chart, which is what a screen
-	// with no room for one still shows.
-	hostPanelRows = 2
 
 	// rowsKept are the rows a table under a panel shows whatever else is on
 	// the screen: the allocations of a client, the tasks of an allocation.
@@ -108,6 +106,10 @@ type clientPage struct {
 	absolute bool
 
 	allocs []nomad.Alloc
+
+	// listed is true once the allocations are read: until then the page
+	// has none to count.
+	listed bool
 }
 
 // clientOf is a client with what is known of the machine so far.
@@ -145,7 +147,7 @@ func (p clientPage) fetch(e env) tea.Cmd {
 func (p clientPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 	switch msg := msg.(type) {
 	case allocsMsg:
-		p.allocs = msg
+		p.allocs, p.listed = msg, true
 
 		return p.hostOnce(e)
 
@@ -278,11 +280,11 @@ func chartWidth(width int) int {
 	return max((width-tableIndent-columnGap)/2, 1)
 }
 
-// chartHeight is how tall the plot of a chart is in a panel of room rows. A
-// short screen gets the short one, and then none at all: the allocations
-// come first.
-func chartHeight(room int) int {
-	room -= hostChartRest + hostPanelRest
+// chartHeight is how tall the plot of a chart is in a panel of room rows
+// that holds details rows of the machine. A short screen gets the short one,
+// and then none at all: the allocations come first.
+func chartHeight(room, details int) int {
+	room -= hostChartRest + hostPanelRest + details - 1
 
 	switch {
 	case room >= hostChartHeight:
@@ -321,25 +323,35 @@ func (m Model) panel(width int) []string {
 
 // panel is what the machine is doing, above its allocations.
 func (p clientPage) panel(_ env, width, room int) []string {
-	// A box with no room even for the details of the machine gives all its
-	// rows to the allocations.
-	if room < hostPanelRows {
+	details := p.host.details(width, p.held())
+
+	// A box with no room even for the details of the machine, and the line
+	// under them, gives all its rows to the allocations.
+	if room < len(details)+1 {
 		return nil
 	}
 
 	half := chartWidth(width)
 
-	return p.host.view(width, half, chartHeight(room), p.absolute)
+	return p.host.view(half, chartHeight(room, len(details)), p.absolute, details)
+}
+
+// held is how many allocations of the client hold a place on it, unknown
+// until they are read.
+func (p clientPage) held() string {
+	if !p.listed {
+		return unknown
+	}
+
+	return strconv.Itoa(len(keep(p.allocs, nomad.Alloc.HoldsPlace)))
 }
 
 // view is what a client shows above its allocations: what kind of machine
-// it is and what it has been doing since the screen was opened. Each chart
-// is half wide and plot tall, and a plot of no height leaves them out.
-func (h hostModel) view(width, half, plot int, absolute bool) []string {
-	// One column of the panel goes to the margin the table keeps.
-	width -= tableIndent
-
-	rows := []string{h.details(width), ""}
+// it is, in the rows of details it starts with, and what it has been doing
+// since the screen was opened. Each chart is half wide and plot tall, and a
+// plot of no height leaves them out.
+func (h hostModel) view(half, plot int, absolute bool, rows []string) []string {
+	rows = append(rows, panelRow(""))
 
 	if plot > 0 {
 		cpu, memory := alignLabels(h.chart(cpuMeasure, absolute), h.chart(memoryMeasure, absolute))
@@ -347,20 +359,15 @@ func (h hostModel) view(width, half, plot int, absolute bool) []string {
 		memoryLines := memory.render(half, plot)
 
 		for i := range cpuLines {
-			rows = append(rows, pad(cpuLines[i], half)+strings.Repeat(" ", columnGap)+memoryLines[i])
+			rows = append(rows, panelRow(pad(cpuLines[i], half)+strings.Repeat(" ", columnGap)+memoryLines[i]))
 		}
 
 		// A narrow screen gets no charts: half of it has no room for one
 		// with its scale. Then there is nothing to keep apart from the
 		// allocations either.
 		if len(cpuLines) > 0 {
-			rows = append(rows, "")
+			rows = append(rows, panelRow(""))
 		}
-	}
-
-	// The panel starts where the columns of the table do.
-	for i, row := range rows {
-		rows[i] = panelRow(row)
 	}
 
 	return rows
@@ -472,17 +479,28 @@ func (h hostModel) chart(of measure, absolute bool) chart {
 }
 
 // details is the machine itself, in the fields the Nomad interface shows.
-func (h hostModel) details(width int) string {
+// The first row is kept, blank while the machine is not read yet, so the
+// panel does not grow when it is; the next is left out when it has no
+// value. held is how many allocations hold a place on it, shown against the
+// limit when it has one. The rows start where the columns of the table do.
+func (h hostModel) details(width int, held string) []string {
 	node := h.node
 
-	return fieldLine([]field{
+	rows := []string{panelRow(fieldLine([]field{
 		{"Status", node.Status},
 		{"Address", node.Address},
 		{"Datacenter", node.Datacenter},
 		{"Pool", node.NodePool},
 		{"Version", node.Version},
 		{"Scheduling", eligibilityOf(node)},
-	}, width)
+	}, width-tableIndent))}
+
+	allocations := ""
+	if node.MaxAllocs > 0 {
+		allocations = fmt.Sprintf("%s of %d", held, node.MaxAllocs)
+	}
+
+	return append(rows, fieldLineRows([][]field{{{"Allocations", allocations}}}, width)...)
 }
 
 // eligibilityOf says whether the machine is taking work.

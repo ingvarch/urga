@@ -120,7 +120,7 @@ type fakeClient struct {
 	err     error
 	raftErr error
 
-	// nodesErr and allocsErr fail the client list or the allocation list
+	// nodesErr and allocsErr fail the client list or a list of allocations
 	// alone, ahead of err, as a token that may not read one of them does.
 	nodesErr  error
 	allocsErr error
@@ -425,6 +425,10 @@ func (f *fakeClient) FailedPlacement(_ context.Context, namespace, jobID string)
 func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.Alloc, error) {
 	f.askedNodeID = nodeID
 
+	if f.allocsErr != nil {
+		return nil, f.allocsErr
+	}
+
 	return f.nodeAllocs, f.err
 }
 
@@ -465,6 +469,12 @@ func (f *fakeClient) Node(_ context.Context, nodeID string) (nomad.Node, error) 
 	}
 
 	return nomad.Node{}, f.err
+}
+
+func (f *fakeClient) WithAllocLimits(_ context.Context, nodes []nomad.Node) ([]nomad.Node, error) {
+	f.listed("limits", "")
+
+	return nodes, nil
 }
 
 func (f *fakeClient) NodeDetail(_ context.Context, nodeID string) (nomad.NodeDetail, error) {

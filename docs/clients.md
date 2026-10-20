@@ -11,6 +11,13 @@ variables and node pools. For the keys of each screen, see
 status, eligibility, drain state, CPU and memory use, and address of each
 client.
 
+A client that holds as many allocations as its limit allows (`node_max_allocs`,
+Nomad 1.10.2 and later) is full: the scheduler places nothing more on it, and
+its row has the attention color, like a client that is draining or
+ineligible. With the event stream on, the list shows a client that fills up
+or frees a place within 30 seconds: Nomad streams a change of the client,
+not of the allocations placed on it.
+
 - `ctrl-d` drains a client, or stops draining it, after you confirm.
 - `i` marks a client as eligible or ineligible for new work.
 - `ctrl-p` purges a client that is down, after you confirm: the cluster
@@ -28,6 +35,8 @@ With several clients marked, these keys act on all of them that fit:
 
 - its status, address, datacenter, node pool, version and whether it takes
   new work;
+- when the client has a limit, how many allocations it holds of it, like
+  `3 of 10`. Allocations that ended or are being stopped do not count;
 - charts of its CPU and memory use, read every 5 seconds while the screen is
   open. The charts keep the last 20 minutes. `u` reads them in percents or
   in numbers, scaled up to gigahertz and gibibytes.

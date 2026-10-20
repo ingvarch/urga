@@ -644,14 +644,37 @@ func TestClient_ThePanelTakesWhatTheBoxHasRoomFor(t *testing.T) {
 	}
 }
 
+func TestClient_OpenedByIDKeepsTheRowOfTheMachineUntilItIsRead(t *testing.T) {
+	r := require.New(t)
+
+	// Opened from an allocation, the page knows the id and the name only.
+	m, _ := newTestModel(&fakeClient{}).update(openMsg{clientOf(nomad.Node{ID: "node-1", Name: "nomad-server-01"})})
+	r.IsType(clientPage{}, m.screen.page)
+
+	before := m.panelHeight()
+	r.Equal(before, drawnPanel(m))
+
+	// The row is there, blank, and the panel does not grow when the machine
+	// answers.
+	m, _ = m.update(hostMsg(busyClient()[0]))
+
+	r.Contains(bodyOf(m), "10.0.0.2")
+	r.Equal(before, m.panelHeight())
+	r.Equal(before, drawnPanel(m))
+}
+
 func TestPanel_TakesTheRowsItDraws(t *testing.T) {
 	r := require.New(t)
 
 	client, _ := onClient(t)
 	client, _ = client.update(reading(29))
 
+	limited := limitedClient(t, 3, clientAllocs())
+	limited, _ = limited.update(reading(29))
+
 	screens := map[string]Model{
 		"client":     client,
+		"limited":    limited,
 		"tasks":      openCanary(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}),
 		"deployment": onDeployment(t, &fakeClient{}),
 		"variable":   onVariable(t, &fakeClient{}, leaderVariable()),
@@ -709,8 +732,8 @@ func TestClient_ChartsTooNarrowForTheirScaleTakeNoRows(t *testing.T) {
 	// dropped, and so is the empty row under them.
 	m, _ = m.update(key('u'))
 
-	r.Equal(hostPanelRows, m.panelHeight())
-	r.Equal(hostPanelRows, drawnPanel(m))
+	r.Equal(2, m.panelHeight())
+	r.Equal(2, drawnPanel(m))
 	r.NotContains(bodyOf(m), "now")
 }
 

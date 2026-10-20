@@ -125,6 +125,24 @@ func allocsOf(stubs []*api.AllocationListStub) []Alloc {
 	return out
 }
 
+// HoldsPlace says the allocation counts against the limit of its client: the
+// scheduler counts what is meant to run and has not ended.
+func (a Alloc) HoldsPlace() bool { return holdsPlace(a.DesiredStatus, a.Status) }
+
+func holdsPlace(desired, status string) bool {
+	switch desired {
+	case api.AllocDesiredStatusStop, api.AllocDesiredStatusEvict:
+		return false
+	}
+
+	switch status {
+	case api.AllocClientStatusComplete, api.AllocClientStatusFailed, api.AllocClientStatusLost:
+		return false
+	}
+
+	return true
+}
+
 // NodeAllocations lists what one machine of the cluster runs, whichever
 // namespace the work belongs to.
 func (c *Client) NodeAllocations(ctx context.Context, nodeID string) ([]Alloc, error) {

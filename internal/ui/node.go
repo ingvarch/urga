@@ -41,16 +41,28 @@ func (nodesPage) titles() []string { return nodeTitles }
 func (nodesPage) topics() []string { return []string{nomad.TopicNode} }
 
 // fetch reads the clients, of the pool when the page has one: the cluster
-// says which clients a pool holds.
+// says which clients a pool holds. The list does not carry the allocation
+// limit of a client, so the clients are read again for it.
 func (p nodesPage) fetch(e env) tea.Cmd {
 	client, pool := e.client, p.pool
 
 	return fetchList(func(ctx context.Context) ([]nomad.Node, error) {
+		var (
+			nodes []nomad.Node
+			err   error
+		)
+
 		if pool != "" {
-			return client.PoolNodes(ctx, pool)
+			nodes, err = client.PoolNodes(ctx, pool)
+		} else {
+			nodes, err = client.Nodes(ctx)
 		}
 
-		return client.Nodes(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		return client.WithAllocLimits(ctx, nodes)
 	}, func(items []nomad.Node) tea.Msg { return nodesMsg(items) })
 }
 
@@ -274,12 +286,16 @@ func nodeRows(nodes []nomad.Node, usage map[string]nomad.ResourceUse) []tableRow
 	return rows
 }
 
-// nodeColor marks a node that takes no work: down, draining or ineligible.
+// isFull says the client holds as many allocations as its limit allows.
+func isFull(n nomad.Node) bool { return n.MaxAllocs > 0 && n.Allocs >= n.MaxAllocs }
+
+// nodeColor marks a node that takes no work: down, draining, ineligible or
+// full.
 func nodeColor(n nomad.Node) color.Color {
 	switch {
 	case n.Status != "ready":
 		return colorDead
-	case n.Drain, n.Eligibility != "eligible":
+	case n.Drain, n.Eligibility != "eligible", isFull(n):
 		return colorAttention
 	}
 
