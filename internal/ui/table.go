@@ -31,10 +31,27 @@ type tableRow struct {
 	marked bool
 }
 
-// moments are what the age cells of a row count from, by column. The list is
-// sorted by them: the text of an age sorts wrong, "2d" comes before "5h" as
-// text and is older.
-type moments map[int]time.Time
+// moments are what the age and uptime cells of a row count, by column. The
+// list is sorted by them: the text of an age sorts wrong, "2d" comes before
+// "5h" as text and is older.
+type moments map[int]span
+
+// span is a length of time between two moments. With no end, the span
+// counts to now: an age is a span from a moment to now, an uptime one from a
+// start to an end, or to now.
+type span struct{ from, to time.Time }
+
+// length is how long the span is, and 0 when it has no start.
+func (s span) length(now time.Time) time.Duration {
+	switch {
+	case s.from.IsZero():
+		return 0
+	case s.to.IsZero():
+		return now.Sub(s.from)
+	}
+
+	return s.to.Sub(s.from)
+}
 
 // add puts cells at the end of a row, as they read.
 func (r *tableRow) add(cells ...string) {
@@ -43,16 +60,37 @@ func (r *tableRow) add(cells ...string) {
 	}
 }
 
-// addAge puts at the end of a row how long ago a moment was, and keeps the
-// moment under the same column. Set apart from the cell, the moment could
-// get the wrong column number and make another column sort by time.
+// addAge puts at the end of a row how long ago a moment was, and keeps its
+// span under the same column. Set apart from the cell, the span could get
+// the wrong column number and make another column sort by time.
 func (r *tableRow) addAge(moment time.Time) {
+	r.keep(span{from: moment})
+	r.add(ageOf(moment))
+}
+
+// addSpan puts at the end of a row how long passed between two moments, or
+// since the first when there is no second. It reads "-" without a start.
+func (r *tableRow) addSpan(from, to time.Time) {
+	s := span{from: from, to: to}
+
+	r.keep(s)
+
+	if from.IsZero() {
+		r.add("-")
+
+		return
+	}
+
+	r.add(age(s.length(time.Now())))
+}
+
+// keep stores the span under the column of the cell that comes next.
+func (r *tableRow) keep(s span) {
 	if r.ages == nil {
 		r.ages = moments{}
 	}
 
-	r.ages[len(r.cells)] = moment
-	r.add(ageOf(moment))
+	r.ages[len(r.cells)] = s
 }
 
 // tableModel is the list every screen shows: a header, rows, a cursor and a

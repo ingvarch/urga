@@ -90,14 +90,7 @@ func TestSort_AgeGoesByTime(t *testing.T) {
 // Every list that shows how long ago something was orders that column by
 // time, whatever the column is called.
 func TestSort_EveryAgeColumnGoesByTime(t *testing.T) {
-	newer, older := time.Now().Add(-30*time.Minute), time.Now().Add(-time.Hour)
-
-	lists := []struct {
-		name   string
-		titles []string
-		column string
-		rows   func(at time.Time) []tableRow
-	}{
+	sortsByTime(t, []ageList{
 		{"jobs", jobTitles, "Age", func(at time.Time) []tableRow {
 			return jobRows([]nomad.Job{{SubmitTime: at}}, nil)
 		}},
@@ -106,9 +99,6 @@ func TestSort_EveryAgeColumnGoesByTime(t *testing.T) {
 		}},
 		{"allocations of a deployment", deploymentAllocTitles, "Age", func(at time.Time) []tableRow {
 			return deploymentAllocRows([]nomad.Alloc{{Created: at}}, nil)
-		}},
-		{"tasks", taskTitles, "Started", func(at time.Time) []tableRow {
-			return taskRows([]nomad.Task{{Started: at}}, nil)
 		}},
 		{"task events", taskEventTitles, "Age", func(at time.Time) []tableRow {
 			return taskEventRows([]nomad.TaskEvent{{Time: at}})
@@ -134,7 +124,42 @@ func TestSort_EveryAgeColumnGoesByTime(t *testing.T) {
 		{"versions", versionTitles, "Age", func(at time.Time) []tableRow {
 			return versionRows([]nomad.JobVersion{{Submitted: at}})
 		}},
-	}
+	})
+}
+
+// The moments of a task go by time too: when it started and ended, on both
+// screens that list tasks.
+func TestSort_EveryTaskTimeColumnGoesByTime(t *testing.T) {
+	sortsByTime(t, []ageList{
+		{"tasks", taskTitles, "Started", func(at time.Time) []tableRow {
+			return taskRows([]nomad.Task{{Started: at}}, nil)
+		}},
+		{"tasks by end", taskTitles, "Finished", func(at time.Time) []tableRow {
+			return taskRows([]nomad.Task{{State: "dead", Started: at.Add(-time.Minute), Finished: at}}, nil)
+		}},
+		{"tasks of the namespace by start", namespaceTaskTitles, "Started", func(at time.Time) []tableRow {
+			return namespaceTaskRows([]allocTask{{task: nomad.Task{Started: at}}})
+		}},
+		{"tasks of the namespace by end", namespaceTaskTitles, "Finished", func(at time.Time) []tableRow {
+			return namespaceTaskRows([]allocTask{{task: nomad.Task{State: "dead", Started: at.Add(-time.Minute), Finished: at}}})
+		}},
+	})
+}
+
+// ageList is a list with a column of ages, and how to build a row whose age
+// is a moment.
+type ageList struct {
+	name   string
+	titles []string
+	column string
+	rows   func(at time.Time) []tableRow
+}
+
+// sortsByTime checks that each list orders its age column by time.
+func sortsByTime(t *testing.T, lists []ageList) {
+	t.Helper()
+
+	newer, older := time.Now().Add(-30*time.Minute), time.Now().Add(-time.Hour)
 
 	for _, list := range lists {
 		t.Run(list.name, func(t *testing.T) {
@@ -246,4 +271,23 @@ func TestSort_HelpNamesTheLetterOfEachColumn(t *testing.T) {
 	r.Contains(out, "<shift-y> Type")
 	r.Contains(out, "<shift-p> Namespace")
 	r.NotContains(out, "<A-Z>")
+}
+
+// An uptime is a length, not a moment: 5m comes before 2h, which the text
+// of the two gets wrong.
+func TestSort_UptimeGoesByLength(t *testing.T) {
+	r := require.New(t)
+
+	now := time.Now()
+	ran := func(name string, d time.Duration) nomad.Task {
+		return nomad.Task{Name: name, State: "dead", Started: now.Add(-24 * time.Hour), Finished: now.Add(-24*time.Hour + d)}
+	}
+
+	tbl := newTableModel(taskTitles)
+	tbl.setSize(100, 6)
+	tbl.show(taskRows([]nomad.Task{ran("long", 2*time.Hour), ran("short", 5*time.Minute)}, nil), newSortState())
+
+	sortTable(&tbl, slices.Index(taskTitles, "Uptime"))
+
+	r.Equal([]string{"5m", "2h"}, cellsOf(tbl, slices.Index(taskTitles, "Uptime")))
 }

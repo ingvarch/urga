@@ -26,6 +26,8 @@ func TestParseCommand(t *testing.T) {
 		{input: "vars", view: variablesView, ok: true},
 		{input: "np", view: nodePoolsView, ok: true},
 		{input: "alloc", view: allocationsView, ok: true},
+		{input: "tasks", view: tasksView, ok: true},
+		{input: "ta", view: tasksView, ok: true},
 
 		// A namespace as the second word opens the resource there.
 		{input: "jobs production", view: jobsView, namespace: "production", ok: true},
@@ -77,7 +79,7 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal([]string{
 		"about", "allocations", "authmethods", "bindingrules", "clients", "deployments",
 		"evaluations", "events", "jobs", "namespaces", "nodepools", "overview", "plugins", "policies", "roles",
-		"scaling", "scheduler", "servers", "services", "tokens", "variables", "volumes", "ctx", "dc", "region", "find", "gc", "run",
+		"scaling", "scheduler", "servers", "services", "tasks", "tokens", "variables", "volumes", "ctx", "dc", "region", "find", "gc", "run",
 	}, matchingCommands(""))
 
 	// A word that is an alias of its own comes first, whatever other names

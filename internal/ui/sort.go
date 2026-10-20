@@ -155,15 +155,10 @@ func holdsAges(rows []tableRow, column int) bool {
 	return false
 }
 
-// ageIn is how long ago the moment behind a cell was. A cell with no moment
-// reads "-" or nothing, and counts as new.
+// ageIn is how long the span behind a cell is. A cell with no moment reads
+// "-" or nothing, and counts as new.
 func ageIn(row tableRow, column int, now time.Time) time.Duration {
-	moment := row.ages[column]
-	if moment.IsZero() {
-		return 0
-	}
-
-	return now.Sub(moment)
+	return row.ages[column].length(now)
 }
 
 // naturalLess compares the way a person reads: the digits in a value count as

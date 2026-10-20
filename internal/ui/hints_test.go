@@ -166,6 +166,8 @@ func listsByName(client *fakeClient) map[string]Model {
 		open[name] = m
 	}
 
+	open["namespacetasks"], _ = typeCommand(newTestModel(client), "tasks").update(allocsMsg(client.allocs))
+
 	open["overview"] = overviewWithCounts(client)
 
 	// This urga, which has no rows.

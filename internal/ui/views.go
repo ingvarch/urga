@@ -30,6 +30,11 @@ var (
 		open:    func() page { return allocationsPage{} },
 	}
 
+	tasksView = &view{
+		aliases: []string{"tasks", "task"},
+		open:    func() page { return namespaceTasksPage{} },
+	}
+
 	deploymentsView = &view{
 		stored:  "deployments",
 		aliases: []string{"deployments", "deployment", "dp"},
@@ -140,7 +145,7 @@ var (
 // views is the one place that knows which lists urga opens by name, so that
 // adding one is adding a line here.
 var views = []*view{
-	jobsView, allocationsView, deploymentsView, servicesView, evaluationsView,
+	jobsView, allocationsView, tasksView, deploymentsView, servicesView, evaluationsView,
 	nodesView, variablesView, regionsView, datacentersView, clustersView,
 	namespacesView, serversView, nodePoolsView, volumesView, pluginsView,
 	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, eventsView, scalingView, schedulerView, overviewView, aboutView,

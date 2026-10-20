@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"image/color"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -109,18 +110,23 @@ func (p tasksPage) reading(ctx context.Context, client Client, ref rowRef) (noma
 // picked is the task under the cursor.
 func (p tasksPage) picked(e env) (nomad.Task, bool) { return pickedFrom(e, p.alloc.Tasks) }
 
-var tasksKeys = []pageKey[tasksPage]{
-	{press: "enter", label: "Logs", do: followStdout},
-	// The same key opens the events of a task here and edits elsewhere,
-	// because a screen never offers both.
-	{press: "e", label: "Events", do: openTaskEvents},
-	{press: "o", label: "Alloc Events", do: openAllocationEvents},
-	{press: "ctrl+e", label: "Stderr", do: followStderr},
-	// The same key opens a shell here and scales a task group elsewhere.
-	{press: "s", label: "Shell", do: shell, writes: true},
-	{press: "r", label: "Restart", do: restartTask, writes: true, offered: taskRuns},
-	{press: "x", label: "Signal", do: askSignal, writes: true, offered: taskRuns},
-	{press: "b", label: "Browse", do: browse},
+func (p tasksPage) pickedTask(e env) (allocTask, bool) {
+	task, ok := p.picked(e)
+	if !ok {
+		return allocTask{}, false
+	}
+
+	return allocTask{taskRef: taskRef{namespace: p.namespace, allocID: p.allocID, name: task.Name}, task: task, alloc: p.alloc}, true
+}
+
+func (p tasksPage) pickedAlloc(env) (namespace, allocID string, ok bool) {
+	return p.namespace, p.allocID, true
+}
+
+// tasksKeys are the keys of a task, and the keys of the allocation after them.
+var tasksKeys = append(taskKeys[tasksPage](), tasksAllocKeys...)
+
+var tasksAllocKeys = []pageKey[tasksPage]{
 	{press: "c", label: "Client", do: openAllocNode, offered: allocHas(func(a nomad.Alloc) string { return a.NodeID })},
 	{press: "p", label: "Previous", do: openReplaced, offered: allocHas(func(a nomad.Alloc) string { return a.Previous })},
 	{press: "n", label: "Next", do: openReplacement, offered: allocHas(func(a nomad.Alloc) string { return a.Next })},
@@ -134,7 +140,7 @@ func (p tasksPage) press(k string, e env) (page, outcome, bool) {
 }
 
 // taskTitles are the columns of the task list.
-var taskTitles = []string{"Name", "State", "Failed", "Restarts", "CPU", "MEM", "Started"}
+var taskTitles = []string{"Name", "State", "Failed", "Restarts", "CPU", "MEM", "Started", "Finished", "Uptime"}
 
 func taskRows(tasks []nomad.Task, usage map[string]nomad.ResourceUse) []tableRow {
 	rows := make([]tableRow, 0, len(tasks))
@@ -151,12 +157,42 @@ func taskRows(tasks []nomad.Task, usage map[string]nomad.ResourceUse) []tableRow
 			cpuCell(use, known),
 			memoryCell(use, known),
 		)
-		row.addAge(task.Started)
+		addTaskTimes(&row, task)
 
 		rows = append(rows, row)
 	}
 
 	return rows
+}
+
+// addTaskTimes puts when a task started and ended, and how long it ran, at
+// the end of a row.
+func addTaskTimes(row *tableRow, task nomad.Task) {
+	ended := finishedAt(task)
+
+	row.addAge(task.Started)
+	row.addAge(ended)
+
+	// Only a running task counts to now; one that ended counts to its end.
+	switch {
+	case task.State == statusRunning:
+		row.addSpan(task.Started, time.Time{})
+	case !ended.IsZero():
+		row.addSpan(task.Started, ended)
+	default:
+		row.addSpan(time.Time{}, time.Time{})
+	}
+}
+
+// finishedAt is when a task ended in its last run, or zero while it runs or
+// waits. Nomad keeps the end of an earlier run after a restart, so an end
+// before the start is not this run's.
+func finishedAt(task nomad.Task) time.Time {
+	if task.State != statusDead || task.Finished.Before(task.Started) {
+		return time.Time{}
+	}
+
+	return task.Finished
 }
 
 func taskColor(task nomad.Task) color.Color {
@@ -173,19 +209,24 @@ func taskColor(task nomad.Task) color.Color {
 }
 
 // openTaskEvents opens what happened to the task under the cursor.
-func openTaskEvents(p tasksPage, e env) (tasksPage, outcome) {
-	task, ok := p.picked(e)
+func openTaskEvents[P taskLister](p P, e env) (P, outcome) {
+	task, ok := p.pickedTask(e)
 	if !ok {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg{taskEventsPage{namespace: p.namespace, allocID: p.allocID, task: task.Name, alloc: p.alloc}})
+	return p, then(openMsg{taskEventsPage{namespace: task.namespace, allocID: task.allocID, task: task.name, alloc: task.alloc}})
 }
 
-// openAllocationEvents opens the events of the allocation the page is open
-// on.
-func openAllocationEvents(p tasksPage, _ env) (tasksPage, outcome) {
-	return p, then(openMsg{subjectEvents(p.namespace, nomad.Subject{AllocID: p.allocID})})
+// openTaskAllocEvents opens the events of the allocation under the cursor,
+// in the namespace of that allocation.
+func openTaskAllocEvents[P taskLister](p P, e env) (P, outcome) {
+	namespace, allocID, ok := p.pickedAlloc(e)
+	if !ok {
+		return p, outcome{}
+	}
+
+	return p, then(openMsg{subjectEvents(namespace, nomad.Subject{AllocID: allocID})})
 }
 
 // taskEventsPage is what happened to one task of an allocation.

@@ -23,9 +23,10 @@ One binary, no config to write, no browser.
 
 ## What it does
 
-- Lists jobs, allocations, tasks, task groups, deployments, evaluations,
-  services, namespaces, variables, clients, node pools, servers, volumes,
-  CSI plugins and the ACL objects.
+- Lists jobs, allocations, the tasks of an allocation or of the whole
+  namespace, task groups, deployments, evaluations, services, namespaces,
+  variables, clients, node pools, servers, volumes, CSI plugins and the ACL
+  objects.
 - Watches the deploy of a job with `w`: the newest evaluation, the deployment
   and its allocations, until it ends.
 - Updates the screen when the cluster changes, using the Nomad event stream,
@@ -129,8 +130,8 @@ quit.
   keys of every screen.
 - [Jobs](docs/jobs.md): jobs, task groups and their scaling, editing and
   plans, versions, evaluations and deployments.
-- [Allocations and tasks](docs/allocations.md): allocations, checks, task
-  actions, logs and files.
+- [Allocations and tasks](docs/allocations.md): allocations, every task of
+  the namespace with `:tasks`, checks, task actions, logs and files.
 - [Clients, servers and other resources](docs/clients.md): clients,
   servers, the scheduler, namespaces, services, variables and node pools.
 - [Storage](docs/storage.md): CSI volumes, dynamic host volumes and CSI

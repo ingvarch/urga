@@ -81,6 +81,8 @@ func groupMark(group nomad.TaskGroup) string { return group.Name }
 
 func taskMark(task nomad.Task) string { return task.Name }
 
+func allocTaskMark(task allocTask) string { return task.allocID + "/" + task.name }
+
 func names[T any](items []T, mark func(T) string) []string {
 	out := make([]string, 0, len(items))
 	for _, item := range items {
