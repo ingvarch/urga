@@ -258,6 +258,15 @@ func TestSort_EveryColumnHasALetterOfItsOwn(t *testing.T) {
 	r.Equal([]rune{'i', 'n', 't', 'p', 's', 'l', 'a'}, sortLetters(jobTitles))
 }
 
+func TestSort_NoColumnTakesTheLetterOfTheBottom(t *testing.T) {
+	r := require.New(t)
+
+	// G goes to the bottom of every list, so Group takes its next free
+	// letter, and on the tasks of the namespace R stays with the restarts.
+	r.Equal([]rune{'r', 'd', 'p', 'h', 'u', 'c', 'o', 'a', 'e', 's'}, sortLetters(groupTitles))
+	r.Equal([]rune{'j', 'p', 'o', 't', 'a', 'n', 's', 'r', 'e', 'f', 'u'}, sortLetters(namespaceTaskTitles))
+}
+
 func TestSort_HelpNamesTheLetterOfEachColumn(t *testing.T) {
 	r := require.New(t)
 

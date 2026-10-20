@@ -168,10 +168,11 @@ Shift and a letter order the list by a column; the same key again turns the
 order round, and the title of the column shows which way with an arrow.
 Every column has a letter of its own. The common ones keep the letters you
 know from other tools: `N` for a name, `A` for an age, `S` for a status or a
-state, `P` for a namespace. Any other column takes the first letter of its
-title that is free, so on `:events` `T` is the topic and `Y` the type. The
-header lists the letters of the screen that is open, next to the namespaces,
-and so does `?`.
+state, `P` for a namespace, `R` for restarts. Any other column takes the
+first letter of its title that is free, so on `:events` `T` is the topic and
+`Y` the type. `G` is never a column's letter, because it goes to the bottom.
+The header lists the letters of the screen that is open, next to the
+namespaces, and so does `?`.
 
 ## Filter
 
