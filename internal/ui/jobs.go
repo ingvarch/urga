@@ -170,6 +170,7 @@ var jobsKeys = []pageKey[jobsPage]{
 	{press: "t", label: "Task Groups", do: openJobGroups},
 	{press: "d", label: "Describe", do: describeJob},
 	{press: "h", label: "Job Spec", do: showJobSpec},
+	{press: "m", label: "Meta", do: openJobMeta},
 	{press: "ctrl+s", label: "Start/Stop", do: startStopJob, writes: true},
 	{press: "ctrl+p", label: "Purge", do: purgeJobs, writes: true, offered: stopped},
 	{press: "r", label: "Run Now", do: runNow, writes: true, offered: runsOnSchedule},

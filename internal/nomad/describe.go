@@ -24,6 +24,16 @@ func (c *Client) DescribeJob(ctx context.Context, namespace, jobID string) (stri
 	return asJSON(job)
 }
 
+// JobMeta is the meta of the job block, which is nil when the job has none.
+func (c *Client) JobMeta(ctx context.Context, namespace, jobID string) (map[string]string, error) {
+	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	return job.Meta, nil
+}
+
 // DescribeAllocation is what the cluster knows about an allocation.
 func (c *Client) DescribeAllocation(ctx context.Context, namespace, allocID string) (string, error) {
 	alloc, _, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))

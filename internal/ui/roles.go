@@ -56,6 +56,7 @@ type (
 		Jobs(ctx context.Context, namespace string) ([]nomad.Job, error)
 		DescribeJob(ctx context.Context, namespace, jobID string) (string, error)
 		JobSpec(ctx context.Context, namespace, jobID string) (nomad.JobSource, error)
+		JobMeta(ctx context.Context, namespace, jobID string) (map[string]string, error)
 		TaskGroups(ctx context.Context, namespace, jobID string) ([]nomad.TaskGroup, error)
 		PlanJob(ctx context.Context, namespace, source string, vars nomad.JobVariables, opened map[string]int) (nomad.Plan, error)
 		JobCounts(ctx context.Context, namespace, source string, vars nomad.JobVariables) (map[string]int, error)

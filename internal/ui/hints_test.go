@@ -49,6 +49,14 @@ func runningAtVersionThree() []nomad.DeploymentDetail {
 	}}
 }
 
+// apiInstances are the instances of api, in the namespace of web.
+func apiInstances() []nomad.ServiceInstance {
+	return []nomad.ServiceInstance{
+		{ID: "reg-1", Service: "api", Namespace: "production", JobID: "web", AllocID: "alloc-lost", Address: "10.0.0.7", Port: 80, AllocStatus: "lost"},
+		{ID: "reg-2", Service: "api", Namespace: "production", JobID: "web", AllocID: "alloc-1", Address: "10.0.0.8", Port: 80, AllocStatus: "running"},
+	}
+}
+
 // everyScreenClient is a cluster with something on every screen.
 func everyScreenClient() *fakeClient {
 	return &fakeClient{
@@ -63,6 +71,7 @@ func everyScreenClient() *fakeClient {
 		nodeAllocs:  clientAllocs(),
 		nodeDetail:  clientDetail(),
 		nodeMeta:    clientMeta(),
+		jobMeta:     map[string]string{"owner": "team-web"},
 		identity:    &nomad.NodeIdentity{Expires: time.Now().Add(time.Hour), Claims: "{}"},
 		versions:    threeVersions(),
 		variables:   []nomad.Variable{{Path: "nomad/jobs/web", Namespace: "production"}},
@@ -91,10 +100,7 @@ func everyScreenClient() *fakeClient {
 		file: &nomad.LogStream{Lines: make(chan string)},
 
 		// A registration left behind first: there is one to delete.
-		instances: []nomad.ServiceInstance{
-			{ID: "reg-1", Service: "api", Namespace: "production", JobID: "web", AllocID: "alloc-lost", Address: "10.0.0.7", Port: 80, AllocStatus: "lost"},
-			{ID: "reg-2", Service: "api", Namespace: "production", JobID: "web", AllocID: "alloc-1", Address: "10.0.0.8", Port: 80, AllocStatus: "running"},
-		},
+		instances: apiInstances(),
 
 		variable: nomad.VariableDetail{
 			Variable: nomad.Variable{Path: "nomad/jobs/web", Namespace: "production"},
@@ -188,6 +194,9 @@ func openOfAJob(open map[string]Model) {
 	groups, _ := jobs.update(key('t'))
 	groups, _ = groups.update(taskGroupsMsg(twoGroups()))
 	open["taskgroups"] = groups
+
+	meta, cmd := jobs.update(key('m'))
+	open["jobmeta"] = drain(meta, cmd)
 
 	described, cmd := jobs.update(key('d'))
 	open["describe"] = drain(described, cmd)
