@@ -45,12 +45,12 @@ urga --address https://nomad.example.com:4646 --region eu --namespace production
 With `--readonly`, urga does not change anything in the cluster. It hides
 every key that would: start and stop a job, revert, edit, scale, restart or
 stop an allocation, restart or signal a task, drain a client, change its
-eligibility, promote or fail a deployment, and open a shell. If you press one
-of these keys, the status line says that it is off. The header shows
-`read-only` next to the address.
+eligibility, promote or fail a deployment, open a shell and run a command in
+a task. If you press one of these keys, the status line says that it is off.
+The header shows `read-only` next to the address.
 
-The shell is off in read-only mode because a shell in a task can change
-anything the task can.
+The shell and the command are off in read-only mode because a command in a
+task can change anything the task can.
 
 ## Token
 

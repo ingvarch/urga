@@ -54,7 +54,8 @@ One binary, no config to write, no browser.
   with its meta and payload.
 - Starts, stops, scales and restarts jobs and allocations, restarts every
   task of an allocation with its prestart and sidecar tasks, restarts and
-  signals single tasks, and opens a shell in a task.
+  signals single tasks, opens a shell in a task, and runs a command in a task
+  and keeps what it printed.
 - Drains clients, shows their CPU and memory over time, marks the ones that
   are full, shows when the identity of a client expires and renews it.
   Purges clients that are down, stopped jobs, and collects the garbage of a

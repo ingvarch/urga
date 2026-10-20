@@ -415,6 +415,12 @@ func windowKey[P page](press, label string, msg tea.Msg) pageKey[P] {
 	return pageKey[P]{press: press, label: label, do: func(p P, _ env) (P, outcome) { return p, then(msg) }}
 }
 
+// endTitled is a page whose title ends in something long, like a command,
+// which goes after what the root adds to the title.
+type endTitled interface {
+	titleEnd() string
+}
+
 // saving is a page of text that names the file it is saved to: what it is
 // of, and the extension.
 type saving interface {

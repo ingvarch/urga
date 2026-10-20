@@ -15,6 +15,10 @@ type describeMsg struct {
 	label   string
 	content string
 
+	// after goes at the end of the title, after what the root adds: a title
+	// too long for the border is cut from its end.
+	after string
+
 	// lines are a description urga drew, some of it in a colour of its
 	// own; it takes the place of content.
 	lines []paintedLine
@@ -94,7 +98,7 @@ func (m Model) showDescribe(msg describeMsg) (Model, tea.Cmd) {
 		text = paintedText(msg.lines)
 	}
 
-	return m.push(screen{page: describePage{label: msg.label, content: text.textContent, evaluation: msg.evaluation}})
+	return m.push(screen{page: describePage{label: msg.label, after: msg.after, content: text.textContent, evaluation: msg.evaluation}})
 }
 
 // describePage is a description: what the cluster says of a resource, or
@@ -103,6 +107,7 @@ type describePage struct {
 	noAnswers
 
 	label      string
+	after      string
 	content    textContent
 	evaluation evalRef
 }
@@ -117,7 +122,8 @@ func (describePage) topics() []string           { return nil }
 func (describePage) fetch(env) tea.Cmd          { return nil }
 func (describePage) rows(env) []tableRow        { return nil }
 func (p describePage) text(env) textContent     { return p.content }
-func (p describePage) saveAs() (string, string) { return p.label, "txt" }
+func (p describePage) saveAs() (string, string) { return p.label + p.after, "txt" }
+func (p describePage) titleEnd() string         { return p.after }
 func (p describePage) keys(e env) []keyHint     { return hintsOf(p, e, describeKeys) }
 
 func (p describePage) press(k string, e env) (page, outcome, bool) {

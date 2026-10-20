@@ -341,11 +341,17 @@ func (l logState) earlier(msg logPartMsg) (logState, outcome, bool) {
 // span says how much of a log or a file was read when only its end was:
 // ", last 1.1 MiB of 5.3 MiB".
 func (l logState) span() string {
-	if l.from <= 0 {
+	return spanOf(l.size, l.from)
+}
+
+// spanOf says how much of size bytes is shown when the first from bytes are
+// not: ", last 1.1 MiB of 5.3 MiB", or nothing when all of it is.
+func spanOf(size, from int64) string {
+	if from <= 0 {
 		return ""
 	}
 
-	return fmt.Sprintf(", last %s of %s", sizeOf(l.size-l.from), sizeOf(l.size))
+	return fmt.Sprintf(", last %s of %s", sizeOf(size-from), sizeOf(size))
 }
 
 // linesOf are the lines of a chunk a stream sent: the newline it ends with

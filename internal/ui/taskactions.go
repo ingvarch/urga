@@ -54,12 +54,13 @@ func taskKeys[P taskLister]() []pageKey[P] {
 		{press: "s", label: "Shell", do: shell[P], writes: true},
 		{press: "r", label: "Restart", do: restartTask[P], writes: true, offered: taskRuns[P]},
 		{press: "x", label: "Signal", do: askSignal[P], writes: true, offered: taskRuns[P]},
+		{press: "ctrl+x", label: "Run Command", do: askCommand[P], writes: true, offered: taskRuns[P]},
 		{press: "b", label: "Browse", do: browse[P]},
 	}
 }
 
-// taskRuns says the task under the cursor runs: its client restarts or
-// signals only a running task.
+// taskRuns says the task under the cursor runs. Its client acts only on a
+// running task: restart, signal, run a command.
 func taskRuns[P taskLister](p P, e env) bool {
 	task, ok := p.pickedTask(e)
 

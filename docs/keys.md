@@ -305,6 +305,7 @@ On what was done to the count of a group, `d` describes its policy.
 | `s` | Shell in the task | yes |
 | `r` | Restart the task. Shown when it is running. | yes |
 | `x` | Send a signal to the task. Shown when it is running. | yes |
+| `ctrl-x` | Run a command in the task and show what it printed. Shown when it is running. | yes |
 | `c` | Client the allocation runs on | |
 | `p` | Allocation this one replaced | |
 | `n` | Allocation that replaced this one | |
@@ -548,7 +549,7 @@ On every list of ACL objects:
 
 ### Text screens
 
-Descriptions, job files and diffs:
+Descriptions, job files, diffs and the output of a command run with `ctrl-x`:
 
 | Key | What it does |
 | --- | --- |

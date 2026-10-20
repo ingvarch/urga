@@ -10,6 +10,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/google/licenseclassifier/v2 v2.0.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/hashicorp/nomad/api v0.0.0-20260922135024-0afeddadd9b4
 	github.com/ingvarch/pulse v0.4.0
@@ -35,7 +36,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/cronexpr v1.1.3 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-rootcerts v1.0.2 // indirect
