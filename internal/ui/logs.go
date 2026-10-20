@@ -381,11 +381,6 @@ func wrapLines(m Model) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// saveScreen writes what is on a text screen to a file.
-func saveScreen(m Model) (Model, tea.Cmd) {
-	return m, m.saveText()
-}
-
 // followStdout follows what the task under the cursor writes to stdout.
 func followStdout(p tasksPage, e env) (tasksPage, outcome) {
 	return followLogs(p, e, nomad.LogStdout)

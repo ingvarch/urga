@@ -555,6 +555,13 @@ On every text screen, logs, files and plans included, `c` copies up to 64 KiB:
 the last whole lines when the text is longer, so the start of a long log is
 left out. `ctrl-s` saves all of it.
 
+`ctrl-s` asks for the path on the line at the top, with a name already typed,
+made of what the text is and the time (for example
+`server-stdout-20261019-101010.log`). `enter` keeps it. `~/` is your home
+folder, a relative path is from the folder urga runs in, and missing folders
+are made. urga asks before it overwrites a file, and the status line says
+where the file was saved.
+
 On every text screen, `f` asks for a word and keeps every line on the screen,
 lighting the word where it is. The window goes to the first match from its
 top, and the status line says which one it is. `n` and `N` go to the next and

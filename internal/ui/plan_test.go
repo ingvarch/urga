@@ -598,7 +598,8 @@ func TestPlan_Saved(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
 	m := planned(t, client)
 
-	m, cmd := m.update(ctrlKey('s'))
+	m, _ = m.update(ctrlKey('s'))
+	m, cmd := m.update(enter())
 	drain(m, cmd)
 
 	files, err := filepath.Glob(filepath.Join(dir, "urga-*.txt"))

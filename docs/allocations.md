@@ -120,9 +120,9 @@ A line under the title shows the state of three toggles:
   `right` (`h`, `l`) move sideways, and the line adds from which column the
   log shows, for example `Column:41`.
 
-`ctrl-e` switches between stdout and stderr. `ctrl-s` saves the log to a file
-in the current directory, as the filter shows it. `c` copies it to the
-clipboard.
+`ctrl-e` switches between stdout and stderr. `ctrl-s` saves the log, as
+the filter shows it, to a path you type: it starts with a name made of the
+task, the output and the time. `c` copies it to the clipboard.
 
 `f` asks for a word and lights it in the log without hiding any line. `n` and
 `N` go to the next and the previous match.

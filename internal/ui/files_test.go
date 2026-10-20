@@ -558,7 +558,8 @@ func TestFile_SaveWhatIsOnTheScreen(t *testing.T) {
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), file: written("DB_HOST=10.0.0.5\n")}
 	m := openedEnv(t, client)
 
-	m, cmd := m.update(ctrlKey('s'))
+	m, _ = m.update(ctrlKey('s'))
+	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
 	// Named after the file, not after the screen it was read on.
@@ -569,7 +570,7 @@ func TestFile_SaveWhatIsOnTheScreen(t *testing.T) {
 	saved, err := os.ReadFile(files[0])
 	r.NoError(err)
 	r.Equal("DB_HOST=10.0.0.5", string(saved))
-	r.Contains(plain(m.render()), filepath.Base(files[0]))
+	r.Contains(m.flash.text, filepath.Base(files[0]))
 }
 
 func TestFile_Wraps(t *testing.T) {
