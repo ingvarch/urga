@@ -32,7 +32,7 @@ var (
 
 	clientReads = []string{
 		"Address", "Region", "Agent", "Regions", "Datacenters", "AllocationChecks", "Files", "File", "Deployment", "JobDeployments", "DeploymentAllocations", "Token", "ServiceInstances",
-		"Jobs", "NextLaunch", "JobSpec", "JobVersions", "JobVersionDiff", "TaskGroups", "PlanJob", "PlanRevert", "JobTarget", "JobCounts",
+		"Jobs", "NextLaunch", "JobSpec", "JobMeta", "JobVersions", "JobVersionDiff", "TaskGroups", "PlanJob", "PlanRevert", "JobTarget", "JobCounts",
 		"DescribeJob", "DescribeAllocation", "DescribeDeployment", "DescribeService",
 		"Allocations", "NodeAllocations", "Allocation", "Logs", "LogBefore",
 		"Usage", "AllocationUsage", "TaskUsage", "NodeUsage",

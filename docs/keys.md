@@ -219,6 +219,7 @@ start, stop, restart or drain then applies to every marked row.
 | `t` | Task groups | |
 | `d` | Describe | |
 | `h` | Job file the job was submitted with | |
+| `m` | Meta of the job; `c` copies a value | |
 | `v` | Versions | |
 | `l` | Logs of a task in every allocation of the job. Not shown for a periodic or parameterized job. | |
 | `w` | Watch the deploy of the job at the version it runs. Not shown for a periodic or parameterized job. | |

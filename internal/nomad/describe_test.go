@@ -27,6 +27,29 @@ func TestDescribeJob(t *testing.T) {
 	r.Contains(out, "\n")
 }
 
+func TestJobMeta(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := recorder(t, `{"ID": "web", "Meta": {"owner": "team-web", "version": "3"}}`)
+
+	meta, err := client.JobMeta(context.Background(), "production", "web")
+	r.NoError(err)
+
+	r.Equal("/v1/job/web", asked.URL.Path)
+	r.Equal("production", asked.URL.Query().Get("namespace"))
+	r.Equal(map[string]string{"owner": "team-web", "version": "3"}, meta)
+}
+
+func TestJobMeta_AJobWithoutMetaGivesNone(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `{"ID": "web"}`)
+
+	meta, err := client.JobMeta(context.Background(), "production", "web")
+	r.NoError(err)
+	r.Empty(meta)
+}
+
 func TestDescribeAllocation(t *testing.T) {
 	r := require.New(t)
 

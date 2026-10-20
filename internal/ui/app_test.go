@@ -24,6 +24,7 @@ type fakeClient struct {
 	nodeAllocs  []nomad.Alloc
 	nodeDetail  nomad.NodeDetail
 	nodeMeta    []nomad.MetaEntry
+	jobMeta     map[string]string
 	versions    []nomad.JobVersion
 	diff        []nomad.DiffLine
 	groups      []nomad.TaskGroup
@@ -534,6 +535,12 @@ func (f *fakeClient) DescribeJob(_ context.Context, namespace, jobID string) (st
 	f.askedNamespace, f.askedID = namespace, jobID
 
 	return f.describe, f.err
+}
+
+func (f *fakeClient) JobMeta(_ context.Context, namespace, jobID string) (map[string]string, error) {
+	f.askedNamespace, f.askedID = namespace, jobID
+
+	return f.jobMeta, f.err
 }
 
 func (f *fakeClient) DescribeAllocation(_ context.Context, namespace, allocID string) (string, error) {

@@ -125,6 +125,13 @@ type (
 		meta   []nomad.MetaEntry
 	}
 
+	// jobMetaMsg carries the job it was requested for, like every answer
+	// about one job.
+	jobMetaMsg struct {
+		namespace, jobID string
+		meta             map[string]string
+	}
+
 	// raftMsg holds the raft peers of the cluster. An ACL may deny the
 	// request, and then the error is shown where the peers would have
 	// been.

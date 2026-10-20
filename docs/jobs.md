@@ -19,6 +19,8 @@ From the list:
 - `t` opens its task groups;
 - `d` shows the job as the cluster describes it;
 - `h` shows the job file it was submitted with;
+- `m` shows its meta, a key and its value on each row; `c` copies the value
+  under the cursor. A job without meta says so;
 - `v` opens its versions;
 - `o` shows the events of the job.
 
