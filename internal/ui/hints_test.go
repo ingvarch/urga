@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,7 @@ func everyScreenClient() *fakeClient {
 		nodeAllocs:  clientAllocs(),
 		nodeDetail:  clientDetail(),
 		nodeMeta:    clientMeta(),
+		identity:    &nomad.NodeIdentity{Expires: time.Now().Add(time.Hour), Claims: "{}"},
 		versions:    threeVersions(),
 		variables:   []nomad.Variable{{Path: "nomad/jobs/web", Namespace: "production"}},
 		nodePools:   []nomad.NodePool{{Name: "default"}},

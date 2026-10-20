@@ -130,6 +130,8 @@ type (
 		NodeMeta(ctx context.Context, nodeID string) ([]nomad.MetaEntry, error)
 		NodeMetaSpec(ctx context.Context, nodeID string) (string, error)
 		SubmitNodeMeta(ctx context.Context, nodeID, source string) error
+		NodeIdentity(ctx context.Context, nodeID string) (nomad.NodeIdentity, error)
+		RenewNodeIdentity(ctx context.Context, nodeID string) error
 		NodeUsage(ctx context.Context, nodeID string) (nomad.ResourceUse, error)
 		DrainNode(ctx context.Context, nodeID string, drain bool) error
 		SetNodeEligible(ctx context.Context, nodeID string, eligible bool) error

@@ -37,6 +37,9 @@ With several clients marked, these keys act on all of them that fit:
   new work;
 - when the client has a limit, how many allocations it holds of it, like
   `3 of 10`. Allocations that ended or are being stopped do not count;
+- when the client has an identity, when it expires, like `Identity expires in
+  23h` (Nomad 1.11 and later). On an older cluster, or an older client, none
+  of it shows;
 - charts of its CPU and memory use, read every 5 seconds while the screen is
   open. The charts keep the last 20 minutes. `u` reads them in percents or
   in numbers, scaled up to gigahertz and gibibytes.
@@ -51,7 +54,10 @@ From the client screen:
 - `ctrl-h` lists its host volumes;
 - `a` shows its attributes;
 - `m` shows its metadata. `e` opens the metadata in your editor, and urga
-  saves it to the client when you close the editor.
+  saves it to the client when you close the editor;
+- `i` shows the claims of its identity;
+- `ctrl-n` renews its identity after you confirm, and the client asks for a
+  new one at its next heartbeat.
 
 ## Servers
 

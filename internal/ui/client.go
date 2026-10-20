@@ -65,6 +65,10 @@ type hostModel struct {
 	node  nomad.Node
 	trail []nomad.ResourceUse
 
+	// identity is the identity of the client as last read, nil while it has
+	// none or is not read yet.
+	identity *nomad.NodeIdentity
+
 	// due is true while the next reading or its timer is pending. The list
 	// arrives again on every poll, and none of those answers may start a
 	// second chain of readings next to the first.
@@ -136,12 +140,18 @@ func (clientPage) where(env) string { return nomad.AllNamespaces }
 func (p clientPage) fetch(e env) tea.Cmd {
 	client, nodeID := e.client, p.nodeID
 
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
 			return client.NodeAllocations(ctx, nodeID)
 		}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
 		fetchHost(client, nodeID),
-	)
+	}
+
+	if hasIdentity(p.host.node) {
+		cmds = append(cmds, fetchIdentity(client, nodeID))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 func (p clientPage) take(msg tea.Msg, e env) (page, outcome, bool) {
@@ -159,7 +169,23 @@ func (p clientPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 		// The panel shows the machine as last read. This answer is not the
 		// list: it does not clear an error of the list from the status line,
 		// and it does not reschedule the poll.
+		known := hasIdentity(p.host.node)
 		p.host.node = nomad.Node(msg)
+
+		// The identity shows without waiting for the next poll once the
+		// machine says it is new enough to have one.
+		if !known && hasIdentity(p.host.node) {
+			return p, outcome{cmd: fetchIdentity(e.client, p.nodeID), reading: true}, true
+		}
+
+		return p, outcome{reading: true}, true
+
+	case identityMsg:
+		if msg.nodeID != p.nodeID {
+			return p, outcome{}, false
+		}
+
+		p.host.identity = msg.identity
 
 		return p, outcome{reading: true}, true
 
@@ -245,6 +271,8 @@ var clientKeys = append([]pageKey[clientPage]{
 	{press: "a", label: "Attributes", do: nodeScreen(func(d machine) page { return nodeAttributesPage{machine: d} })},
 	{press: "m", label: "Meta", do: nodeScreen(func(d machine) page { return nodeMetaPage{nodeID: d.nodeID, name: d.name} })},
 	{press: "u", label: "Units", do: toggleUnits},
+	{press: "i", label: "Identity", do: showIdentity, offered: holdsIdentity},
+	{press: "ctrl+n", label: "Renew", do: renewIdentity, writes: true, offered: holdsIdentity},
 }, allocKeys[clientPage]()...)
 
 func (p clientPage) keys(e env) []keyHint { return hintsOf(p, e, clientKeys) }
@@ -500,7 +528,10 @@ func (h hostModel) details(width int, held string) []string {
 		allocations = fmt.Sprintf("%s of %d", held, node.MaxAllocs)
 	}
 
-	return append(rows, fieldLineRows([][]field{{{"Allocations", allocations}}}, width)...)
+	return append(rows, fieldLineRows([][]field{{
+		{"Allocations", allocations},
+		{"Identity", identityText(h.identity)},
+	}}, width)...)
 }
 
 // eligibilityOf says whether the machine is taking work.
