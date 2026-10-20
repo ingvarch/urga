@@ -45,15 +45,16 @@ func (s sortState) marker(column int) string {
 
 // knownLetters are the letters of the columns most lists have, the ones
 // people know from other tools: they stay whatever else a list shows.
-var knownLetters = map[string]rune{"Name": 'n', "Age": 'a', "Status": 's', "State": 's', "Namespace": 'p'}
+var knownLetters = map[string]rune{"Name": 'n', "Age": 'a', "Status": 's', "State": 's', "Namespace": 'p', "Restarts": 'r'}
 
 // sortLetters is the letter of each column that orders the list by it: the
 // known one of a common column, otherwise the first letter of the title that
 // no other column has. Two columns that start alike each get one, the way
 // Topic and Type get T and Y. A column whose letters are all taken gets none.
+// G is never one: it goes to the bottom.
 func sortLetters(titles []string) []rune {
 	letters := make([]rune, len(titles))
-	taken := map[rune]bool{}
+	taken := map[rune]bool{'g': true}
 
 	for i, title := range titles {
 		if letter, ok := knownLetters[title]; ok && !taken[letter] {
