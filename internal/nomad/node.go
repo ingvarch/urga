@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -64,6 +65,50 @@ type NodeDetail struct {
 	Drivers    []Driver
 	Volumes    []HostVolume
 	Attributes map[string]string
+}
+
+// NodeIdentity is the identity the servers gave a client: when it expires,
+// and its claims as JSON, the way a describe shows them.
+type NodeIdentity struct {
+	Expires time.Time
+	Claims  string
+}
+
+// ErrNoIdentity says the cluster has no identity to read for the client: it
+// is older than Nomad 1.11, or the client is not connected.
+var ErrNoIdentity = errors.New("the client has no identity to read")
+
+// NodeIdentity reads the identity of a client. A client belongs to no
+// namespace.
+func (c *Client) NodeIdentity(ctx context.Context, nodeID string) (NodeIdentity, error) {
+	got, err := c.api.Nodes().Identity().Get(&api.NodeIdentityGetRequest{NodeID: nodeID}, c.query(ctx, ""))
+	if answered(err, http.StatusNotFound) {
+		return NodeIdentity{}, ErrNoIdentity
+	}
+
+	if err != nil {
+		return NodeIdentity{}, err
+	}
+
+	claims, err := asJSON(got.Claims)
+	if err != nil {
+		return NodeIdentity{}, err
+	}
+
+	identity := NodeIdentity{Claims: claims}
+	if exp, ok := got.Claims["exp"].(float64); ok {
+		identity.Expires = time.Unix(int64(exp), 0)
+	}
+
+	return identity, nil
+}
+
+// RenewNodeIdentity asks a client to get a new identity at its next
+// heartbeat.
+func (c *Client) RenewNodeIdentity(ctx context.Context, nodeID string) error {
+	_, err := c.api.Nodes().Identity().Renew(&api.NodeIdentityRenewRequest{NodeID: nodeID}, c.query(ctx, ""))
+
+	return err
 }
 
 // Node reads one client from the cluster instead of from the list, so a

@@ -129,6 +129,13 @@ type fakeClient struct {
 	// allocations carry the job after a slash.
 	lists map[string][]string
 
+	// identity is what a client answers for its identity; nil answers
+	// nomad.ErrNoIdentity, as a cluster older than 1.11 does.
+	identity      *nomad.NodeIdentity
+	identityErr   error
+	identityAsked []string
+	renewed       []string
+
 	askedNamespace   string
 	askedJobID       string
 	askedNodeID      string
@@ -469,6 +476,27 @@ func (f *fakeClient) Node(_ context.Context, nodeID string) (nomad.Node, error) 
 	}
 
 	return nomad.Node{}, f.err
+}
+
+func (f *fakeClient) NodeIdentity(_ context.Context, nodeID string) (nomad.NodeIdentity, error) {
+	f.identityAsked = append(f.identityAsked, nodeID)
+
+	if f.identityErr != nil {
+		return nomad.NodeIdentity{}, f.identityErr
+	}
+
+	if f.identity == nil {
+		return nomad.NodeIdentity{}, nomad.ErrNoIdentity
+	}
+
+	return *f.identity, nil
+}
+
+func (f *fakeClient) RenewNodeIdentity(_ context.Context, nodeID string) error {
+	f.wrote("RenewNodeIdentity")
+	f.renewed = append(f.renewed, nodeID)
+
+	return f.actionErr
 }
 
 func (f *fakeClient) WithAllocLimits(_ context.Context, nodes []nomad.Node) ([]nomad.Node, error) {

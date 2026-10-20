@@ -473,6 +473,8 @@ The client screen lists the allocations of the client. It has the keys of
 | `a` | Attributes | |
 | `m` | Metadata | |
 | `u` | Units: percents or numbers on the charts | |
+| `i` | Claims of the identity of the client. Shown when it has one. | |
+| `ctrl-n` | Renew the identity of the client. Shown when it has one. | yes |
 
 On drivers, `enter` opens the details of a driver. On attributes, metadata,
 driver details and a server, `c` copies the value under the cursor. On
