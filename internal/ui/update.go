@@ -91,7 +91,7 @@ func (m Model) fromPage(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return taken(m.openStream())
 
 	case saveMsg:
-		return taken(saveScreen(m))
+		return taken(m.askSave())
 
 	case copyTextMsg:
 		return taken(m.copyText())

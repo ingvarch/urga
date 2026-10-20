@@ -287,7 +287,8 @@ func TestSideways_SavingAfterMovingSavesTheWholeLine(t *testing.T) {
 	m := right(onLongLine(t))
 	r.NotZero(m.text.shift)
 
-	m, cmd := m.update(ctrlKey('s'))
+	m, _ = m.update(ctrlKey('s'))
+	m, cmd := m.update(enter())
 	drain(m, cmd)
 
 	files, err := filepath.Glob(filepath.Join(dir, "*.log"))
@@ -414,7 +415,8 @@ func TestSideways_SavingADescriptionKeepsItsTabs(t *testing.T) {
 
 	m := described(t, "job {\t# x")
 
-	m, cmd := m.update(ctrlKey('s'))
+	m, _ = m.update(ctrlKey('s'))
+	m, cmd := m.update(enter())
 	drain(m, cmd)
 
 	files, err := filepath.Glob(filepath.Join(dir, "*.txt"))

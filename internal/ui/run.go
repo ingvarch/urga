@@ -33,26 +33,42 @@ func (m Model) run(path string) (Model, tea.Cmd) {
 // readJobFile reads the file at path, which can start with ~/ for the home
 // directory.
 func readJobFile(path string) (string, error) {
-	full := path
-
-	if rest, ok := strings.CutPrefix(path, "~/"); ok {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("cannot read %s: %w", path, err)
-		}
-
-		full = filepath.Join(home, rest)
+	full, err := localPath(path)
+	if err != nil {
+		return "", fmt.Errorf("cannot read %s: %w", path, err)
 	}
 
 	content, err := os.ReadFile(full)
 	if err != nil {
-		var pathErr *fs.PathError
-		if errors.As(err, &pathErr) {
-			err = pathErr.Err
-		}
-
-		return "", fmt.Errorf("cannot read %s: %w", path, err)
+		return "", fmt.Errorf("cannot read %s: %w", path, reason(err))
 	}
 
 	return string(content), nil
+}
+
+// localPath is a path typed by a person: ~/ is the home directory, anything
+// else is as typed, so a relative path is from where urga runs.
+func localPath(typed string) (string, error) {
+	rest, ok := strings.CutPrefix(typed, "~/")
+	if !ok {
+		return typed, nil
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(home, rest), nil
+}
+
+// reason leaves out the path a *fs.PathError repeats: the message already
+// names it.
+func reason(err error) error {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return pathErr.Err
+	}
+
+	return err
 }

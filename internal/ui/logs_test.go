@@ -678,7 +678,8 @@ func TestLogs_SavedUnderTheTaskAndWhatItWrites(t *testing.T) {
 	m, cmd := m.update(ctrlKey('e'))
 	m = drain(m, cmd)
 
-	m, cmd = m.update(ctrlKey('s'))
+	m, _ = m.update(ctrlKey('s'))
+	m, cmd = m.update(enter())
 	drain(m, cmd)
 
 	files, err := filepath.Glob(filepath.Join(dir, "server-stderr-*.log"))

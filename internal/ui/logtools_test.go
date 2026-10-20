@@ -197,7 +197,8 @@ func TestLogs_SaveWhatIsOnTheScreen(t *testing.T) {
 
 	m, _ := onLogs(t, "ready to serve\n", "connection refused\n")
 
-	m, cmd := m.update(ctrlKey('s'))
+	m, _ = m.update(ctrlKey('s'))
+	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
 	files, err := filepath.Glob(filepath.Join(dir, "*.log"))
@@ -210,7 +211,7 @@ func TestLogs_SaveWhatIsOnTheScreen(t *testing.T) {
 	r.Contains(string(saved), "connection refused")
 
 	// The screen shows the file it was saved to.
-	r.Contains(plain(m.render()), filepath.Base(files[0]))
+	r.Contains(m.flash.text, filepath.Base(files[0]))
 }
 
 func TestLogs_SaveADescriptionToo(t *testing.T) {
@@ -227,7 +228,8 @@ func TestLogs_SaveADescriptionToo(t *testing.T) {
 	m, cmd := m.update(key('d'))
 	m = drain(m, cmd)
 
-	m, cmd = m.update(ctrlKey('s'))
+	m, _ = m.update(ctrlKey('s'))
+	m, cmd = m.update(enter())
 	drain(m, cmd)
 
 	// The file is named after what was described.
@@ -283,7 +285,8 @@ func TestLogs_SaveWhatTheFilterLeft(t *testing.T) {
 	m = typeIn(m, "refused")
 	m, _ = m.update(enter())
 
-	m, cmd := m.update(ctrlKey('s'))
+	m, _ = m.update(ctrlKey('s'))
+	m, cmd := m.update(enter())
 	drain(m, cmd)
 
 	files, _ := filepath.Glob(filepath.Join(dir, "*.log"))

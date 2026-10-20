@@ -523,7 +523,8 @@ func TestJobLogs_SavedUnderTheJobTheTaskAndWhatItWrites(t *testing.T) {
 
 	m, _ := oneTask(t)
 
-	m, cmd := m.update(ctrlKey('s'))
+	m, _ = m.update(ctrlKey('s'))
+	m, cmd := m.update(enter())
 	drain(m, cmd)
 
 	files, err := filepath.Glob(filepath.Join(dir, "web-server-stdout-*.log"))
