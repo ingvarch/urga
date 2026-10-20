@@ -1,10 +1,16 @@
 package nomad
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
+	"net/http"
+	"slices"
 	"sort"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -70,7 +76,7 @@ func (c *Client) Node(ctx context.Context, nodeID string) (Node, error) {
 
 	// The answer holds more than a list entry; copying it into a list stub
 	// lets newNode build both.
-	return newNode(&api.NodeListStub{
+	full := newNode(&api.NodeListStub{
 		ID:                    node.ID,
 		Name:                  node.Name,
 		Datacenter:            node.Datacenter,
@@ -81,7 +87,140 @@ func (c *Client) Node(ctx context.Context, nodeID string) (Node, error) {
 		Drain:                 node.Drain,
 		Address:               node.HTTPAddr,
 		NodeResources:         node.NodeResources,
-	}), nil
+	})
+	full.MaxAllocs = node.NodeMaxAllocs
+
+	return full, nil
+}
+
+// WithAllocLimits returns the clients with the allocation limit of those that
+// have one, and how many allocations hold a place on them. The list does not
+// carry the limit, so it reads the clients the cluster says have one, and
+// the allocations of those only.
+func (c *Client) WithAllocLimits(ctx context.Context, nodes []Node) ([]Node, error) {
+	q := c.query(ctx, "")
+	q.Filter = "NodeMaxAllocs != 0"
+
+	stubs, _, err := c.api.Nodes().List(q)
+	if err != nil {
+		// A cluster older than 1.10.2 may refuse a filter on a field it lacks.
+		if answered(err, http.StatusBadRequest) {
+			return nodes, nil
+		}
+
+		return nil, err
+	}
+
+	limits, err := c.allocLimits(ctx, nodes, stubs)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(limits) == 0 {
+		return nodes, nil
+	}
+
+	held, err := c.heldPlaces(ctx, limits)
+	// A token that reads clients but no job in any namespace cannot count
+	// the allocations; the clients go without a limit.
+	if Forbidden(err) {
+		return nodes, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	out := slices.Clone(nodes)
+	for i, node := range out {
+		if limit, ok := limits[node.ID]; ok {
+			out[i].MaxAllocs, out[i].Allocs = limit, held[node.ID]
+		}
+	}
+
+	return out, nil
+}
+
+// limitReaders is how many clients are read at once.
+const limitReaders = 8
+
+// allocLimits reads the limit of each client of nodes that the filtered list
+// named, a few at a time. A client that is gone since the list is left out.
+func (c *Client) allocLimits(ctx context.Context, nodes []Node, stubs []*api.NodeListStub) (map[string]int, error) {
+	ours := make(map[string]bool, len(nodes))
+	for _, node := range nodes {
+		ours[node.ID] = true
+	}
+
+	var (
+		mu       sync.Mutex
+		wg       sync.WaitGroup
+		firstErr error
+		limits   = map[string]int{}
+		slots    = make(chan struct{}, limitReaders)
+	)
+
+	for _, stub := range stubs {
+		if !ours[stub.ID] {
+			continue
+		}
+
+		slots <- struct{}{}
+
+		wg.Go(func() {
+			defer func() { <-slots }()
+
+			node, _, err := c.api.Nodes().Info(stub.ID, c.query(ctx, ""))
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			switch {
+			case answered(err, http.StatusNotFound):
+			case err != nil:
+				firstErr = cmp.Or(firstErr, err)
+			case node.NodeMaxAllocs != 0:
+				limits[stub.ID] = node.NodeMaxAllocs
+			}
+		})
+	}
+
+	wg.Wait()
+
+	if firstErr != nil {
+		return nil, firstErr
+	}
+
+	return limits, nil
+}
+
+// heldPlaces counts, per client of limits, the allocations that hold a place
+// on it. One request asks for the allocations of those clients only.
+func (c *Client) heldPlaces(ctx context.Context, limits map[string]int) (map[string]int, error) {
+	ids := slices.Sorted(maps.Keys(limits))
+
+	terms := make([]string, 0, len(ids))
+	for _, id := range ids {
+		terms = append(terms, fmt.Sprintf("NodeID == %q", id))
+	}
+
+	q := c.query(ctx, AllNamespaces)
+	q.Filter = strings.Join(terms, " or ")
+
+	allocs, _, err := c.api.Allocations().List(q)
+	if err != nil {
+		return nil, err
+	}
+
+	held := map[string]int{}
+
+	for _, alloc := range allocs {
+		if holdsPlace(alloc.DesiredStatus, alloc.ClientStatus) {
+			held[alloc.NodeID]++
+		}
+	}
+
+	return held, nil
 }
 
 // NodeDetail reads everything the cluster holds about one client.

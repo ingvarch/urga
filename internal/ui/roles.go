@@ -124,6 +124,7 @@ type (
 	// they are grouped in.
 	nodesClient interface {
 		Nodes(ctx context.Context) ([]nomad.Node, error)
+		WithAllocLimits(ctx context.Context, nodes []nomad.Node) ([]nomad.Node, error)
 		Node(ctx context.Context, nodeID string) (nomad.Node, error)
 		NodeDetail(ctx context.Context, nodeID string) (nomad.NodeDetail, error)
 		NodeMeta(ctx context.Context, nodeID string) ([]nomad.MetaEntry, error)

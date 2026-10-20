@@ -128,6 +128,13 @@ type Node struct {
 	// measured against them.
 	CPUShares int
 	MemoryMB  int
+
+	// MaxAllocs is how many allocations the client takes at most, zero for
+	// no limit, and Allocs how many hold a place on it. Only WithAllocLimits
+	// counts Allocs, and only for a client with a limit; Node leaves it
+	// zero, because the client screen counts its own list.
+	MaxAllocs int
+	Allocs    int
 }
 
 // Nodes lists the clients of the cluster.
