@@ -131,6 +131,7 @@ func TestNamespaceTasks_TheHeaderShowsTheKeysOfATask(t *testing.T) {
 		{Key: "<s>", Description: "Shell"},
 		{Key: "<r>", Description: "Restart"},
 		{Key: "<x>", Description: "Signal"},
+		{Key: "<ctrl-x>", Description: "Run Command"},
 		{Key: "<b>", Description: "Browse"},
 	}, m.hints())
 }

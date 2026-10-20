@@ -209,6 +209,10 @@ func (m Model) title() string {
 		title += sprintf(", from column %d", m.text.shift+1)
 	}
 
+	if p, ok := m.screen.page.(endTitled); ok {
+		title += p.titleEnd()
+	}
+
 	return title
 }
 

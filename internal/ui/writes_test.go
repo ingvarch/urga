@@ -20,7 +20,7 @@ var (
 	clientWrites = []string{
 		"SubmitJob", "SubmitNamespace", "SubmitNodeMeta", "SubmitVariable",
 		"StartJob", "StopJob", "LaunchJob", "RevertJobTo", "ScaleJob",
-		"RestartAllocation", "RestartAllTasks", "StopAllocation", "RestartTask", "SignalTask", "PromoteGroups", "PauseDeployment", "DeleteServiceRegistration",
+		"RestartAllocation", "RestartAllTasks", "StopAllocation", "RestartTask", "SignalTask", "RunCommand", "PromoteGroups", "PauseDeployment", "DeleteServiceRegistration",
 		"DrainNode", "SetNodeEligible", "RenewNodeIdentity",
 		"PromoteDeployment", "FailDeployment",
 		"DetachVolume", "ReleaseClaim", "DispatchJob", "EvaluateJob", "RescheduleFailed",

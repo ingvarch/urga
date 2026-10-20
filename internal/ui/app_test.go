@@ -176,6 +176,12 @@ type fakeClient struct {
 	signalledTask string
 	signal        string
 
+	// output is what any command printed; ranCommand and ranTask are the
+	// last one run and the task it ran in.
+	output     nomad.CommandOutput
+	ranCommand []string
+	ranTask    string
+
 	// files are the directories of any allocation by path, and which one
 	// was listed last.
 	files          map[string][]nomad.File
@@ -924,6 +930,14 @@ func (f *fakeClient) SignalTask(_ context.Context, namespace, allocID, task, sig
 	f.signalledTask, f.signal = task, signal
 
 	return f.actionErr
+}
+
+func (f *fakeClient) RunCommand(_ context.Context, namespace, allocID, task string, command []string) (nomad.CommandOutput, error) {
+	f.wrote("RunCommand")
+	f.askedNamespace, f.askedID = namespace, allocID
+	f.ranTask, f.ranCommand = task, command
+
+	return f.output, f.actionErr
 }
 
 func (f *fakeClient) StopAllocation(_ context.Context, namespace, allocID string) error {

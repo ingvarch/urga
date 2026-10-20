@@ -120,11 +120,16 @@ func saveName(p page) string {
 
 var notInAName = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
+// nameLength keeps a name, with the time and extension after it, well under
+// the 255 bytes a file name can hold.
+const nameLength = 100
+
 func plainName(what string) string {
 	name := strings.Trim(notInAName.ReplaceAllString(what, "-"), "-")
 	if name == "" {
 		return "urga"
 	}
 
-	return name
+	// The name is ASCII, so any byte is a rune boundary.
+	return strings.TrimRight(name[:min(len(name), nameLength)], "-")
 }

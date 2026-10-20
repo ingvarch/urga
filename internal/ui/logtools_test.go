@@ -330,4 +330,7 @@ func TestLogs_ASaveNameIsAName(t *testing.T) {
 	r.Equal("urga", plainName(""))
 	r.Equal("web", plainName("/web/"))
 	r.Equal("Job-web", plainName("Job: web"))
+
+	// A long name cut on a dash does not end with one before the time.
+	r.Equal(strings.Repeat("a", nameLength-1), plainName(strings.Repeat("a", nameLength-1)+" b"))
 }

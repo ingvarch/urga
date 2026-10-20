@@ -97,6 +97,7 @@ type (
 		RestartAllTasks(ctx context.Context, namespace, allocID string) error
 		RestartTask(ctx context.Context, namespace, allocID, task string) error
 		SignalTask(ctx context.Context, namespace, allocID, task, signal string) error
+		RunCommand(ctx context.Context, namespace, allocID, task string, command []string) (nomad.CommandOutput, error)
 		StopAllocation(ctx context.Context, namespace, allocID string) error
 	}
 

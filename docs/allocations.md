@@ -82,8 +82,9 @@ capital letter sorts by a column: `R` by restarts, `U` by uptime.
 
 The keys of a task work on the row: `enter` and `ctrl-e` for the logs, `e` for
 the events, `o` for the events of its allocation, `b` for the files, `s` for a
-shell, `r` to restart and `x` to send a signal. They act on the task in its
-own allocation and namespace, also when the session looks at every namespace.
+shell, `r` to restart, `x` to send a signal and `ctrl-x` to run a command.
+They act on the task in its own allocation and namespace, also when the
+session looks at every namespace.
 
 The list is read from the allocation list in one request, so there is no CPU
 and memory column: they would cost a request for each task. It holds the
@@ -113,6 +114,13 @@ These keys work on the task under the cursor while it is running:
 - `s` opens a shell in the task. urga starts `bash` if the task has it, and
   `sh` if not. The shell opens on a clean screen. What the terminal showed
   before, an earlier shell included, is still in its scrollback.
+- `ctrl-x` asks for a command and runs it with `/bin/sh -c`, without a
+  terminal and with nothing on its stdin. It opens what the command printed to
+  stdout and stderr, in the order it printed it, with the exit code in the
+  title. `/`, `f`, `c`, `ctrl-s` and `w` work on it as on a log. Of an output
+  larger than 1 MiB it keeps the last 1 MiB, and the title says so. urga waits
+  10 seconds for the command and then shows an error. A task without `/bin/sh`
+  cannot run it.
 
 urga only sends a signal name that Nomad knows. When a Nomad client gets a
 name it does not know, it sends `SIGINT` instead, which stops most tasks. So
