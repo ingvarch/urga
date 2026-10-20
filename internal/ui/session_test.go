@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/config"
@@ -20,12 +22,51 @@ func sessionModel(t *testing.T, client Client) (Model, *config.Config) {
 func sessionModelAt(t *testing.T, client Client, path string) (Model, *config.Config) {
 	t.Helper()
 
-	cfg := config.Load(path)
+	cfg := sessionConfig(t, path)
 
 	m := New(client, Options{Namespace: "production", Version: "v-test", Config: cfg, PollEvery: time.Millisecond})
 	m, _ = m.update(sizeMsg())
 
 	return m, cfg
+}
+
+// sessionConfig loads the config at path for a test. A write the test left
+// running, which a slow machine takes for a timer, finishes before the
+// folder is removed, and one that starts later finds a newer snapshot
+// written and writes nothing.
+func sessionConfig(t *testing.T, path string) *config.Config {
+	t.Helper()
+
+	cfg := config.Load(path)
+
+	t.Cleanup(func() {
+		snapshot, err := cfg.Snapshot()
+		require.NoError(t, err)
+		require.NoError(t, cfg.Write(snapshot))
+	})
+
+	return cfg
+}
+
+func TestSessionModel_AWriteLeftRunningDoesNothingOnceTheTestEnds(t *testing.T) {
+	var (
+		late tea.Cmd
+		dir  string
+	)
+
+	t.Run("a test that leaves a write running", func(t *testing.T) {
+		dir = t.TempDir()
+		m, _ := sessionModelAt(t, &fakeClient{}, filepath.Join(dir, "config.json"))
+		late = m.remember()
+	})
+
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	// A slow machine runs it after the test ended and removed its folder.
+	late()
+
+	_, err := os.Stat(dir)
+	require.ErrorIs(t, err, os.ErrNotExist, "the late write made the folder again")
 }
 
 func TestSession_RemembersTheNamespace(t *testing.T) {
@@ -72,7 +113,7 @@ func TestSession_RemembersTheOrderOfTheKeys(t *testing.T) {
 func TestSession_StartsWhereItStopped(t *testing.T) {
 	r := require.New(t)
 
-	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
+	cfg := sessionConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.UseNamespace(nomad.AllNamespaces)
 	cfg.Screen = "nodes"
@@ -90,7 +131,7 @@ func TestSession_StartsWhereItStopped(t *testing.T) {
 func TestSession_ANamespaceGivenOnTheCommandLineWins(t *testing.T) {
 	r := require.New(t)
 
-	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
+	cfg := sessionConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.UseNamespace("staging")
 	cfg.Screen = "nodes"
@@ -169,7 +210,7 @@ func TestSession_RemembersTheScreenAfterGoingBack(t *testing.T) {
 func TestSession_EachClusterComesBackToItsOwn(t *testing.T) {
 	r := require.New(t)
 
-	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
+	cfg := sessionConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.Of("").UseNamespace("default")
 	cfg.Of("prod").UseNamespace("batch")

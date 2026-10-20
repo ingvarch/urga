@@ -39,7 +39,7 @@ func (c *twoClusters) connect(name string) (Connection, error) {
 func onDev(t *testing.T) (Model, *twoClusters) {
 	t.Helper()
 
-	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
+	cfg := sessionConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
 	// Both clusters stream their events, like a cluster that allows it, so
 	// no warning about polling hides the messages of the switch.
