@@ -17,6 +17,7 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	for _, route := range []func(Model, tea.Msg) (Model, tea.Cmd, bool){
 		Model.fromTerminal,
 		Model.fromPage,
+		Model.fromWindow,
 		Model.fromAction,
 		Model.fromSession,
 		Model.keepingUp,
@@ -72,21 +73,6 @@ func (m Model) fromPage(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case forgetMsg:
 		return m.forget(), nil, true
 
-	case wrapMsg:
-		return taken(wrapLines(m))
-
-	case followMsg:
-		return taken(toggleAutoscroll(m))
-
-	case timesMsg:
-		return taken(showTimes(m))
-
-	case findWordMsg:
-		return taken(m.askFind())
-
-	case matchMsg:
-		return taken(m.goToMatch(int(msg)))
-
 	case reopenMsg:
 		return taken(m.openStream())
 
@@ -107,6 +93,31 @@ func (m Model) fromPage(msg tea.Msg) (Model, tea.Cmd, bool) {
 
 	case markAllMsg:
 		return taken(markAll(m))
+	}
+
+	return m, nil, false
+}
+
+// fromWindow takes what a page asks of the window over a text.
+func (m Model) fromWindow(msg tea.Msg) (Model, tea.Cmd, bool) {
+	switch msg := msg.(type) {
+	case wrapMsg:
+		return taken(wrapLines(m))
+
+	case followMsg:
+		return taken(toggleAutoscroll(m))
+
+	case timesMsg:
+		return taken(showTimes(m))
+
+	case linesBeforeMsg:
+		return taken(keepPlace(m, int(msg)))
+
+	case findWordMsg:
+		return taken(m.askFind())
+
+	case matchMsg:
+		return taken(m.goToMatch(int(msg)))
 	}
 
 	return m, nil, false

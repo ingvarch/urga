@@ -31,7 +31,7 @@ func TestStreamLines_EndWhenCancelledAndFramesStayOpen(t *testing.T) {
 	frames := make(chan *api.StreamFrame)
 	cancel := make(chan struct{})
 
-	lines := streamLines(frames, neverCut, nil, cancel)
+	lines := streamLines(frames, neverCut, nil, nil, cancel)
 
 	close(cancel)
 
@@ -41,7 +41,7 @@ func TestStreamLines_EndWhenCancelledAndFramesStayOpen(t *testing.T) {
 func TestStreamLines_EndWhenCancelledOnNoFrames(t *testing.T) {
 	cancel := make(chan struct{})
 
-	lines := streamLines(nil, neverCut, nil, cancel)
+	lines := streamLines(nil, neverCut, nil, nil, cancel)
 
 	close(cancel)
 
@@ -66,7 +66,7 @@ func TestStreamLines_UnblockAProducerWaitingOnFullFrames(t *testing.T) {
 		close(frames)
 	}()
 
-	lines := streamLines(frames, neverCut, nil, cancel)
+	lines := streamLines(frames, neverCut, nil, nil, cancel)
 
 	close(cancel)
 
@@ -91,7 +91,7 @@ func chunksOf(t *testing.T, data ...string) []string {
 
 	close(frames)
 
-	lines := streamLines(frames, neverCut, nil, make(chan struct{}))
+	lines := streamLines(frames, neverCut, nil, nil, make(chan struct{}))
 
 	var chunks []string
 
@@ -137,7 +137,7 @@ func TestStreamLines_SendAHeldLineThatNeverEndsPastTheTail(t *testing.T) {
 	frames := make(chan *api.StreamFrame, 1)
 	cancel := make(chan struct{})
 
-	lines := streamLines(frames, neverCut, nil, cancel)
+	lines := streamLines(frames, neverCut, nil, nil, cancel)
 
 	frames <- &api.StreamFrame{Data: []byte(strings.Repeat("x", logTail+1))}
 
@@ -157,7 +157,7 @@ func TestStreamLines_EndTheLineSentPastTheTailWithoutAnEmptyOne(t *testing.T) {
 
 	defer close(cancel)
 
-	lines := streamLines(frames, neverCut, nil, cancel)
+	lines := streamLines(frames, neverCut, nil, nil, cancel)
 
 	frames <- &api.StreamFrame{Data: []byte(strings.Repeat("x", logTail+1))}
 	frames <- &api.StreamFrame{Data: []byte("\nnext\n")}
@@ -171,7 +171,7 @@ func TestStreamLines_DropWhatIsHeldWhenCancelled(t *testing.T) {
 	frames := make(chan *api.StreamFrame, 1)
 	cancel := make(chan struct{})
 
-	lines := streamLines(frames, neverCut, nil, cancel)
+	lines := streamLines(frames, neverCut, nil, nil, cancel)
 
 	frames <- &api.StreamFrame{Data: []byte("part")}
 
@@ -213,7 +213,7 @@ func TestStreamLines_SendTheEndOfAFileWhenItIsReadToItsSize(t *testing.T) {
 
 	frames <- &api.StreamFrame{Data: []byte("a=1\nb=2"), Offset: 7}
 
-	lines := streamLines(frames, neverCut, atSize(7), cancel)
+	lines := streamLines(frames, neverCut, atSize(7), nil, cancel)
 
 	require.Equal(t, "a=1\nb=2", strings.Join(collect(t, lines, 1), ""))
 }
@@ -228,7 +228,7 @@ func TestStreamLines_EndTheLineSentAtTheSizeWithoutRepeatingIt(t *testing.T) {
 	frames <- &api.StreamFrame{Data: []byte("\nc=3"), Offset: 11}
 	frames <- &api.StreamFrame{Data: []byte("\n"), Offset: 12}
 
-	lines := streamLines(frames, neverCut, atSize(7), cancel)
+	lines := streamLines(frames, neverCut, atSize(7), nil, cancel)
 
 	got := collect(t, lines, 2)
 
@@ -251,7 +251,7 @@ func TestStreamLines_JoinALineAfterTheSizeSplitAcrossFrames(t *testing.T) {
 	frames <- &api.StreamFrame{Data: []byte("first li"), Offset: 12}
 	frames <- &api.StreamFrame{Data: []byte("ne\n"), Offset: 15}
 
-	lines := streamLines(frames, neverCut, atSize(4), cancel)
+	lines := streamLines(frames, neverCut, atSize(4), nil, cancel)
 
 	require.Equal(t, []string{"a=1\n", "first line\n"}, collect(t, lines, 2))
 }
@@ -266,7 +266,7 @@ func TestStreamLines_NoEndOfAFileThatWasEmpty(t *testing.T) {
 	frames <- &api.StreamFrame{Data: []byte("ne\nsec"), Offset: 14}
 	frames <- &api.StreamFrame{Data: []byte("ond\n"), Offset: 18}
 
-	lines := streamLines(frames, neverCut, nil, cancel)
+	lines := streamLines(frames, neverCut, nil, nil, cancel)
 
 	require.Equal(t, []string{"first line\n", "second\n"}, collect(t, lines, 2))
 }
@@ -277,7 +277,7 @@ func TestStreamLines_HoldALogLineUntilItsBreakWhileFramesStayOpen(t *testing.T) 
 
 	defer close(cancel)
 
-	lines := streamLines(frames, neverCut, nil, cancel)
+	lines := streamLines(frames, neverCut, nil, nil, cancel)
 
 	frames <- &api.StreamFrame{Data: []byte("waiting")}
 

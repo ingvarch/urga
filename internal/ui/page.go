@@ -253,6 +253,10 @@ type (
 	followMsg   struct{}
 	timesMsg    struct{}
 
+	// linesBeforeMsg says that many lines were put in front of the text: the
+	// window stays on the lines it showed.
+	linesBeforeMsg int
+
 	// findWordMsg asks for a word to find in the text, and matchMsg goes to the
 	// next match of it, or the previous one when negative.
 	findWordMsg struct{}

@@ -103,6 +103,7 @@ type (
 	// of its allocation.
 	filesClient interface {
 		Logs(ctx context.Context, namespace, allocID, task, source string) (*nomad.LogStream, error)
+		LogBefore(ctx context.Context, namespace, allocID string, at nomad.LogMark, limit int) (nomad.LogPart, error)
 		Files(ctx context.Context, namespace, allocID, path string) ([]nomad.File, error)
 		File(ctx context.Context, namespace, allocID, path string) (*nomad.LogStream, error)
 	}

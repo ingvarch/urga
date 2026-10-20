@@ -26,6 +26,13 @@ type (
 	logLineMsg struct {
 		stream *nomad.LogStream
 		text   string
+		start  nomad.LogMark
+	}
+
+	// logPartMsg is the part of a log read from before the mark at.
+	logPartMsg struct {
+		at   nomad.LogMark
+		part nomad.LogPart
 	}
 
 	logEndMsg struct{ stream *nomad.LogStream }
@@ -50,6 +57,11 @@ type logState struct {
 	// reading began.
 	size int64
 	from int64
+
+	// before is where the text starts in the log, and more says the cluster
+	// keeps more of the log before it.
+	before nomad.LogMark
+	more   bool
 }
 
 // logsPage is what one task of an allocation writes to stdout or stderr,
@@ -78,7 +90,7 @@ func (p logsPage) title(env, int) string {
 		source += ", task finished"
 	}
 
-	return fmt.Sprintf("Logs (Task: %s, Allocation: %s) [%s]", p.task, shortID(p.allocID), source)
+	return fmt.Sprintf("Logs (Task: %s, Allocation: %s) [%s%s]", p.task, shortID(p.allocID), source, p.read.span())
 }
 
 func (logsPage) titles() []string           { return nil }
@@ -125,6 +137,12 @@ func (p logsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 		took bool
 	)
 
+	if part, ok := msg.(logPartMsg); ok {
+		p.read, out, took = p.read.earlier(part)
+
+		return p, out, took
+	}
+
 	// A stream opened for a log that is no longer on the screen never gets
 	// here: it was for a request that is over.
 	if opened, ok := msg.(logStreamMsg); ok {
@@ -145,6 +163,7 @@ var logsKeys = append([]pageKey[logsPage]{
 	{press: "ctrl+e", label: "Stderr", do: switchSource, offered: readsSource(nomad.LogStdout)},
 	{press: "ctrl+e", label: "Stdout", do: switchSource, offered: readsSource(nomad.LogStderr)},
 	{press: "p", label: "Previous Alloc", do: openPrevious, offered: hasPrevious},
+	{press: "e", label: "Read Earlier", do: readEarlier, offered: hasEarlier},
 	wrapKey[logsPage](),
 	timesKey[logsPage](),
 	saveKey[logsPage](),
@@ -182,6 +201,26 @@ func openPrevious(p logsPage, _ env) (logsPage, outcome) {
 	return p, then(openMsg{previous})
 }
 
+// hasEarlier says the cluster keeps more of the log before what is shown,
+// and the screen has room for it: a text that dropped lines is full.
+func hasEarlier(p logsPage, _ env) bool {
+	return p.read.more && len(p.read.content.lines) < maxTextLines
+}
+
+// readEarlier reads the step of the log before what is shown, to put above
+// it. The answer says which mark it was read for, so that a second press
+// while one is out does not put the same lines twice.
+func readEarlier(p logsPage, e env) (logsPage, outcome) {
+	client, namespace, allocID := e.client, p.namespace, p.allocID
+	at, room := p.read.before, maxTextLines-len(p.read.content.lines)
+
+	read := request(func(ctx context.Context) (nomad.LogPart, error) {
+		return client.LogBefore(ctx, namespace, allocID, at, room)
+	}, func(part nomad.LogPart) tea.Msg { return logPartMsg{at: at, part: part} })
+
+	return p, then(requestMsg(read))
+}
+
 // waitForLog waits for the next thing the task writes.
 func (l logState) waitForLog() tea.Cmd {
 	return waitForStream(l.stream)
@@ -200,7 +239,7 @@ func waitForStream(stream *nomad.LogStream) tea.Cmd {
 				return logEndMsg{stream: stream}
 			}
 
-			return logLineMsg{stream: stream, text: line}
+			return logLineMsg{stream: stream, text: line, start: stream.Start()}
 
 		case err := <-stream.Err:
 			if err != nil {
@@ -244,6 +283,11 @@ func (l logState) take(msg tea.Msg) (logState, outcome, bool) {
 			return l, outcome{}, false
 		}
 
+		// The stream's first line says where in the log the text starts.
+		if l.before == (nomad.LogMark{}) && msg.start != (nomad.LogMark{}) {
+			l.before, l.more = msg.start, !msg.start.AtStart()
+		}
+
 		// When each line arrived is written down: a task writes no time of
 		// its own, and the time urga read it is the only one there is.
 		l.content.add(linesOf(msg.text), time.Now(), nil, nil)
@@ -259,6 +303,49 @@ func (l logState) take(msg tea.Msg) (logState, outcome, bool) {
 	}
 
 	return l, outcome{}, false
+}
+
+// earlier puts a part read from before the text in front of it, when it was
+// read for the place the text starts at now. The answer is dropped if the
+// stream took lines off the front meanwhile: the text no longer starts there.
+// It is also dropped if the stream added so many lines meanwhile that it no
+// longer fits under the limit, with a warning: the press shows nothing else.
+func (l logState) earlier(msg logPartMsg) (logState, outcome, bool) {
+	if msg.at != l.before || l.content.dropped > 0 {
+		return l, outcome{}, false
+	}
+
+	if len(l.content.lines)+len(msg.part.Lines) > maxTextLines {
+		return l, outcome{now: []tea.Msg{warnMsg("The lines read back no longer fit on the screen.")}, reading: true}, true
+	}
+
+	l.content.addBefore(msg.part.Lines)
+	l.before = msg.part.From
+	l.size, l.from = msg.part.Size, msg.part.Before
+	l.more = msg.part.Before > 0
+
+	said := sprintf("Read %s further back", plural(len(msg.part.Lines), "line"))
+
+	switch {
+	case len(msg.part.Lines) == 0:
+		said = "Nothing further back in the log."
+	case !l.more:
+		said += ", to the start of the log."
+	default:
+		said += "."
+	}
+
+	return l, outcome{now: []tea.Msg{linesBeforeMsg(len(msg.part.Lines)), sayMsg(said)}, reading: true}, true
+}
+
+// span says how much of a log or a file was read when only its end was:
+// ", last 1.1 MiB of 5.3 MiB".
+func (l logState) span() string {
+	if l.from <= 0 {
+		return ""
+	}
+
+	return fmt.Sprintf(", last %s of %s", sizeOf(l.size-l.from), sizeOf(l.size))
 }
 
 // linesOf are the lines of a chunk a stream sent: the newline it ends with
@@ -359,6 +446,21 @@ func (m Model) readsAStream() bool {
 	_, ok := m.screen.page.(streamer)
 
 	return ok
+}
+
+// keepPlace keeps the window on the lines it showed after n lines were put
+// in front of the text. A window that follows the end stays at the end.
+func keepPlace(m Model, n int) (Model, tea.Cmd) {
+	m.layout()
+
+	for _, rows := range m.text.kept.counts[:min(n, len(m.text.kept.counts))] {
+		m.text.top += rows
+		m.text.at += rows
+	}
+
+	m.text.follow()
+
+	return m, nil
 }
 
 // showTimes puts when each line was read in front of it. Only a log has

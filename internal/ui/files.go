@@ -179,12 +179,7 @@ type filePage struct {
 // title says which file of which allocation it is, and when only its end
 // was read, how much of it.
 func (p filePage) title(env, int) string {
-	what := p.path
-	if p.read.from > 0 {
-		what += fmt.Sprintf(", last %s of %s", sizeOf(p.read.size-p.read.from), sizeOf(p.read.size))
-	}
-
-	return fmt.Sprintf("File (Allocation: %s) [%s]", shortID(p.allocID), what)
+	return fmt.Sprintf("File (Allocation: %s) [%s%s]", shortID(p.allocID), p.path, p.read.span())
 }
 
 func (filePage) titles() []string           { return nil }

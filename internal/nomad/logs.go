@@ -3,7 +3,7 @@ package nomad
 import (
 	"bytes"
 	"context"
-	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -53,6 +53,19 @@ type LogStream struct {
 	OnClose func()
 
 	cancel chan struct{}
+
+	// start is written by the goroutine that reads the frames.
+	start atomic.Pointer[LogMark]
+}
+
+// Start is where the first line the stream sent begins: the zero mark until
+// it sent one.
+func (s *LogStream) Start() LogMark {
+	if mark := s.start.Load(); mark != nil {
+		return *mark
+	}
+
+	return LogMark{}
 }
 
 // Close stops the stream and the request behind it.
@@ -88,9 +101,10 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 
 	frames, errs := c.api.AllocFS().Logs(alloc, !finished, task, source, "end", logTail, cancel, c.query(context.Background(), namespace))
 
-	lines := streamLines(frames, startsCut, nil, cancel)
+	stream := &LogStream{Err: errs, Finished: finished, Previous: alloc.PreviousAllocation, cancel: cancel}
+	stream.Lines = streamLines(frames, startsCut, nil, &stream.start, cancel)
 
-	return &LogStream{Lines: lines, Err: errs, Finished: finished, Previous: alloc.PreviousAllocation, cancel: cancel}, nil
+	return stream, nil
 }
 
 // streamLines passes on what the frames hold, from the first whole line when
@@ -100,7 +114,9 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 // the stream ends, or after logTail bytes. atEnd, when not nil, says a frame
 // reached the end of what was there when the stream began, and what is held
 // is sent after it, once: a file does not end, so its last line gets no break.
-func streamLines(frames <-chan *api.StreamFrame, startsCut, atEnd func(frame *api.StreamFrame) bool, cancel <-chan struct{}) <-chan string {
+// start, when not nil, gets the mark of the first byte sent, before anything
+// is sent.
+func streamLines(frames <-chan *api.StreamFrame, startsCut, atEnd func(frame *api.StreamFrame) bool, start *atomic.Pointer[LogMark], cancel <-chan struct{}) <-chan string {
 	lines := make(chan string)
 
 	go func() {
@@ -109,7 +125,7 @@ func streamLines(frames <-chan *api.StreamFrame, startsCut, atEnd func(frame *ap
 		send := func(chunk []byte) bool { return sendChunk(lines, chunk, frames, cancel) }
 
 		var (
-			whole = wholeLines{first: true, startsCut: startsCut}
+			whole = wholeLines{first: true, startsCut: startsCut, start: start}
 			frame *api.StreamFrame
 			open  bool
 		)
@@ -163,6 +179,9 @@ type wholeLines struct {
 	// a line whose start was not read is still to be dropped.
 	first, cut bool
 	startsCut  func(first *api.StreamFrame) bool
+
+	// start, when not nil, is set once, to where the first byte kept is.
+	start *atomic.Pointer[LogMark]
 }
 
 // add takes a frame and gives back what is whole up to its last line break,
@@ -185,6 +204,8 @@ func (w *wholeLines) add(frame *api.StreamFrame) []byte {
 		data, w.cut = data[at+1:], false
 	}
 
+	w.noteStart(frame, data)
+
 	if w.unended && len(data) > 0 {
 		w.unended = false
 
@@ -204,6 +225,17 @@ func (w *wholeLines) add(frame *api.StreamFrame) []byte {
 	}
 
 	return data[:end]
+}
+
+// noteStart records where the first byte kept is, the end of data being the
+// end of the frame.
+func (w *wholeLines) noteStart(frame *api.StreamFrame, data []byte) {
+	if w.start == nil || len(data) == 0 || w.start.Load() != nil {
+		return
+	}
+
+	mark := frameStart(frame, len(data))
+	w.start.Store(&mark)
 }
 
 // rest gives back what is held and forgets it.
@@ -258,7 +290,13 @@ func taskDead(alloc *api.Allocation, task string) bool {
 // writing, so its first line is likely cut. A frame ends at its Offset in its
 // File, and a log is turned over into a new file by size, not at a line break.
 func startsCut(frame *api.StreamFrame) bool {
-	start := frame.Offset - int64(len(frame.Data))
+	return !frameStart(frame, len(frame.Data)).AtStart()
+}
 
-	return start > 0 || !strings.HasSuffix(frame.File, ".0")
+// frameStart is where the last kept bytes of a frame begin in its file. The
+// cluster puts a read into the frame of the one before while that frame is
+// not sent yet, under the Offset of the first read, so the count can come out
+// below 0: the frame then starts at the start of the file.
+func frameStart(frame *api.StreamFrame, kept int) LogMark {
+	return LogMark{File: frame.File, Offset: max(frame.Offset-int64(kept), 0)}
 }
