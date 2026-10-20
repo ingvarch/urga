@@ -154,7 +154,10 @@ The plan shows, from top to bottom:
 2. **Warnings** from the cluster.
 3. **What will happen when you submit this job**: for each task group, how
    many allocations will be created, stopped, migrated, updated in place,
-   recreated or deployed as canaries, and how many stay unchanged.
+   recreated or deployed as canaries, rescheduled now or after a delay,
+   disconnected or reconnected, and how many stay unchanged. It also says how
+   many allocations of other jobs the plan preempts. Rescheduled, disconnected
+   and reconnected allocations need Nomad 1.11.
 4. **Changes**: the difference between the running job and your file, laid out
    like the job file. Removed lines are red and start with `-`, added lines
    are green and start with `+`.
@@ -220,7 +223,9 @@ nothing of a system job.
 
 `:evaluations` lists the evaluations of the namespace. `enter` opens one: its
 status, what triggered it, related evaluations, and the placement failures, if
-there are any. `a`, on the list or on the evaluation, opens the allocations it
+there are any. It also shows what the evaluation planned for each group, in
+the words of the plan, and the allocations of other jobs it preempted (Nomad
+1.11). `a`, on the list or on the evaluation, opens the allocations it
 placed or changed.
 
 ## Deployments

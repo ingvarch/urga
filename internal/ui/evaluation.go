@@ -162,7 +162,7 @@ func describeEvaluation(client evaluationsClient, namespace, id string) tea.Cmd 
 func evaluationScreen(eval nomad.EvaluationDetail) describeMsg {
 	return describeMsg{
 		label:      fmt.Sprintf("Evaluation %s", shortID(eval.ID)),
-		content:    evaluationText(eval),
+		lines:      evaluationLines(eval),
 		evaluation: evalRef{eval.Namespace, eval.ID},
 	}
 }
@@ -228,9 +228,10 @@ func placementOf(client evaluationsClient, namespace, jobID string) tea.Cmd {
 	}, func(msg describeMsg) tea.Msg { return msg })
 }
 
-// evaluationText is an evaluation as a page: its fields, why each group it
-// could not place was not placed, and the evaluations it is chained to.
-func evaluationText(eval nomad.EvaluationDetail) string {
+// evaluationLines are an evaluation as a page: its fields, why each group it
+// could not place was not placed, what it planned for each group, the
+// allocations it preempted, and the evaluations it is chained to.
+func evaluationLines(eval nomad.EvaluationDetail) []paintedLine {
 	status := eval.Status
 	if eval.StatusDescription != "" {
 		status += ": " + eval.StatusDescription
@@ -260,20 +261,35 @@ func evaluationText(eval nomad.EvaluationDetail) string {
 		lines = append(lines, fmt.Sprintf("%-13s %s", field[0], field[1]))
 	}
 
+	painted := plainLines(strings.Join(lines, "\n"))
+
 	if len(eval.Failures) > 0 {
-		lines = append(lines, "", "Placement failures", "")
-		lines = append(lines, placementLines(eval.Failures)...)
+		painted = append(painted, paintedLine{}, paintedLine{text: "Placement failures"}, paintedLine{})
+		painted = append(painted, plainLines(strings.Join(placementLines(eval.Failures), "\n"))...)
 	}
 
-	if len(eval.Related) > 0 {
-		lines = append(lines, "", "Related evaluations", "")
+	if len(eval.Groups) > 0 {
+		painted = append(painted, paintedLine{}, paintedLine{text: "Planned for each group"}, paintedLine{})
+		painted = append(painted, groupLines(eval.Groups)...)
+	}
 
-		for _, related := range eval.Related {
-			lines = append(lines, fmt.Sprintf("  %s  %s  %s", shortID(related.ID), related.Status, related.TriggeredBy))
+	if len(eval.Preempted) > 0 {
+		painted = append(painted, paintedLine{}, paintedLine{text: "Preempted allocations"}, paintedLine{})
+
+		for _, a := range eval.Preempted {
+			painted = append(painted, paintedLine{text: fmt.Sprintf("  %s  %s  %s", shortID(a.ID), a.Name, a.Namespace)})
 		}
 	}
 
-	return strings.Join(lines, "\n")
+	if len(eval.Related) > 0 {
+		painted = append(painted, paintedLine{}, paintedLine{text: "Related evaluations"}, paintedLine{})
+
+		for _, related := range eval.Related {
+			painted = append(painted, paintedLine{text: fmt.Sprintf("  %s  %s  %s", shortID(related.ID), related.Status, related.TriggeredBy)})
+		}
+	}
+
+	return painted
 }
 
 // placementLines says why each group was not placed, in the words of the

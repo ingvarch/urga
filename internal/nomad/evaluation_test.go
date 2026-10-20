@@ -123,6 +123,49 @@ func TestFailedPlacement_WhenNoneFailed(t *testing.T) {
 	r.ErrorIs(err, nomad.ErrNoFailures)
 }
 
+func TestEvaluation_WhatItPlannedForEachGroup(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `{
+		"ID": "e1",
+		"PlanAnnotations": {
+			"DesiredTGUpdates": {
+				"web": {"Place": 2, "Disconnect": 1},
+				"api": {"Reconnect": 1, "RescheduleNow": 1}
+			},
+			"PreemptedAllocs": [
+				{"ID": "p1", "Name": "batch.work[0]", "Namespace": "other", "JobID": "batch", "TaskGroup": "work"}
+			]
+		}
+	}`)
+
+	eval, err := client.Evaluation(context.Background(), "production", "e1")
+	r.NoError(err)
+
+	r.Equal([]nomad.PlanGroup{
+		{Name: "api", Reconnect: 1, RescheduleNow: 1},
+		{Name: "web", Place: 2, Disconnect: 1},
+	}, eval.Groups)
+
+	r.Len(eval.Preempted, 1)
+	r.Equal("p1", eval.Preempted[0].ID)
+	r.Equal("batch.work[0]", eval.Preempted[0].Name)
+	r.Equal("other", eval.Preempted[0].Namespace)
+}
+
+func TestEvaluation_WithoutPlanAnnotations(t *testing.T) {
+	r := require.New(t)
+
+	// A cluster older than Nomad 1.11 sends none.
+	client, _ := recorder(t, `{"ID": "e1"}`)
+
+	eval, err := client.Evaluation(context.Background(), "production", "e1")
+	r.NoError(err)
+
+	r.Empty(eval.Groups)
+	r.Empty(eval.Preempted)
+}
+
 func TestEvaluationAllocations(t *testing.T) {
 	r := require.New(t)
 
