@@ -37,17 +37,17 @@ type shellDoneMsg struct {
 }
 
 // shell opens a shell in the task under the cursor.
-func shell(p tasksPage, e env) (tasksPage, outcome) {
-	task, ok := p.picked(e)
+func shell[P taskLister](p P, e env) (P, outcome) {
+	task, ok := p.pickedTask(e)
 	if !ok {
 		return p, outcome{}
 	}
 
 	return p, then(shellMsg{
 		Region:    e.client.Region(),
-		Namespace: p.namespace,
-		AllocID:   p.allocID,
-		Task:      task.Name,
+		Namespace: task.namespace,
+		AllocID:   task.allocID,
+		Task:      task.name,
 	})
 }
 

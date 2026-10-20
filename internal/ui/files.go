@@ -33,13 +33,13 @@ type filesPage struct {
 
 // browse opens the directory of the task under the cursor: what its
 // templates rendered is in local/ there.
-func browse(p tasksPage, e env) (tasksPage, outcome) {
-	task, ok := p.picked(e)
+func browse[P taskLister](p P, e env) (P, outcome) {
+	task, ok := p.pickedTask(e)
 	if !ok {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg{filesPage{namespace: p.namespace, allocID: p.allocID, path: path.Join("/", task.Name)}})
+	return p, then(openMsg{filesPage{namespace: task.namespace, allocID: task.allocID, path: path.Join("/", task.name)}})
 }
 
 func (p filesPage) title(_ env, count int) string {

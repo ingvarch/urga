@@ -306,7 +306,7 @@ func TestUsage_ShownOnTheTasks(t *testing.T) {
 	m := openTasks(t, client)
 
 	// Each task has its own reading, next to how it is doing.
-	r.Equal([]string{"Name", "State", "Failed", "Restarts", "CPU", "MEM", "Started"}, m.screen.page.titles())
+	r.Equal([]string{"Name", "State", "Failed", "Restarts", "CPU", "MEM", "Started", "Finished", "Uptime"}, m.screen.page.titles())
 
 	m = drain(m, m.fetchUsage())
 

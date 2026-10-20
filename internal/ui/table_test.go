@@ -219,5 +219,21 @@ func TestTableRow_AnAgeStaysWithItsCell(t *testing.T) {
 	row.addAge(changed)
 
 	r.Equal([]string{"1h", "web", "running", "2d"}, row.cells)
-	r.Equal(moments{0: started, 3: changed}, row.ages)
+	r.Equal(moments{0: span{from: started}, 3: span{from: changed}}, row.ages)
+}
+
+func TestTableRow_ASpanIsAgeToNowOrBetweenTwoMoments(t *testing.T) {
+	r := require.New(t)
+
+	from := time.Now().Add(-3 * time.Hour)
+	to := from.Add(5 * time.Minute)
+
+	var row tableRow
+	row.addSpan(time.Time{}, time.Time{})
+	row.addSpan(from, time.Time{})
+	row.addSpan(from, to)
+
+	// No start reads "-"; no end counts to now; an end stops the count there.
+	r.Equal([]string{"-", "3h", "5m"}, row.cells)
+	r.Equal(moments{0: span{}, 1: span{from: from}, 2: span{from: from, to: to}}, row.ages)
 }

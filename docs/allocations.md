@@ -1,7 +1,8 @@
 # Allocations and tasks
 
-This page covers allocations, the tasks of an allocation, checks, logs and
-files. For the keys of each screen, see [Keys and commands](keys.md).
+This page covers allocations, the tasks of an allocation, every task of the
+namespace with `:tasks`, checks, logs and files. For the keys of each screen,
+see [Keys and commands](keys.md).
 
 ## Allocation list
 
@@ -59,12 +60,34 @@ For each running task, the list shows CPU and memory use as a share of what
 the task asked for, updated every 5 seconds. Memory is read the same way as
 in the allocation list.
 
+The list also shows Started (how long ago the task last started), Finished
+(how long ago it ended, for a task that has ended) and Uptime (how long it has
+run since it started, or how long it ran once it ended).
+
 From here:
 
 - `c` opens the client the allocation runs on;
 - `p` opens the previous allocation, `n` the next one;
 - `f` opens the follow-up evaluation;
 - `o` opens the events of the allocation.
+
+## Tasks of the namespace
+
+`:tasks` lists every task of every allocation of the namespace on one screen,
+to find the one that is dead, pending or restarting without opening each job
+and each allocation. The columns are Job, Namespace, Group, Task, Alloc, Node,
+State, Restarts, Started, Finished and Uptime. The rows have the colors of the
+tasks screen: failed tasks in red, pending ones in orange, dead ones grey. A
+capital letter sorts by a column: `R` by restarts, `U` by uptime.
+
+The keys of a task work on the row: `enter` and `ctrl-e` for the logs, `e` for
+the events, `o` for the events of its allocation, `b` for the files, `s` for a
+shell, `r` to restart and `x` to send a signal. They act on the task in its
+own allocation and namespace, also when the session looks at every namespace.
+
+The list is read from the allocation list in one request, so there is no CPU
+and memory column: they would cost a request for each task. It holds the
+tasks of allocations that ended until the cluster forgets them.
 
 ## Checks
 

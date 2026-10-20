@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // taskRef is a task of an allocation, and the namespace the allocation
@@ -15,40 +17,81 @@ type taskRef struct {
 	namespace, allocID, name string
 }
 
+// allocTask is a task on a row: named by where it runs, with its state and
+// the allocation as the list holds it, which the events page shows until it
+// is read again.
+type allocTask struct {
+	taskRef
+
+	task  nomad.Task
+	alloc nomad.Alloc
+}
+
+// taskLister is a page that lists tasks: of one allocation, or of the whole
+// namespace. The keys of a task work on every one of them.
+type taskLister interface {
+	page
+
+	// pickedTask is the task under the cursor.
+	pickedTask(e env) (allocTask, bool)
+
+	// pickedAlloc is the allocation under the cursor and its namespace. A
+	// page of one allocation has it with no task to pick.
+	pickedAlloc(e env) (namespace, allocID string, ok bool)
+}
+
+// taskKeys are the keys of a task, for a page that lists them. A page with
+// keys of its own adds them to these.
+func taskKeys[P taskLister]() []pageKey[P] {
+	return []pageKey[P]{
+		{press: "enter", label: "Logs", do: followStdout[P]},
+		// The same key opens the events of a task here and edits elsewhere,
+		// because a screen never offers both.
+		{press: "e", label: "Events", do: openTaskEvents[P]},
+		{press: "o", label: "Alloc Events", do: openTaskAllocEvents[P]},
+		{press: "ctrl+e", label: "Stderr", do: followStderr[P]},
+		// The same key opens a shell here and scales a task group elsewhere.
+		{press: "s", label: "Shell", do: shell[P], writes: true},
+		{press: "r", label: "Restart", do: restartTask[P], writes: true, offered: taskRuns[P]},
+		{press: "x", label: "Signal", do: askSignal[P], writes: true, offered: taskRuns[P]},
+		{press: "b", label: "Browse", do: browse[P]},
+	}
+}
+
 // taskRuns says the task under the cursor runs: its client restarts or
 // signals only a running task.
-func taskRuns(p tasksPage, e env) bool {
-	task, ok := p.picked(e)
+func taskRuns[P taskLister](p P, e env) bool {
+	task, ok := p.pickedTask(e)
 
-	return ok && task.State == statusRunning
+	return ok && task.task.State == statusRunning
 }
 
 // restartTask restarts the task under the cursor in place, once the
 // question is answered yes. The rest of the allocation keeps running.
-func restartTask(p tasksPage, e env) (tasksPage, outcome) {
-	task, ok := p.picked(e)
+func restartTask[P taskLister](p P, e env) (P, outcome) {
+	task, ok := p.pickedTask(e)
 	if !ok {
 		return p, outcome{}
 	}
 
-	client, namespace, allocID := e.client, p.namespace, p.allocID
+	client := e.client
 
 	return p, then(askMsg{
-		question: fmt.Sprintf("Really restart task %s of the allocation %s?", task.Name, shortID(allocID)),
-		apply: act(fmt.Sprintf("Task %s restarted.", task.Name), func(ctx context.Context) error {
-			return client.RestartTask(ctx, namespace, allocID, task.Name)
+		question: fmt.Sprintf("Really restart task %s of the allocation %s?", task.name, shortID(task.allocID)),
+		apply: act(fmt.Sprintf("Task %s restarted.", task.name), func(ctx context.Context) error {
+			return client.RestartTask(ctx, task.namespace, task.allocID, task.name)
 		}),
 	})
 }
 
 // askSignal asks which signal to send to the task under the cursor.
-func askSignal(p tasksPage, e env) (tasksPage, outcome) {
-	task, ok := p.picked(e)
+func askSignal[P taskLister](p P, e env) (P, outcome) {
+	task, ok := p.pickedTask(e)
 	if !ok {
 		return p, outcome{}
 	}
 
-	return p, then(signalLine(taskRef{namespace: p.namespace, allocID: p.allocID, name: task.Name}))
+	return p, then(signalLine(task.taskRef))
 }
 
 // signalLine asks which signal to send to a task. It is filled with the one a

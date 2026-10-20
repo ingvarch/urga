@@ -8,14 +8,14 @@ import (
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
-const mlAlloc = "af1f37df-7b19-6b1c-da67-5e8f482b5a15"
+const frontendAlloc = "af1f37df-7b19-6b1c-da67-5e8f482b5a15"
 
 // inML is a job and an allocation of the namespace ml, seen from a session
 // that looks at every namespace.
 func inML() ([]nomad.Job, []nomad.Alloc) {
 	jobs := []nomad.Job{{ID: "web", Name: "web", Namespace: "ml", Type: "service", Status: "running", Running: 1, Desired: 1}}
 	allocs := []nomad.Alloc{{
-		ID: mlAlloc, Namespace: "ml", JobID: "web", TaskGroup: "frontend", Status: "running",
+		ID: frontendAlloc, Namespace: "ml", JobID: "web", TaskGroup: "frontend", Status: "running",
 		Tasks: []nomad.Task{{Name: "server", State: "running"}},
 	}}
 
@@ -90,7 +90,7 @@ func TestEventsOf_AnAllocationOfEveryList(t *testing.T) {
 
 		r.Equal("Events (Allocation: af1f37df) [2]", m.title(), name)
 		r.Equal("ml", client.feedNamespace, name)
-		r.Equal(nomad.Subject{AllocID: mlAlloc}, client.feedSubject, name)
+		r.Equal(nomad.Subject{AllocID: frontendAlloc}, client.feedSubject, name)
 	}
 }
 

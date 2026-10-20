@@ -73,13 +73,13 @@ type logsPage struct {
 }
 
 // followLogs follows what the task under the cursor writes to a source.
-func followLogs(p tasksPage, e env, source string) (tasksPage, outcome) {
-	task, ok := p.picked(e)
+func followLogs[P taskLister](p P, e env, source string) (P, outcome) {
+	task, ok := p.pickedTask(e)
 	if !ok {
 		return p, outcome{}
 	}
 
-	return p, then(openMsg{logsPage{namespace: p.namespace, allocID: p.allocID, task: task.Name, source: source}})
+	return p, then(openMsg{logsPage{namespace: task.namespace, allocID: task.allocID, task: task.name, source: source}})
 }
 
 // title says whose output this is, in which allocation, which of the two
@@ -484,11 +484,11 @@ func wrapLines(m Model) (Model, tea.Cmd) {
 }
 
 // followStdout follows what the task under the cursor writes to stdout.
-func followStdout(p tasksPage, e env) (tasksPage, outcome) {
+func followStdout[P taskLister](p P, e env) (P, outcome) {
 	return followLogs(p, e, nomad.LogStdout)
 }
 
 // followStderr follows what the task under the cursor writes to stderr.
-func followStderr(p tasksPage, e env) (tasksPage, outcome) {
+func followStderr[P taskLister](p P, e env) (P, outcome) {
 	return followLogs(p, e, nomad.LogStderr)
 }

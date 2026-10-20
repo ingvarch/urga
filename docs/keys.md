@@ -16,6 +16,7 @@ Press `:` to open the command line, type a command and press `enter`.
 | --- | --- | --- |
 | `jobs` | `job`, `jb` | Jobs |
 | `allocations` | `allocs`, `alloc` | Allocations of the namespace |
+| `tasks` | `task` | Every task of the namespace. See [Tasks of the namespace](allocations.md#tasks-of-the-namespace). |
 | `deployments` | `dp` | Deployments |
 | `evaluations` | `evals`, `eval`, `ev` | Evaluations |
 | `events` | `event` | What happens in the cluster, event by event. See [Events](#events). |
@@ -311,6 +312,8 @@ On what was done to the count of a group, `d` describes its policy.
 
 `p`, `n` and `f` are shown only when there is such an allocation or
 evaluation.
+
+The list of `:tasks` has these keys too, except `c`, `p`, `n` and `f`.
 
 ### Logs
 
