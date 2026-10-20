@@ -34,7 +34,7 @@ var (
 		"Address", "Region", "Agent", "Regions", "Datacenters", "AllocationChecks", "Files", "File", "Deployment", "JobDeployments", "DeploymentAllocations", "Token", "ServiceInstances",
 		"Jobs", "NextLaunch", "JobSpec", "JobVersions", "JobVersionDiff", "TaskGroups", "PlanJob", "PlanRevert", "JobTarget", "JobCounts",
 		"DescribeJob", "DescribeAllocation", "DescribeDeployment", "DescribeService",
-		"Allocations", "NodeAllocations", "Allocation", "Logs",
+		"Allocations", "NodeAllocations", "Allocation", "Logs", "LogBefore",
 		"Usage", "AllocationUsage", "TaskUsage", "NodeUsage",
 		"Node", "NodeDetail", "NodeMeta", "NodeMetaSpec", "Nodes", "NodePools", "PoolJobs", "PoolNodes",
 		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "EvaluationAllocations", "FailedPlacement", "NewestEvaluation", "Variables", "Variable", "VariableSpec",

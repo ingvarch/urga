@@ -109,6 +109,12 @@ a task that has finished, it reads the log to the end and stops. When a task
 crashes and is placed again, the new allocation starts with an empty log: `p`
 opens the same log in the allocation it replaced.
 
+`e` reads the 1 MiB before what is shown and puts it above, keeping the window
+where it is. Press it again to go further back, as far as the cluster keeps
+the log. The title then says how much of the log is read, for example `last
+1.1 MiB of 5.3 MiB`. It stops at the 50,000 lines a screen keeps. It needs a
+token that can read the files of the allocation, as `b` does.
+
 A line under the title shows the state of three toggles:
 
 - **Autoscroll**: follow the end of the log. `s` turns it on or off.

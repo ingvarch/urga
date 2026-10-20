@@ -182,6 +182,35 @@ func (t *textContent) add(lines []string, arrived time.Time, label *tag, style *
 	t.dropOld()
 }
 
+// addBefore puts lines read from before the text in front of it. They have
+// no time, tag or style, and the text gets a new id so that its rows are drawn
+// afresh: the kept ones would take the new lines as added at the end. The
+// caller keeps the text under the limit, so none are dropped.
+func (t *textContent) addBefore(lines []string) {
+	n := len(lines)
+	front := make([]string, 0, n+len(t.lines))
+
+	for _, line := range lines {
+		front = append(front, cleanLine(line))
+	}
+
+	t.lines = append(front, t.lines...)
+	t.stamps = fronted(t.stamps, n, len(t.lines)-n)
+	t.tags = fronted(t.tags, n, len(t.lines)-n)
+	t.paint = fronted(t.paint, n, len(t.lines)-n)
+	t.id = &textID{}
+}
+
+// fronted puts n unset items in front of s, after growing it to total items.
+// A slice that was never set stays unset.
+func fronted[T any](s []T, n, total int) []T {
+	if s == nil {
+		return nil
+	}
+
+	return append(make([]T, n), grown(s, total)...)
+}
+
 // dropOld takes the lines past maxTextLines off the front. The slices are cut,
 // not copied: the next append grows them anew and frees the old front.
 func (t *textContent) dropOld() {

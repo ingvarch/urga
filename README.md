@@ -35,8 +35,9 @@ One binary, no config to write, no browser.
   tasks that restart or run out of memory, clients that are down or draining,
   blocked evaluations and failed deployments, and opens the list of each with
   one key.
-- Shows task logs and the files of an allocation, and follows them as they
-  grow. Shows the log of a task from every allocation of a job at once.
+- Shows task logs and the files of an allocation, follows them as they grow,
+  and reads a log further back than its last 64 KiB. Shows the log of a task
+  from every allocation of a job at once.
 - Edits a job in your editor and shows the plan before it submits anything.
 - Shows the values of variables, hidden until you ask for them, and who holds
   a variable as a lock, and releases a lock left held. Creates, edits and

@@ -98,7 +98,7 @@ func (c *Client) File(ctx context.Context, namespace, allocID, name string) (*Lo
 		atEnd = func(frame *api.StreamFrame) bool { return frame.Offset >= info.Size }
 	}
 
-	lines := streamLines(frames, func(*api.StreamFrame) bool { return from > 0 }, atEnd, cancel)
+	lines := streamLines(frames, func(*api.StreamFrame) bool { return from > 0 }, atEnd, nil, cancel)
 
 	return &LogStream{Lines: lines, Err: failures(errs, cancel), Size: info.Size, From: from, cancel: cancel}, nil
 }
