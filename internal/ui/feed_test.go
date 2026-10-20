@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
@@ -289,7 +288,7 @@ func TestEvents_WhatWaitsArrivesAtOnce(t *testing.T) {
 func TestEvents_ASessionStartsOnThem(t *testing.T) {
 	r := require.New(t)
 
-	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
+	cfg := sessionConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.Screen = "events"
 

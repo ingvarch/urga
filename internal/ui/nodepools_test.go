@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
@@ -42,7 +41,7 @@ func TestNodePools_ListsThePoolsOfTheCluster(t *testing.T) {
 func TestNodePools_ASessionStartsOnThem(t *testing.T) {
 	r := require.New(t)
 
-	cfg := config.Load(filepath.Join(t.TempDir(), "config.json"))
+	cfg := sessionConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.Screen = "nodepools"
 
