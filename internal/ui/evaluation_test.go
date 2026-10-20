@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -116,10 +117,10 @@ func TestEvaluation_OpensTheOneUnderTheCursorWhereItLives(t *testing.T) {
 	r.Equal(other.ID, client.askedID)
 }
 
-func TestEvaluationText(t *testing.T) {
+func TestEvaluationLines(t *testing.T) {
 	r := require.New(t)
 
-	text := evaluationText(shortOfRoom())
+	text := strings.Join(texts(evaluationLines(shortOfRoom())), "\n")
 
 	r.Contains(text, "Evaluation    1ad88fd0-6b1c-da67-5e8f-482b5a15af1f")
 	r.Contains(text, "Triggered by  queued-allocs")
@@ -133,14 +134,79 @@ func TestEvaluationText(t *testing.T) {
 	r.NotContains(text, "Next  ")
 }
 
-func TestEvaluationText_WhenEverythingWasPlaced(t *testing.T) {
+func TestEvaluationLines_WhenEverythingWasPlaced(t *testing.T) {
 	r := require.New(t)
 
 	placed := nomad.EvaluationDetail{Evaluation: nomad.Evaluation{ID: "e1", Status: "complete"}}
 
-	text := evaluationText(placed)
+	text := strings.Join(texts(evaluationLines(placed)), "\n")
 	r.NotContains(text, "Placement failures")
+	r.NotContains(text, "Planned for each group")
+	r.NotContains(text, "Preempted allocations")
 	r.True(strings.HasPrefix(text, "Evaluation    e1"))
+}
+
+func plannedEvaluation() nomad.EvaluationDetail {
+	eval := shortOfRoom()
+	eval.Groups = []nomad.PlanGroup{
+		{Name: "web", Place: 1, Disconnect: 2, RescheduleNow: 1},
+	}
+	eval.Preempted = []nomad.Alloc{{ID: "p1234567-0000-0000-0000-000000000000", Name: "batch.work[0]", Namespace: "other"}}
+
+	return eval
+}
+
+func TestEvaluationLines_WhatItPlannedForEachGroup(t *testing.T) {
+	r := require.New(t)
+
+	lines := evaluationLines(plannedEvaluation())
+	words := texts(lines)
+
+	r.Subset(words, []string{
+		"Planned for each group",
+		`  Task group "web"`,
+		"    ● 1 new allocation will be created",
+		"    ● 1 allocation will be rescheduled now",
+		"    ● 2 allocations will be disconnected (status unknown)",
+		"Preempted allocations",
+		"  p1234567  batch.work[0]  other",
+	})
+
+	at := func(text string) int { return slices.Index(words, text) }
+
+	// The failures come first, as in the plan; the related ones last.
+	r.Less(at("Placement failures"), at("Planned for each group"))
+	r.Less(at("Planned for each group"), at("Preempted allocations"))
+	r.Less(at("Preempted allocations"), at("Related evaluations"))
+
+	// The updates have the colours of the plan.
+	for _, painted := range lines {
+		if painted.text == "    ● 2 allocations will be disconnected (status unknown)" {
+			r.Equal(opening(styleDestructive), opening(*painted.style))
+		}
+	}
+}
+
+func TestEvaluation_FromTheListShowsWhatItPlanned(t *testing.T) {
+	r := require.New(t)
+
+	planned := plannedEvaluation()
+	listed := []nomad.Evaluation{planned.Evaluation}
+	client := &fakeClient{evaluations: listed, evaluation: planned}
+
+	m := newTestModel(client)
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "evals")
+	m, _ = m.update(enter())
+	m, _ = m.update(evaluationsMsg(listed))
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+
+	page := strings.Join(m.text.lines, "\n")
+	r.Contains(page, "Planned for each group")
+	r.Contains(page, "    ● 1 allocation will be rescheduled now")
+	r.Contains(page, "  p1234567  batch.work[0]  other")
 }
 
 // waiting are the jobs of the tests with one allocation of web that waits

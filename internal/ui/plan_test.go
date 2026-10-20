@@ -84,15 +84,7 @@ func TestPlanText(t *testing.T) {
 	}, texts(text))
 
 	// Each part in the colour of what it says.
-	style := func(line string) string {
-		for _, painted := range text {
-			if painted.text == line && painted.style != nil {
-				return opening(*painted.style)
-			}
-		}
-
-		return ""
-	}
+	style := func(line string) string { return styleOf(text, line) }
 
 	r.Equal(opening(styleError), style("Placement failures"))
 	r.Equal(opening(styleWarn), style("Warnings"))
@@ -123,7 +115,8 @@ func TestPlanText_EveryUpdate(t *testing.T) {
 	r := require.New(t)
 
 	text := planText(nomad.Plan{Groups: []nomad.PlanGroup{
-		{Name: "web", Place: 1, Stop: 2, Migrate: 1, InPlace: 3, Preemptions: 1},
+		{Name: "web", Place: 1, Stop: 2, Migrate: 1, InPlace: 3, Preemptions: 1,
+			RescheduleNow: 1, RescheduleLater: 2, Disconnect: 3, Reconnect: 1},
 	}}, false)
 
 	r.Subset(texts(text), []string{
@@ -132,7 +125,38 @@ func TestPlanText_EveryUpdate(t *testing.T) {
 		"    ● 1 allocation will be migrated to another node",
 		"    ● 3 allocations will be updated in-place (no restart)",
 		"    ● 1 allocation of another job will be preempted",
+		"    ● 1 allocation will be rescheduled now",
+		"    ● 2 allocations will be rescheduled after a delay",
+		"    ● 3 allocations will be disconnected (status unknown)",
+		"    ● 1 allocation will be reconnected",
 	})
+}
+
+func TestPlanText_RescheduleDisconnectReconnectColours(t *testing.T) {
+	r := require.New(t)
+
+	text := planText(nomad.Plan{Groups: []nomad.PlanGroup{
+		{Name: "web", RescheduleNow: 1, RescheduleLater: 1, Disconnect: 1, Reconnect: 1},
+	}}, false)
+
+	style := func(line string) string { return styleOf(text, line) }
+
+	r.Equal(opening(styleTitle), style("    ● 1 allocation will be rescheduled now"))
+	r.Equal(opening(stylePending), style("    ● 1 allocation will be rescheduled after a delay"))
+	r.Equal(opening(styleDestructive), style("    ● 1 allocation will be disconnected (status unknown)"))
+	r.Equal(opening(styleAdded), style("    ● 1 allocation will be reconnected"))
+}
+
+// styleOf is the opening of the style the line of text is painted in, or
+// nothing.
+func styleOf(text []paintedLine, line string) string {
+	for _, painted := range text {
+		if painted.text == line && painted.style != nil {
+			return opening(*painted.style)
+		}
+	}
+
+	return ""
 }
 
 func TestPlanText_NothingChanges(t *testing.T) {

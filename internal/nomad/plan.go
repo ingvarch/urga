@@ -54,6 +54,13 @@ type PlanGroup struct {
 	Migrate     int
 	Preemptions int
 
+	// The scheduler counts an allocation rescheduled now in Place too: these
+	// four say why, they are not more allocations.
+	RescheduleNow   int
+	RescheduleLater int
+	Disconnect      int
+	Reconnect       int
+
 	// Ignore are the allocations the plan leaves as they are.
 	Ignore int
 }
@@ -91,7 +98,15 @@ func newPlan(answer *api.JobPlanResponse) Plan {
 		return plan
 	}
 
-	updates := answer.Annotations.DesiredTGUpdates
+	plan.Groups = planGroups(answer.Annotations.DesiredTGUpdates)
+
+	return plan
+}
+
+// planGroups puts what the scheduler would do to each group in the order of
+// the names; a map returns its keys in random order.
+func planGroups(updates map[string]*api.DesiredUpdates) []PlanGroup {
+	var groups []PlanGroup
 
 	for _, name := range slices.Sorted(maps.Keys(updates)) {
 		update := updates[name]
@@ -99,20 +114,24 @@ func newPlan(answer *api.JobPlanResponse) Plan {
 			continue
 		}
 
-		plan.Groups = append(plan.Groups, PlanGroup{
-			Name:        name,
-			Place:       int(update.Place),
-			Stop:        int(update.Stop),
-			InPlace:     int(update.InPlaceUpdate),
-			Destructive: int(update.DestructiveUpdate),
-			Canary:      int(update.Canary),
-			Migrate:     int(update.Migrate),
-			Preemptions: int(update.Preemptions),
-			Ignore:      int(update.Ignore),
+		groups = append(groups, PlanGroup{
+			Name:            name,
+			Place:           int(update.Place),
+			Stop:            int(update.Stop),
+			InPlace:         int(update.InPlaceUpdate),
+			Destructive:     int(update.DestructiveUpdate),
+			Canary:          int(update.Canary),
+			Migrate:         int(update.Migrate),
+			Preemptions:     int(update.Preemptions),
+			RescheduleNow:   int(update.RescheduleNow),
+			RescheduleLater: int(update.RescheduleLater),
+			Disconnect:      int(update.Disconnect),
+			Reconnect:       int(update.Reconnect),
+			Ignore:          int(update.Ignore),
 		})
 	}
 
-	return plan
+	return groups
 }
 
 // jobChanged says the cluster refused a change planned on a job that has

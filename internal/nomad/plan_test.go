@@ -66,6 +66,21 @@ func TestPlanJob(t *testing.T) {
 	r.Contains(plan.Warnings, "has warnings")
 }
 
+func TestPlanJob_DisconnectsReconnectsAndReschedules(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := clusterServer(t, map[string]string{"/v1/job/web/plan": `{
+		"Annotations": {"DesiredTGUpdates": {
+			"web": {"RescheduleNow": 1, "RescheduleLater": 2, "Disconnect": 3, "Reconnect": 4}
+		}}
+	}`})
+
+	plan, err := client.PlanJob(context.Background(), "production", `{"ID": "web", "Name": "web"}`, nomad.JobVariables{}, nil)
+	r.NoError(err)
+
+	r.Equal([]nomad.PlanGroup{{Name: "web", RescheduleNow: 1, RescheduleLater: 2, Disconnect: 3, Reconnect: 4}}, plan.Groups)
+}
+
 func TestPlanJob_HCLIsReadByTheClusterFirst(t *testing.T) {
 	r := require.New(t)
 

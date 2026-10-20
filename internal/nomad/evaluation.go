@@ -30,6 +30,12 @@ type EvaluationDetail struct {
 
 	// Failures are the task groups it could not place, by name.
 	Failures []PlacementFailure
+
+	// Groups are what it planned for each group, and Preempted the
+	// allocations of other jobs it preempted. A cluster older than Nomad
+	// 1.11 sends neither.
+	Groups    []PlanGroup
+	Preempted []Alloc
 }
 
 // PlacementFailure is why the allocations of one task group were not placed:
@@ -76,6 +82,11 @@ func newEvaluationDetail(eval *api.Evaluation) EvaluationDetail {
 		PreviousEval:      eval.PreviousEval,
 		NextEval:          eval.NextEval,
 		Failures:          newPlacementFailures(eval.FailedTGAllocs),
+	}
+
+	if eval.PlanAnnotations != nil {
+		detail.Groups = planGroups(eval.PlanAnnotations.DesiredTGUpdates)
+		detail.Preempted = allocsOf(eval.PlanAnnotations.PreemptedAllocs)
 	}
 
 	for _, stub := range eval.RelatedEvals {

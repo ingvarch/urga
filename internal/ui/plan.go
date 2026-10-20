@@ -386,14 +386,7 @@ func planText(plan nomad.Plan, revert bool) []paintedLine {
 		lines = append(lines, paintedLine{text: "  No changes detected", style: &styleMuted})
 	}
 
-	for i, group := range plan.Groups {
-		if i > 0 {
-			lines = append(lines, paintedLine{})
-		}
-
-		lines = append(lines, paintedLine{text: fmt.Sprintf("  Task group %q", group.Name)})
-		lines = append(lines, groupUpdates(group)...)
-	}
+	lines = append(lines, groupLines(plan.Groups)...)
 
 	lines = append(lines, paintedLine{}, paintedLine{text: "Changes"}, paintedLine{})
 
@@ -402,6 +395,23 @@ func planText(plan nomad.Plan, revert bool) []paintedLine {
 	}
 
 	return append(lines, diffLines(plan.Diff)...)
+}
+
+// groupLines say what the scheduler would do to each group, a blank line
+// between the groups.
+func groupLines(groups []nomad.PlanGroup) []paintedLine {
+	lines := []paintedLine{}
+
+	for i, group := range groups {
+		if i > 0 {
+			lines = append(lines, paintedLine{})
+		}
+
+		lines = append(lines, paintedLine{text: fmt.Sprintf("  Task group %q", group.Name)})
+		lines = append(lines, groupUpdates(group)...)
+	}
+
+	return lines
 }
 
 // planVerb is what sending a plan does to the job.
@@ -428,6 +438,10 @@ func groupUpdates(group nomad.PlanGroup) []paintedLine {
 		{group.Destructive, plural(group.Destructive, "allocation") + " will be recreated (destructive update)", &styleDestructive},
 		{group.Canary, plural(group.Canary, "canary allocation") + " will be deployed", &styleCanary},
 		{group.Preemptions, preempted(group.Preemptions), &styleDeleted},
+		{group.RescheduleNow, plural(group.RescheduleNow, "allocation") + " will be rescheduled now", &styleTitle},
+		{group.RescheduleLater, plural(group.RescheduleLater, "allocation") + " will be rescheduled after a delay", &stylePending},
+		{group.Disconnect, plural(group.Disconnect, "allocation") + " will be disconnected (status unknown)", &styleDestructive},
+		{group.Reconnect, plural(group.Reconnect, "allocation") + " will be reconnected", &styleAdded},
 	}
 
 	lines := []paintedLine{}
