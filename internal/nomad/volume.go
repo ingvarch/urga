@@ -3,6 +3,7 @@ package nomad
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -182,20 +183,10 @@ func (c *Client) Volume(ctx context.Context, namespace, kind, id string) (Volume
 func (c *Client) DescribeVolume(ctx context.Context, namespace, kind, id string) (string, error) {
 	switch kind {
 	case VolumeCSI:
-		v, _, err := c.api.CSIVolumes().Info(id, c.query(ctx, namespace))
-		if err != nil {
-			return "", err
-		}
-
-		return asJSON(v)
+		return c.describeRaw(ctx, namespace, "/v1/volume/csi/"+url.PathEscape(id))
 
 	case VolumeHost:
-		v, _, err := c.api.HostVolumes().Get(id, c.query(ctx, namespace))
-		if err != nil {
-			return "", err
-		}
-
-		return asJSON(v)
+		return c.describeRaw(ctx, namespace, "/v1/volume/host/"+url.PathEscape(id))
 	}
 
 	return "", noKind(kind)

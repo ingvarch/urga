@@ -3,6 +3,7 @@ package nomad
 import (
 	"cmp"
 	"context"
+	"net/url"
 	"slices"
 	"time"
 
@@ -124,10 +125,5 @@ func pluginInstances(kind string, byNode map[string]*api.CSIInfo, names map[stri
 
 // DescribePlugin is what the cluster knows about a CSI plugin.
 func (c *Client) DescribePlugin(ctx context.Context, id string) (string, error) {
-	p, _, err := c.api.CSIPlugins().Info(id, c.query(ctx, ""))
-	if err != nil {
-		return "", err
-	}
-
-	return asJSON(p)
+	return c.describeRaw(ctx, "", "/v1/plugin/csi/"+url.PathEscape(id))
 }
