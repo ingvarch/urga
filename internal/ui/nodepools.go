@@ -52,6 +52,22 @@ func (p nodePoolsPage) rows(env) []tableRow {
 var nodePoolsKeys = []pageKey[nodePoolsPage]{
 	{press: "enter", label: "Jobs", do: openInPool(func(pool string) page { return jobsPage{pool: pool} })},
 	{press: "c", label: "Clients", do: openInPool(func(pool string) page { return nodesPage{pool: pool} })},
+	{press: "b", label: "Queue", do: openQueueFromPool, offered: poolHasQueue},
+}
+
+func poolHasQueue(p nodePoolsPage, e env) bool {
+	pool, ok := pickedFrom(e, p.pools)
+
+	return ok && pool.Queue != ""
+}
+
+func openQueueFromPool(p nodePoolsPage, e env) (nodePoolsPage, outcome) {
+	pool, ok := pickedFrom(e, p.pools)
+	if !ok {
+		return p, outcome{}
+	}
+
+	return p, then(openMsg{queuePage{pool: pool.Name, queueType: pool.Queue}})
 }
 
 func (p nodePoolsPage) keys(e env) []keyHint { return hintsOf(p, e, nodePoolsKeys) }

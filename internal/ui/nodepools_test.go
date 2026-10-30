@@ -131,3 +131,37 @@ func TestNodePools_CShowsTheClientsOfThePool(t *testing.T) {
 	r.Contains(out, "gpu-01")
 	r.Contains(out, "web-01")
 }
+
+func TestNodePools_BShowsTheQueueOfThePool(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		nodePools: []nomad.NodePool{
+			{Name: "batch", Queue: "fifo", Description: "batch pool"},
+			{Name: "gpu", Description: "no queue"},
+		},
+		queueWorkloads: map[string][]nomad.QueueWorkload{
+			"batch": {
+				{JobID: "job-1", Namespace: "default", Status: "placing", Position: 0},
+			},
+		},
+	}
+	m, _ := sessionModel(t, client)
+	m = typeCommand(m, "nodepools")
+
+	// On batch (which has a queue): 'b' is offered.
+	r.Contains(plain(m.render()), "Queue")
+
+	m, cmd := m.update(key('b'))
+	m = playOut(m, cmd)
+
+	out := plain(m.render())
+	r.Contains(out, "Queue (Pool: batch) [1]")
+	r.Contains(out, "job-1")
+	r.Contains(out, "placing")
+
+	// Back to nodepools, cursor to gpu (no queue): 'b' is not offered.
+	m, _ = m.update(escape())
+	m, _ = m.update(key('j'))
+	r.NotContains(plain(m.render()), "<b")
+}

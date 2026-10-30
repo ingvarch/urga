@@ -36,7 +36,7 @@ var (
 		"DescribeJob", "DescribeAllocation", "DescribeDeployment", "DescribeService",
 		"Allocations", "NodeAllocations", "Allocation", "Logs", "LogBefore",
 		"Usage", "AllocationUsage", "TaskUsage", "NodeUsage",
-		"Node", "NodeIdentity", "WithAllocLimits", "NodeDetail", "NodeMeta", "NodeMetaSpec", "Nodes", "NodePools", "PoolJobs", "PoolNodes", "BatchQueueJobs",
+		"Node", "NodeIdentity", "WithAllocLimits", "NodeDetail", "NodeMeta", "NodeMetaSpec", "Nodes", "NodePools", "PoolJobs", "PoolNodes", "BatchQueueJobs", "BatchQueueStatus",
 		"NamespaceSpec", "Namespaces", "Deployments", "Services", "Evaluations", "Evaluation", "EvaluationAllocations", "FailedPlacement", "NewestEvaluation", "Variables", "Variable", "VariableSpec",
 		"Servers", "Server", "RaftPeers", "Events",
 		"Volumes", "Volume", "DescribeVolume", "Plugins", "Plugin", "DescribePlugin",

@@ -26,6 +26,7 @@ Press `:` to open the command line, type a command and press `enter`.
 | `variables` | `vars`, `var` | Variables |
 | `clients` | `nodes`, `node`, `no` | Clients |
 | `nodepools` | `np` | Node pools |
+| `queue` | `queues` | Batch job queue |
 | `servers` | `srv` | Servers |
 | `scheduler` | `sched` | How the scheduler places work |
 | `scaling` | `scale` | Scaling policies |
@@ -492,6 +493,13 @@ metadata, `e` edits it in your editor.
 | --- | --- |
 | `enter` | Jobs that run in the pool, of every namespace |
 | `c` | Clients of the pool |
+| `b` | Batch job queue of the pool. Shown when the pool has a queue. |
+
+### Batch job queue
+
+| Key | What it does |
+| --- | --- |
+| `enter` | Allocations of the queued job |
 
 ### Servers
 
