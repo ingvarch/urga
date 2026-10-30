@@ -3,16 +3,23 @@ package nomad
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
 )
 
+// ErrQueueUnsupported says the cluster does not support batch job queues
+// (Nomad < 2.1).
+var ErrQueueUnsupported = errors.New("the batch job queue needs Nomad 2.1")
+
 // QueueWorkload is one job waiting in or being placed from a node pool's batch job queue.
 type QueueWorkload struct {
 	JobID               string
 	Namespace           string
+	Pool                string
+	QueueType           string
 	Position            int
 	Status              string // "placing", "queued"
 	AdjustedPriority    int
@@ -25,10 +32,74 @@ type QueueWorkload struct {
 	CreatedAt           time.Time
 }
 
+// QueueTenant is one tenant's share in a dynamic priority queue.
+type QueueTenant struct {
+	ID             string
+	PercentageUsed int
+	Fairshare      map[string]float64
+	TotalFairshare map[string]float64
+}
+
 // BatchQueueJobs lists the workloads waiting in or being placed from the batch
-// job queue of a node pool. It returns an empty list when the cluster has no
-// batch queue support (Nomad < 2.1) or the token has no list-jobs capability.
+// job queue of a node pool. It returns ErrQueueUnsupported when the cluster is
+// older than Nomad 2.1, and an empty list when the token lacks list-jobs capability.
 func (c *Client) BatchQueueJobs(ctx context.Context, pool string) ([]QueueWorkload, error) {
+	if pool == "" {
+		return nil, nil
+	}
+
+	var allWorkloads []QueueWorkload
+	var nextToken string
+
+	for {
+		opts := c.query(ctx, "")
+		opts.Params = map[string]string{
+			"node_pool": pool,
+			"sort":      "priority",
+		}
+		opts.NextToken = nextToken
+
+		resp, qm, err := c.api.BatchQueue().Jobs(opts)
+		if err != nil {
+			if answered(err, http.StatusNotFound) {
+				return nil, ErrQueueUnsupported
+			}
+			if answered(err, http.StatusForbidden) {
+				return nil, nil
+			}
+
+			return nil, err
+		}
+
+		if resp == nil {
+			return allWorkloads, nil
+		}
+
+		workloads, err := decodeWorkloads(resp.Type, resp.Workloads)
+		if err != nil {
+			return nil, err
+		}
+
+		for i := range workloads {
+			workloads[i].Pool = pool
+			workloads[i].QueueType = string(resp.Type)
+		}
+
+		allWorkloads = append(allWorkloads, workloads...)
+
+		if qm == nil || qm.NextToken == "" {
+			break
+		}
+		nextToken = qm.NextToken
+	}
+
+	return allWorkloads, nil
+}
+
+// BatchQueueStatus reads the queue status for a node pool. It returns an
+// empty list when the cluster has no batch queue support (Nomad < 2.1), the
+// pool has no dynamic priority queue, or the token lacks operator:read capability.
+func (c *Client) BatchQueueStatus(ctx context.Context, pool string) ([]QueueTenant, error) {
 	if pool == "" {
 		return nil, nil
 	}
@@ -36,10 +107,9 @@ func (c *Client) BatchQueueJobs(ctx context.Context, pool string) ([]QueueWorklo
 	opts := c.query(ctx, "")
 	opts.Params = map[string]string{
 		"node_pool": pool,
-		"sort":      "priority",
 	}
 
-	resp, _, err := c.api.BatchQueue().Jobs(opts)
+	resp, _, err := c.api.BatchQueue().Status(opts)
 	if err != nil {
 		if answered(err, http.StatusNotFound) || answered(err, http.StatusForbidden) {
 			return nil, nil
@@ -48,11 +118,40 @@ func (c *Client) BatchQueueJobs(ctx context.Context, pool string) ([]QueueWorklo
 		return nil, err
 	}
 
-	if resp == nil {
+	if resp == nil || resp.Type != api.BatchQueueTypeDynamic || resp.Status == nil {
 		return nil, nil
 	}
 
-	return decodeWorkloads(resp.Type, resp.Workloads)
+	return decodeTenants(resp.Status)
+}
+
+func decodeTenants(raw any) ([]QueueTenant, error) {
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	var items []struct {
+		TenantID        string             `json:"TenantID"`
+		PercentageUsed  int                `json:"PercentageUsed"`
+		TenantFairshare map[string]float64 `json:"TenantFairshare"`
+		TotalFairshare  map[string]float64 `json:"TotalFairshare"`
+	}
+	if err := json.Unmarshal(data, &items); err != nil {
+		return nil, err
+	}
+
+	out := make([]QueueTenant, 0, len(items))
+	for _, it := range items {
+		out = append(out, QueueTenant{
+			ID:             it.TenantID,
+			PercentageUsed: it.PercentageUsed,
+			Fairshare:      it.TenantFairshare,
+			TotalFairshare: it.TotalFairshare,
+		})
+	}
+
+	return out, nil
 }
 
 func decodeWorkloads(queueType api.BatchQueueType, raw any) ([]QueueWorkload, error) {

@@ -232,8 +232,19 @@ keeps it and urga says so. A variable held as a lock cannot be deleted, so
 
 `:nodepools` lists the node pools, their schedulers and batch job queues
 (Nomad 2.1 and later). `enter` on a pool lists the jobs that run in it, of every
-namespace, and `c` lists its clients. The pool `all` holds every client of the
-cluster.
+namespace, and `c` lists its clients. `b` opens the batch job queue of the pool
+when it has one. The pool `all` holds every client of the cluster.
+
+### Batch job queue
+
+`:queue` lists the queued batch jobs across every pool that has a queue, sorted
+by position. On `:nodepools`, `b` opens the queue of a single pool.
+
+For a pool with a dynamic priority queue, the list shows priority adjustments
+(base, fairshare, age, CPU, and memory) and, with `operator:read` permission, a
+panel above the table shows tenant shares and fair share allocations.
+
+`enter` on a queued job opens its allocations.
 
 ## Regions and datacenters
 

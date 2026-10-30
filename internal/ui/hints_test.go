@@ -57,37 +57,42 @@ func apiInstances() []nomad.ServiceInstance {
 	}
 }
 
+func everyScreenDeployment() nomad.DeploymentDetail {
+	return nomad.DeploymentDetail{
+		Deployment: nomad.Deployment{ID: "dep-1", JobID: "web", Namespace: "production", Status: "running"},
+		Groups:     []nomad.DeploymentGroup{{Name: "frontend", DesiredTotal: 2, Placed: 1, DesiredCanaries: 1, PlacedCanaries: 1}},
+	}
+}
+
 // everyScreenClient is a cluster with something on every screen.
 func everyScreenClient() *fakeClient {
 	return &fakeClient{
-		jobs:        twoJobs(),
-		allocs:      twoAllocs(),
-		groups:      twoGroups(),
-		deployments: []nomad.Deployment{{ID: "dep-1", JobID: "web", Namespace: "production", Status: "running"}},
-		namespaces:  twoNamespaces(),
-		services:    []nomad.Service{{Name: "api", Namespace: "production"}},
-		evaluations: []nomad.Evaluation{{ID: "eval-1", JobID: "web", Namespace: "production", Status: "complete"}},
-		nodes:       busyClient(),
-		nodeAllocs:  clientAllocs(),
-		nodeDetail:  clientDetail(),
-		nodeMeta:    clientMeta(),
-		jobMeta:     map[string]string{"owner": "team-web"},
-		identity:    &nomad.NodeIdentity{Expires: time.Now().Add(time.Hour), Claims: "{}"},
-		versions:    threeVersions(),
-		variables:   []nomad.Variable{{Path: "nomad/jobs/web", Namespace: "production"}},
-		nodePools:   []nomad.NodePool{{Name: "default"}},
-		use:         map[string]nomad.ResourceUse{"node-1": {}},
-		servers:     twoServers(),
-		describe:    "{}",
-		spec:        nomad.JobSource{Source: "job \"web\" {}"},
-		logs:        &nomad.LogStream{Lines: make(chan string)},
+		jobs:           twoJobs(),
+		allocs:         twoAllocs(),
+		groups:         twoGroups(),
+		deployments:    []nomad.Deployment{{ID: "dep-1", JobID: "web", Namespace: "production", Status: "running"}},
+		namespaces:     twoNamespaces(),
+		services:       []nomad.Service{{Name: "api", Namespace: "production"}},
+		evaluations:    []nomad.Evaluation{{ID: "eval-1", JobID: "web", Namespace: "production", Status: "complete"}},
+		nodes:          busyClient(),
+		nodeAllocs:     clientAllocs(),
+		nodeDetail:     clientDetail(),
+		nodeMeta:       clientMeta(),
+		jobMeta:        map[string]string{"owner": "team-web"},
+		identity:       &nomad.NodeIdentity{Expires: time.Now().Add(time.Hour), Claims: "{}"},
+		versions:       threeVersions(),
+		variables:      []nomad.Variable{{Path: "nomad/jobs/web", Namespace: "production"}},
+		nodePools:      []nomad.NodePool{{Name: "default"}},
+		queueWorkloads: map[string][]nomad.QueueWorkload{"batch": {{JobID: "web", Namespace: "production", Pool: "batch", Status: "queued"}}},
+		use:            map[string]nomad.ResourceUse{"node-1": {}},
+		servers:        twoServers(),
+		describe:       "{}",
+		spec:           nomad.JobSource{Source: "job \"web\" {}"},
+		logs:           &nomad.LogStream{Lines: make(chan string)},
 
 		// The deployment of the list, with a canary of web that waits to be
 		// promoted under the cursor.
-		deployment: nomad.DeploymentDetail{
-			Deployment: nomad.Deployment{ID: "dep-1", JobID: "web", Namespace: "production", Status: "running"},
-			Groups:     []nomad.DeploymentGroup{{Name: "frontend", DesiredTotal: 2, Placed: 1, DesiredCanaries: 1, PlacedCanaries: 1}},
-		},
+		deployment: everyScreenDeployment(),
 		deploymentAllocs: []nomad.Alloc{
 			{ID: "canary-1", Namespace: "production", JobID: "web", TaskGroup: "frontend", Status: "running", Canary: true},
 		},
@@ -144,6 +149,7 @@ func listsByName(client *fakeClient) map[string]Model {
 		"scheduler":   schedulerMsg(client.scheduler),
 		"scaling":     scalingPoliciesMsg(client.scalingPolicies),
 		"events":      feedEventsMsg{events: someEvents()},
+		"queue":       queueItemsMsg{items: client.queueWorkloads["batch"]},
 	}
 
 	// The lists of the access control, a kind each.

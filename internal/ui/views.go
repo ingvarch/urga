@@ -91,6 +91,12 @@ var (
 		open:    func() page { return nodePoolsPage{} },
 	}
 
+	queueView = &view{
+		stored:  "queue",
+		aliases: []string{"queue", "queues"},
+		open:    func() page { return queuePage{} },
+	}
+
 	volumesView = &view{
 		stored:  "volumes",
 		aliases: []string{"volumes", "volume", "vol"},
@@ -147,7 +153,7 @@ var (
 var views = []*view{
 	jobsView, allocationsView, tasksView, deploymentsView, servicesView, evaluationsView,
 	nodesView, variablesView, regionsView, datacentersView, clustersView,
-	namespacesView, serversView, nodePoolsView, volumesView, pluginsView,
+	namespacesView, serversView, nodePoolsView, queueView, volumesView, pluginsView,
 	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, eventsView, scalingView, schedulerView, overviewView, aboutView,
 }
 

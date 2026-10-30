@@ -211,6 +211,9 @@ func resolveAlias(word string) (*view, bool) {
 // open.
 func matchingCommands(typed string) []string {
 	word := strings.ToLower(firstWord(typed))
+	if bailAliases[word] {
+		return nil
+	}
 
 	matches := []string{}
 
