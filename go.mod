@@ -12,7 +12,7 @@ require (
 	github.com/google/licenseclassifier/v2 v2.0.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/hashicorp/hcl/v2 v2.25.0
-	github.com/hashicorp/nomad/api v0.0.0-20260922135024-0afeddadd9b4
+	github.com/hashicorp/nomad/api v0.0.0-20261029144823-d0f210429976
 	github.com/ingvarch/pulse v0.4.0
 	github.com/muesli/cancelreader v0.2.2
 	github.com/stretchr/testify v1.12.1

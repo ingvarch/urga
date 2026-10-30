@@ -12,7 +12,7 @@ import (
 
 func twoPools() []nomad.NodePool {
 	return []nomad.NodePool{
-		{Name: "default", Scheduler: "binpack", Description: "every client"},
+		{Name: "default", Scheduler: "binpack", Queue: "fifo", Description: "every client"},
 		{Name: "gpu", Scheduler: "spread", Description: "the ones with cards"},
 	}
 }
@@ -29,8 +29,10 @@ func TestNodePools_ListsThePoolsOfTheCluster(t *testing.T) {
 	r.NotContains(out, "Node Pools (")
 
 	r.Contains(fileRow(t, m, -1), "Scheduler")
+	r.Contains(fileRow(t, m, -1), "Queue")
 	r.Contains(fileRow(t, m, 0), "default")
 	r.Contains(fileRow(t, m, 0), "binpack")
+	r.Contains(fileRow(t, m, 0), "fifo")
 	r.Contains(fileRow(t, m, 1), "the ones with cards")
 
 	// The next run opens it again, and it watches the events of pools.

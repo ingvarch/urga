@@ -242,6 +242,7 @@ type NodePool struct {
 	Name        string
 	Description string
 	Scheduler   string
+	Queue       string
 }
 
 // NodePools lists the pools nodes are grouped into.
@@ -252,13 +253,34 @@ func (c *Client) NodePools(ctx context.Context) ([]NodePool, error) {
 }
 
 func newNodePool(p *api.NodePool) NodePool {
-	pool := NodePool{Name: p.Name, Description: p.Description}
+	pool := NodePool{
+		Name:        p.Name,
+		Description: p.Description,
+		Queue:       queueOf(p.BatchQueueConfig),
+	}
 
 	if p.SchedulerConfiguration != nil {
 		pool.Scheduler = string(p.SchedulerConfiguration.SchedulerAlgorithm)
 	}
 
 	return pool
+}
+
+// queueOf names the kind of batch job queue configured on a node pool, empty
+// when none is.
+func queueOf(cfg *api.BatchQueueConfig) string {
+	if cfg == nil {
+		return ""
+	}
+
+	switch {
+	case cfg.Fifo != nil:
+		return "fifo"
+	case cfg.DynamicPriority != nil:
+		return "dynamic priority"
+	default:
+		return ""
+	}
 }
 
 // PoolNodes lists the clients of a node pool, as the cluster counts them:

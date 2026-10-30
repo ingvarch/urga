@@ -13,7 +13,7 @@ type nodePoolsPage struct {
 	pools []nomad.NodePool
 }
 
-var nodePoolTitles = []string{"Name", "Scheduler", "Description"}
+var nodePoolTitles = []string{"Name", "Scheduler", "Queue", "Description"}
 
 // A pool belongs to the cluster, not to a namespace: the title names none.
 func (nodePoolsPage) title(_ env, count int) string {
@@ -43,7 +43,7 @@ func (p nodePoolsPage) rows(env) []tableRow {
 	rows := make([]tableRow, 0, len(p.pools))
 
 	for _, pool := range p.pools {
-		rows = append(rows, tableRow{cells: []string{pool.Name, pool.Scheduler, pool.Description}})
+		rows = append(rows, tableRow{cells: []string{pool.Name, pool.Scheduler, pool.Queue, pool.Description}})
 	}
 
 	return rows

@@ -218,7 +218,7 @@ func TestVariable_ReadsItsValues(t *testing.T) {
 func TestNodePools_Read(t *testing.T) {
 	r := require.New(t)
 
-	client, _ := recorder(t, `[{"Name": "default", "Description": "the default pool", "SchedulerConfiguration": {"SchedulerAlgorithm": "binpack"}}]`)
+	client, _ := recorder(t, `[{"Name": "default", "Description": "the default pool", "SchedulerConfiguration": {"SchedulerAlgorithm": "binpack"}, "BatchQueueConfig": {"Fifo": {}}}]`)
 
 	pools, err := client.NodePools(context.Background())
 	r.NoError(err)
@@ -227,6 +227,19 @@ func TestNodePools_Read(t *testing.T) {
 	r.Equal("default", pools[0].Name)
 	r.Equal("the default pool", pools[0].Description)
 	r.Equal("binpack", pools[0].Scheduler)
+	r.Equal("fifo", pools[0].Queue)
+}
+
+func TestNodePools_DynamicPriorityQueue(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{"Name": "batch", "Description": "batch jobs", "BatchQueueConfig": {"DynamicPriority": {}}}]`)
+
+	pools, err := client.NodePools(context.Background())
+	r.NoError(err)
+	r.Len(pools, 1)
+
+	r.Equal("dynamic priority", pools[0].Queue)
 }
 
 func TestNodePools_WithoutASchedulerConfiguration(t *testing.T) {
@@ -237,6 +250,7 @@ func TestNodePools_WithoutASchedulerConfiguration(t *testing.T) {
 	pools, err := client.NodePools(context.Background())
 	r.NoError(err)
 	r.Equal([]nomad.NodePool{{Name: "gpu", Description: "gpus"}}, pools)
+	r.Empty(pools[0].Queue)
 }
 
 func TestPoolJobs(t *testing.T) {

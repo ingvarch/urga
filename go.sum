@@ -52,8 +52,8 @@ github.com/hashicorp/go-rootcerts v1.0.2 h1:jzhAVGtqPKbwpyCPELlgNWhE1znq+qwJtW5O
 github.com/hashicorp/go-rootcerts v1.0.2/go.mod h1:pqUvnprVnM5bf7AOirdbb01K4ccR319Vf4pU3K5EGc8=
 github.com/hashicorp/hcl/v2 v2.25.0 h1:HmmQVYRny4MaBo4b20TjmL46wyuUxpnMWkPZ4+NTbWk=
 github.com/hashicorp/hcl/v2 v2.25.0/go.mod h1:vR+FKETxoZAmRlHgFfKmuqivj+C4Izm/c66XkmZ3r7M=
-github.com/hashicorp/nomad/api v0.0.0-20260922135024-0afeddadd9b4 h1:afUW+DLAkjJ5IFAeEzAG3HWmPUanC+txcp6/5d/+H7g=
-github.com/hashicorp/nomad/api v0.0.0-20260922135024-0afeddadd9b4/go.mod h1:x/V7eEDwMx7UTOAb/Bc4mMsTfy5GdOP4sQY0a4Mmm1g=
+github.com/hashicorp/nomad/api v0.0.0-20261029144823-d0f210429976 h1:QbU7wmmZqnMJk+u659NvLQqAkijX1BhXUrqgMqBVC28=
+github.com/hashicorp/nomad/api v0.0.0-20261029144823-d0f210429976/go.mod h1:x/V7eEDwMx7UTOAb/Bc4mMsTfy5GdOP4sQY0a4Mmm1g=
 github.com/ingvarch/pulse v0.4.0 h1:LTPB6eRkFhgZ9HMCGCLuUi0kZlGOirwSvuUJ9eHyrlI=
 github.com/ingvarch/pulse v0.4.0/go.mod h1:D9hNnN8sgj9LhKJf/34Hq/pevOGa3M9+fuZxhQmfnF8=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
