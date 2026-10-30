@@ -27,6 +27,18 @@ func TestDescribeJob(t *testing.T) {
 	r.Contains(out, "\n")
 }
 
+func TestDescribeJob_KeepsNewFields(t *testing.T) {
+	r := require.New(t)
+
+	// Nomad 2.1 sends Placed on a job, which api.Job does not know yet.
+	client, _ := recorder(t, `{"ID": "batch-1", "Placed": true}`)
+
+	out, err := client.DescribeJob(context.Background(), "default", "batch-1")
+	r.NoError(err)
+
+	r.Contains(out, "\"Placed\": true")
+}
+
 func TestJobMeta(t *testing.T) {
 	r := require.New(t)
 
@@ -60,6 +72,18 @@ func TestDescribeAllocation(t *testing.T) {
 
 	r.Equal("/v1/allocation/af1f37df", asked.URL.Path)
 	r.Contains(out, "frontend")
+}
+
+func TestDescribeAllocation_WithoutResourcesShowsNoResources(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `{"ID": "af1f37df", "TaskGroup": "frontend"}`)
+
+	out, err := client.DescribeAllocation(context.Background(), "production", "af1f37df")
+	r.NoError(err)
+
+	// Nomad 2.1 no longer sends Resources: describe must not show them as null.
+	r.NotContains(out, "Resources")
 }
 
 func TestDescribeDeployment(t *testing.T) {

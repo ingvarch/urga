@@ -1,10 +1,12 @@
 package nomad
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/hashicorp/nomad/api"
 )
@@ -16,12 +18,7 @@ var ErrNoSource = errors.New("the cluster kept no source for this job")
 
 // DescribeJob is what the cluster knows about a job.
 func (c *Client) DescribeJob(ctx context.Context, namespace, jobID string) (string, error) {
-	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
-	if err != nil {
-		return "", err
-	}
-
-	return asJSON(job)
+	return c.describeRaw(ctx, namespace, "/v1/job/"+url.PathEscape(jobID))
 }
 
 // JobMeta is the meta of the job block, which is nil when the job has none.
@@ -36,32 +33,33 @@ func (c *Client) JobMeta(ctx context.Context, namespace, jobID string) (map[stri
 
 // DescribeAllocation is what the cluster knows about an allocation.
 func (c *Client) DescribeAllocation(ctx context.Context, namespace, allocID string) (string, error) {
-	alloc, _, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))
-	if err != nil {
-		return "", err
-	}
-
-	return asJSON(alloc)
+	return c.describeRaw(ctx, namespace, "/v1/allocation/"+url.PathEscape(allocID))
 }
 
 // DescribeDeployment is what the cluster knows about a deployment.
 func (c *Client) DescribeDeployment(ctx context.Context, namespace, deploymentID string) (string, error) {
-	deployment, _, err := c.api.Deployments().Info(deploymentID, c.query(ctx, namespace))
-	if err != nil {
-		return "", err
-	}
-
-	return asJSON(deployment)
+	return c.describeRaw(ctx, namespace, "/v1/deployment/"+url.PathEscape(deploymentID))
 }
 
 // DescribeService is every registration of a service name.
 func (c *Client) DescribeService(ctx context.Context, namespace, name string) (string, error) {
-	registrations, _, err := c.api.Services().Get(name, c.query(ctx, namespace))
-	if err != nil {
+	return c.describeRaw(ctx, namespace, "/v1/service/"+url.PathEscape(name))
+}
+
+// describeRaw reads the exact body the cluster answered, and indents it for
+// reading so that the keys and their order are the ones the cluster sent.
+func (c *Client) describeRaw(ctx context.Context, namespace, endpoint string) (string, error) {
+	var body json.RawMessage
+	if _, err := c.api.Raw().Query(endpoint, &body, c.query(ctx, namespace)); err != nil {
 		return "", err
 	}
 
-	return asJSON(registrations)
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, body, "", "  "); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }
 
 // How a job file is written, as the cluster names it.

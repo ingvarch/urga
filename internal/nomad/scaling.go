@@ -2,6 +2,7 @@ package nomad
 
 import (
 	"context"
+	"net/url"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -57,12 +58,7 @@ func (c *Client) ScalingPolicies(ctx context.Context, namespace string) ([]Scali
 // DescribeScalingPolicy is a policy in full, as JSON: its bounds and the
 // settings the autoscaler reads.
 func (c *Client) DescribeScalingPolicy(ctx context.Context, namespace, id string) (string, error) {
-	policy, _, err := c.api.Scaling().GetPolicy(id, c.query(ctx, namespace))
-	if err != nil {
-		return "", err
-	}
-
-	return asJSON(policy)
+	return c.describeRaw(ctx, namespace, "/v1/scaling/policy/"+url.PathEscape(id))
 }
 
 // GroupScaling reads how a task group of a job is scaled. The policy is part
