@@ -35,19 +35,20 @@ type fakeClient struct {
 	evaluation  nomad.EvaluationDetail
 	evalAllocs  []nomad.Alloc
 
-	placementErr error
-	nodes        []nomad.Node
-	variables    []nomad.Variable
-	variable     nomad.VariableDetail
-	variablePath string
-	nodePools    []nomad.NodePool
-	poolJobs     []nomad.Job
-	poolNodes    []nomad.Node
-	askedPool    string
-	servers      []nomad.Server
-	changes      *fakeChanges
-	server       nomad.Server
-	raft         []nomad.RaftPeer
+	placementErr   error
+	nodes          []nomad.Node
+	variables      []nomad.Variable
+	variable       nomad.VariableDetail
+	variablePath   string
+	nodePools      []nomad.NodePool
+	poolJobs       []nomad.Job
+	poolNodes      []nomad.Node
+	askedPool      string
+	queueWorkloads map[string][]nomad.QueueWorkload
+	servers        []nomad.Server
+	changes        *fakeChanges
+	server         nomad.Server
+	raft           []nomad.RaftPeer
 
 	// variableSpec is a variable as a file.
 	variableSpec nomad.VariableSource
@@ -1198,6 +1199,14 @@ func (f *fakeClient) PoolNodes(_ context.Context, pool string) ([]nomad.Node, er
 	f.askedPool = pool
 
 	return f.poolNodes, f.err
+}
+
+func (f *fakeClient) BatchQueueJobs(_ context.Context, pool string) ([]nomad.QueueWorkload, error) {
+	if f.queueWorkloads != nil {
+		return f.queueWorkloads[pool], f.err
+	}
+
+	return nil, f.err
 }
 
 func (f *fakeClient) Events(_ context.Context, namespace string, topics []string) (*nomad.Changes, error) {

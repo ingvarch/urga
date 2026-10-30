@@ -142,6 +142,7 @@ type (
 		NodePools(ctx context.Context) ([]nomad.NodePool, error)
 		PoolJobs(ctx context.Context, pool string) ([]nomad.Job, error)
 		PoolNodes(ctx context.Context, pool string) ([]nomad.Node, error)
+		BatchQueueJobs(ctx context.Context, pool string) ([]nomad.QueueWorkload, error)
 	}
 
 	namespacesClient interface {

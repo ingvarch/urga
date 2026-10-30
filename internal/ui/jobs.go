@@ -32,6 +32,9 @@ type jobsPage struct {
 
 	// fault narrows the page to the jobs in that state, as the overview opens it.
 	fault fault
+
+	// queue is the batch job queue workloads by job mark.
+	queue map[string]nomad.QueueWorkload
 }
 
 func (p jobsPage) title(e env, count int) string {
@@ -79,7 +82,8 @@ func (jobsPage) titles() []string { return jobTitles }
 func (jobsPage) topics() []string { return []string{nomad.TopicJob} }
 
 // fetch reads the jobs, and when the page lists the launches of a periodic
-// job, when it launches next.
+// job, when it launches next. It also polls the batch queue for any pending
+// batch jobs.
 func (p jobsPage) fetch(e env) tea.Cmd {
 	client, namespace, pool := e.client, p.where(e), p.pool
 
@@ -91,17 +95,27 @@ func (p jobsPage) fetch(e env) tea.Cmd {
 		return client.Jobs(ctx, namespace)
 	}, func(items []nomad.Job) tea.Msg { return jobsMsg(items) })
 
-	if !p.parent.Periodic {
-		return jobs
+	cmds := []tea.Cmd{jobs}
+	if p.parent.Periodic {
+		cmds = append(cmds, fetchNextLaunch(client, p.parent))
+	}
+	if p.hasPendingBatch() {
+		cmds = append(cmds, fetchBatchQueue(client, pool))
 	}
 
-	return tea.Batch(jobs, fetchNextLaunch(client, p.parent))
+	return tea.Batch(cmds...)
 }
 
-func (p jobsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+func (p jobsPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 	switch msg := msg.(type) {
 	case jobsMsg:
 		p.jobs = msg
+
+		if p.hasPendingBatch() {
+			return p, outcome{cmd: fetchBatchQueue(e.client, p.pool), reading: true}, true
+		}
+
+		p.queue = nil
 
 		return p, outcome{}, true
 
@@ -114,9 +128,25 @@ func (p jobsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 		p.next = msg.at
 
 		return p, outcome{}, true
+
+	case queueWorkloadsMsg:
+		p.queue = msg
+
+		return p, outcome{reading: true}, true
 	}
 
 	return p, outcome{}, false
+}
+
+// hasPendingBatch says there is at least one batch job waiting to run.
+func (p jobsPage) hasPendingBatch() bool {
+	for _, job := range p.jobs {
+		if job.Type == typeBatch && job.Status == statusPending {
+			return true
+		}
+	}
+
+	return false
 }
 
 // visible are the jobs of the datacenter the session is narrowed to that the
@@ -155,7 +185,7 @@ func (p jobsPage) lists(job nomad.Job) bool {
 	return job.ParentID == ""
 }
 
-func (p jobsPage) rows(e env) []tableRow { return jobRows(p.visible(e), lastLaunches(p.jobs)) }
+func (p jobsPage) rows(e env) []tableRow { return jobRows(p.visible(e), lastLaunches(p.jobs), p.queue) }
 
 func (p jobsPage) ids(e env) []string { return names(p.visible(e), jobMark) }
 
@@ -219,18 +249,102 @@ func namespaceLabel(namespace string) string {
 
 // jobRows is one row per job, in the order of the columns. last are the
 // newest launches of the jobs that launch others.
-func jobRows(jobs []nomad.Job, last map[string]nomad.Job) []tableRow {
+func jobRows(jobs []nomad.Job, last map[string]nomad.Job, queue map[string]nomad.QueueWorkload) []tableRow {
 	rows := make([]tableRow, 0, len(jobs))
 
 	for _, job := range jobs {
 		row := tableRow{color: launcherColor(job, last)}
-		row.add(job.ID, job.Name, job.Type, job.Namespace, job.Status, fmt.Sprintf("%d/%d", job.Running, job.Desired))
+		row.add(job.ID, job.Name, job.Type, job.Namespace, jobStatus(job, queue), fmt.Sprintf("%d/%d", job.Running, job.Desired))
 		row.addAge(job.SubmitTime)
 
 		rows = append(rows, row)
 	}
 
 	return rows
+}
+
+// jobStatus is what the status column shows for a job: placing or its place
+// in the batch queue when waiting in a queue, or the status of the job itself.
+func jobStatus(job nomad.Job, queue map[string]nomad.QueueWorkload) string {
+	if job.Type == typeBatch && job.Status == statusPending && len(queue) > 0 {
+		if w, ok := queue[jobMark(job)]; ok {
+			return queueStatus(w)
+		}
+		if w, ok := queue[job.ID]; ok {
+			return queueStatus(w)
+		}
+	}
+
+	return job.Status
+}
+
+// queueStatus is what a pending batch job shows in its status column when it
+// waits in a node pool's batch job queue.
+func queueStatus(w nomad.QueueWorkload) string {
+	switch w.Status {
+	case "placing":
+		return "placing"
+	case "queued":
+		return fmt.Sprintf("queued %d", w.Position+1)
+	default:
+		if w.Status != "" {
+			return w.Status
+		}
+
+		return statusPending
+	}
+}
+
+// queueWorkloadsMsg is the batch queue workloads indexed by job mark.
+type queueWorkloadsMsg map[string]nomad.QueueWorkload
+
+// fetchBatchQueue polls the batch job queue for node pools that have a queue.
+func fetchBatchQueue(client Client, pool string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+
+		workloads := map[string]nomad.QueueWorkload{}
+
+		if pool != "" {
+			list, err := client.BatchQueueJobs(ctx, pool)
+			if err != nil {
+				return nil
+			}
+			for _, w := range list {
+				markWorkload(workloads, w)
+			}
+
+			return queueWorkloadsMsg(workloads)
+		}
+
+		pools, err := client.NodePools(ctx)
+		if err != nil {
+			return nil
+		}
+
+		for _, p := range pools {
+			if p.Queue == "" {
+				continue
+			}
+			list, err := client.BatchQueueJobs(ctx, p.Name)
+			if err != nil {
+				continue
+			}
+			for _, w := range list {
+				markWorkload(workloads, w)
+			}
+		}
+
+		return queueWorkloadsMsg(workloads)
+	}
+}
+
+func markWorkload(m map[string]nomad.QueueWorkload, w nomad.QueueWorkload) {
+	if w.Namespace != "" {
+		m[w.Namespace+"/"+w.JobID] = w
+	}
+	m[w.JobID] = w
 }
 
 // jobColor shows the state of a job without reading the row, as k9s shows a

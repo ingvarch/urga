@@ -43,7 +43,7 @@ func TestJobRows(t *testing.T) {
 		{ID: "cron", Name: "cron", Namespace: "default", Type: "batch", Status: "dead"},
 	}
 
-	rows := jobRows(jobs, nil)
+	rows := jobRows(jobs, nil, nil)
 	r.Len(rows, 2)
 
 	r.Equal([]string{"web", "web", "service", "production", "running", "3/4", "2h"}, rows[0].cells)
@@ -136,4 +136,107 @@ func TestJobs_TheListOfTheRegionLeftIsNotShown(t *testing.T) {
 	out := plain(m.render())
 	r.Contains(out, "Jobs (payments) [0]")
 	r.NotContains(out, "cron")
+}
+
+func TestJobs_BatchQueuePositionInRows(t *testing.T) {
+	r := require.New(t)
+
+	jobs := []nomad.Job{
+		{ID: "batch-placing", Namespace: "default", Type: "batch", Status: "pending"},
+		{ID: "batch-queued-0", Namespace: "default", Type: "batch", Status: "pending"},
+		{ID: "batch-queued-1", Namespace: "default", Type: "batch", Status: "pending"},
+		{ID: "batch-unknown", Namespace: "default", Type: "batch", Status: "pending"},
+		{ID: "service-pending", Namespace: "default", Type: "service", Status: "pending"},
+		{ID: "batch-running", Namespace: "default", Type: "batch", Status: "running"},
+	}
+
+	queue := map[string]nomad.QueueWorkload{
+		"default/batch-placing":   {JobID: "batch-placing", Namespace: "default", Status: "placing", Position: 0},
+		"default/batch-queued-0":  {JobID: "batch-queued-0", Namespace: "default", Status: "queued", Position: 0},
+		"default/batch-queued-1":  {JobID: "batch-queued-1", Namespace: "default", Status: "queued", Position: 1},
+		"default/service-pending": {JobID: "service-pending", Namespace: "default", Status: "queued", Position: 2},
+		"default/batch-running":   {JobID: "batch-running", Namespace: "default", Status: "queued", Position: 3},
+	}
+
+	rows := jobRows(jobs, nil, queue)
+	r.Len(rows, 6)
+
+	r.Equal("placing", rows[0].cells[4])
+	r.Equal("queued 1", rows[1].cells[4])
+	r.Equal("queued 2", rows[2].cells[4])
+	r.Equal("pending", rows[3].cells[4])
+	r.Equal("pending", rows[4].cells[4])
+	r.Equal("running", rows[5].cells[4])
+}
+
+func TestJobs_BatchQueuePositionEndToEnd(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		nodePools: []nomad.NodePool{{Name: "batch", Queue: "fifo"}},
+		queueWorkloads: map[string][]nomad.QueueWorkload{
+			"batch": {
+				{JobID: "batch-1", Namespace: "default", Status: "placing", Position: 0},
+				{JobID: "batch-2", Namespace: "default", Status: "queued", Position: 1},
+			},
+		},
+		jobs: []nomad.Job{
+			{ID: "batch-1", Name: "batch-1", Namespace: "default", Type: "batch", Status: "pending"},
+			{ID: "batch-2", Name: "batch-2", Namespace: "default", Type: "batch", Status: "pending"},
+		},
+	}
+
+	m := newTestModel(client)
+	m = follow(m, m.fetch(), 3)
+
+	out := plain(m.render())
+	r.Contains(out, "batch-1")
+	r.Contains(out, "placing")
+	r.Contains(out, "batch-2")
+	r.Contains(out, "queued 2")
+}
+
+func TestJobs_BatchQueuePositionInPoolPage(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		queueWorkloads: map[string][]nomad.QueueWorkload{
+			"gpu": {
+				{JobID: "gpu-batch", Namespace: "default", Status: "queued", Position: 0},
+			},
+		},
+		poolJobs: []nomad.Job{
+			{ID: "gpu-batch", Name: "gpu-batch", Namespace: "default", Type: "batch", Status: "pending"},
+		},
+	}
+
+	m := newTestModel(client)
+	m, _ = m.update(openMsg{jobsPage{pool: "gpu"}})
+	m = follow(m, m.fetch(), 3)
+
+	out := plain(m.render())
+	r.Contains(out, "gpu-batch")
+	r.Contains(out, "queued 1")
+}
+
+func TestJobs_NoPendingBatchDoesNotFetchQueue(t *testing.T) {
+	r := require.New(t)
+
+	called := false
+	client := &fakeClient{
+		jobs: []nomad.Job{
+			{ID: "svc-1", Name: "svc-1", Namespace: "default", Type: "service", Status: "pending"},
+			{ID: "batch-done", Name: "batch-done", Namespace: "default", Type: "batch", Status: "dead"},
+		},
+	}
+
+	m := newTestModel(client)
+	m = follow(m, m.fetch(), 3)
+
+	r.False(called)
+	out := plain(m.render())
+	r.Contains(out, "svc-1")
+	r.Contains(out, "pending")
+	r.Contains(out, "batch-done")
+	r.Contains(out, "dead")
 }

@@ -10,7 +10,9 @@ The job list shows the ID, name, type, namespace, status, running and desired
 allocations, and age of each job. The color of a row shows the state of the
 job, for example running, pending or dead. A batch job that ended is grey, or
 red when a task group of it failed: it ended with allocations failed or lost
-and none complete.
+and none complete. When a batch job is pending in a node pool configured with a
+batch job queue (Nomad 2.1+), its status shows `placing` when handed over to
+the scheduler or its place in line as `queued <position>` (for example `queued 2`).
 
 From the list:
 
