@@ -230,9 +230,10 @@ keeps it and urga says so. A variable held as a lock cannot be deleted, so
 
 ## Node pools
 
-`:nodepools` lists the node pools and their schedulers. `enter` on a pool
-lists the jobs that run in it, of every namespace, and `c` lists its clients.
-The pool `all` holds every client of the cluster.
+`:nodepools` lists the node pools, their schedulers and batch job queues
+(Nomad 2.1 and later). `enter` on a pool lists the jobs that run in it, of every
+namespace, and `c` lists its clients. The pool `all` holds every client of the
+cluster.
 
 ## Regions and datacenters
 
