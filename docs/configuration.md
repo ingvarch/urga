@@ -176,12 +176,20 @@ line says so for a few seconds, for example `! allocation web.frontend[0]
 failed in namespace production`. Each one shows once; when several fail at
 once it names the newest. Only failures that happen after urga connects show,
 not the ones the cluster still remembers. A namespace created after urga
-connected is followed once the stream opens again, after a switch of cluster
-or region. The line does not replace an error, a warning about something else,
-or a command that is still running. It needs a token that can read jobs in
-every namespace and read clients. With any other token, or when the cluster
-does not send the stream, there is no line and no warning, and urga does not
-ask again until you switch cluster or region.
+connected is followed once the stream opens again, after a drop or a switch of
+cluster or region. The line does not replace an error, a warning about
+something else, or a command that is still running. It needs a token that can
+read jobs in every namespace and read clients. With any other token, or when
+the cluster does not send the stream, there is no line and no warning, and
+urga does not ask again until you switch cluster or region. The same goes for
+any other answer the cluster sends in place of the stream, an error included,
+and for a stream that ends within 5 seconds with no event, which is how Nomad
+2.0 refuses it. If the stream stops after that, urga follows it again 30
+seconds later, from where it stopped. If the cluster cannot be reached, when
+urga connects or after the stream stops, urga tries again every 30 seconds. It
+does the same when the cluster answers `No cluster leader`, as it does while
+its servers start, and when a proxy in front of the cluster answers 502, 503
+or 504: the cluster behind it did not answer.
 
 `CPU Alloc` and `MEM Alloc` in the header are how much of the cluster the
 running allocations asked for, out of what the ready clients give to jobs.

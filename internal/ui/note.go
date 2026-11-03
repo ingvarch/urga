@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -11,12 +12,25 @@ import (
 // noteKept is how many failures the note remembers.
 const noteKept = 1000
 
-// noteOpenedMsg is the stream of failures the cluster opened, for the
-// connection with that id. It is not a streamOpened: the model closes a
-// stale one itself.
+// noteAgain is how long the note waits before it follows a stream that
+// dropped.
+const noteAgain = 30 * time.Second
+
+// noteRefusedWithin is how soon a stream the cluster refuses ends: Nomad 2.0
+// answers 200 and ends the stream at once, with no event.
+const noteRefusedWithin = 5 * time.Second
+
+// noteAgainMsg asks to follow the failures again, for the connection with
+// that id.
+type noteAgainMsg struct{ id int }
+
+// noteOpenedMsg is the stream of failures the cluster opened from the index
+// from, for the connection with that id. It is not a streamOpened: the model
+// closes a stale one itself.
 type noteOpenedMsg struct {
 	id   int
 	feed *nomad.Feed
+	from uint64
 	err  error
 }
 
@@ -33,25 +47,43 @@ type noteState struct {
 
 	// failing is what the note knows failed and has not left that state.
 	failing map[string]bool
+
+	// heard says the open stream sent an event, and opened is when it
+	// opened.
+	heard  bool
+	opened time.Time
+
+	// from is where the next stream starts: past the newest event read, or
+	// where the last stream started. 0 is past the newest event the cluster
+	// has.
+	from uint64
 }
 
-// open asks for the failures of every namespace, from the event after the
-// newest one. Asked from 0, the cluster replays all it keeps, and a failure
-// of hours ago would show as news.
+// open asks for the failures of every namespace. The first time it starts at
+// the event after the newest one: asked from 0, the cluster replays all it
+// keeps, and a failure of hours ago would show as news. After a stream
+// dropped it starts where that one stopped.
 func (n noteState) open(client eventsClient) tea.Cmd {
-	id := n.id
+	id, from := n.id, n.from
 
 	return func() tea.Msg {
-		ctx := context.Background()
+		if from == 0 {
+			ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+			index, err := client.LatestIndex(ctx)
 
-		index, err := client.LatestIndex(ctx)
-		if err != nil {
-			return noteOpenedMsg{id: id, err: err}
+			cancel()
+
+			if err != nil {
+				return noteOpenedMsg{id: id, err: err}
+			}
+
+			from = index + 1
 		}
 
-		feed, err := client.Failures(ctx, nomad.AllNamespaces, index+1)
+		// The stream lasts as long as it is followed, so it has no deadline.
+		feed, err := client.Failures(context.Background(), nomad.AllNamespaces, from)
 
-		return noteOpenedMsg{id: id, feed: feed, err: err}
+		return noteOpenedMsg{id: id, feed: feed, from: from, err: err}
 	}
 }
 
@@ -122,9 +154,18 @@ func failureOf(e nomad.Event) (string, bool) {
 }
 
 // takeNoteOpened keeps the stream of the connection it was opened for and
-// closes any other. A refusal shows nothing.
+// closes any other. An error shows nothing.
 func (m Model) takeNoteOpened(msg noteOpenedMsg) (Model, tea.Cmd) {
 	if msg.err != nil || msg.feed == nil {
+		// Only a request with no answer is tried again, and one that servers
+		// with no leader cannot answer: the cluster may be starting or
+		// restarting, or the network to it may not be up yet. Any other
+		// answer the cluster sends in place of the stream, a refusal or an
+		// error, would be the same when asked again.
+		if nomad.Unanswered(msg.err) && msg.id == m.note.id {
+			return m, m.note.later()
+		}
+
 		return m, nil
 	}
 
@@ -134,7 +175,7 @@ func (m Model) takeNoteOpened(msg noteOpenedMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.note.feed = msg.feed
+	m.note.feed, m.note.heard, m.note.opened, m.note.from = msg.feed, false, m.now, msg.from
 
 	return m, nextEvent(msg.feed)
 }
@@ -143,7 +184,11 @@ func (m Model) takeNoteOpened(msg noteOpenedMsg) (Model, tea.Cmd) {
 func (m Model) takeNoteEvents(msg feedEventsMsg) (Model, tea.Cmd) {
 	var text string
 
+	m.note.heard = true
+
 	for _, event := range msg.events {
+		m.note.from = max(m.note.from, event.Index+1)
+
 		if line, ok := m.note.take(event); ok {
 			text = line
 		}
@@ -156,11 +201,31 @@ func (m Model) takeNoteEvents(msg feedEventsMsg) (Model, tea.Cmd) {
 	return m, nextEvent(m.note.feed)
 }
 
-// takeNoteEnded drops a stream that ended.
+// takeNoteEnded drops a stream that ended. One that ended at once and sent
+// nothing was refused, and the note stays off for the connection. Any other
+// dropped, and is followed again later from where it stopped.
 func (m Model) takeNoteEnded(feedEndedMsg) (Model, tea.Cmd) {
 	m.note.stop()
 
-	return m, nil
+	if !m.note.heard && m.now.Sub(m.note.opened) < noteRefusedWithin {
+		return m, nil
+	}
+
+	return m, m.note.later()
+}
+
+// later asks to follow the failures again after a while.
+func (n noteState) later() tea.Cmd {
+	return startTimer(noteAgain, noteAgainMsg{id: n.id})
+}
+
+// takeNoteAgain opens the stream again, unless the connection changed.
+func (m Model) takeNoteAgain(msg noteAgainMsg) (Model, tea.Cmd) {
+	if msg.id != m.note.id {
+		return m, nil
+	}
+
+	return m, m.note.open(m.client)
 }
 
 // noteFailure shows the failure unless a message that matters more is on the

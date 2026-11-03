@@ -1,8 +1,11 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
@@ -18,8 +21,17 @@ import (
 func noting(t *testing.T, client *fakeClient) Model {
 	t.Helper()
 
-	m := newTestModel(client)
+	m := laterConnection(client)
 	m, _ = m.update(m.note.open(client)())
+
+	return m
+}
+
+// laterConnection is a session past its first connection, so a message
+// that names the connection by the zero id is wrong.
+func laterConnection(client *fakeClient) Model {
+	m := newTestModel(client)
+	m.note = m.note.restart()
 
 	return m
 }
@@ -400,4 +412,305 @@ func TestNoteState_StartsOverPastItsLimit(t *testing.T) {
 	}
 
 	require.Len(t, note.failing, 1)
+}
+
+// requireTriesLater says the command waits and then follows the failures of
+// the connection of the model again. The test holds timers.
+func requireTriesLater(t *testing.T, m Model, cmd tea.Cmd) {
+	t.Helper()
+
+	require.Equal(t, heldTimer{wait: noteAgain, msg: noteAgainMsg{id: m.note.id}}, within(cmd, 200*time.Millisecond))
+}
+
+// dropped is a session whose stream sent an event and then broke.
+func dropped(t *testing.T, client *fakeClient, feed *nomad.Feed) (Model, tea.Cmd) {
+	t.Helper()
+
+	m := noting(t, client)
+	m = noteArrives(m, nomad.Event{Index: 30, Topic: nomad.TopicNode, Key: "n1", Name: "client-01", State: "ready"})
+
+	return m.update(feedEndedMsg{feed: feed, err: io.ErrUnexpectedEOF})
+}
+
+func TestNote_FollowsAgainAfterItsStreamDrops(t *testing.T) {
+	r := require.New(t)
+	holdTimers(t)
+
+	feed, _ := feedOf()
+	feed2, _ := feedOf()
+	client := &fakeClient{failures: feed}
+
+	m, cmd := dropped(t, client, feed)
+	requireTriesLater(t, m, cmd)
+	r.Nil(m.note.feed)
+
+	client.failures = feed2
+
+	m, cmd = m.update(noteAgainMsg{id: m.note.id})
+	r.NotNil(cmd)
+
+	m, _ = m.update(cmd())
+	r.Equal(uint64(31), client.failuresFrom)
+	r.Same(feed2, m.note.feed)
+}
+
+func TestNote_KeepsWhatFailedAcrossADrop(t *testing.T) {
+	r := require.New(t)
+
+	feed, _ := feedOf()
+	feed2, _ := feedOf()
+	client := &fakeClient{failures: feed}
+
+	m := noting(t, client)
+	m = noteArrives(m, failedAlloc("a1", "web.frontend[0]"))
+	m, _ = m.update(feedEndedMsg{feed: feed, err: io.ErrUnexpectedEOF})
+
+	client.failures = feed2
+	m, cmd := m.update(noteAgainMsg{id: m.note.id})
+	m, _ = m.update(cmd())
+
+	m = noteArrives(m.quiet(), failedAlloc("a1", "web.frontend[0]"))
+	r.Empty(m.flash.text)
+}
+
+func TestNote_DoesNotFollowAgainAStreamThatSentNothing(t *testing.T) {
+	r := require.New(t)
+
+	feed, _ := feedOf()
+	feed2, _ := feedOf()
+	client := &fakeClient{failures: feed}
+
+	m, _ := dropped(t, client, feed)
+	client.failures = feed2
+
+	m, cmd := m.update(noteAgainMsg{id: m.note.id})
+	m, _ = m.update(cmd())
+
+	m, cmd = m.update(feedEndedMsg{feed: feed2, err: io.EOF})
+	r.Nil(cmd)
+	r.Nil(m.note.feed)
+}
+
+func TestNote_FollowsAgainAQuietStreamThatDrops(t *testing.T) {
+	r := require.New(t)
+	holdTimers(t)
+
+	feed, _ := feedOf()
+	feed2, _ := feedOf()
+	client := &fakeClient{failures: feed, latestIndex: 40}
+
+	m := noting(t, client)
+
+	// The cluster sent nothing, and the stream was open too long to be a
+	// refusal: a server restarted, or the network dropped.
+	m.note.opened = m.note.opened.Add(-noteRefusedWithin)
+
+	m, cmd := m.update(feedEndedMsg{feed: feed, err: io.ErrUnexpectedEOF})
+	requireTriesLater(t, m, cmd)
+	r.Nil(m.note.feed)
+
+	client.failures, client.latestIndex = feed2, 90
+
+	m, cmd = m.update(noteAgainMsg{id: m.note.id})
+	m, _ = m.update(cmd())
+
+	// From where the quiet stream started: what failed since is not lost.
+	r.Equal(uint64(41), client.failuresFrom)
+	r.Same(feed2, m.note.feed)
+}
+
+// answers are what a cluster or a proxy in front of it may answer in place of
+// the stream. Asked again, it answers the same.
+func answers(t *testing.T) map[string]error {
+	t.Helper()
+
+	return map[string]error{
+		"refused":         forbidden(t),
+		"no event broker": refusedWith(t, http.StatusInternalServerError, "event broker disabled"),
+		"no such path":    refusedWith(t, http.StatusNotFound, "404 page not found"),
+	}
+}
+
+func TestNote_OpenedAgainAndAnsweredStaysQuiet(t *testing.T) {
+	for name, answer := range answers(t) {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			feed, _ := feedOf()
+			client := &fakeClient{failures: feed}
+
+			m, _ := dropped(t, client, feed)
+			client.failuresErr = answer
+
+			m, cmd := m.update(noteAgainMsg{id: m.note.id})
+			m, cmd = m.update(cmd())
+
+			r.Nil(cmd)
+			r.Empty(m.flash.text)
+		})
+	}
+}
+
+func TestNote_AnsweredAtTheStartStaysQuiet(t *testing.T) {
+	for name, answer := range answers(t) {
+		for asked, client := range map[string]*fakeClient{
+			"the newest index": {latestErr: answer},
+			"the stream":       {failuresErr: answer},
+		} {
+			t.Run(name+", "+asked, func(t *testing.T) {
+				r := require.New(t)
+
+				m := newTestModel(client)
+				m, cmd := m.update(m.note.open(client)())
+
+				r.Nil(cmd)
+				r.Empty(m.flash.text)
+				r.Nil(m.note.feed)
+			})
+		}
+	}
+}
+
+// unreached is what a request gets when nothing listens at the address.
+func unreached(t *testing.T) error {
+	t.Helper()
+
+	server := httptest.NewServer(http.NotFoundHandler())
+	server.Close()
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	_, err = client.Jobs(context.Background(), "default")
+	require.Error(t, err)
+
+	return err
+}
+
+func TestNote_OpenedAgainAndNotReachedTriesLater(t *testing.T) {
+	r := require.New(t)
+	holdTimers(t)
+
+	feed, _ := feedOf()
+	feed2, _ := feedOf()
+	client := &fakeClient{failures: feed}
+
+	m, _ := dropped(t, client, feed)
+	client.failuresErr = unreached(t)
+
+	m, cmd := m.update(noteAgainMsg{id: m.note.id})
+	m, cmd = m.update(cmd())
+
+	// The server may be restarting: the note waits, shows nothing, and opens
+	// the stream once more.
+	requireTriesLater(t, m, cmd)
+	r.Empty(m.flash.text)
+
+	client.failuresErr, client.failures = nil, feed2
+	m, cmd = m.update(noteAgainMsg{id: m.note.id})
+	m, _ = m.update(cmd())
+
+	r.Same(feed2, m.note.feed)
+}
+
+func TestNote_OpenedAgainTriesLaterOnlyWhenTheClusterDidNotAnswer(t *testing.T) {
+	for status, retried := range map[int]bool{
+		http.StatusBadGateway: true, http.StatusServiceUnavailable: true, http.StatusGatewayTimeout: true,
+		http.StatusForbidden: false, http.StatusNotFound: false, http.StatusInternalServerError: false,
+	} {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			r := require.New(t)
+			holdTimers(t)
+
+			feed, _ := feedOf()
+			client := &fakeClient{failures: feed}
+
+			m, _ := dropped(t, client, feed)
+			client.failuresErr = refusedWith(t, status, http.StatusText(status))
+
+			m, cmd := m.update(noteAgainMsg{id: m.note.id})
+			m, cmd = m.update(cmd())
+
+			if retried {
+				requireTriesLater(t, m, cmd)
+			} else {
+				r.Nil(cmd)
+			}
+
+			r.Empty(m.flash.text)
+		})
+	}
+}
+
+func TestNote_NotReachedAtTheStartTriesLater(t *testing.T) {
+	for why, refused := range map[string]error{
+		"not reached": unreached(t),
+		"no leader":   refusedWith(t, http.StatusInternalServerError, "No cluster leader"),
+	} {
+		for asked, client := range map[string]*fakeClient{
+			"the newest index": {latestErr: refused},
+			"the stream":       {failuresErr: refused},
+		} {
+			t.Run(why+", "+asked, func(t *testing.T) {
+				r := require.New(t)
+				holdTimers(t)
+
+				m := laterConnection(client)
+				m, cmd := m.update(m.note.open(client)())
+
+				// The cluster may not be up yet: urga started before it, or
+				// before the network to it, or before its servers chose a
+				// leader.
+				requireTriesLater(t, m, cmd)
+				r.Empty(m.flash.text)
+
+				feed, _ := feedOf()
+				client.latestErr, client.failuresErr, client.failures = nil, nil, feed
+
+				m, cmd = m.update(noteAgainMsg{id: m.note.id})
+				m, _ = m.update(cmd())
+
+				r.Same(feed, m.note.feed)
+			})
+		}
+	}
+}
+
+func TestNote_AnOpenThatFailedForAConnectionLeftTriesNothing(t *testing.T) {
+	m, clusters := onDev(t)
+	stale := m.note.id
+	m, _ = m.update(connectedMsg{attempt: m.attempt, conn: Connection{Name: "prod", Client: clusters.prod}})
+
+	_, cmd := m.update(noteOpenedMsg{id: stale, err: errors.New("connection refused")})
+
+	require.Nil(t, cmd)
+}
+
+func TestNote_ATimerOfAConnectionLeftOpensNothing(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+	stale := m.note.id
+	m, _ = m.update(connectedMsg{attempt: m.attempt, conn: Connection{Name: "prod", Client: clusters.prod}})
+
+	m, cmd := m.update(noteAgainMsg{id: stale})
+
+	r.Nil(cmd)
+	r.Zero(clusters.dev.failuresCalls)
+	r.Zero(clusters.prod.failuresCalls)
+}
+
+func TestNote_TheNewestIndexIsReadWithADeadlineAndTheStreamWithout(t *testing.T) {
+	r := require.New(t)
+
+	feed, _ := feedOf()
+	client := &fakeClient{failures: feed, latestIndex: 40}
+
+	m := laterConnection(client)
+	m.note.open(client)()
+
+	// A cluster that takes the connection and never answers would hold the
+	// read for good; the stream itself stays open as long as it is followed.
+	r.True(client.latestDeadline)
+	r.False(client.failuresDeadline)
 }

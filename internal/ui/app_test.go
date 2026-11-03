@@ -303,11 +303,13 @@ type fakeClient struct {
 	failuresNamespace string
 	failuresFrom      uint64
 	failuresCalls     int
+	failuresDeadline  bool
 
 	// latestIndex is where the note starts, unless latestErr says it cannot
-	// be read.
-	latestIndex uint64
-	latestErr   error
+	// be read. latestDeadline says the read had a deadline.
+	latestIndex    uint64
+	latestErr      error
+	latestDeadline bool
 
 	// scalingPolicies are the policies of the list, groupScaling how the
 	// group asked about is scaled.
@@ -795,8 +797,9 @@ func (f *fakeClient) Feed(_ context.Context, namespace string, subject nomad.Sub
 	return f.feed, f.err
 }
 
-func (f *fakeClient) Failures(_ context.Context, namespace string, from uint64) (*nomad.Feed, error) {
+func (f *fakeClient) Failures(ctx context.Context, namespace string, from uint64) (*nomad.Feed, error) {
 	f.failuresNamespace, f.failuresFrom = namespace, from
+	_, f.failuresDeadline = ctx.Deadline()
 	f.failuresCalls++
 
 	if f.failuresErr != nil {
@@ -814,7 +817,9 @@ func (f *fakeClient) Failures(_ context.Context, namespace string, from uint64) 
 // stream.
 var streamRefused = sync.OnceValue(func() error { return answeredWith(http.StatusForbidden, "Permission denied") })
 
-func (f *fakeClient) LatestIndex(context.Context) (uint64, error) {
+func (f *fakeClient) LatestIndex(ctx context.Context) (uint64, error) {
+	_, f.latestDeadline = ctx.Deadline()
+
 	return f.latestIndex, f.latestErr
 }
 
