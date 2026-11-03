@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -67,6 +68,31 @@ func (c *Client) Token(ctx context.Context) (Token, error) {
 // Forbidden says the cluster refused a request with 403: the token may not
 // do what was asked, or is not a token the cluster knows.
 func Forbidden(err error) bool { return answered(err, http.StatusForbidden) }
+
+// Unanswered says a request failed with no status from the cluster: most
+// often the cluster or the network to it is down. 502, 503 and 504 are what a
+// proxy in front of the cluster answers when the cluster behind it does not.
+// Servers with no leader, as while they start, answer 500 and cannot answer
+// the request until they choose one.
+func Unanswered(err error) bool {
+	var answer api.UnexpectedResponseError
+
+	if !errors.As(err, &answer) {
+		return err != nil
+	}
+
+	switch answer.StatusCode() {
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return true
+	case http.StatusInternalServerError:
+		return strings.Contains(answer.Body(), noLeader)
+	}
+
+	return false
+}
+
+// noLeader is what Nomad says when its servers have no leader.
+const noLeader = "No cluster leader"
 
 // answered says the cluster refused a request with this status.
 func answered(err error, status int) bool {

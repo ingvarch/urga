@@ -88,3 +88,37 @@ func TestForbidden(t *testing.T) {
 	r.False(nomad.Forbidden(errors.New("connection refused")))
 	r.False(nomad.Forbidden(nil))
 }
+
+func TestUnanswered(t *testing.T) {
+	r := require.New(t)
+
+	// A proxy in front of the cluster answers 502, 503 or 504 when the
+	// cluster behind it does not.
+	for status, unanswered := range map[int]bool{
+		http.StatusForbidden: false, http.StatusNotFound: false, http.StatusInternalServerError: false,
+		http.StatusBadGateway: true, http.StatusServiceUnavailable: true, http.StatusGatewayTimeout: true,
+	} {
+		_, err := refusing(t, status, http.StatusText(status)).Jobs(context.Background(), "default")
+		r.Error(err)
+		r.Equal(unanswered, nomad.Unanswered(err), status)
+	}
+
+	// Servers that have no leader, as while they start, answer 500 with the
+	// text Nomad has for it.
+	_, err := refusing(t, http.StatusInternalServerError, "No cluster leader").Jobs(context.Background(), "default")
+	r.Error(err)
+	r.True(nomad.Unanswered(err))
+
+	// Nothing listens at the address.
+	server := httptest.NewServer(http.NotFoundHandler())
+	server.Close()
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	_, err = client.Jobs(context.Background(), "default")
+	r.Error(err)
+	r.True(nomad.Unanswered(err))
+
+	r.False(nomad.Unanswered(nil))
+}

@@ -263,6 +263,9 @@ func (m Model) keepingUp(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case noteOpenedMsg:
 		return taken(m.takeNoteOpened(msg))
 
+	case noteAgainMsg:
+		return taken(m.takeNoteAgain(msg))
+
 	case feedEventsMsg:
 		if m.note.feed != nil && msg.feed == m.note.feed {
 			return taken(m.takeNoteEvents(msg))
