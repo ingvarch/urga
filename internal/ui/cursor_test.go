@@ -280,20 +280,29 @@ func TestCursor_StaysOnItsResourceOnEveryPageThatActs(t *testing.T) {
 	}
 }
 
-func TestCursor_IsOnNoRowWhenItsResourceLeavesTheView(t *testing.T) {
-	r := require.New(t)
+// onNoRow is the troubled allocations with the cursor on no row: an answer
+// found the one it was on fine, so the filter dropped it from the view.
+func onNoRow(t *testing.T) (Model, *fakeClient) {
+	t.Helper()
 
 	m, client := onAllocations(t)
 	m, _ = m.update(allocsMsg(troubledAllocs()))
 	m, _ = m.update(key('!'))
+	m, _ = m.update(key('g'))
 	m, _ = m.update(key('j'))
-	m, _ = m.update(key('j'))
-	r.Equal("bbbb2222", shortID(m.list.table.ids[m.list.table.cursor]))
+	require.Equal(t, "bbbb2222", shortID(m.list.table.ids[m.list.table.cursor]))
 
-	// The next answer finds it fine, so the filter drops it from the view.
 	mended := troubledAllocs()
 	mended[1].Tasks = nil
 	m, _ = m.update(allocsMsg(mended))
+
+	return m, client
+}
+
+func TestCursor_IsOnNoRowWhenItsResourceLeavesTheView(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onNoRow(t)
 
 	r.Len(m.list.table.rows, 2)
 	r.Equal(-1, m.list.table.cursor)
@@ -307,6 +316,36 @@ func TestCursor_IsOnNoRowWhenItsResourceLeavesTheView(t *testing.T) {
 	// The next move puts the cursor on a row again.
 	m, _ = m.update(key('j'))
 	r.Equal(0, m.list.table.cursor)
+}
+
+func TestCursor_ANewViewPutsTheCursorBackOnARow(t *testing.T) {
+	t.Run("filter", func(t *testing.T) {
+		r := require.New(t)
+
+		m, _ := onNoRow(t)
+		r.Equal(noRow, m.list.table.cursor)
+
+		m, _ = m.update(key('/'))
+		m = typeIn(m, "frontend")
+		r.Equal(0, m.list.table.cursor)
+
+		m, _ = m.update(enter())
+		m, _ = m.update(enter())
+		r.IsType(tasksPage{}, m.screen.page)
+	})
+
+	t.Run("!", func(t *testing.T) {
+		r := require.New(t)
+
+		m, _ := onNoRow(t)
+		r.Equal(noRow, m.list.table.cursor)
+
+		m, _ = m.update(key('!'))
+		r.Equal(0, m.list.table.cursor)
+
+		m, _ = m.update(enter())
+		r.IsType(tasksPage{}, m.screen.page)
+	})
 }
 
 func TestTable_KeepsItsWindowWhileTheCursorIsOnNoRow(t *testing.T) {
@@ -336,7 +375,6 @@ func TestCursor_ACursorOnNoRowDrawsTheQuestionInTheMiddle(t *testing.T) {
 	m, _ := onAllocations(t)
 	m, _ = m.update(allocsMsg(troubledAllocs()))
 	m, _ = m.update(key('!'))
-	m, _ = m.update(key('j'))
 	m, _ = m.update(space())
 	m, _ = m.update(key('j'))
 	r.Equal("bbbb2222", shortID(m.list.table.ids[m.list.table.cursor]))
