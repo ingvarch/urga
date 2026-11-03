@@ -391,3 +391,29 @@ func TestClusters_ALineOpenWhenTheSwitchEndsCloses(t *testing.T) {
 	r.Empty(clusters.dev.writes)
 	r.Empty(clusters.prod.writes)
 }
+
+func TestClusters_ADescriptionAskedBeforeTheSwitchIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onDev(t)
+
+	m, describe := m.update(key('d'))
+	m = typeCommand(m, "ctx prod")
+	m = drain(m, describe)
+
+	r.IsType(jobsPage{}, m.screen.page)
+	r.NotContains(plain(m.render()), "Job: web")
+}
+
+func TestClusters_ARevertPlannedBeforeTheSwitchDoesNotOpen(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+
+	m, revert := m.update(key('u'))
+	m = typeCommand(m, "ctx prod")
+	m = drain(m, revert)
+
+	r.IsType(jobsPage{}, m.screen.page)
+	r.Empty(clusters.prod.writes)
+}

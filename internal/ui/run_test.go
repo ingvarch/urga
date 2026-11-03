@@ -153,3 +153,23 @@ func TestRun_SaysWhyItPlansNothing(t *testing.T) {
 		r.Empty(client.plannedSource)
 	})
 }
+
+func TestRun_APlanAskedBeforeTheSwitchDoesNotOpen(t *testing.T) {
+	r := require.New(t)
+
+	t.Chdir(t.TempDir())
+	r.NoError(os.WriteFile("web.nomad.hcl", []byte(nomad.JobTemplate), 0o600))
+
+	m, clusters := onDev(t)
+	clusters.dev.target = nomad.JobTarget{ID: "web", Namespace: "production", Type: "service"}
+
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "run web.nomad.hcl")
+	m, planned := m.update(enter())
+
+	m = typeCommand(m, "ctx prod")
+	m = drain(m, planned)
+
+	r.IsType(jobsPage{}, m.screen.page)
+	r.Empty(clusters.prod.writes)
+}

@@ -438,7 +438,7 @@ func TestHints_EveryKeyThatDoesSomethingIsInTheHeader(t *testing.T) {
 	r := require.New(t)
 
 	// A key that edits writes its file before anything else happens.
-	t.Setenv("TMPDIR", t.TempDir())
+	tempDir(t)
 
 	for name, m := range everyScreen(t) {
 		m = m.quiet()

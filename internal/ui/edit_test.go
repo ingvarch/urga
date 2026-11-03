@@ -75,6 +75,20 @@ func editModel(t *testing.T, client *fakeClient) (Model, *fakeEditor) {
 	return m, editor
 }
 
+// tempDir points the temp dir urga writes to at a new directory of the test,
+// and returns it. Windows reads TMP and TEMP instead of TMPDIR.
+func tempDir(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	for _, name := range []string{"TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(name, dir)
+	}
+
+	return dir
+}
+
 func TestEdit_OpensTheJobFile(t *testing.T) {
 	r := require.New(t)
 
@@ -341,4 +355,43 @@ func TestEdit_AFileThatNamesAnotherJobOpensTheEditorAgain(t *testing.T) {
 	r.Contains(editor.seen[1], "# Not saved: the file names job \"cron\", not \"web\".\n# To make a new job, use n or :run.\n")
 	r.Contains(editor.seen[1], `job "cron" {}`)
 	r.Zero(client.submitted)
+}
+
+func TestEdit_AFileThatFailsToReadAfterLeavingShowsNoError(t *testing.T) {
+	r := require.New(t)
+
+	tempDir(t)
+
+	client := &fakeClient{jobs: twoJobs(), specErr: errors.New("no such job")}
+	m, editor := editModel(t, client)
+
+	m, read := m.update(key('e'))
+	m, _ = m.update(enter())
+	m = drain(m, read)
+
+	r.IsType(allocationsPage{}, m.screen.page)
+	r.NotContains(plain(m.render()), "no such job")
+	r.Empty(editor.seen)
+}
+
+func TestEdit_TheFileOfAnEditThatArrivesAfterLeavingIsRemoved(t *testing.T) {
+	r := require.New(t)
+
+	tempDir(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}}
+	m, editor := editModel(t, client)
+
+	m, read := m.update(key('e'))
+	late := read()
+
+	path := answered(t, late).(editFileMsg).path
+	r.FileExists(path)
+
+	m, _ = m.update(enter())
+	m, _ = m.update(late)
+
+	r.NoFileExists(path)
+	r.Empty(editor.seen)
+	r.Empty(m.editing.path)
 }

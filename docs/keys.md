@@ -11,6 +11,11 @@ If the screen changes while the dialog, or a line that asks for a value, is
 open, for example when a cluster switch finishes, it closes and nothing is
 sent.
 
+What a key asks of the cluster belongs to the screen you pressed it on. If you
+leave that screen, or switch clusters, before the answer arrives, urga drops
+it: a description, a plan or a file does not open on the screen you went to.
+What an action did still shows in the status line.
+
 ## Command line
 
 Press `:` to open the command line, type a command and press `enter`.

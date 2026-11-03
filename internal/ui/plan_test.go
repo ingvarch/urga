@@ -280,6 +280,28 @@ func TestPlan_WhenTheJobChangedSinceThePlan(t *testing.T) {
 	r.Contains(plain(m.render()), "web changed since this plan: r plans it again")
 }
 
+func TestPlan_AJobChangedSinceThePlanIsSaidAfterLeavingWithoutAKey(t *testing.T) {
+	r := require.New(t)
+
+	tempDir(t)
+
+	client := &fakeClient{
+		jobs:      twoJobs(),
+		spec:      nomad.JobSource{Source: "job \"web\" {}", Index: 42},
+		plan:      changedEnv(),
+		actionErr: nomad.ErrJobChanged,
+	}
+	m := planned(t, client)
+
+	m, sent := m.update(key('y'))
+	m, _ = m.update(escape())
+	m = drain(m, sent)
+
+	// No plan is open to plan again.
+	r.IsType(jobsPage{}, m.screen.page)
+	r.Equal("web changed since this plan", m.flash.text)
+}
+
 func TestPlan_PlansTheSameFileAgain(t *testing.T) {
 	r := require.New(t)
 
@@ -603,6 +625,28 @@ func TestPlan_WhatCameOfASubmitIsSaidAfterLeaving(t *testing.T) {
 	r.Contains(plain(m.render()), "Job web submitted")
 }
 
+func TestPlan_ASubmitThatEndsAfterLeavingKeepsANewPlanOfTheJobOpen(t *testing.T) {
+	r := require.New(t)
+
+	tempDir(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
+	m := planned(t, client)
+
+	m, sent := m.update(key('y'))
+	m, _ = m.update(escape())
+
+	// web is edited again, and its new plan is open when the submit ends.
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 6)
+	r.IsType(planPage{}, m.screen.page)
+
+	m = drain(m, sent)
+
+	r.IsType(planPage{}, m.screen.page)
+	r.Contains(plain(m.render()), "Job web submitted")
+}
+
 func TestPlan_DoesNotPoll(t *testing.T) {
 	r := require.New(t)
 
@@ -658,18 +702,69 @@ func TestPlan_OfAnotherJobGoesOnTop(t *testing.T) {
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
 
-	// A revert of both jobs is requested before either plan arrives.
+	m, web := m.update(key('u'))
+	m = drain(m, web)
+	r.Contains(plain(m.render()), "Revert (Job: web, Version: 3)")
+
+	// The plan of cron is not the plan of web planned again.
+	cron := planOf(nomad.Plan{To: 3, Version: 4}, planState{revert: true, namespace: "production", jobID: "cron"})
+	m, _ = m.update(openMsg{cron})
+	r.Contains(plain(m.render()), "Revert (Job: cron, Version: 3)")
+
+	m, _ = m.update(escape())
+	r.Contains(plain(m.render()), "Revert (Job: web, Version: 3)")
+}
+
+func TestPlan_ASecondPlanAskedFromTheListIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), plan: nomad.Plan{To: 3, Version: 4}}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
 	m, web := m.update(key('u'))
 	m, _ = m.update(key('j'))
 	m, cron := m.update(key('u'))
 
 	m = drain(m, web)
 	m = drain(m, cron)
-	r.Contains(plain(m.render()), "Revert (Job: cron, Version: 3)")
-
-	// The plan of cron is not the plan of web planned again.
-	m, _ = m.update(escape())
 	r.Contains(plain(m.render()), "Revert (Job: web, Version: 3)")
+
+	m, _ = m.update(escape())
+	r.IsType(jobsPage{}, m.screen.page)
+}
+
+func TestPlan_PlannedAgainAfterLeavingDoesNotOpen(t *testing.T) {
+	r := require.New(t)
+
+	tempDir(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
+	m := planned(t, client)
+
+	m, again := m.update(key('r'))
+	m, _ = m.update(escape())
+	m = drain(m, again)
+
+	r.IsType(jobsPage{}, m.screen.page)
+}
+
+func TestPlan_WhatCameOfASubmitByItsButtonIsSaidAfterLeaving(t *testing.T) {
+	r := require.New(t)
+
+	tempDir(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}", Index: 42}, plan: changedEnv()}
+	m := planned(t, client)
+
+	m, _ = m.update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m, sent := m.update(enter())
+	m, _ = m.update(escape())
+	m = drain(m, sent)
+
+	r.Equal(1, client.submitted)
+	r.IsType(jobsPage{}, m.screen.page)
+	r.Contains(plain(m.render()), "Job web submitted")
 }
 
 func TestPlan_ASubmitOpensTheWatchOfTheDeploy(t *testing.T) {

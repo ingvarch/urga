@@ -2,6 +2,8 @@ package ui
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -361,13 +363,16 @@ func TestAction_ALateAnswerOfAWriteOnlyReportsWhatItDid(t *testing.T) {
 }
 
 func TestAction_ALateAnswerOfAWriteChangesNothingElse(t *testing.T) {
+	edited := filepath.Join(t.TempDir(), "urga-edit.hcl")
+	require.NoError(t, os.WriteFile(edited, []byte("job \"web\" {}"), 0o600))
+
 	for name, msg := range map[string]tea.Msg{
 		"open":                         openMsg{page: describePage{}},
 		"describe":                     describeMsg{label: "x", content: "y"},
 		"ask":                          askMsg{question: "Really?", apply: func() tea.Msg { return nil }},
 		"namespace":                    switchNamespaceMsg("other"),
 		"namespace of another cluster": connectionMsg{connection: 7, msg: switchNamespaceMsg("other")},
-		"edit file":                    editFileMsg{path: "/tmp/x"},
+		"edit file":                    editFileMsg{path: edited},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
@@ -385,6 +390,9 @@ func TestAction_ALateAnswerOfAWriteChangesNothingElse(t *testing.T) {
 			r.Equal(overlayNone, m.overlay)
 		})
 	}
+
+	// The file of an edit that no screen opens is removed.
+	require.NoFileExists(t, edited)
 }
 
 func TestAction_ALateFailureOfAWriteStaysUntilItsTimeIsUp(t *testing.T) {

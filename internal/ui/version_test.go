@@ -268,3 +268,21 @@ func TestVersions_ATagAnsweredAfterLeavingKeepsTheMarksOfTheJobs(t *testing.T) {
 	r.Equal(map[string]bool{"production/web": true}, m.list.marks)
 	r.Contains(plain(m.render()), "tagged")
 }
+
+func TestVersions_AMarkAnsweredAfterLeavingKeepsTheMarksOfTheJobs(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onVersions(t)
+
+	m, _ = m.update(key('j'))
+	m, stable := m.update(key('s'))
+
+	m, _ = m.update(escape())
+	m, _ = m.update(space())
+	r.Equal(map[string]bool{"production/web": true}, m.list.marks)
+
+	m = drain(m, stable)
+
+	r.Equal(map[string]bool{"production/web": true}, m.list.marks)
+	r.Contains(plain(m.render()), "marked stable")
+}

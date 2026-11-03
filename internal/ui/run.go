@@ -20,14 +20,14 @@ func (m Model) run(path string) (Model, tea.Cmd) {
 
 	client, namespace := m.client, m.namespace
 
-	return m, request(func(ctx context.Context) (planPage, error) {
+	return m, askedFor(m.asked, request(func(ctx context.Context) (planPage, error) {
 		source, err := readJobFile(path)
 		if err != nil {
 			return planPage{}, err
 		}
 
 		return planNewJob(ctx, client, namespace, source)
-	}, func(page planPage) tea.Msg { return openMsg{page} })
+	}, func(page planPage) tea.Msg { return openMsg{page} }))
 }
 
 // readJobFile reads the file at path, which can start with ~/ for the home

@@ -164,3 +164,16 @@ func TestDescribe_TheNextOneOpensAtTheTop(t *testing.T) {
 
 	r.Contains(plain(m.render()), long[0])
 }
+
+func TestDescribe_AnAnswerAfterTheScreenIsLeftIsDropped(t *testing.T) {
+	r := require.New(t)
+
+	m := loadedModel(t)
+
+	m, describe := m.update(key('d'))
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	m = drain(m, describe)
+
+	r.IsType(allocationsPage{}, m.screen.page)
+}

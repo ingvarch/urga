@@ -606,3 +606,40 @@ func TestSaveName_OfAFile(t *testing.T) {
 	r.True(strings.HasPrefix(name, "app.env-"), name)
 	r.True(strings.HasSuffix(name, ".txt"), name)
 }
+
+func TestFiles_AFileAskedOnAnEarlierVisitIsNotOpened(t *testing.T) {
+	r := require.New(t)
+
+	stream := written("DB_HOST=10.0.0.5\n")
+	closed := false
+	stream.OnClose = func() { closed = true }
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), file: stream}
+	m := onEnv(t, client)
+
+	m, open := m.update(enter())
+	m, _ = m.update(escape())
+
+	m, listing := m.update(enter())
+	m = drain(m, listing)
+	m = drain(m, open)
+
+	r.IsType(filesPage{}, m.screen.page)
+	r.True(closed)
+}
+
+func TestFiles_AFileThatFailsAfterLeavingShowsNoError(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs: twoJobs(), allocs: twoAllocs(),
+		fileErr: fmt.Errorf("blob.bin is %w (application/octet-stream)", nomad.ErrNotText),
+	}
+	m := onEnv(t, client)
+
+	m, open := m.update(enter())
+	m, _ = m.update(escape())
+	m = drain(m, open)
+
+	r.NotContains(plain(m.render()), "not text")
+}

@@ -154,8 +154,9 @@ func (m Model) fromAction(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return taken(m.done(msg))
 
 	case streamOpened:
-		// A stream no page took: the page it was opened for is gone, so it
-		// is closed.
+		// A stream or a temp file no page took: the page it was for is
+		// gone, so it is closed or removed. editFileMsg holds a temp file
+		// too and is taken above.
 		msg.release()
 
 		return m, nil, true
