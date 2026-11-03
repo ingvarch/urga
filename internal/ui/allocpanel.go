@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -24,7 +25,7 @@ func (p tasksPage) panel(_ env, width, room int) []string {
 		checks = p.checks
 	}
 
-	return allocPanel(p.alloc, checks, width, room)
+	return allocPanel(p.alloc, checks, p.at, width, room)
 }
 
 // allocHas offers a key when the allocation on the screen has the ID the key
@@ -82,11 +83,11 @@ func fieldLineRows(lines [][]field, width int) []string {
 }
 
 // allocPanel is what the tasks of an allocation show above them: its status,
-// client, job version and deployment health, its ports, the allocations
-// before and after it, and its checks. A line with no values is left out,
-// and the panel takes no more than room rows, the blank line before the
-// tasks included.
-func allocPanel(alloc nomad.Alloc, checks []nomad.Check, width, room int) []string {
+// client, job version and deployment health, its timeout and the time left,
+// its ports, the allocations before and after it, and its checks. A line with
+// no values is left out, and the panel takes no more than room rows, the
+// blank line before the tasks included.
+func allocPanel(alloc nomad.Alloc, checks []nomad.Check, now time.Time, width, room int) []string {
 	deployment := alloc.Health
 	if deployment != "" && alloc.Canary {
 		deployment += ", canary"
@@ -112,6 +113,17 @@ func allocPanel(alloc nomad.Alloc, checks []nomad.Check, width, room int) []stri
 		reschedules = fmt.Sprint(alloc.Reschedules)
 	}
 
+	timeout, timeLeft := "", ""
+
+	if alloc.Timeout > 0 {
+		timeout = exactly(alloc.Timeout)
+
+		left := alloc.Created.Add(alloc.Timeout).Sub(now)
+		if alloc.HoldsPlace() && left > 0 {
+			timeLeft = age(left)
+		}
+	}
+
 	lines := [][]field{
 		{
 			{"Status", alloc.Status},
@@ -120,6 +132,7 @@ func allocPanel(alloc nomad.Alloc, checks []nomad.Check, width, room int) []stri
 			{"Version", fmt.Sprint(alloc.JobVersion)},
 			{"Deployment", deployment},
 		},
+		{{"Timeout", timeout}, {"Time left", timeLeft}},
 		{{"Ports", strings.Join(ports, ", ")}},
 		{
 			{"Reschedules", reschedules},

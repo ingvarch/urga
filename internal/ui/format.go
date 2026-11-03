@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
@@ -20,6 +21,20 @@ func age(since time.Duration) string {
 	default:
 		return fmt.Sprintf("%dd", int(since.Hours())/24)
 	}
+}
+
+// exactly is a duration as it was set, without zero units at its end:
+// 1h30m, 1h, 45s.
+func exactly(d time.Duration) string {
+	text := d.String()
+
+	for _, zero := range []struct{ unit, tail string }{{"m0s", "0s"}, {"h0m", "0m"}} {
+		if strings.HasSuffix(text, zero.unit) {
+			text = strings.TrimSuffix(text, zero.tail)
+		}
+	}
+
+	return text
 }
 
 // ageOf is the age of a moment, a dash when there is none.

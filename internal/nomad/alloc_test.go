@@ -470,3 +470,28 @@ func TestNodeAllocations_ReadTheVersionAndHealth(t *testing.T) {
 	r.Equal("service", allocs[2].JobType)
 	r.Zero(allocs[2].JobVersion)
 }
+
+func TestAllocation_TheTimeoutOfItsGroup(t *testing.T) {
+	groups := `[{"Name":"other","MaxRunDuration":60000000000},{"Name":"report","MaxRunDuration":3600000000000}]`
+
+	for name, tc := range map[string]struct {
+		body    string
+		timeout time.Duration
+	}{
+		"batch":    {`{"ID":"a","TaskGroup":"report","Job":{"Type":"batch","TaskGroups":` + groups + `}}`, time.Hour},
+		"sysbatch": {`{"ID":"a","TaskGroup":"report","Job":{"Type":"sysbatch","TaskGroups":` + groups + `}}`, time.Hour},
+		"service":  {`{"ID":"a","TaskGroup":"report","Job":{"Type":"service","TaskGroups":` + groups + `}}`, 0},
+		"an older cluster": {
+			`{"ID":"a","TaskGroup":"report","Job":{"Type":"batch","TaskGroups":[{"Name":"report"}]}}`, 0,
+		},
+		"no job": {`{"ID":"a","TaskGroup":"report"}`, 0},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client, _ := recorder(t, tc.body)
+
+			alloc, err := client.Allocation(context.Background(), "production", "a")
+			require.NoError(t, err)
+			require.Equal(t, tc.timeout, alloc.Timeout)
+		})
+	}
+}

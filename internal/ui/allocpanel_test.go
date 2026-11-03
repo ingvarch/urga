@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -36,7 +37,7 @@ func replacedCanary() nomad.Alloc {
 func TestAllocPanel(t *testing.T) {
 	r := require.New(t)
 
-	lines := allocPanel(replacedCanary(), nil, 120, 100)
+	lines := allocPanel(replacedCanary(), nil, time.Time{}, 120, 100)
 
 	for i := range lines {
 		lines[i] = plain(lines[i])
@@ -58,7 +59,7 @@ func TestAllocPanel_SaysOnlyWhatThereIs(t *testing.T) {
 	alloc := twoAllocs()[0]
 	alloc.DesiredStatus = "run"
 
-	text := strings.Join(allocPanel(alloc, nil, 120, 100), "\n")
+	text := strings.Join(allocPanel(alloc, nil, time.Time{}, 120, 100), "\n")
 
 	// No deployment, no ports, nothing before or after it: no line for any
 	// of it.
@@ -66,7 +67,7 @@ func TestAllocPanel_SaysOnlyWhatThereIs(t *testing.T) {
 	r.NotContains(text, "Ports")
 	r.NotContains(text, "Previous")
 	r.Contains(plain(text), "Version 0")
-	r.Len(allocPanel(alloc, nil, 120, 100), 2)
+	r.Len(allocPanel(alloc, nil, time.Time{}, 120, 100), 2)
 }
 
 // openCanary is the tasks of the first allocation, once the full reading of
@@ -261,4 +262,54 @@ func TestFieldLineRows(t *testing.T) {
 	for _, row := range fieldLineRows(lines, 8) {
 		require.LessOrEqual(t, lipgloss.Width(row), 8)
 	}
+}
+
+func TestAllocPanel_TheTimeoutAndTheTimeLeft(t *testing.T) {
+	r := require.New(t)
+
+	now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+
+	a := running()
+	a.Timeout, a.Created = time.Hour, now.Add(-10*time.Minute)
+
+	rows := unstyled(t, allocPanel(a, nil, now, 120, 100))
+	r.Equal(" Timeout 1h   Time left 50m", rows[1])
+
+	a.Status = "complete"
+	rows = unstyled(t, allocPanel(a, nil, now, 120, 100))
+	r.Equal(" Timeout 1h", rows[1])
+
+	// A setting shows whole, where a countdown is rounded.
+	for timeout, shown := range map[time.Duration]string{
+		90 * time.Minute: "1h30m",
+		36 * time.Hour:   "36h",
+		45 * time.Second: "45s",
+	} {
+		a.Timeout = timeout
+		rows = unstyled(t, allocPanel(a, nil, now, 120, 100))
+		r.Equal(" Timeout "+shown, rows[1])
+	}
+
+	a.Timeout = 0
+	r.NotContains(strings.Join(unstyled(t, allocPanel(a, nil, now, 120, 100)), "\n"), "Timeout")
+}
+
+func TestTasks_TheTimeLeftCountsFromTheRead(t *testing.T) {
+	a := running()
+	a.Created, a.Timeout = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), time.Hour
+
+	p := tasksPage{alloc: a, read: true, at: a.Created.Add(20 * time.Minute)}
+
+	require.Contains(t, plain(strings.Join(p.panel(env{}, 120, 100), "\n")), "Time left 40m")
+}
+
+func TestTasks_TheTimeLeftOfAnAllocationRead(t *testing.T) {
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	client.alloc = replacedCanary()
+	client.alloc.Timeout, client.alloc.Created = time.Hour, time.Now().Add(-30*time.Second)
+
+	m := openTasks(t, client)
+	m = drain(m, m.fetch())
+
+	require.Contains(t, plain(m.render()), "Time left 59m")
 }
