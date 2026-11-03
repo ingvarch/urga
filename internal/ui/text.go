@@ -182,6 +182,15 @@ func (t *textContent) add(lines []string, arrived time.Time, label *tag, style *
 	t.dropOld()
 }
 
+// addChunk adds the lines of a chunk a stream sent: the first old lines were
+// there when the stream opened and have no time.
+func (t *textContent) addChunk(lines []string, old int, arrived time.Time, label *tag, style *lipgloss.Style) {
+	old = max(0, min(old, len(lines)))
+
+	t.add(lines[:old], time.Time{}, label, style)
+	t.add(lines[old:], arrived, label, style)
+}
+
 // addBefore puts lines read from before the text in front of it. They have
 // no time, tag or style, and the text gets a new id so that its rows are drawn
 // afresh: the kept ones would take the new lines as added at the end. The

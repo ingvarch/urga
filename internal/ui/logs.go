@@ -27,6 +27,10 @@ type (
 		stream *nomad.LogStream
 		text   string
 		start  nomad.LogMark
+
+		// old is how many of the first lines of the chunk the log held
+		// when it was opened.
+		old int
 	}
 
 	// logPartMsg is the part of a log read from before the mark at.
@@ -257,7 +261,7 @@ func waitForStream(stream *nomad.LogStream) tea.Cmd {
 				return logEndMsg{stream: stream}
 			}
 
-			return logLineMsg{stream: stream, text: line, start: stream.Start()}
+			return logLineMsg{stream: stream, text: line, start: stream.Start(), old: stream.Old(line)}
 
 		case err := <-stream.Err:
 			if err != nil {
@@ -307,8 +311,9 @@ func (l logState) take(msg tea.Msg) (logState, outcome, bool) {
 		}
 
 		// When each line arrived is written down: a task writes no time of
-		// its own, and the time urga read it is the only one there is.
-		l.content.add(linesOf(msg.text), time.Now(), nil, nil)
+		// its own, and the time urga read it is the only one there is. The
+		// lines the log held when it was opened have none.
+		l.content.addChunk(linesOf(msg.text), msg.old, time.Now(), nil, nil)
 
 		return l, outcome{cmd: l.waitForLog(), reading: true}, true
 

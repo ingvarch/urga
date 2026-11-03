@@ -84,7 +84,7 @@ func TestLogEarlier_ALineOfAStreamCarriesWhereItsFirstLineBegins(t *testing.T) {
 
 	// The cut line is dropped: the text starts at the line after it.
 	start := nomad.LogMark{File: midLog.File, Offset: midLog.Offset - int64(len("whole\n"))}
-	r.Equal(logLineMsg{stream: stream, text: "whole\n", start: start}, waitForStream(stream)())
+	r.Equal(logLineMsg{stream: stream, text: "whole\n", start: start, old: 1}, waitForStream(stream)())
 }
 
 func TestLogEarlier_OfferedWhileTheLogStartsPastItsStart(t *testing.T) {
