@@ -40,6 +40,27 @@ func (s screen) followsSession() bool {
 	return ok && f.followsSession()
 }
 
+// listsTheNamespace says the screen is a list of the namespace the session
+// looks at, so what it read holds only in that namespace.
+func (s screen) listsTheNamespace() bool {
+	_, ok := s.page.(namespaced)
+
+	return ok && s.followsSession()
+}
+
+// unread is the screen with nothing read into its page, when the page is a
+// list of the session's namespace. The place it was left goes too, its row,
+// filter and sort order: the list comes back the way the open one is entered
+// after a switch.
+func (s screen) unread() screen {
+	if s.listsTheNamespace() {
+		s.page = s.page.(namespaced).unread()
+		s.left = place{sort: newSortState()}
+	}
+
+	return s
+}
+
 // pageKeys are the keys of the open page, in the order the header shows
 // them, whether or not each one does something right now.
 func (m Model) pageKeys() []keyHint {

@@ -47,6 +47,7 @@ func (servicesPage) title(e env, count int) string {
 }
 
 func (servicesPage) titles() []string { return serviceTitles }
+func (servicesPage) unread() page     { return servicesPage{} }
 func (servicesPage) topics() []string { return []string{nomad.TopicService} }
 
 func (servicesPage) fetch(e env) tea.Cmd {

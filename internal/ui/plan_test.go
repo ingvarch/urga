@@ -743,10 +743,11 @@ func TestPlan_TheWatchAfterASubmitReadsInTheNamespaceOfTheJob(t *testing.T) {
 	m, editor := editModel(t, client)
 	editor.replace = "job \"web\" {\n  type = \"batch\"\n}"
 
-	m, _ = m.update(key('0'))
+	m, cmd := m.update(key('0'))
+	m = drain(m, cmd)
 	r.Equal(nomad.AllNamespaces, m.namespace)
 
-	m, cmd := m.update(key('e'))
+	m, cmd = m.update(key('e'))
 	m = follow(m, cmd, 6)
 
 	m, cmd = m.update(key('y'))

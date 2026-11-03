@@ -128,6 +128,12 @@ namespaces. The header shows which namespace each key opens. urga keeps this
 order between runs. A namespace the cluster no longer has loses its key, and
 the ones after it move up.
 
+After a switch, a list shows no rows of the namespace you left, even when the
+cluster does not answer; it fills once the new namespace answers. It starts at
+the first row, with no filter or sort, and so does a list you go back to with
+`esc`. Lists that are the same in every namespace, such as clients, keep their
+rows.
+
 ## Services
 
 `:services` lists the services registered in the cluster. `d` describes one.

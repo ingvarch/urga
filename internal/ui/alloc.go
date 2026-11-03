@@ -54,6 +54,7 @@ func (p allocationsPage) title(e env, count int) string {
 func (p allocationsPage) followsSession() bool { return p.jobID == "" && p.evalID == "" }
 
 func (allocationsPage) titles() []string { return allocTitles }
+func (p allocationsPage) unread() page   { return allocationsPage{fault: p.fault} }
 func (allocationsPage) topics() []string { return []string{nomad.TopicAllocation} }
 
 // where is the namespace the allocations are asked in: the one of the job,

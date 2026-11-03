@@ -27,6 +27,7 @@ func (namespaceTasksPage) title(e env, count int) string {
 }
 
 func (namespaceTasksPage) titles() []string { return namespaceTaskTitles }
+func (namespaceTasksPage) unread() page     { return namespaceTasksPage{} }
 func (namespaceTasksPage) topics() []string { return []string{nomad.TopicAllocation} }
 
 func (namespaceTasksPage) fetch(e env) tea.Cmd {

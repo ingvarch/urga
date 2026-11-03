@@ -79,6 +79,7 @@ func (p jobsPage) where(e env) string {
 }
 
 func (jobsPage) titles() []string { return jobTitles }
+func (p jobsPage) unread() page   { return jobsPage{fault: p.fault} }
 func (jobsPage) topics() []string { return []string{nomad.TopicJob} }
 
 // fetch reads the jobs, and when the page lists the launches of a periodic

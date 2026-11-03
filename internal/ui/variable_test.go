@@ -551,3 +551,20 @@ func TestVariables_DeleteAsksAndKeepsOneThatChanged(t *testing.T) {
 	r.Equal("default", client.askedNamespace)
 	r.Contains(plain(m.render()), "Variable nomad/jobs/web deleted.")
 }
+
+func TestVariables_ASwitchWhoseReadFailsShowsNoneOfTheNamespaceLeft(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m, _ := onVariables(t, client, "production")
+	m.namespaceOrder = []string{"production", "staging"}
+	client.err = errors.New("connection refused")
+
+	m, cmd := m.update(key('2'))
+	m = drain(m, cmd)
+
+	out := plain(m.render())
+	r.Contains(out, "Variables (staging) [0]")
+	r.Contains(out, "connection refused")
+	r.NotContains(out, "nomad/jobs/web")
+}

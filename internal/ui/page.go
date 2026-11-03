@@ -457,6 +457,13 @@ type follower interface {
 	followsSession() bool
 }
 
+// namespaced is a list of what the session looks at in its namespace: what it
+// read there does not hold in another one. unread is the page as it opens,
+// with nothing read into it.
+type namespaced interface {
+	unread() page
+}
+
 // placed is a page of one thing that lives in a namespace of its own. Its
 // rows and the events about them are requested there, whatever the session
 // looks at, so the two agree.

@@ -45,6 +45,7 @@ func (p deploymentsPage) title(e env, count int) string {
 }
 
 func (deploymentsPage) titles() []string { return deploymentTitles }
+func (p deploymentsPage) unread() page   { return deploymentsPage{fault: p.fault} }
 func (deploymentsPage) topics() []string { return []string{nomad.TopicDeployment} }
 
 func (deploymentsPage) fetch(e env) tea.Cmd {
