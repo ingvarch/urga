@@ -77,6 +77,23 @@ func TestNodeDetail_Read(t *testing.T) {
 	r.Equal("amd64", detail.Attributes["cpu.arch"])
 }
 
+func TestNode_ReadsTheAddressTheListShows(t *testing.T) {
+	for name, tc := range map[string]struct{ body, want string }{
+		"ipv4": {`{"ID":"node-1","HTTPAddr":"10.0.0.5:4646"}`, "10.0.0.5"},
+		"ipv6": {`{"ID":"node-1","HTTPAddr":"[fd00::5]:4646"}`, "fd00::5"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			client, _ := recorder(t, tc.body)
+
+			node, err := client.Node(context.Background(), "node-1")
+			r.NoError(err)
+			r.Equal(tc.want, node.Address)
+		})
+	}
+}
+
 func TestNode_ReadsTheMachineItself(t *testing.T) {
 	r := require.New(t)
 
