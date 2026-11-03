@@ -116,6 +116,7 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 	}
 
 	m = m.closeStream()
+	m.note = m.note.restart()
 
 	m.client = m.opts.InRegion(region)
 	m = m.forgetRegion()
@@ -124,7 +125,7 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 	next, cmd := m.arrive()
 	next.firstAsk = next.asked
 
-	return next, tea.Batch(cmd, next.onConnection(fetchDatacenters(next.client)), next.fetchClusterUsage())
+	return next, tea.Batch(cmd, next.onConnection(fetchDatacenters(next.client)), next.fetchClusterUsage(), next.note.open(next.client))
 }
 
 // forgetRegion drops what the cluster returned in the region that was

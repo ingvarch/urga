@@ -46,10 +46,13 @@ type (
 	}
 
 	// eventsClient opens the event stream: the signal that a screen is
-	// stale, and the feed of what happened.
+	// stale, the feed of what happened, and the feed of what failed in every
+	// namespace.
 	eventsClient interface {
 		Events(ctx context.Context, namespace string, topics []string) (*nomad.Changes, error)
 		Feed(ctx context.Context, namespace string, subject nomad.Subject, from uint64) (*nomad.Feed, error)
+		Failures(ctx context.Context, namespace string, from uint64) (*nomad.Feed, error)
+		LatestIndex(ctx context.Context) (uint64, error)
 	}
 
 	jobsClient interface {

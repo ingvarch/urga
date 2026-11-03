@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -292,6 +294,20 @@ type fakeClient struct {
 	feedNamespace string
 	feedSubject   nomad.Subject
 	feedFrom      uint64
+
+	// failures is what the cluster sends to the note on the status line,
+	// asked for failuresCalls times, last in failuresNamespace from
+	// failuresFrom. With no feed the cluster refuses the stream.
+	failures          *nomad.Feed
+	failuresErr       error
+	failuresNamespace string
+	failuresFrom      uint64
+	failuresCalls     int
+
+	// latestIndex is where the note starts, unless latestErr says it cannot
+	// be read.
+	latestIndex uint64
+	latestErr   error
 
 	// scalingPolicies are the policies of the list, groupScaling how the
 	// group asked about is scaled.
@@ -777,6 +793,29 @@ func (f *fakeClient) Feed(_ context.Context, namespace string, subject nomad.Sub
 	f.feedNamespace, f.feedSubject, f.feedFrom = namespace, subject, from
 
 	return f.feed, f.err
+}
+
+func (f *fakeClient) Failures(_ context.Context, namespace string, from uint64) (*nomad.Feed, error) {
+	f.failuresNamespace, f.failuresFrom = namespace, from
+	f.failuresCalls++
+
+	if f.failuresErr != nil {
+		return nil, f.failuresErr
+	}
+
+	if f.failures == nil {
+		return nil, streamRefused()
+	}
+
+	return f.failures, nil
+}
+
+// streamRefused is what a cluster answers a token that may not read the
+// stream.
+var streamRefused = sync.OnceValue(func() error { return answeredWith(http.StatusForbidden, "Permission denied") })
+
+func (f *fakeClient) LatestIndex(context.Context) (uint64, error) {
+	return f.latestIndex, f.latestErr
 }
 
 func (f *fakeClient) ScalingPolicies(_ context.Context, namespace string) ([]nomad.ScalingPolicy, error) {

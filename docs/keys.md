@@ -167,6 +167,9 @@ The list follows the namespace of the session. Events of clients and CSI
 plugins belong to no namespace and show in every one. In another namespace it
 starts again from what the cluster keeps.
 
+A failure in any namespace also shows on the status line, whatever screen is
+open: see [How urga stays up to date](configuration.md#how-urga-stays-up-to-date).
+
 `o` on a job or an allocation opens the same screen with only the events of
 it. The cluster sends only those, from what it still keeps. The title names
 the job or the allocation, and the screen stays on it when you switch

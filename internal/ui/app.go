@@ -155,6 +155,9 @@ type Model struct {
 	client Client
 	opts   Options
 
+	// note is the stream of failures that shows on the status line.
+	note noteState
+
 	// namespaceState is the namespace the session looks at and the keys
 	// that switch it.
 	namespaceState
@@ -280,6 +283,7 @@ func (m Model) Init() tea.Cmd {
 		m.watchScreen(),
 		m.askAboutTheCluster(),
 		m.checkRelease(),
+		m.note.open(m.client),
 	)
 }
 

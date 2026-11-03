@@ -39,6 +39,10 @@ type flash struct {
 	// ofAction says the error is of an action: the answer to the next read
 	// does not make it out of date.
 	ofAction bool
+
+	// ofNote says the message is a failure the note named, which a newer
+	// failure may replace.
+	ofNote bool
 }
 
 // say reports what came of something the person asked for.

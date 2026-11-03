@@ -125,6 +125,7 @@ func (m Model) takeConnectFailed(msg connectFailedMsg) (Model, tea.Cmd) {
 // and answers still due from the old one are dropped.
 func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 	m = m.closeStream()
+	m.note = m.note.restart()
 
 	m.connection++
 	m.client = conn.Client
@@ -143,7 +144,7 @@ func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 	next.firstAsk = next.asked
 	next = next.say(fmt.Sprintf("Connected to %s.", conn.Name))
 
-	return next, tea.Batch(cmd, next.askAboutTheCluster())
+	return next, tea.Batch(cmd, next.askAboutTheCluster(), next.note.open(next.client))
 }
 
 // askAboutTheCluster is what the header and the command line need whatever
