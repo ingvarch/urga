@@ -149,6 +149,21 @@ func TestServiceInstances_TheirChecks(t *testing.T) {
 	r.Equal("-", m.list.table.rows[1].cells[checks])
 }
 
+func TestServiceInstances_PendingCountsOnlyTheChecksOfTheService(t *testing.T) {
+	client := &fakeClient{checks: []nomad.Check{
+		{Service: "served", Name: "alive", Status: "pending"},
+		{Service: "served-admin", Name: "admin-up", Status: "pending"},
+		{Service: "served-admin", Name: "admin-ready", Status: "success"},
+	}}
+
+	m := onServed(t, client)
+
+	m, cmd := m.update(pollInstanceChecksMsg{})
+	m = drain(m, cmd)
+
+	require.Contains(t, fileRow(t, m, 0), "1 pending")
+}
+
 func TestServices_TheListOfTheNamespaceAndItsKeys(t *testing.T) {
 	r := require.New(t)
 

@@ -287,9 +287,12 @@ func instanceRows(instances []nomad.ServiceInstance, byAlloc map[string][]nomad.
 func checkSummary(instance nomad.ServiceInstance, checks []nomad.Check) (string, bool) {
 	counts := map[string]int{}
 
+	var own int
+
 	for _, check := range checks {
 		if check.Service == instance.Service {
 			counts[check.Status]++
+			own++
 		}
 	}
 
@@ -299,7 +302,7 @@ func checkSummary(instance nomad.ServiceInstance, checks []nomad.Check) (string,
 	case counts[checkFailure] > 0:
 		return fmt.Sprintf("%d failing", counts[checkFailure]), true
 	case counts["success"] == 0:
-		return fmt.Sprintf("%d pending", len(checks)), false
+		return fmt.Sprintf("%d pending", own), false
 	}
 
 	return fmt.Sprintf("%d passing", counts["success"]), false
