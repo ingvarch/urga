@@ -193,8 +193,12 @@ type Model struct {
 	text textModel
 
 	// asked counts the screens opened, so that an answer for one that is
-	// closed is dropped.
+	// closed is dropped, except for a write: what it did is still reported.
 	asked int
+
+	// firstAsk is the ask of the first screen on the client in use. A write
+	// asked before it went to a cluster or region that was left.
+	firstAsk int
 
 	// polling means a timer for the next poll is already running. Every
 	// answer would otherwise schedule one, and a screen that gets answers

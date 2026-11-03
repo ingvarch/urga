@@ -122,6 +122,7 @@ func (m Model) switchRegion(region string) (Model, tea.Cmd) {
 	m.screen, m.history = m.listScreen(), nil
 
 	next, cmd := m.arrive()
+	next.firstAsk = next.asked
 
 	return next, tea.Batch(cmd, next.onConnection(fetchDatacenters(next.client)), next.fetchClusterUsage())
 }

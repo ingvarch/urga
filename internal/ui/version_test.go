@@ -247,3 +247,24 @@ func TestVersions_ReadOnlyMarksNothing(t *testing.T) {
 	r.Contains(plain(m.render()), "read-only: Mark Unstable is off")
 	r.Empty(client.writes)
 }
+
+func TestVersions_ATagAnsweredAfterLeavingKeepsTheMarksOfTheJobs(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onVersions(t)
+
+	m, _ = m.update(key('t'))
+	m = typeIn(m, "x")
+	m, tag := m.update(enter())
+
+	m, _ = m.update(escape())
+	r.IsType(jobsPage{}, m.screen.page)
+
+	m, _ = m.update(space())
+	r.Equal(map[string]bool{"production/web": true}, m.list.marks)
+
+	m = drain(m, tag)
+
+	r.Equal(map[string]bool{"production/web": true}, m.list.marks)
+	r.Contains(plain(m.render()), "tagged")
+}

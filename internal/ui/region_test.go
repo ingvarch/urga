@@ -387,6 +387,30 @@ func TestRegionCommand_GoesBackToTheList(t *testing.T) {
 	r.Empty(m.history)
 }
 
+func TestRegionCommand_AnActionOfTheRegionLeftKeepsTheMarksOfTheNextOne(t *testing.T) {
+	r := require.New(t)
+
+	m := regionalModel(t, &fakeClient{jobs: twoJobs()})
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, _ = m.update(space())
+	m, _ = m.update(ctrlKey('s'))
+	m, stop := answerYes(m)
+
+	m, cmd := runLine(m, "region us")
+	m = drain(m, cmd)
+
+	// The region has a job of the same name and namespace.
+	m, _ = m.update(space())
+	marks := map[string]bool{"production/web": true}
+	r.Equal(marks, m.list.marks)
+
+	m = drain(m, stop)
+
+	r.Equal(marks, m.list.marks)
+	r.Contains(plain(m.render()), "Stopped the job web")
+}
+
 func TestRegionCommand_ClosesTheLogs(t *testing.T) {
 	r := require.New(t)
 

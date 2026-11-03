@@ -297,3 +297,163 @@ func TestConfirmView_TheQuestionKeepsAMarginFromTheBorder(t *testing.T) {
 		r.True(strings.HasSuffix(row, pad+"│"), row)
 	}
 }
+
+func TestAction_AnActionThatEndsAfterItsScreenIsLeftKeepsTheMarksThere(t *testing.T) {
+	r := require.New(t)
+
+	// A failed stop keeps the job marked: on its own screen, not on this one.
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), actionErr: errors.New("no luck")}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, _ = m.update(ctrlKey('s'))
+	m, stop := answerYes(m)
+
+	m, cmd := m.update(enter())
+	m = drain(m, cmd)
+	r.IsType(allocationsPage{}, m.screen.page)
+
+	m, _ = m.update(space())
+	r.Equal(map[string]bool{twoAllocs()[0].ID: true}, m.list.marks)
+
+	m = drain(m, stop)
+
+	r.IsType(allocationsPage{}, m.screen.page)
+	r.Equal(map[string]bool{twoAllocs()[0].ID: true}, m.list.marks)
+	r.Contains(plain(m.render()), "no luck")
+}
+
+func TestAction_ALateAnswerOfAWriteOnlyReportsWhatItDid(t *testing.T) {
+	failure := errors.New("no luck")
+
+	for name, tc := range map[string]struct {
+		msg  tea.Msg
+		want string
+	}{
+		"done":        {doneMsg{said: "Stopped the job web."}, "Stopped the job web."},
+		"done failed": {doneMsg{err: failure}, "no luck"},
+		"error":       {errMsg{err: failure}, "no luck"},
+		"saved":       {savedMsg{path: "/tmp/x"}, "Saved to /tmp/x."},
+		"say":         {sayMsg("Did it."), "Did it."},
+		"warn":        {warnMsg("Careful."), "Careful."},
+		"fail":        {failMsg{err: failure}, "no luck"},
+		"copy":        {copyMsg{field: "token", value: "v"}, "Copied token."},
+		"refused":     {refusedEditMsg{err: failure}, "no luck"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			m, _ := onAllocations(t)
+			left := m.asked - 1
+
+			m, _ = m.update(space())
+			marks := m.list.marks
+			r.NotEmpty(marks)
+
+			m, _ = m.update(answerMsg{asked: left, wrote: true, msg: tc.msg})
+
+			r.Contains(plain(m.render()), tc.want)
+			r.IsType(allocationsPage{}, m.screen.page)
+			r.Equal(marks, m.list.marks)
+			r.Equal(overlayNone, m.overlay)
+		})
+	}
+}
+
+func TestAction_ALateAnswerOfAWriteChangesNothingElse(t *testing.T) {
+	for name, msg := range map[string]tea.Msg{
+		"open":                         openMsg{page: describePage{}},
+		"describe":                     describeMsg{label: "x", content: "y"},
+		"ask":                          askMsg{question: "Really?", apply: func() tea.Msg { return nil }},
+		"namespace":                    switchNamespaceMsg("other"),
+		"namespace of another cluster": connectionMsg{connection: 7, msg: switchNamespaceMsg("other")},
+		"edit file":                    editFileMsg{path: "/tmp/x"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			m, _ := onAllocations(t)
+			m.opts.Editor = &fakeEditor{}
+			left := m.asked - 1
+
+			m, cmd := m.update(answerMsg{asked: left, wrote: true, msg: msg})
+
+			r.Nil(cmd)
+			r.Empty(m.editing.path)
+			r.IsType(allocationsPage{}, m.screen.page)
+			r.Equal("production", m.namespace)
+			r.Equal(overlayNone, m.overlay)
+		})
+	}
+}
+
+func TestAction_ALateFailureOfAWriteStaysUntilItsTimeIsUp(t *testing.T) {
+	for name, msg := range map[string]tea.Msg{
+		"error": errMsg{err: errors.New("no luck")},
+		"fail":  failMsg{err: errors.New("no luck")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			m, _ := onAllocations(t)
+			left := m.asked - 1
+
+			m, _ = m.update(answerMsg{asked: left, wrote: true, msg: msg})
+
+			// The screen now open answers: that is not the end of the failure.
+			m, _ = m.update(answerMsg{asked: m.asked, msg: allocsMsg(twoAllocs())})
+
+			r.Contains(plain(m.render()), "no luck")
+		})
+	}
+}
+
+func TestAction_ALateFailureTheTokenExplainsSaysWhy(t *testing.T) {
+	refused := forbidden(t)
+
+	for name, msg := range map[string]tea.Msg{
+		"done":    doneMsg{err: refused},
+		"error":   errMsg{err: refused},
+		"fail":    failMsg{err: refused},
+		"refused": refusedEditMsg{err: refused},
+	} {
+		t.Run(name, func(t *testing.T) {
+			m, _ := onAllocations(t)
+			m, _ = m.update(tokenMsg(deployBot))
+			left := m.asked - 1
+
+			m, _ = m.update(answerMsg{asked: left, wrote: true, msg: msg})
+
+			require.Contains(t, plain(statusLine(m)), "Permission denied: deploy-bot may not do this")
+		})
+	}
+}
+
+func TestAction_AnActionThatEndsOnTheSameListAfterItIsEnteredAgainUnmarksWhatItDid(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs()}
+	m := newTestModel(client)
+	m, _ = m.update(jobsMsg(twoJobs()))
+
+	m, _ = m.update(space())
+	m, _ = m.update(key('j'))
+	m, _ = m.update(space())
+	r.Len(m.list.marks, 2)
+
+	m, _ = m.update(ctrlKey('s'))
+	m, stop := answerYes(m)
+
+	// The list is entered again before the answer comes.
+	m = typeCommand(m, "jobs")
+
+	m = drain(m, stop)
+
+	r.Equal(1, client.stopped)
+	r.Equal(1, client.started)
+	r.Empty(m.list.marks)
+
+	// What is drawn is what the next key acts on.
+	r.Empty(markedRows(m))
+	r.False(cursorOnMark(m))
+}

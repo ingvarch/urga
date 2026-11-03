@@ -25,6 +25,10 @@ type describeMsg struct {
 
 	// evaluation is the evaluation the description shows, when it is one.
 	evaluation evalRef
+
+	// ended says how a command run in a task ended. The status line shows
+	// it when the output arrives after its screen was left.
+	ended string
 }
 
 // evalRef names an evaluation by where it lives; the zero one names none.

@@ -97,3 +97,40 @@ func TestNamespaces_TheDefaultOneIsNotOfferedForDelete(t *testing.T) {
 	m, _ = m.update(key('k'))
 	r.False(offers(m, "ctrl-d"))
 }
+
+func TestNamespaces_ADeleteOfTheOneOfTheSessionStillMovesItAfterTheScreenIsLeft(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m := onNamespaces(t, client, &fakeEditor{})
+
+	m, _ = m.update(ctrlKey('d'))
+	m, cmd := answerYes(m)
+
+	m, _ = m.update(escape())
+	m = playOut(m, cmd)
+
+	r.Equal("production", client.deletedNamespace)
+	r.Equal(nomad.DefaultNamespace, m.namespace)
+}
+
+func TestNamespaces_DeletingTheOneOfTheSessionGoesToDefaultAfterASwitchOfClusters(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+	clusters.dev.namespaces = twoNamespaces()
+
+	// The connection is not the first one any more.
+	m = typeCommand(m, "ctx prod")
+	m = typeCommand(m, "ctx dev")
+
+	m = typeCommand(m, "ns production")
+	m, _ = m.update(ctrlKey('d'))
+	r.Equal("Really delete the namespace production?", m.confirm.question)
+
+	m, cmd := answerYes(m)
+	m = playOut(m, cmd)
+
+	r.Equal("production", clusters.dev.deletedNamespace)
+	r.Equal(nomad.DefaultNamespace, m.namespace)
+}

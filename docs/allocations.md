@@ -121,7 +121,8 @@ These keys work on the task under the cursor while it is running:
   `ctrl-s` and `w` work on it as on a log. Of an output
   larger than 1 MiB it keeps the last 1 MiB, and the title says so. urga waits
   10 seconds for the command and then shows an error. A task without `/bin/sh`
-  cannot run it.
+  cannot run it. If you leave the screen before the command ends, the output
+  does not open: the status line names the command and its exit code.
 
 urga only sends a signal name that Nomad knows. When a Nomad client gets a
 name it does not know, it sends `SIGINT` instead, which stops most tasks. So

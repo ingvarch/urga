@@ -81,7 +81,7 @@ func deleteNamespace(p namespacesPage, e env) (namespacesPage, outcome) {
 		return p, outcome{}
 	}
 
-	client, name, session := e.client, namespace.Name, e.namespace
+	client, name, session, connection := e.client, namespace.Name, e.namespace, e.connection
 
 	return p, then(askMsg{
 		question: sprintf("Really delete the namespace %s?", name),
@@ -93,7 +93,9 @@ func deleteNamespace(p namespacesPage, e env) (namespacesPage, outcome) {
 			}
 
 			return tea.BatchMsg{
-				func() tea.Msg { return switchNamespaceMsg(nomad.DefaultNamespace) },
+				func() tea.Msg {
+					return connectionMsg{connection: connection, msg: switchNamespaceMsg(nomad.DefaultNamespace)}
+				},
 				func() tea.Msg {
 					return doneMsg{said: sprintf("Namespace %s deleted. The session is in %s now.", name, nomad.DefaultNamespace)}
 				},
