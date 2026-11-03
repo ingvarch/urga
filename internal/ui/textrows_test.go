@@ -305,3 +305,32 @@ func TestLogs_FollowingGoesOnAtTheCap(t *testing.T) {
 	rows := strings.Split(plain(m.text.view()), "\n")
 	r.Contains(rows[len(rows)-1], "the newest line")
 }
+
+func TestText_AWrappedLineWithTabsFitsTheWidth(t *testing.T) {
+	line := "\t\t" + strings.Repeat("a", 300)
+
+	logText := textModel{}
+	logText.add([]string{line}, arrivedAt, nil, nil)
+
+	texts := map[string]textModel{
+		"description": newTextModel(line),
+		"plan":        paintedText([]paintedLine{{text: line}}),
+		"log":         logText,
+	}
+
+	for name, text := range texts {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			text.wrap = true
+			text.setSize(40, 10)
+
+			for _, row := range drawnInFull(text) {
+				r.LessOrEqual(row.width, 40)
+				r.LessOrEqual(ansi.StringWidth(onScreen(row.text)), 40)
+			}
+
+			r.NotContains(plain(text.view()), "…")
+		})
+	}
+}

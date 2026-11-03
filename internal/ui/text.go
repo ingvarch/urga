@@ -343,10 +343,11 @@ func (t textModel) draw(from, to int) (rows []textRow, counts []int) {
 		}
 
 		// Every row of a wrapped line is in the colour of the line; the
-		// tag is on the first of them.
-		parts := wrapLine(row.text, t.width)
+		// tag is on the first of them. A tab is wrapped as the cells it
+		// is drawn as.
+		parts := wrapLine(onScreen(row.text), t.width)
 		for n, part := range parts {
-			out := textRow{text: part, style: row.style, width: ansi.StringWidth(onScreen(part))}
+			out := textRow{text: part, style: row.style, width: ansi.StringWidth(part)}
 			if n == 0 {
 				out.tagFrom, out.tagTo, out.tagStyle = row.tagFrom, row.tagTo, row.tagStyle
 			}
