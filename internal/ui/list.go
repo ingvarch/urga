@@ -47,8 +47,9 @@ func newList(titles []string) list {
 // nil for a list without marks. The cursor stays on the resource it was on:
 // a row that appears above it must not move a key to another resource. When
 // the resource is gone from rows read the same way as before, the cursor is
-// on no row, and a key that acts on a row does nothing. A new filter slides
-// it to the row that has its number, since the person asked for the view.
+// on no row, and a key that acts on a row does nothing. A new filter or !
+// slides it to the row that has its number, since the person asked for the
+// view; a cursor that was on no row goes to the first row.
 func (l list) read(all []tableRow, titles, ids []string, troubled bool) list {
 	l.held = len(all)
 	chosen, chose := l.table.chosen()
@@ -71,6 +72,10 @@ func (l list) read(all []tableRow, titles, ids []string, troubled bool) list {
 	rowIDs := idsOf(index, ids)
 	for i, id := range rowIDs {
 		rows[i].marked = l.marks[id]
+	}
+
+	if !reread && l.table.cursor == noRow {
+		l.table.cursor = 0
 	}
 
 	l.table.show(rows, l.sort)
