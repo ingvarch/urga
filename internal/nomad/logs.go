@@ -182,6 +182,9 @@ type wholeLines struct {
 
 	// start, when not nil, is set once, to where the first byte kept is.
 	start *atomic.Pointer[LogMark]
+
+	// next is where the frame after the last one begins.
+	next LogMark
 }
 
 // add takes a frame and gives back what is whole up to its last line break,
@@ -190,6 +193,9 @@ func (w *wholeLines) add(frame *api.StreamFrame) []byte {
 	if w.first {
 		w.first, w.cut = false, w.startsCut(frame)
 	}
+
+	front := w.frontOf(frame)
+	w.next = LogMark{File: frame.File, Offset: front.Offset + int64(len(frame.Data))}
 
 	data := frame.Data
 
@@ -204,7 +210,7 @@ func (w *wholeLines) add(frame *api.StreamFrame) []byte {
 		data, w.cut = data[at+1:], false
 	}
 
-	w.noteStart(frame, data)
+	w.noteStart(LogMark{File: front.File, Offset: front.Offset + int64(len(frame.Data)-len(data))}, data)
 
 	if w.unended && len(data) > 0 {
 		w.unended = false
@@ -227,14 +233,24 @@ func (w *wholeLines) add(frame *api.StreamFrame) []byte {
 	return data[:end]
 }
 
-// noteStart records where the first byte kept is, the end of data being the
-// end of the frame.
-func (w *wholeLines) noteStart(frame *api.StreamFrame, data []byte) {
+// frontOf is where the frame begins. The Offset of a frame that merged reads
+// is the one of its first read, so a frame in the file of the one before
+// begins where that one ended. The first frame of a file holds one read,
+// unless it begins at the file's first byte, which the count below 0 clamps to.
+func (w *wholeLines) frontOf(frame *api.StreamFrame) LogMark {
+	if frame.File == w.next.File {
+		return w.next
+	}
+
+	return frameStart(frame, len(frame.Data))
+}
+
+// noteStart records where the first byte kept is, when there is one in data.
+func (w *wholeLines) noteStart(mark LogMark, data []byte) {
 	if w.start == nil || len(data) == 0 || w.start.Load() != nil {
 		return
 	}
 
-	mark := frameStart(frame, len(data))
 	w.start.Store(&mark)
 }
 
@@ -293,10 +309,11 @@ func startsCut(frame *api.StreamFrame) bool {
 	return !frameStart(frame, len(frame.Data)).AtStart()
 }
 
-// frameStart is where the last kept bytes of a frame begin in its file. The
-// cluster puts a read into the frame of the one before while that frame is
-// not sent yet, under the Offset of the first read, so the count can come out
-// below 0: the frame then starts at the start of the file.
+// frameStart is where the last kept bytes of a frame begin in its file, for
+// the first frame of a file. The cluster puts a read into the frame of the one
+// before while that frame is not sent yet, under the Offset of the first
+// read, so the count can come out below 0: the frame then starts at the start
+// of the file.
 func frameStart(frame *api.StreamFrame, kept int) LogMark {
 	return LogMark{File: frame.File, Offset: max(frame.Offset-int64(kept), 0)}
 }
