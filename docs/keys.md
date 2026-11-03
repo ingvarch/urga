@@ -491,7 +491,7 @@ The client screen lists the allocations of the client. It has the keys of
 | `ctrl-h` | Host volumes | |
 | `a` | Attributes | |
 | `m` | Metadata | |
-| `u` | Units: percents or numbers on the charts | |
+| `u` | Units: percents or numbers on the charts and the allocated line | |
 | `i` | Claims of the identity of the client. Shown when it has one. | |
 | `ctrl-n` | Renew the identity of the client. Shown when it has one. | yes |
 

@@ -388,3 +388,7 @@ func percent(claimed, capacity int64) int {
 
 	return int((claimed*100 + capacity/2) / capacity)
 }
+
+// Percent is part as a share of a hundred of whole, rounded the way the
+// header rounds; zero when whole is zero.
+func Percent(part, whole int) int { return percent(int64(part), int64(whole)) }

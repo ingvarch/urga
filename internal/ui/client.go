@@ -105,8 +105,8 @@ type clientPage struct {
 	// of it since the screen was entered last.
 	host hostModel
 
-	// absolute reads the charts in megahertz and mebibytes; without it
-	// they read percents.
+	// absolute reads the charts and the allocated line in megahertz and
+	// mebibytes; without it they read percents.
 	absolute bool
 
 	allocs []nomad.Alloc
@@ -283,8 +283,8 @@ func (p clientPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, clientKeys, k)
 }
 
-// toggleUnits reads the charts in numbers and back in percents: megahertz
-// for CPU, mebibytes for memory.
+// toggleUnits reads the charts and the allocated line in numbers and back in
+// percents: megahertz for CPU, mebibytes for memory.
 func toggleUnits(p clientPage, _ env) (clientPage, outcome) {
 	p.absolute = !p.absolute
 
@@ -353,7 +353,7 @@ func (m Model) panel(width int) []string {
 
 // panel is what the machine is doing, above its allocations.
 func (p clientPage) panel(e env, width, room int) []string {
-	details := p.host.details(width, p.held(), e.now)
+	details := p.host.details(width, p.held(), p.allocated(), e.now)
 
 	// A box with no room even for the details of the machine, and the line
 	// under them, gives all its rows to the allocations.
@@ -374,6 +374,65 @@ func (p clientPage) held() string {
 	}
 
 	return strconv.Itoa(len(keep(p.allocs, nomad.Alloc.HoldsPlace)))
+}
+
+// claimed is what the allocations that hold a place on the client keep of it.
+func (p clientPage) claimed() nomad.Resources {
+	var total nomad.Resources
+
+	for _, alloc := range keep(p.allocs, nomad.Alloc.HoldsPlace) {
+		total.CPU += alloc.Claimed.CPU
+		total.MemoryMB += alloc.Claimed.MemoryMB
+		total.DiskMB += alloc.Claimed.DiskMB
+	}
+
+	return total
+}
+
+// allocated is what the allocations keep of what the client gives to jobs,
+// one part for each resource it reports. It is empty when the client reports
+// none, and unknown until the allocations are read.
+func (p clientPage) allocated() string {
+	has := p.host.node.Schedulable
+	if has == (nomad.Resources{}) {
+		return ""
+	}
+
+	if !p.listed {
+		return unknown
+	}
+
+	claimed := p.claimed()
+	parts := []string{}
+
+	for _, resource := range []struct {
+		name    string
+		of      measure
+		claimed int
+		has     int
+	}{
+		{"CPU", cpuMeasure, claimed.CPU, has.CPU},
+		{"memory", memoryMeasure, claimed.MemoryMB, has.MemoryMB},
+		{"disk", memoryMeasure, claimed.DiskMB, has.DiskMB},
+	} {
+		if resource.has > 0 {
+			parts = append(parts, resource.name+" "+allocatedOf(resource.of, resource.claimed, resource.has, p.absolute))
+		}
+	}
+
+	return strings.Join(parts, ", ")
+}
+
+// allocatedOf names what is claimed against what the client has, in numbers
+// or as a share of it.
+func allocatedOf(of measure, claimed, has int, absolute bool) string {
+	if !absolute {
+		return percentOf(nomad.Percent(claimed, has), true)
+	}
+
+	unit, per := of.unit(float64(has))
+
+	return pair(float64(claimed)/per, float64(has)/per, unit)
 }
 
 // view is what a client shows above its allocations: what kind of machine
@@ -512,8 +571,9 @@ func (h hostModel) chart(of measure, absolute bool) chart {
 // The first row is kept, blank while the machine is not read yet, so the
 // panel does not grow when it is; the next is left out when it has no
 // value. held is how many allocations hold a place on it, shown against the
-// limit when it has one. The rows start where the columns of the table do.
-func (h hostModel) details(width int, held string, now time.Time) []string {
+// limit when it has one, and allocated is how much of what it gives to jobs
+// they keep. The rows start where the columns of the table do.
+func (h hostModel) details(width int, held, allocated string, now time.Time) []string {
 	node := h.node
 
 	rows := []string{panelRow(fieldLine([]field{
@@ -533,6 +593,8 @@ func (h hostModel) details(width int, held string, now time.Time) []string {
 	return append(rows, fieldLineRows([][]field{{
 		{"Allocations", allocations},
 		{"Identity", identityText(h.identity, now)},
+	}, {
+		{"Allocated", allocated},
 	}}, width)...)
 }
 
