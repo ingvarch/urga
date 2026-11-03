@@ -2,7 +2,9 @@ package nomad
 
 import (
 	"context"
+	"maps"
 	"net"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -369,7 +371,9 @@ func (c *Client) AllocationChecks(ctx context.Context, namespace, allocID string
 
 	checks := make([]Check, 0, len(statuses))
 
-	for _, status := range statuses {
+	for _, id := range slices.Sorted(maps.Keys(statuses)) {
+		status := statuses[id]
+
 		check := Check{
 			Service: status.Service,
 			Name:    status.Check,
@@ -386,9 +390,10 @@ func (c *Client) AllocationChecks(ctx context.Context, namespace, allocID string
 		checks = append(checks, check)
 	}
 
-	// Failing checks come first, they are what the list is for. The rest are
-	// sorted, since a map returns them in a new order on every read.
-	sort.Slice(checks, func(i, j int) bool {
+	// Failing checks come first, they are what the list is for. Then by
+	// service, name and task, since a map returns them in a new order on
+	// every read. Checks equal in all of these keep the order of their IDs.
+	sort.SliceStable(checks, func(i, j int) bool {
 		a, b := checks[i], checks[j]
 
 		if checkRank(a.Status) != checkRank(b.Status) {
@@ -399,7 +404,11 @@ func (c *Client) AllocationChecks(ctx context.Context, namespace, allocID string
 			return a.Service < b.Service
 		}
 
-		return a.Name < b.Name
+		if a.Name != b.Name {
+			return a.Name < b.Name
+		}
+
+		return a.Task < b.Task
 	})
 
 	return checks, nil

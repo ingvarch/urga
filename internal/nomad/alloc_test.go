@@ -394,6 +394,31 @@ func TestAllocationChecks_InTheOrderOfTheirNames(t *testing.T) {
 	r.Equal([]string{"api/z", "web/a", "web/b"}, names)
 }
 
+func TestAllocationChecks_InOneOrderOnEveryRead(t *testing.T) {
+	r := require.New(t)
+
+	body := `{
+		"c": {"Service": "web", "Check": "alive", "Status": "success", "Task": "api", "Output": "c"},
+		"a": {"Service": "web", "Check": "alive", "Status": "success", "Task": "api", "Output": "a"},
+		"b": {"Service": "web", "Check": "alive", "Status": "success", "Task": "", "Output": "b"},
+		"d": {"Service": "web", "Check": "alive", "Status": "success", "Task": "worker", "Output": "d"}
+	}`
+
+	for range 20 {
+		client, _ := recorder(t, body)
+
+		checks, err := client.AllocationChecks(context.Background(), "production", "af1f37df")
+		r.NoError(err)
+
+		outputs := []string{}
+		for _, check := range checks {
+			outputs = append(outputs, check.Output)
+		}
+
+		r.Equal([]string{"b", "a", "c", "d"}, outputs)
+	}
+}
+
 func TestAllocations_ReadTheHealthOfTheirDeployment(t *testing.T) {
 	r := require.New(t)
 
