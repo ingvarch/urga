@@ -140,6 +140,41 @@ type Node struct {
 	// zero, because the client screen counts its own list.
 	MaxAllocs int
 	Allocs    int
+
+	// DrainStrategy is nil while the client does not drain. Only Node reads
+	// it, the list does not carry it.
+	DrainStrategy *DrainStrategy
+}
+
+// DrainStrategy is how a client drains. Deadline is zero for a drain without
+// one, or a forced drain.
+type DrainStrategy struct {
+	Started          time.Time
+	Deadline         time.Time
+	IgnoreSystemJobs bool
+}
+
+// Progress counts the allocations a drain has left to move off the client,
+// and of how many it had when it started: those still on the client, and
+// those that ended since. System jobs are left out when the drain ignores
+// them. Ended ones the cluster has collected as garbage are not in allocs, so
+// they are not counted.
+func (d DrainStrategy) Progress(allocs []Alloc) (left, of int) {
+	for _, alloc := range allocs {
+		if d.IgnoreSystemJobs && alloc.JobType == api.JobTypeSystem {
+			continue
+		}
+
+		switch {
+		case !endedOnClient(alloc.Status):
+			left++
+			of++
+		case !alloc.Modified.Before(d.Started):
+			of++
+		}
+	}
+
+	return left, of
 }
 
 // Nodes lists the clients of the cluster.
