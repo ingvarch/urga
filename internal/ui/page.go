@@ -233,6 +233,11 @@ type outcome struct {
 	// the answer to its ask: the screen is no fresher for it, so the error
 	// on the status line stays and the poll keeps its schedule.
 	reading bool
+
+	// writes says cmd itself changes the cluster: what it reports shows
+	// after its screen is left. A change that waits for a question, a line,
+	// the editor or a plan is labelled when it is sent.
+	writes bool
 }
 
 // then is an outcome of messages the root takes at once.

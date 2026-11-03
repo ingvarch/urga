@@ -261,7 +261,7 @@ const webFile = "# Variable nomad/jobs/web in namespace default.\nDB_HOST = \"10
 func editingWeb(t *testing.T, client *fakeClient, edits ...string) (Model, *fakeEditor) {
 	t.Helper()
 
-	t.Setenv("TMPDIR", t.TempDir())
+	tempDir(t)
 
 	client.variableSpec = nomad.VariableSource{Source: webFile, Index: 769}
 
@@ -447,7 +447,7 @@ func TestVariable_ARefusedSaveSaysWhoseTokenWasRefused(t *testing.T) {
 func onVariables(t *testing.T, client *fakeClient, namespace string, edits ...string) (Model, *fakeEditor) {
 	t.Helper()
 
-	t.Setenv("TMPDIR", t.TempDir())
+	tempDir(t)
 
 	web := webVariable().Variable
 	web.Index = 769

@@ -12,7 +12,7 @@ import (
 func TestNamespaces_NewOpensATemplateAndCreates(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("TMPDIR", t.TempDir())
+	tempDir(t)
 
 	source := `{"Name": "ml", "Description": "machine learning"}`
 	client := &fakeClient{}
@@ -35,7 +35,7 @@ func TestNamespaces_NewOpensATemplateAndCreates(t *testing.T) {
 func TestNamespaces_ANameThatExistsOpensAgain(t *testing.T) {
 	r := require.New(t)
 
-	t.Setenv("TMPDIR", t.TempDir())
+	tempDir(t)
 
 	source := `{"Name": "staging"}`
 	client := &fakeClient{refusals: []error{errors.New("namespace staging already exists")}}

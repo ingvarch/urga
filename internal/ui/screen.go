@@ -114,11 +114,9 @@ func (m Model) barRows() int {
 }
 
 // took stores what the open page made of an answer, and applies what it
-// returns. The work it starts belongs to the ask of the page and ends with
-// it. An answer to the ask marks the screen as answered; a reading from a
-// timer of the page does not.
+// returns. An answer to the ask marks the screen as answered; a reading from
+// a timer of the page does not.
 func (m Model) took(next page, out outcome) (Model, tea.Cmd) {
-	out.cmd = askedFor(m.asked, out.cmd)
 	m.screen.page = next
 
 	if out.reading {
@@ -133,8 +131,16 @@ func (m Model) took(next page, out outcome) (Model, tea.Cmd) {
 }
 
 // apply carries out what a page returned: its messages at once, in order,
-// and its command in the background.
+// and its command in the background. The work it starts belongs to the ask
+// of the page and ends with it, except what changes the cluster: its report
+// still shows after the screen is left.
 func (m Model) apply(out outcome) (Model, tea.Cmd) {
+	if out.writes {
+		out.cmd = wroteFor(m.asked, out.cmd)
+	} else {
+		out.cmd = askedFor(m.asked, out.cmd)
+	}
+
 	cmds := []tea.Cmd{out.cmd}
 
 	for _, msg := range out.now {
@@ -407,16 +413,16 @@ func (m Model) openStream() (Model, tea.Cmd) {
 	return m, askedFor(m.asked, cmd)
 }
 
-// letGo closes a stream that was opened for a page that is no longer open:
-// nothing else would ever close it.
+// letGo closes the stream or removes the temp file a message holds for a page
+// that is no longer open: nothing else would ever do it.
 func letGo(msg tea.Msg) {
 	if opened, ok := msg.(streamOpened); ok {
 		opened.release()
 	}
 }
 
-// streamOpened is a message that brings a stream: one no page takes is
-// closed, since nothing else would close it.
+// streamOpened is a message that holds a stream or a temp file: one no page
+// takes is closed or removed, since nothing else would do it.
 type streamOpened interface{ release() }
 
 // returnTo puts a list back the way it was left. Its rows are still there,
@@ -544,6 +550,9 @@ func (m Model) reportLate(asked int, msg tea.Msg) (Model, tea.Cmd) {
 		if msg.ended != "" {
 			return m.say(msg.ended), nil
 		}
+
+	case changedSincePlanMsg:
+		return m.warn(msg.said()), nil
 
 	case refusedEditMsg:
 		return m.failLate(msg.err), nil

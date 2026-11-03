@@ -266,9 +266,9 @@ func within(cmd tea.Cmd, wait time.Duration) tea.Msg {
 }
 
 func TestBindings_TheKeysThatChangeTheCluster(t *testing.T) {
-	// Saving a screen writes a file where urga runs, editing one in TMPDIR.
+	// Saving a screen writes where urga runs, editing writes in the temp dir.
 	t.Chdir(t.TempDir())
-	t.Setenv("TMPDIR", t.TempDir())
+	tempDir(t)
 
 	// A key the page does not offer now does nothing when pressed. It is
 	// checked on a screen that offers it, and some screen has to.
@@ -317,6 +317,51 @@ func TestBindings_TheKeysThatChangeTheCluster(t *testing.T) {
 	for of := range marked {
 		if !pressed[of] {
 			t.Errorf("%s changes the cluster and no screen offers it", of)
+		}
+	}
+}
+
+func TestBindings_AKeyLabelsItsWorkAWriteOnlyWhenTheWorkWrites(t *testing.T) {
+	// Editing writes its file in the temp dir.
+	t.Chdir(t.TempDir())
+	tempDir(t)
+
+	for name, open := range everyScreen(t) {
+		for _, k := range open.pageKeys() {
+			if !k.offered {
+				continue
+			}
+
+			fake, ok := open.client.(*fakeClient)
+			require.True(t, ok)
+
+			fake.writes = nil
+			fake.logs = &nomad.LogStream{Lines: make(chan string)}
+
+			m := open.quiet()
+
+			_, out, pressed := m.screen.page.press(k.press, m.env())
+			require.True(t, pressed, "%s on the %s screen", k.press, name)
+
+			runOnce(out.cmd)
+
+			// What a key only reads is dropped once its screen is left. A
+			// write that a question, a line or the editor comes before is
+			// labelled when it is sent.
+			if wrote := len(fake.writes) > 0; wrote != out.writes {
+				t.Errorf("%s on the %s screen: labelled a write: %t, changed the cluster: %t %v",
+					k.press, name, out.writes, wrote, fake.writes)
+			}
+		}
+	}
+}
+
+// runOnce runs a command and the commands of a batch it returns, and takes
+// none of their answers.
+func runOnce(cmd tea.Cmd) {
+	if batch, ok := within(cmd, 200*time.Millisecond).(tea.BatchMsg); ok {
+		for _, c := range batch {
+			runOnce(c)
 		}
 	}
 }

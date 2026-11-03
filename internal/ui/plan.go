@@ -64,6 +64,13 @@ type planState struct {
 // planDoneMsg says a plan of the job was submitted: it cannot be sent again.
 type planDoneMsg struct{ jobID string }
 
+// changedSincePlanMsg says the job changed after it was planned, so the plan
+// was not sent.
+type changedSincePlanMsg struct{ jobID string }
+
+// said is what the status line says when no plan is open to plan again.
+func (msg changedSincePlanMsg) said() string { return msg.jobID + " changed since this plan" }
+
 // planPage is what the cluster would do with a job, before anything is
 // sent: the file of an edit submitted, or the job gone back to a version.
 type planPage struct {
@@ -162,6 +169,9 @@ func (p planPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 		}
 
 		return again, outcome{reading: true}, true
+
+	case changedSincePlanMsg:
+		return p, outcome{now: []tea.Msg{warnMsg(msg.said() + ": r plans it again")}, reading: true}, true
 
 	case planDoneMsg:
 		if msg.jobID != p.jobID {
@@ -308,7 +318,7 @@ func planNewJob(ctx context.Context, client jobsClient, namespace, source string
 func submitPlan(p planPage, e env) (planPage, outcome) {
 	client, state := e.client, p.planState
 
-	return p, outcome{cmd: func() tea.Msg {
+	return p, outcome{writes: true, cmd: func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
@@ -324,7 +334,7 @@ func submitPlan(p planPage, e env) (planPage, outcome) {
 
 		switch {
 		case errors.Is(err, nomad.ErrJobChanged):
-			return warnMsg(fmt.Sprintf("%s changed since this plan: r plans it again", state.jobID))
+			return changedSincePlanMsg{jobID: state.jobID}
 
 		case err != nil:
 			return failMsg{err: err}

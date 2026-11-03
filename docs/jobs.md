@@ -190,7 +190,8 @@ You cannot submit a plan with placement failures. The button then says why.
 
 urga submits exactly what was planned. If someone changed the job after the
 plan, the cluster refuses the submit, and urga asks you to plan again with
-`r`.
+`r`. If you left the plan before the answer came, the status line only says
+that the job changed.
 
 After a submit or a revert, urga goes back to where the edit or the revert
 started (the job list or the versions screen) and opens the watch of the deploy

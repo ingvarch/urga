@@ -19,8 +19,10 @@ func opened(m Model, press tea.KeyPressMsg) Model {
 		return next
 	}
 
-	if answer, ok := cmd().(describeMsg); ok {
-		next, _ = next.update(answer)
+	if answer, ok := cmd().(answerMsg); ok {
+		if _, ok := answer.msg.(describeMsg); ok {
+			next, _ = next.update(answer)
+		}
 	}
 
 	return next
@@ -92,7 +94,7 @@ func TestBack_ComesBackToTheRowADescriptionWasAskedFrom(t *testing.T) {
 
 func TestBack_ComesBackToTheRowOfEveryKeyThatOpensAScreen(t *testing.T) {
 	// The keys that edit write their file before anything else happens.
-	t.Setenv("TMPDIR", t.TempDir())
+	tempDir(t)
 
 	for name, m := range everyScreen(t) {
 		if len(m.list.table.rows) < 2 || m.readsAsText() {

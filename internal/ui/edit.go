@@ -34,6 +34,10 @@ type (
 	}
 )
 
+// release removes the file of an edit that was never opened: the screen it
+// was for is gone. It can hold what the cluster keeps secret.
+func (m editFileMsg) release() { _ = os.Remove(m.path) }
+
 // terminalEditor runs VISUAL or EDITOR and gives it the terminal.
 type terminalEditor struct{}
 

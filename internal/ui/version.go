@@ -255,7 +255,7 @@ func markVersion(p versionsPage, e env) (versionsPage, outcome) {
 		word = "unstable"
 	}
 
-	return p, outcome{cmd: act(fmt.Sprintf("Version %d of %s marked %s.", version.Version, jobID, word), func(ctx context.Context) error {
+	return p, outcome{writes: true, cmd: act(fmt.Sprintf("Version %d of %s marked %s.", version.Version, jobID, word), func(ctx context.Context) error {
 		return client.MarkStable(ctx, namespace, jobID, version.Version, stable)
 	})}
 }

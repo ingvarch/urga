@@ -43,7 +43,7 @@ func TestReadOnly_AWriteKeyChangesNothing(t *testing.T) {
 	r := require.New(t)
 
 	t.Chdir(t.TempDir())
-	t.Setenv("TMPDIR", t.TempDir())
+	tempDir(t)
 
 	for name, open := range everyScreen(t) {
 		for _, k := range open.pageKeys() {

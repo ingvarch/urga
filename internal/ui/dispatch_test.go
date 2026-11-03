@@ -185,3 +185,17 @@ func TestDispatch_AFileThatDoesNotReadIsNotSent(t *testing.T) {
 	r.Len(editor.seen, 2)
 	r.Contains(editor.seen[1], "# Not saved: line 1: write key = value.")
 }
+
+func TestDispatch_AFormAnsweredAfterLeavingAsksNothing(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: periodicJobs(), dispatchForm: nomad.DispatchForm{Payload: nomad.PayloadForbidden}}
+	m := onReport(t, client, &fakeEditor{})
+
+	m, form := m.update(key('r'))
+	m, _ = m.update(enter())
+	m = drain(m, form)
+
+	r.Equal(overlayNone, m.overlay)
+	r.NotContains(plain(m.render()), "Really dispatch")
+}
