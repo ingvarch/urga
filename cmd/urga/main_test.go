@@ -2,14 +2,19 @@ package main
 
 import (
 	"flag"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ingvarch/urga/internal/config"
 	"github.com/ingvarch/urga/internal/nomad"
 	"github.com/ingvarch/urga/internal/settings"
 	"github.com/ingvarch/urga/internal/ui"
@@ -322,4 +327,74 @@ func TestWithBuild(t *testing.T) {
 
 	// What was set before stays.
 	r.True(opts.ReadOnly)
+}
+
+// offline gives urga a home of its own and a cluster of its own that
+// answers nothing. The cluster and the token of the shell running the tests
+// are not used: a test must not send requests to a real cluster.
+func offline(t *testing.T) string {
+	t.Helper()
+
+	home := t.TempDir()
+	for _, name := range []string{"XDG_CONFIG_HOME", "TMPDIR", "TMP", "TEMP"} {
+		t.Setenv(name, home)
+	}
+
+	cluster := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(cluster.Close)
+
+	t.Setenv("NOMAD_ADDR", cluster.URL)
+
+	for _, name := range []string{
+		"NOMAD_TOKEN", "NOMAD_REGION", "NOMAD_NAMESPACE", "NOMAD_HTTP_AUTH",
+		"NOMAD_CACERT", "NOMAD_CAPATH", "NOMAD_CLIENT_CERT", "NOMAD_CLIENT_KEY",
+		"NOMAD_TLS_SERVER_NAME", "NOMAD_SKIP_VERIFY",
+	} {
+		t.Setenv(name, "")
+	}
+
+	return home
+}
+
+func TestSaveSession_OfTheModelTheRunEndedWith(t *testing.T) {
+	r := require.New(t)
+
+	home := offline(t)
+
+	m, err := open(cmdline{namespace: "batch", namespaceGiven: true})
+	r.NoError(err)
+	r.NoError(saveSession(m))
+
+	saved := config.Load(filepath.Join(home, "urga", "config.json")).Of("")
+	r.NotNil(saved.Namespace)
+	r.Equal("batch", *saved.Namespace)
+
+	// Anything else the program ends with has no session to save.
+	r.NoError(saveSession(nil))
+}
+
+func TestPlay_SavesTheSessionWhenTheProgramEnds(t *testing.T) {
+	r := require.New(t)
+
+	home := offline(t)
+
+	m, err := open(cmdline{namespace: "batch", namespaceGiven: true})
+	r.NoError(err)
+
+	done := make(chan error, 1)
+
+	go func() {
+		done <- play(m, tea.WithInput(strings.NewReader("q")), tea.WithOutput(io.Discard))
+	}()
+
+	select {
+	case err := <-done:
+		r.NoError(err)
+	case <-time.After(5 * time.Second):
+		r.FailNow("the program did not end on q")
+	}
+
+	saved := config.Load(filepath.Join(home, "urga", "config.json")).Of("")
+	r.NotNil(saved.Namespace)
+	r.Equal("batch", *saved.Namespace)
 }

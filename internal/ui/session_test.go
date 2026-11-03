@@ -270,3 +270,25 @@ func TestSession_TheSavedFileIsTheSessionAsRemembered(t *testing.T) {
 	r.Equal("staging", *again.Namespace)
 	r.Empty(again.Clusters)
 }
+
+func TestSession_IsSavedWhenItEnds(t *testing.T) {
+	r := require.New(t)
+
+	path := filepath.Join(t.TempDir(), "config.json")
+	m, _ := sessionModelAt(t, &fakeClient{jobs: twoJobs()}, path)
+
+	// The commands that would write it are dropped, as when urga quits first.
+	m, _ = m.show(nodesView)
+	m.namespace = "staging"
+
+	r.NoError(m.SaveSession())
+
+	saved := config.Load(path).Of("")
+	r.NotNil(saved.Namespace)
+	r.Equal("staging", *saved.Namespace)
+	r.Equal(nodesView.stored, saved.Screen)
+}
+
+func TestSession_SaveWithoutAConfig(t *testing.T) {
+	require.NoError(t, New(&fakeClient{}, Options{}).SaveSession())
+}
