@@ -541,7 +541,7 @@ func TestVariables_DeleteAsksAndKeepsOneThatChanged(t *testing.T) {
 	m, _ = m.update(key('j'))
 
 	m, _ = m.update(ctrlKey('d'))
-	r.Equal("Really delete the variable nomad/jobs/web?", m.confirm.question)
+	r.Equal("Really delete the variable nomad/jobs/web in namespace default?", m.confirm.question)
 
 	m, cmd := answerYes(m)
 	m = drain(m, cmd)
@@ -567,4 +567,14 @@ func TestVariables_ASwitchWhoseReadFailsShowsNoneOfTheNamespaceLeft(t *testing.T
 	r.Contains(out, "Variables (staging) [0]")
 	r.Contains(out, "connection refused")
 	r.NotContains(out, "nomad/jobs/web")
+}
+
+func TestVariables_TheDeleteQuestionNamesTheNamespace(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onVariables(t, &fakeClient{}, nomad.AllNamespaces)
+	m, _ = m.update(key('j'))
+	m, _ = m.update(ctrlKey('d'))
+
+	r.Equal("Really delete the variable nomad/jobs/web in namespace default?", m.confirm.question)
 }

@@ -231,10 +231,11 @@ at:`. urga creates it only if there is no variable at that path. If there is
 one, the editor opens again with `variable ... already exists`, and saving
 again replaces it.
 
-`ctrl-d` deletes the variable under the cursor, after you confirm, with
-check-and-set: if the variable changed since the list was read, the cluster
-keeps it and urga says so. A variable held as a lock cannot be deleted, so
-`ctrl-d` is not offered on it.
+`ctrl-d` deletes the variable under the cursor after you confirm. The
+question names its path and namespace. The delete uses check-and-set: if the
+variable changed since the list was read, the cluster keeps it and urga says
+so. A variable held as a lock cannot be deleted, so `ctrl-d` is not offered on
+it.
 
 ## Node pools
 
