@@ -694,9 +694,13 @@ func TestPanel_TakesTheRowsItDraws(t *testing.T) {
 	limited := limitedClient(t, 3, clientAllocs())
 	limited, _ = limited.update(reading(29))
 
+	allocated := allocatedClient(t, nomad.Resources{CPU: 4000, MemoryMB: 8192, DiskMB: 40960})
+	allocated, _ = allocated.update(reading(29))
+
 	screens := map[string]Model{
 		"client":     client,
 		"limited":    limited,
+		"allocated":  allocated,
 		"tasks":      openCanary(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}),
 		"deployment": onDeployment(t, &fakeClient{}),
 		"variable":   onVariable(t, &fakeClient{}, leaderVariable()),

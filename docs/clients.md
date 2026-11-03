@@ -37,13 +37,22 @@ With several clients marked, these keys act on all of them that fit:
   new work;
 - when the client has a limit, how many allocations it holds of it, like
   `3 of 10`. Allocations that ended or are being stopped do not count;
+- what its allocations reserve of the CPU, memory and disk the client gives to
+  jobs, like `Allocated CPU 50%, memory 50%, disk 1%`. What a client gives to
+  jobs is what it has less what it keeps for itself, and the tasks of an
+  allocation are counted the way the header counts `CPU Alloc` (see
+  [how urga stays up to date](configuration.md#how-urga-stays-up-to-date)).
+  Allocations that ended or are being stopped do not count, nor do allocations
+  in namespaces your token may not read. A resource the client does not
+  report, such as a disk it could not measure, is left out, and so is the whole
+  line when it reports none;
 - when the client has an identity, when it expires, like `Identity expires in
   23h` (Nomad 1.11 and later). On an older cluster, or an older client, none
   of it shows;
 - charts of its CPU and memory use, read every 5 seconds while the screen is
   open. The charts keep the last 20 minutes and start over when you come
-  back to the client from another screen. `u` reads them in percents or in
-  numbers, scaled up to gigahertz and gibibytes.
+  back to the client from another screen. `u` reads them and the allocated
+  line in percents or in numbers, scaled up to gigahertz and gibibytes.
 
 Below, it lists the allocations on the client, from every namespace. On a
 small terminal, the charts are left out to keep room for the allocations.

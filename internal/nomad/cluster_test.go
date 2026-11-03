@@ -245,3 +245,12 @@ func usageOfOneAllocation(t *testing.T, tasks, lifecycles string) nomad.Usage {
 
 	return usage
 }
+
+func TestPercent_RoundsToTheNearestAndIsNothingOfNothing(t *testing.T) {
+	r := require.New(t)
+
+	r.Equal(1, nomad.Percent(600, 40960))
+	r.Equal(50, nomad.Percent(1000, 2000))
+	r.Equal(67, nomad.Percent(2, 3))
+	r.Equal(0, nomad.Percent(5, 0))
+}
