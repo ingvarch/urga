@@ -206,6 +206,29 @@ func TestClusters_AnAnswerOfTheClusterLeftIsDropped(t *testing.T) {
 	r.Contains(plain(m.render()), "2.0.7")
 }
 
+func TestClusters_AnActionOfTheClusterLeftKeepsTheMarksOfTheNextOne(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+	clusters.prod.jobs = twoJobs()
+
+	m, _ = m.update(space())
+	m, _ = m.update(ctrlKey('s'))
+	m, stop := answerYes(m)
+
+	m = typeCommand(m, "ctx prod")
+
+	// Prod has a job of the same name and namespace.
+	m, _ = m.update(space())
+	marks := map[string]bool{"production/web": true}
+	r.Equal(marks, m.list.marks)
+
+	m = drain(m, stop)
+
+	r.Equal(marks, m.list.marks)
+	r.Contains(plain(m.render()), "Stopped the job web")
+}
+
 // askedForProdThenQa is a session on dev that has asked for prod and then for qa,
 // and holds the answers of both, still to arrive.
 func askedForProdThenQa(t *testing.T) (Model, *twoClusters, tea.Msg, tea.Msg) {

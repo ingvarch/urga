@@ -313,7 +313,9 @@ func (m Model) commit() (Model, tea.Cmd) {
 	m, _ = m.closePrompt()
 
 	if asked == overlayAnswer {
-		return answer(m, input)
+		next, cmd := answer(m, input)
+
+		return next, wroteFor(m.asked, cmd)
 	}
 
 	cmd, ok := parseCommand(input)

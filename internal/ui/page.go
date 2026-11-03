@@ -49,6 +49,10 @@ type env struct {
 	client    Client
 	namespace string
 
+	// connection is the cluster the session is connected to, as the model
+	// counts them: an answer that carries it is dropped for another one.
+	connection int
+
 	// row is the resource under the cursor, when onRow says there is one.
 	row   int
 	onRow bool
@@ -93,6 +97,7 @@ func (m Model) env() env {
 	return env{
 		client:      m.client,
 		namespace:   m.namespace,
+		connection:  m.connection,
 		row:         row,
 		onRow:       onRow,
 		marks:       m.list.marks,

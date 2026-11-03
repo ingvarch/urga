@@ -140,6 +140,7 @@ func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 	m = m.restore()
 
 	next, cmd := m.arrive()
+	next.firstAsk = next.asked
 	next = next.say(fmt.Sprintf("Connected to %s.", conn.Name))
 
 	return next, tea.Batch(cmd, next.askAboutTheCluster())

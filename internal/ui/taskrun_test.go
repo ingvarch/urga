@@ -80,6 +80,20 @@ func TestTaskRun_TheExitCodeIsInTheTitleAndTheTextStillOpens(t *testing.T) {
 	r.Contains(plain(m.render()), "no such file")
 }
 
+func TestTaskRun_ACommandThatEndsAfterLeavingSaysHowItEnded(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), output: nomad.CommandOutput{Text: "no such file\n", ExitCode: 2}}
+	m := openTasks(t, client)
+
+	m, cmd := ranCommand(m, "cat /nope")
+	m, _ = m.update(escape())
+	m = drain(m, cmd)
+
+	r.IsType(allocationsPage{}, m.screen.page)
+	r.Equal(`Ran "cat /nope" in server: exit code 2.`, m.flash.text)
+}
+
 func TestTaskRun_TheTitleSaysWhenOnlyTheEndOfALongOutputIsKept(t *testing.T) {
 	r := require.New(t)
 

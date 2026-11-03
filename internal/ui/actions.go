@@ -24,6 +24,10 @@ type doneMsg struct {
 	// Without a question, took is nil and done takes the marks on the screen.
 	took map[string]bool
 	kept map[string]bool
+
+	// went are the marks of what the action did. An answer that comes after
+	// its screen is left unmarks them, and leaves the other marks as they are.
+	went []string
 }
 
 // The buttons of a question, in the order tab moves through them.
@@ -115,7 +119,7 @@ func (m Model) confirmKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 func (m Model) applyConfirm() (Model, tea.Cmd) {
 	apply, took := m.confirm.apply, m.confirm.took
 
-	return m.closeConfirm(), labelled(apply, func(msg tea.Msg) tea.Msg {
+	return m.closeConfirm(), wroteFor(m.asked, labelled(apply, func(msg tea.Msg) tea.Msg {
 		if done, ok := msg.(doneMsg); ok {
 			done.took = took
 
@@ -123,7 +127,7 @@ func (m Model) applyConfirm() (Model, tea.Cmd) {
 		}
 
 		return msg
-	})
+	}))
 }
 
 // closeConfirm takes the question off the screen.
@@ -303,6 +307,8 @@ func each[T any](done, label string, items []T, mark func(T) string, do func(con
 			}
 
 			went++
+
+			out.went = append(out.went, mark(item))
 		}
 
 		if len(failed) > 0 {

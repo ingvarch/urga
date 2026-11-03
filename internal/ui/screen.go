@@ -254,6 +254,10 @@ func (m Model) fetch() tea.Cmd {
 // the screen.
 type answerMsg struct {
 	asked int
+
+	// wrote says the work changed the cluster: what it reports still shows
+	// after its screen is left.
+	wrote bool
 	msg   tea.Msg
 }
 
@@ -261,6 +265,12 @@ type answerMsg struct {
 // included.
 func askedFor(asked int, cmd tea.Cmd) tea.Cmd {
 	return labelled(cmd, func(msg tea.Msg) tea.Msg { return answerMsg{asked: asked, msg: msg} })
+}
+
+// wroteFor labels the messages of work that changes the cluster. Once the
+// screen is left they only report what was done.
+func wroteFor(asked int, cmd tea.Cmd) tea.Cmd {
+	return labelled(cmd, func(msg tea.Msg) tea.Msg { return answerMsg{asked: asked, wrote: true, msg: msg} })
 }
 
 // labelled wraps every message a command returns, the commands of a batch
@@ -487,10 +497,105 @@ func shortID(id string) string {
 // is over is dropped, and a stream it opened is closed.
 func (m Model) takeAnswer(msg answerMsg) (Model, tea.Cmd) {
 	if msg.asked != m.asked {
+		if msg.wrote {
+			return m.reportLate(msg.asked, msg.msg)
+		}
+
 		letGo(msg.msg)
 
 		return m, nil
 	}
 
 	return m.update(msg.msg)
+}
+
+// reportLate shows what a write did after its screen was left: on the status
+// line only. Marks, pages and questions of the screen now open stay as they
+// are, except that what the write did on the client in use is no longer
+// marked. A switch of the session to another namespace still happens on the
+// cluster it was made for.
+func (m Model) reportLate(asked int, msg tea.Msg) (Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case doneMsg:
+		return m.doneLate(asked, msg), nil
+
+	case errMsg:
+		return m.failLate(msg.err), nil
+
+	case failMsg:
+		return m.failLate(msg.err), nil
+
+	case describeMsg:
+		if msg.ended != "" {
+			return m.say(msg.ended), nil
+		}
+
+	case refusedEditMsg:
+		return m.failLate(msg.err), nil
+
+	case connectionMsg:
+		if _, ok := msg.msg.(switchNamespaceMsg); ok {
+			return m.update(msg)
+		}
+
+	case sayMsg, warnMsg, copyMsg, savedMsg:
+		return m.update(msg)
+	}
+
+	letGo(msg)
+
+	return m, nil
+}
+
+// doneLate reports an action that ended after its screen was left.
+func (m Model) doneLate(asked int, msg doneMsg) Model {
+	// A mark is a name, and the cluster or region that was left has the same
+	// names for other resources.
+	if asked >= m.firstAsk {
+		m = m.unmark(msg.went)
+	}
+
+	if msg.err != nil {
+		return m.failLate(msg.err)
+	}
+
+	return m.say(msg.said)
+}
+
+// failLate shows the error of a write that ended after its screen was left.
+// The screen now open answers on its own, and that must not clear it.
+func (m Model) failLate(err error) Model {
+	if why, ok := m.refusedBecause(err); ok {
+		m = m.flashed(why, flashErr)
+	} else {
+		m = m.fail(err)
+	}
+
+	m.flash.ofAction = true
+
+	return m
+}
+
+// unmark takes the marks off what an action did. The map is copied: the
+// model before may still be read.
+func (m Model) unmark(ids []string) Model {
+	if len(ids) == 0 {
+		return m
+	}
+
+	marks := make(map[string]bool, len(m.list.marks))
+	for id := range m.list.marks {
+		marks[id] = true
+	}
+
+	for _, id := range ids {
+		delete(marks, id)
+	}
+
+	m.list.marks = marks
+
+	// The rows are drawn from the marks only when they are laid out.
+	m.layout()
+
+	return m
 }

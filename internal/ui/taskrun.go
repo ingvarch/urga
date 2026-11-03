@@ -55,6 +55,7 @@ func runCommand(client allocsClient, task taskRef, line string) tea.Cmd {
 				task.name, shortID(task.allocID), out.ExitCode, spanOf(out.Size, out.From)),
 			after:   ": " + line,
 			content: printedText(out.Text),
+			ended:   fmt.Sprintf(`Ran "%s" in %s: exit code %d.`, line, task.name, out.ExitCode),
 		}, nil
 	}, func(msg describeMsg) tea.Msg { return msg })
 }
