@@ -108,16 +108,19 @@ func (c *Client) File(ctx context.Context, namespace, allocID, name string) (*Lo
 func failures(errs <-chan error, cancel <-chan struct{}) <-chan error {
 	out := make(chan error, 1)
 
-	go func() {
-		select {
-		case err := <-errs:
-			if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) {
-				out <- err
-			}
-
-		case <-cancel:
-		}
-	}()
+	go passFailures(errs, out, cancel)
 
 	return out
+}
+
+// passFailures sends the first error of errs to out, unless it is an end.
+func passFailures(errs <-chan error, out chan<- error, cancel <-chan struct{}) {
+	select {
+	case err := <-errs:
+		if !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrClosedPipe) {
+			out <- err
+		}
+
+	case <-cancel:
+	}
 }

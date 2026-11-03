@@ -224,6 +224,9 @@ type Agent struct {
 
 	// Region is where a request that names none is answered.
 	Region string
+
+	// Server says the agent is a server. A client agent reports no member.
+	Server bool
 }
 
 // Agent asks the agent the client talks to. The context is there to match
@@ -241,7 +244,7 @@ func (c *Client) Agent(_ context.Context) (Agent, error) {
 		version = configVersion(self.Config)
 	}
 
-	return Agent{Version: version, Region: region}, nil
+	return Agent{Version: version, Region: region, Server: self.Member.Name != ""}, nil
 }
 
 // configVersion builds the version of an agent that has no build tag, as
