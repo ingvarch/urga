@@ -119,6 +119,11 @@ the cluster for a plan and shows it. If the cluster cannot plan the file, for
 example because of a syntax error, urga opens the editor again with your edit
 and the reason at the top. See [Editor](configuration.md#editor).
 
+The file edits the job it was opened for. If it names another job, for
+example after you change `job "web"` to `job "web2"`, urga does not plan it.
+The editor opens again and says that the file names another job. To make a
+new job, use `n` or `:run`.
+
 An edit keeps the count a group runs with. If the autoscaler or `s` scaled a
 group to 5 and you leave its `count` in the file alone, the job is submitted
 with 5, not with the number in the file. If you change the `count` in the

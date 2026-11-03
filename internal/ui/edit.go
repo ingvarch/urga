@@ -176,7 +176,7 @@ func jsonFile(read func(ctx context.Context) (string, error), done string, save 
 
 // refusedEditMsg is an edit the cluster refused, and the file to open it in
 // again: what was typed, and how it is sent the next time. advice says what
-// sending it again does, when that is not plain.
+// saving it again does, or what to do instead, when that is not plain.
 type refusedEditMsg struct {
 	err    error
 	advice string
@@ -194,7 +194,7 @@ func reopening(extension string, send func(source string) tea.Cmd) func(source s
 		return func() tea.Msg {
 			msg := sent()
 			if failed, ok := msg.(errMsg); ok {
-				return refusedEditMsg{err: failed.err, again: file{extension: extension, content: source, submit: submit}}
+				return refusedEditMsg{err: failed.err, advice: editAdvice(failed.err), again: file{extension: extension, content: source, submit: submit}}
 			}
 
 			return msg
@@ -202,6 +202,16 @@ func reopening(extension string, send func(source string) tea.Cmd) func(source s
 	}
 
 	return submit
+}
+
+// editAdvice says what to do instead, for a refusal that has an answer.
+func editAdvice(err error) string {
+	var other *nomad.OtherJob
+	if errors.As(err, &other) {
+		return "To make a new job, use n or :run."
+	}
+
+	return ""
 }
 
 // reopenEdit opens a refused edit again, with the reason at the top. The
