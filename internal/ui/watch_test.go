@@ -371,6 +371,9 @@ func TestWatch_AClusterOlderThanTheTopicIsPolled(t *testing.T) {
 		"1.11.3": nil,
 		"":       nil,
 		"2.0.7":  {nomad.TopicVariable},
+
+		"1.11.4+ent": {nomad.TopicVariable},
+		"1.11.3+ent": nil,
 	} {
 		client := &fakeClient{changes: newChanges()}
 		m := newTestModel(client)

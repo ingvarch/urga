@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -36,13 +37,33 @@ var since = map[string]string{
 	TopicVariable:   "2.0.0",
 }
 
+// sinceEnterprise is the first Enterprise version that sends a topic sooner
+// than since says: variable events came in 2.0.0 and in Enterprise 1.11.4,
+// not in 1.10 Enterprise.
+var sinceEnterprise = map[string]string{
+	TopicVariable: "1.11.4",
+}
+
+// enterprise says the build metadata of the version is ent, or ent.musl,
+// ent.fips1403 and the like.
+func enterprise(version string) bool {
+	_, meta, ok := strings.Cut(version, "+")
+
+	return ok && (meta == "ent" || strings.HasPrefix(meta, "ent."))
+}
+
 // Streams says a cluster of that version sends the events of every one of
 // the topics. A cluster that does not know a topic opens the stream anyway
 // and never sends anything for it, so the version is checked before it is
 // asked.
 func Streams(version string, topics []string) bool {
 	for _, topic := range topics {
-		if minimum, ok := since[topic]; ok && !AtLeast(version, minimum) {
+		minimum, ok := since[topic]
+		if first, early := sinceEnterprise[topic]; early && enterprise(version) {
+			minimum, ok = first, true
+		}
+
+		if ok && !AtLeast(version, minimum) {
 			return false
 		}
 	}
