@@ -1,12 +1,15 @@
 package ui
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -353,4 +356,91 @@ func TestShellRunner_AsksInTheRegionOfTheTask(t *testing.T) {
 	// The runner has the client urga started with, in eu; the shell opens in
 	// the region the session uses now.
 	r.Equal("us", session.client.(*nomad.Client).Region())
+}
+
+func TestShell_MeasuresTheTerminalOnItsOutput(t *testing.T) {
+	r := require.New(t)
+
+	out, err := os.Create(filepath.Join(t.TempDir(), "out"))
+	r.NoError(err)
+	t.Cleanup(func() { _ = out.Close() })
+
+	r.Equal(int(out.Fd()), terminalOf(out))
+	r.Equal(int(os.Stdin.Fd()), terminalOf(&bytes.Buffer{}))
+}
+
+func TestShell_RunMeasuresTheTerminalOnItsOutput(t *testing.T) {
+	r := require.New(t)
+
+	out, err := os.Create(filepath.Join(t.TempDir(), "out"))
+	r.NoError(err)
+	t.Cleanup(func() { _ = out.Close() })
+
+	var (
+		mu       sync.Mutex
+		measured []int
+	)
+
+	told := make(chan nomad.TerminalSize, 1)
+
+	session := &shellSession{client: sizedExec{told: told}}
+	session.measure = func(fd int) (int, int, error) {
+		mu.Lock()
+		defer mu.Unlock()
+
+		measured = append(measured, fd)
+
+		return 80, 24, nil
+	}
+	session.SetStdin(strings.NewReader(""))
+	session.SetStdout(out)
+
+	r.NoError(session.Run())
+
+	// The task is told the size measured on the output.
+	r.Equal(nomad.TerminalSize{Width: 80, Height: 24}, <-told)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	r.NotEmpty(measured)
+
+	for _, fd := range measured {
+		r.Equal(int(out.Fd()), fd)
+	}
+}
+
+func TestShell_RunsWithoutAMeasureOfItsOwn(t *testing.T) {
+	r := require.New(t)
+
+	out, err := os.Create(filepath.Join(t.TempDir(), "out"))
+	r.NoError(err)
+	t.Cleanup(func() { _ = out.Close() })
+
+	// A session built without a measure reads the size from the system.
+	session := &shellSession{client: fakeExec{says: "new$ "}}
+	session.SetStdin(strings.NewReader(""))
+	session.SetStdout(out)
+
+	r.NoError(session.Run())
+}
+
+// sizedExec is a task that passes on the first size of the terminal it is
+// told.
+type sizedExec struct {
+	told chan<- nomad.TerminalSize
+}
+
+func (e sizedExec) Exec(
+	_ context.Context, _, _, _ string, _ []string,
+	_ io.Reader, _, _ io.Writer, sizes <-chan nomad.TerminalSize,
+) (int, error) {
+	select {
+	case size := <-sizes:
+		e.told <- size
+
+		return 0, nil
+	case <-time.After(time.Second):
+		return 0, errors.New("the task was not told the size of the terminal")
+	}
 }
