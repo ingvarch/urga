@@ -65,7 +65,9 @@ namespace "default" {
 
 When the cluster refuses a file, for example JSON that does not read or a
 field it does not take, the file opens again with the reason at the top, so
-nothing typed is lost.
+nothing typed is lost. If you leave the screen, or switch clusters, before
+the cluster answers, the file does not open again: the status line names the
+file that keeps your text, see [Editor](configuration.md#editor).
 
 A new token shows its accessor and its secret once, on a screen of their own,
 and puts the secret on the clipboard. After that, `d` leaves the secret out,

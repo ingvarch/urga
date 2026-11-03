@@ -97,7 +97,9 @@ and schedules them.
 close the editor. It is saved with check-and-set: if someone changed the
 configuration after you opened it, the cluster keeps theirs and the editor
 opens again with the reason. Quit the editor without saving and press `e` to
-start from the new one.
+start from the new one. If you leave the screen, or switch clusters, before
+the cluster answers, the editor does not open again: the status line names the
+file that keeps your text, see [Editor](configuration.md#editor).
 
 Reading the configuration needs `operator:read`, saving it `operator:write`.
 
@@ -213,6 +215,11 @@ variable, the reason may be:
 - The variable was deleted since you opened it: saving again creates it.
 - The variable is locked: only the holder of the lock can change it.
 - The token may not write the variable.
+
+If you leave the screen, or switch clusters, before the cluster answers, urga
+does not open the editor again. The status line names a file that keeps your
+edit, see [Editor](configuration.md#editor). The file holds the values of the
+variable: delete it once you have used it.
 
 `e` is not offered on a variable held as a lock.
 

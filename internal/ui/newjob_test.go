@@ -246,3 +246,23 @@ func TestNewJob_PlansTheJobItsFileNames(t *testing.T) {
 	r.Equal("api", client.plannedJobID)
 	r.Contains(plain(m.render()), "Plan (Job: api)")
 }
+
+func TestNewJob_PlannedAfterLeavingIsKeptAsHCL(t *testing.T) {
+	r := require.New(t)
+
+	dir := tempDir(t)
+
+	client := &fakeClient{jobs: twoJobs(), target: nomad.JobTarget{ID: "api", Namespace: "production", Type: "service"}}
+	m, _ := newJobModel(client, "production", editedTemplate)
+
+	m, read := m.update(key('n'))
+	m, edit := m.update(read())
+	m, submit := m.update(edit())
+
+	m, _ = m.update(enter())
+	drain(m, submit)
+
+	extension, text := keptFile(t, dir)
+	r.Equal(".hcl", extension)
+	r.Equal(editedTemplate, text)
+}

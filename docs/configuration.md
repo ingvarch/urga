@@ -148,6 +148,13 @@ Because a file that comes back unchanged is not sent, saving it again takes a
 change: at least delete these lines. To drop your edit, close the editor
 without saving.
 
+If you leave the screen, or switch clusters, before the cluster answers, urga
+does not open the editor again. The status line names a file that keeps your
+text instead. The file is in the system temp directory (`$TMPDIR`, or `%TMP%`
+on Windows) and is named `urga-<number>` with the extension of your edit, for
+example `urga-1234567890.hcl`. urga does not delete it. For a variable, the
+file holds its values: delete it once you have used it.
+
 ## How urga stays up to date
 
 Most screens, such as jobs, allocations and clients, follow the Nomad event

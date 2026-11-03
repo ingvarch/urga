@@ -286,3 +286,21 @@ func TestVersions_AMarkAnsweredAfterLeavingKeepsTheMarksOfTheJobs(t *testing.T) 
 	r.Equal(map[string]bool{"production/web": true}, m.list.marks)
 	r.Contains(plain(m.render()), "marked stable")
 }
+
+func TestVersions_ARevertPlannedBeforeLeavingKeepsNoText(t *testing.T) {
+	r := require.New(t)
+
+	dir := tempDir(t)
+
+	m, _ := onVersions(t)
+
+	m, revert := m.update(key('u'))
+	m, _ = m.update(escape())
+	said := m.flash.text
+
+	m = drain(m, revert)
+
+	r.IsType(jobsPage{}, m.screen.page)
+	r.Equal(said, m.flash.text)
+	r.Empty(keptTexts(t, dir))
+}

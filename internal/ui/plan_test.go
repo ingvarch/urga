@@ -718,6 +718,8 @@ func TestPlan_OfAnotherJobGoesOnTop(t *testing.T) {
 func TestPlan_ASecondPlanAskedFromTheListIsDropped(t *testing.T) {
 	r := require.New(t)
 
+	dir := tempDir(t)
+
 	client := &fakeClient{jobs: twoJobs(), plan: nomad.Plan{To: 3, Version: 4}}
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
@@ -727,8 +729,12 @@ func TestPlan_ASecondPlanAskedFromTheListIsDropped(t *testing.T) {
 	m, cron := m.update(key('u'))
 
 	m = drain(m, web)
+	said := m.flash.text
+
 	m = drain(m, cron)
 	r.Contains(plain(m.render()), "Revert (Job: web, Version: 3)")
+	r.Equal(said, m.flash.text)
+	r.Empty(keptTexts(t, dir))
 
 	m, _ = m.update(escape())
 	r.IsType(jobsPage{}, m.screen.page)
