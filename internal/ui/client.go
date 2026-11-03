@@ -60,7 +60,7 @@ type (
 )
 
 // hostModel is the machine a client screen is open on, and the readings
-// taken of it since it was opened.
+// taken of it since the screen was entered last.
 type hostModel struct {
 	node  nomad.Node
 	trail []nomad.ResourceUse
@@ -102,7 +102,7 @@ type clientPage struct {
 	nodeID, name string
 
 	// host is the machine as the page last read it, and the readings taken
-	// of it since the page was opened.
+	// of it since the screen was entered last.
 	host hostModel
 
 	// absolute reads the charts in megahertz and mebibytes; without it
@@ -236,9 +236,12 @@ func (p clientPage) keepHostUse(msg hostUseMsg) (page, outcome, bool) {
 }
 
 // restart clears the flag of a chart reading the page thinks is pending:
-// that reading was for a request that is over.
+// that reading was for a request that is over. It also drops the readings:
+// the chain they came on is over, and the chart counts one reading per
+// hostUseEvery.
 func (p clientPage) restart() page {
 	p.host.due = false
+	p.host.trail = nil
 
 	return p
 }
@@ -376,8 +379,8 @@ func (p clientPage) held() string {
 
 // view is what a client shows above its allocations: what kind of machine
 // it is, in the rows of details it starts with, and what it has been doing
-// since the screen was opened. Each chart is half wide and plot tall, and a
-// plot of no height leaves them out.
+// since the screen was entered last. Each chart is half wide and plot tall,
+// and a plot of no height leaves them out.
 func (h hostModel) view(half, plot int, absolute bool, rows []string) []string {
 	rows = append(rows, panelRow(""))
 
@@ -460,8 +463,8 @@ func (m measure) unit(total float64) (string, float64) {
 	return m.small, 1
 }
 
-// chart is one measure of the machine since the screen was opened: a share
-// of a hundred, or the numbers against what the machine has.
+// chart is one measure of the machine since the screen was entered last: a
+// share of a hundred, or the numbers against what the machine has.
 func (h hostModel) chart(of measure, absolute bool) chart {
 	c := chart{name: of.name, color: of.color, every: hostUseEvery}
 
@@ -476,7 +479,7 @@ func (h hostModel) chart(of measure, absolute bool) chart {
 	}
 
 	// The numbers read against what the machine has, or the most it used
-	// since the screen was opened. With neither, the percents are drawn.
+	// since the screen was entered last. With neither, the percents are drawn.
 	total := has
 	if total == 0 {
 		total = maxOf(counts(h.trail, of.used, 1))

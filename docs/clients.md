@@ -41,8 +41,9 @@ With several clients marked, these keys act on all of them that fit:
   23h` (Nomad 1.11 and later). On an older cluster, or an older client, none
   of it shows;
 - charts of its CPU and memory use, read every 5 seconds while the screen is
-  open. The charts keep the last 20 minutes. `u` reads them in percents or
-  in numbers, scaled up to gigahertz and gibibytes.
+  open. The charts keep the last 20 minutes and start over when you come
+  back to the client from another screen. `u` reads them in percents or in
+  numbers, scaled up to gigahertz and gibibytes.
 
 Below, it lists the allocations on the client, from every namespace. On a
 small terminal, the charts are left out to keep room for the allocations.
