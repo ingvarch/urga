@@ -314,7 +314,7 @@ func TestAllocations_EachListHasItsOwnColumnsTitleAndTopics(t *testing.T) {
 		topics  []string
 	}{
 		"job":    {allocColumns, "Allocations (Job: web) [2]", []string{nomad.TopicAllocation}},
-		"client": {allocColumns, "Client nomad-server-01 [1]", []string{nomad.TopicAllocation}},
+		"client": {allocColumns, "Client nomad-server-01 [1]", []string{nomad.TopicAllocation, nomad.TopicNode}},
 		"deployment": {
 			[]string{"ID", "TaskGroup", "Node", "Status", "Canary", "Health", "Rst", "OOM", "CPU", "MEM", "Age"},
 			"Deployment dep-1 (Job: web) [1]",

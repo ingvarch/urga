@@ -128,7 +128,10 @@ func (p clientPage) title(_ env, count int) string {
 }
 
 func (clientPage) titles() []string { return allocTitles }
-func (clientPage) topics() []string { return []string{nomad.TopicAllocation} }
+
+// topics: the panel shows the client itself, and a drain that ends or a change
+// of eligibility is a change of the client, not of its allocations.
+func (clientPage) topics() []string { return []string{nomad.TopicAllocation, nomad.TopicNode} }
 
 // where: a client runs the work of every namespace, which is what its stream
 // watches.

@@ -891,7 +891,7 @@ func TestClient_NothingRunsOnIt(t *testing.T) {
 	r.Contains(plain(m.render()), "nomad-server-01 has no allocation running")
 }
 
-func TestClient_WatchesTheWorkOfEveryNamespace(t *testing.T) {
+func TestClient_WatchesItsAllocationsAndItselfInEveryNamespace(t *testing.T) {
 	r := require.New(t)
 
 	client := &fakeClient{nodes: busyClient(), nodeAllocs: clientAllocs()}
@@ -902,7 +902,7 @@ func TestClient_WatchesTheWorkOfEveryNamespace(t *testing.T) {
 	m.update(m.watchScreen()())
 
 	r.Equal(nomad.AllNamespaces, client.watchedNamespace)
-	r.Equal([]string{nomad.TopicAllocation}, client.watchedTopics)
+	r.Equal([]string{nomad.TopicAllocation, nomad.TopicNode}, client.watchedTopics)
 }
 
 func TestClient_ComingBackShowsItsOwnAllocations(t *testing.T) {
