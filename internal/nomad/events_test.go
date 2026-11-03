@@ -2,8 +2,10 @@ package nomad_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -440,4 +442,148 @@ func TestFeed_SaysAJobWasStoppedOrPurged(t *testing.T) {
 			r.Equal(tc.state, event.State)
 		})
 	}
+}
+
+func TestFailures_FollowsWhatCanFailInEveryNamespace(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := eventServer(t,
+		`{"Index": 11, "Events": [
+			{"Topic": "Allocation", "Type": "AllocationUpdated", "Key": "af1f37df", "Namespace": "production", "Index": 11,
+				"Payload": {"Allocation": {"ID": "af1f37df", "Name": "web.frontend[0]", "Namespace": "production",
+					"ClientStatus": "failed"}}},
+			{"Topic": "Deployment", "Type": "DeploymentStatusUpdate", "Key": "d1", "Namespace": "production", "Index": 11,
+				"Payload": {"Deployment": {"ID": "d1", "Namespace": "production", "JobID": "web", "Status": "failed"}}},
+			{"Topic": "Node", "Type": "NodeStreamEvent", "Key": "n1", "Index": 11,
+				"Payload": {"Node": {"ID": "n1", "Name": "client-01", "Status": "down"}}}
+		]}`,
+	)
+
+	feed, err := client.Failures(context.Background(), nomad.AllNamespaces, 0)
+	r.NoError(err)
+
+	defer feed.Close()
+
+	// Not "*": that topic needs a management token.
+	query := asked.URL.Query()
+	r.ElementsMatch([]string{"Allocation", "Deployment", "Node"}, query["topic"])
+	r.Equal("*", query.Get("namespace"))
+	r.Equal("0", query.Get("index"))
+
+	for _, want := range [][4]string{
+		{nomad.TypeAllocationUpdated, "production", "web.frontend[0]", "failed"},
+		{nomad.TypeDeploymentStatusUpdate, "production", "web", "failed"},
+		{nomad.TypeNodeStreamEvent, "", "client-01", "down"},
+	} {
+		event := waitForEvent(t, feed)
+		r.Equal(want, [4]string{event.Type, event.Namespace, event.Name, event.State})
+	}
+}
+
+func TestFailures_GoesOnAfterTheIndexItIsGiven(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := eventServer(t,
+		`{"Index": 20, "Events": [{"Topic": "Node", "Type": "NodeStreamEvent", "Key": "n1", "Index": 20}]}`,
+		`{"Index": 21, "Events": [{"Topic": "Node", "Type": "NodeStreamEvent", "Key": "n1", "Index": 21}]}`,
+	)
+
+	feed, err := client.Failures(context.Background(), "*", 21)
+	r.NoError(err)
+
+	defer feed.Close()
+
+	r.Equal("21", asked.URL.Query().Get("index"))
+	r.Equal(uint64(21), waitForEvent(t, feed).Index)
+}
+
+func TestFailures_AStreamTheClusterEndsAtOnceHasNoEvent(t *testing.T) {
+	r := require.New(t)
+
+	// Nomad 2.0 refuses a stream this way: 200 OK, then nothing.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	feed, err := client.Failures(context.Background(), "*", 0)
+	r.NoError(err)
+
+	defer feed.Close()
+
+	select {
+	case event, open := <-feed.C:
+		r.False(open, "got %v", event)
+	case <-time.After(2 * time.Second):
+		t.Fatal("the stream did not end")
+	}
+
+	select {
+	case err := <-feed.Err:
+		r.ErrorIs(err, io.EOF)
+	case <-time.After(2 * time.Second):
+		t.Fatal("no reason was given")
+	}
+}
+
+func TestLatestIndex_IsTheNewestOfWhatFailuresFollows(t *testing.T) {
+	for _, newest := range []string{"allocations", "deployments", "nodes"} {
+		t.Run(newest, func(t *testing.T) {
+			r := require.New(t)
+
+			asked := map[string]url.Values{}
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				asked[req.URL.Path] = req.URL.Query()
+
+				index := "31"
+				if req.URL.Path == "/v1/"+newest {
+					index = "55"
+				}
+
+				w.Header().Set("X-Nomad-Index", index)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte("[]"))
+			}))
+			t.Cleanup(server.Close)
+
+			client, err := nomad.New(nomad.Config{Address: server.URL})
+			r.NoError(err)
+
+			index, err := client.LatestIndex(context.Background())
+			r.NoError(err)
+			r.Equal(uint64(55), index)
+
+			// One row of each is enough: the index is in the headers.
+			for _, path := range []string{"/v1/allocations", "/v1/deployments", "/v1/nodes"} {
+				r.Equal("1", asked[path].Get("per_page"), path)
+			}
+
+			r.Equal("*", asked["/v1/allocations"].Get("namespace"))
+			r.Equal("*", asked["/v1/deployments"].Get("namespace"))
+		})
+	}
+}
+
+func TestLatestIndex_FailsWhenOneReadFails(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/v1/nodes" {
+			http.Error(w, "Permission denied", http.StatusForbidden)
+
+			return
+		}
+
+		_, _ = w.Write([]byte("[]"))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	_, err = client.LatestIndex(context.Background())
+	require.True(t, nomad.Forbidden(err))
 }
