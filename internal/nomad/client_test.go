@@ -214,6 +214,7 @@ func TestAgent_ReadsTheBuildAndTheRegion(t *testing.T) {
 
 	// The region of the agent is where a request without one goes.
 	r.Equal("eu", agent.Region)
+	r.True(agent.Server)
 }
 
 func TestAgent_AClientAgentReadsItsVersionFromItsConfig(t *testing.T) {
@@ -232,6 +233,7 @@ func TestAgent_AClientAgentReadsItsVersionFromItsConfig(t *testing.T) {
 
 			r.Equal(tc.want, agent.Version)
 			r.Equal("eu", agent.Region)
+			r.False(agent.Server)
 		})
 	}
 }
