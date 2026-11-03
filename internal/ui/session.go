@@ -49,13 +49,12 @@ func (m Model) session() *config.Session {
 	return m.opts.Config.Of(m.opts.Cluster)
 }
 
-// remember saves the namespace and the screen of this session. It is a
-// command, so the file is written outside the code that handles keys, from
-// a copy made here.
-func (m Model) remember() tea.Cmd {
+// snapshot records the namespace, the number keys and the screen in the
+// session and copies the config. It reports false without a config.
+func (m Model) snapshot() (*config.Config, config.Snapshot, bool, error) {
 	cfg := m.opts.Config
 	if cfg == nil {
-		return nil
+		return nil, config.Snapshot{}, false, nil
 	}
 
 	session := m.session()
@@ -67,6 +66,19 @@ func (m Model) remember() tea.Cmd {
 	}
 
 	snapshot, err := cfg.Snapshot()
+
+	return cfg, snapshot, true, err
+}
+
+// remember saves the namespace and the screen of this session. It is a
+// command, so the file is written outside the code that handles keys, from
+// a copy made here.
+func (m Model) remember() tea.Cmd {
+	cfg, snapshot, ok, err := m.snapshot()
+	if !ok {
+		return nil
+	}
+
 	if err != nil {
 		return func() tea.Msg { return errMsg{err: err} }
 	}
@@ -78,6 +90,17 @@ func (m Model) remember() tea.Cmd {
 
 		return nil
 	}
+}
+
+// SaveSession writes the session at once, for when urga quits and a write
+// still running would be cut off.
+func (m Model) SaveSession() error {
+	cfg, snapshot, ok, err := m.snapshot()
+	if !ok || err != nil {
+		return err
+	}
+
+	return cfg.Write(snapshot)
 }
 
 // NamespaceOrAll is how a namespace is named when none was chosen: all

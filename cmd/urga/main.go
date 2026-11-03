@@ -49,9 +49,23 @@ func run() error {
 		return err
 	}
 
-	_, err = tea.NewProgram(model).Run()
+	return play(model)
+}
 
-	return err
+// play runs the program and saves the session of the model it ended with.
+func play(model ui.Model, opts ...tea.ProgramOption) error {
+	final, err := tea.NewProgram(model, opts...).Run()
+
+	return errors.Join(err, saveSession(final))
+}
+
+// saveSession writes the session of the model the program ended with.
+func saveSession(final tea.Model) error {
+	if m, ok := final.(ui.Model); ok {
+		return m.SaveSession()
+	}
+
+	return nil
 }
 
 // open builds urga from the command line and the settings, before any
