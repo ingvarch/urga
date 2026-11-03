@@ -122,6 +122,7 @@ cluster under the cursor.
 
 When you switch, urga:
 
+- closes a question that was open, so nothing is sent;
 - reads the token of the new cluster again;
 - opens the screen, namespace and number keys you last used on that cluster;
 - applies its color and read-only setting;

@@ -7,6 +7,9 @@ Keys marked "yes" in the "Changes" column change the cluster, and they are
 hidden in [read-only mode](configuration.md#read-only-mode). Actions such as
 stop, restart, drain or scale ask you to confirm first. In the confirm dialog
 the cursor starts on cancel, so pressing `enter` by habit changes nothing.
+If the screen changes while the dialog, or a line that asks for a value, is
+open, for example when a cluster switch finishes, it closes and nothing is
+sent.
 
 ## Command line
 

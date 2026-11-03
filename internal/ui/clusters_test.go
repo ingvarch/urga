@@ -348,3 +348,46 @@ func TestClusters_AnAnswerClearsTheConnectPending(t *testing.T) {
 
 	r.NotContains(plain(m.render()), "Staying")
 }
+
+func TestClusters_AQuestionOpenWhenTheSwitchEndsCloses(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+
+	m, connect := m.switchCluster("prod")
+
+	m, _ = m.update(ctrlKey('s'))
+	r.Equal(overlayConfirm, m.overlay)
+
+	m, _ = m.update(connect())
+	r.Equal(overlayNone, m.overlay)
+
+	m, cmd := m.update(key('y'))
+	m = playOut(m, cmd)
+
+	r.Empty(clusters.dev.writes)
+	r.Empty(clusters.prod.writes)
+	r.Equal("prod", m.opts.Cluster)
+}
+
+func TestClusters_ALineOpenWhenTheSwitchEndsCloses(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+
+	m, connect := m.switchCluster("prod")
+
+	m, _ = m.update(key('t'))
+	m, _ = m.update(taskGroupsMsg(twoGroups()))
+	m, _ = m.update(key('s'))
+	r.Equal(overlayAnswer, m.overlay)
+
+	m, _ = m.update(connect())
+	r.Equal(overlayNone, m.overlay)
+
+	m, cmd := m.update(enter())
+	m = playOut(m, cmd)
+
+	r.Empty(clusters.dev.writes)
+	r.Empty(clusters.prod.writes)
+}
