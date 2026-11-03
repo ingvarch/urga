@@ -361,11 +361,16 @@ func metaRows(meta []nomad.MetaEntry) []tableRow {
 	return rows
 }
 
-// metaFile is the metadata of a client as a file.
+// metaFile is the metadata of a client as a file. The file as it was opened
+// goes back with the edit, so only what the person changed is sent.
 func metaFile(client nodesClient, nodeID, name string) load {
-	return jsonFile(func(ctx context.Context) (string, error) {
-		return client.NodeMetaSpec(ctx, nodeID)
-	}, fmt.Sprintf("Metadata of %s submitted.", name), func(ctx context.Context, source string) error {
-		return client.SubmitNodeMeta(ctx, nodeID, source)
-	})
+	return func(ctx context.Context) (file, error) {
+		opened, err := client.NodeMetaSpec(ctx, nodeID)
+
+		return jsonFile(func(context.Context) (string, error) {
+			return opened, err
+		}, fmt.Sprintf("Metadata of %s submitted.", name), func(ctx context.Context, source string) error {
+			return client.SubmitNodeMeta(ctx, nodeID, source, opened)
+		})(ctx)
+	}
 }

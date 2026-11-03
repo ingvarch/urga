@@ -54,7 +54,9 @@ From the client screen:
 - `ctrl-h` lists its host volumes;
 - `a` shows its attributes;
 - `m` shows its metadata. `e` opens the metadata in your editor, and urga
-  saves it to the client when you close the editor;
+  saves it to the client when you close the editor; only the keys you add,
+  change or take out are sent, so a key someone else sets while the file is
+  open stays;
 - `i` shows the claims of its identity;
 - `ctrl-n` renews its identity after you confirm, and the client asks for a
   new one at its next heartbeat.

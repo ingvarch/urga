@@ -23,11 +23,18 @@ type fakeEditor struct {
 	// left as it is. seen is what each open found in the file.
 	edits []string
 	seen  []string
+
+	// onEdit runs while the file is open, like a change made elsewhere.
+	onEdit func()
 }
 
 func (e *fakeEditor) Edit(path string) tea.Cmd {
 	return func() tea.Msg {
 		e.opened = path
+
+		if e.onEdit != nil {
+			e.onEdit()
+		}
 
 		if data, err := os.ReadFile(path); err == nil {
 			e.seen = append(e.seen, string(data))

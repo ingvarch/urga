@@ -97,5 +97,6 @@ func TestRefusedEdit_MetadataIsSentAgainWithoutTheReason(t *testing.T) {
 	r.Equal(reasonFor("no path to node")+`{"owner": "ingvar"}`, editor.seen[1])
 	r.Equal([]string{"SubmitNodeMeta", "SubmitNodeMeta"}, client.writes)
 	r.Equal(`{"owner": "ingvar"}`, client.metaSubmitted)
+	r.Equal(`{"owner": "igor"}`, client.metaOpened)
 	r.Contains(plain(m.render()), "submitted")
 }

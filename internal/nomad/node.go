@@ -394,31 +394,39 @@ func (c *Client) NodeMetaSpec(ctx context.Context, nodeID string) (string, error
 	return asJSON(dynamic)
 }
 
-// SubmitNodeMeta sends the metadata file back to the machine. A key that is
-// no longer in the file is removed rather than left behind, which is what
-// taking it out of the file means.
-func (c *Client) SubmitNodeMeta(ctx context.Context, nodeID, source string) error {
+// SubmitNodeMeta sends only what differs from the file as it was opened: a key
+// taken out is removed, and a key set by someone else while the file was open
+// is kept.
+func (c *Client) SubmitNodeMeta(ctx context.Context, nodeID, source, opened string) error {
 	wanted := map[string]string{}
 	if err := json.Unmarshal([]byte(source), &wanted); err != nil {
 		return fmt.Errorf("the metadata is not valid JSON: %w", err)
 	}
 
-	answer, err := c.api.Nodes().Meta().Read(nodeID, c.query(ctx, ""))
-	if err != nil {
-		return err
+	before := map[string]string{}
+	if err := json.Unmarshal([]byte(opened), &before); err != nil {
+		return fmt.Errorf("the metadata is not valid JSON: %w", err)
 	}
 
 	apply := map[string]*string{}
 
-	for key := range answer.Dynamic {
-		apply[key] = nil
+	for key := range before {
+		if _, kept := wanted[key]; !kept {
+			apply[key] = nil
+		}
 	}
 
 	for key, value := range wanted {
-		apply[key] = &value
+		if old, had := before[key]; !had || old != value {
+			apply[key] = &value
+		}
 	}
 
-	_, err = c.api.Nodes().Meta().Apply(&api.NodeMetaApplyRequest{
+	if len(apply) == 0 {
+		return nil
+	}
+
+	_, err := c.api.Nodes().Meta().Apply(&api.NodeMetaApplyRequest{
 		NodeID: nodeID,
 		Meta:   apply,
 	}, c.query(ctx, ""))
