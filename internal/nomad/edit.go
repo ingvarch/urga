@@ -24,12 +24,16 @@ import (
 // overwritten. The counts it opened with decide which counts the job keeps,
 // see keepCounts.
 func (c *Client) SubmitJob(ctx context.Context, namespace, source string, vars JobVariables, index uint64, opened map[string]int) error {
-	job, kept, _, err := c.jobOf(ctx, namespace, source, vars, opened)
+	job, submission, err := c.jobOf(ctx, namespace, source, vars)
 	if err != nil {
 		return err
 	}
 
-	opts := &api.RegisterOptions{Submission: kept, EnforceIndex: true, ModifyIndex: index}
+	if _, err := c.keepCounts(ctx, namespace, job, opened); err != nil {
+		return err
+	}
+
+	opts := &api.RegisterOptions{Submission: submission, EnforceIndex: true, ModifyIndex: index}
 
 	_, _, err = c.api.Jobs().RegisterOpts(job, opts, c.write(ctx, namespace))
 	if jobChanged(err) {
@@ -39,21 +43,18 @@ func (c *Client) SubmitJob(ctx context.Context, namespace, source string, vars J
 	return err
 }
 
-// jobOf reads a job file and puts the job in the namespace it is sent to,
-// with the counts it keeps from the job that runs.
-func (c *Client) jobOf(ctx context.Context, namespace, source string, vars JobVariables, opened map[string]int) (*api.Job, *api.JobSubmission, []KeptCount, error) {
+// jobOf reads a job file and puts the job in the namespace it is sent to.
+func (c *Client) jobOf(ctx context.Context, namespace, source string, vars JobVariables) (*api.Job, *api.JobSubmission, error) {
 	job, submission, err := c.parseJob(ctx, namespace, source, vars, true)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	if !EveryNamespace(namespace) {
 		job.Namespace = &namespace
 	}
 
-	kept, err := c.keepCounts(ctx, namespace, job, opened)
-
-	return job, submission, kept, err
+	return job, submission, nil
 }
 
 // KeptCount is a group that keeps the count its job runs with, though the
@@ -117,7 +118,7 @@ func countOf(group *api.TaskGroup) int {
 // JobCounts reads the count of each group of a job file, the way a plan of
 // it would.
 func (c *Client) JobCounts(ctx context.Context, namespace, source string, vars JobVariables) (map[string]int, error) {
-	job, _, _, err := c.jobOf(ctx, namespace, source, vars, nil)
+	job, _, err := c.jobOf(ctx, namespace, source, vars)
 	if err != nil {
 		return nil, err
 	}

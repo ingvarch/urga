@@ -94,6 +94,7 @@ type fakeClient struct {
 	target              nomad.JobTarget
 	targetAskedIn       string
 	planCalls           int
+	plannedJobID        string
 	plannedSource       string
 	plannedVars         nomad.JobVariables
 	plannedTo           *uint64
@@ -966,8 +967,8 @@ func (f *fakeClient) JobCounts(context.Context, string, string, nomad.JobVariabl
 	return f.counts, f.err
 }
 
-func (f *fakeClient) PlanJob(_ context.Context, namespace, source string, vars nomad.JobVariables, opened map[string]int) (nomad.Plan, error) {
-	f.askedNamespace, f.plannedSource, f.plannedVars, f.openedWith = namespace, source, vars, opened
+func (f *fakeClient) PlanJob(_ context.Context, namespace, jobID, source string, vars nomad.JobVariables, opened map[string]int) (nomad.Plan, error) {
+	f.askedNamespace, f.plannedJobID, f.plannedSource, f.plannedVars, f.openedWith = namespace, jobID, source, vars, opened
 	f.planCalls++
 
 	return f.plan, f.refused(f.err)

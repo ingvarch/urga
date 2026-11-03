@@ -65,11 +65,31 @@ type PlanGroup struct {
 	Ignore int
 }
 
-// PlanJob asks the cluster what submitting the job file would do. The counts
-// the file had when it was opened decide which counts the job keeps, as they
-// do for SubmitJob; nil keeps none.
-func (c *Client) PlanJob(ctx context.Context, namespace, source string, vars JobVariables, opened map[string]int) (Plan, error) {
-	job, _, kept, err := c.jobOf(ctx, namespace, source, vars, opened)
+// OtherJob says a job file names a job other than the one it was opened for.
+type OtherJob struct {
+	File, Edited string
+}
+
+func (e *OtherJob) Error() string {
+	return fmt.Sprintf("the file names job %q, not %q", e.File, e.Edited)
+}
+
+// PlanJob asks the cluster what submitting the job file would do, as the job
+// jobID. A file that names another job is refused before either job is read,
+// because submitting it would make or replace that job. The counts the file
+// had when it was opened decide which counts the job keeps, as they do for
+// SubmitJob; nil keeps none.
+func (c *Client) PlanJob(ctx context.Context, namespace, jobID, source string, vars JobVariables, opened map[string]int) (Plan, error) {
+	job, _, err := c.jobOf(ctx, namespace, source, vars)
+	if err != nil {
+		return Plan{}, err
+	}
+
+	if named := valueOf(job.ID); named != jobID {
+		return Plan{}, &OtherJob{File: named, Edited: jobID}
+	}
+
+	kept, err := c.keepCounts(ctx, namespace, job, opened)
 	if err != nil {
 		return Plan{}, err
 	}

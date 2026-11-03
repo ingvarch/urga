@@ -236,3 +236,13 @@ func TestNewJob_ThatLaunchesOthersOpensNoWatch(t *testing.T) {
 	r.IsType(jobsPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Job cron submitted")
 }
+
+func TestNewJob_PlansTheJobItsFileNames(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), target: nomad.JobTarget{ID: "api", Namespace: "production", Type: "service"}}
+	m := plannedNew(t, client, "production")
+
+	r.Equal("api", client.plannedJobID)
+	r.Contains(plain(m.render()), "Plan (Job: api)")
+}

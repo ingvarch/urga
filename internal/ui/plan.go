@@ -269,7 +269,7 @@ func planFor(client jobsClient, state planState) tea.Cmd {
 			return client.PlanRevert(ctx, state.namespace, state.jobID, state.to)
 		}
 
-		return client.PlanJob(ctx, state.namespace, state.source, state.vars, state.opened)
+		return client.PlanJob(ctx, state.namespace, state.jobID, state.source, state.vars, state.opened)
 	}, func(plan nomad.Plan) tea.Msg { return openMsg{planOf(plan, state)} })
 }
 
@@ -296,7 +296,7 @@ func planNewJob(ctx context.Context, client jobsClient, namespace, source string
 		fresh:     true,
 	}
 
-	plan, err := client.PlanJob(ctx, state.namespace, state.source, state.vars, nil)
+	plan, err := client.PlanJob(ctx, state.namespace, state.jobID, state.source, state.vars, nil)
 
 	return planOf(plan, state), err
 }

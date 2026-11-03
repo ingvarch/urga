@@ -320,3 +320,25 @@ func TestDescribe_JobSpecWhenTheClusterKeptNone(t *testing.T) {
 	r.Contains(out, "kept no source")
 	r.Zero(client.submitted)
 }
+
+func TestEdit_AFileThatNamesAnotherJobOpensTheEditorAgain(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs:     twoJobs(),
+		spec:     nomad.JobSource{Source: `job "web" {}`},
+		refusals: []error{&nomad.OtherJob{File: "cron", Edited: "web"}},
+	}
+	m, editor := editModel(t, client)
+	editor.edits = []string{`job "cron" {}`}
+
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 8)
+
+	r.Equal("web", client.plannedJobID)
+	r.IsType(jobsPage{}, m.screen.page)
+	r.Len(editor.seen, 2)
+	r.Contains(editor.seen[1], "# Not saved: the file names job \"cron\", not \"web\".\n# To make a new job, use n or :run.\n")
+	r.Contains(editor.seen[1], `job "cron" {}`)
+	r.Zero(client.submitted)
+}
