@@ -126,6 +126,7 @@ When you switch, urga:
 - drops a description or a plan the cluster you left answers after the switch;
   what an action did there still shows in the status line;
 - reads the token of the new cluster again;
+- follows the failures of the new cluster, from its newest event;
 - opens the screen, namespace and number keys you last used on that cluster;
 - applies its color and read-only setting;
 - shows `Connected to <name>.` in the status line.

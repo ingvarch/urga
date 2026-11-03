@@ -259,6 +259,19 @@ func (m Model) keepingUp(msg tea.Msg) (Model, tea.Cmd, bool) {
 
 	case flashOverMsg:
 		return m.clearFlash(msg), nil, true
+
+	case noteOpenedMsg:
+		return taken(m.takeNoteOpened(msg))
+
+	case feedEventsMsg:
+		if m.note.feed != nil && msg.feed == m.note.feed {
+			return taken(m.takeNoteEvents(msg))
+		}
+
+	case feedEndedMsg:
+		if m.note.feed != nil && msg.feed == m.note.feed {
+			return taken(m.takeNoteEnded(msg))
+		}
 	}
 
 	return m, nil, false

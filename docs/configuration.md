@@ -170,6 +170,19 @@ If the event stream is not available, which usually means the ACL token does
 not allow it, urga reloads every screen every 2 seconds instead. The status
 line says so.
 
+urga also follows the allocations, deployments and clients of every namespace.
+When an allocation fails, a deployment fails or a client goes down, the status
+line says so for a few seconds, for example `! allocation web.frontend[0]
+failed in namespace production`. Each one shows once; when several fail at
+once it names the newest. Only failures that happen after urga connects show,
+not the ones the cluster still remembers. A namespace created after urga
+connected is followed once the stream opens again, after a switch of cluster
+or region. The line does not replace an error, a warning about something else,
+or a command that is still running. It needs a token that can read jobs in
+every namespace and read clients. With any other token, or when the cluster
+does not send the stream, there is no line and no warning, and urga does not
+ask again until you switch cluster or region.
+
 `CPU Alloc` and `MEM Alloc` in the header are how much of the cluster the
 running allocations asked for, out of what the ready clients give to jobs.
 They are not what the machines use. They are updated every 15 seconds. When a

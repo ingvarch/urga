@@ -105,17 +105,27 @@ func forbidden(t *testing.T) error {
 func refusedWith(t *testing.T, status int, text string) error {
 	t.Helper()
 
+	err := answeredWith(status, text)
+	require.Error(t, err)
+
+	return err
+}
+
+// answeredWith is the same request where no test is at hand, as in the fake
+// client.
+func answeredWith(status int, text string) error {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(status)
 		_, _ = w.Write([]byte(text))
 	}))
-	t.Cleanup(server.Close)
+	defer server.Close()
 
 	client, err := nomad.New(nomad.Config{Address: server.URL})
-	require.NoError(t, err)
+	if err != nil {
+		return err
+	}
 
 	_, err = client.Jobs(context.Background(), "default")
-	require.Error(t, err)
 
 	return err
 }
