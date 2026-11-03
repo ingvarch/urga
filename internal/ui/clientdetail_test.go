@@ -219,6 +219,7 @@ func TestClient_EditsTheMetadata(t *testing.T) {
 
 	editor := &fakeEditor{replace: `{"owner": "ingvar"}`}
 	client := &fakeClient{}
+	editor.onEdit = func() { client.metaSpec = `{"owner": "bob", "rack": "r1"}` }
 	m := onMeta(t, client, editor)
 
 	m, cmd := m.update(key('e'))
@@ -228,6 +229,7 @@ func TestClient_EditsTheMetadata(t *testing.T) {
 	// sent to the machine.
 	r.NotEmpty(editor.opened)
 	r.Equal(`{"owner": "ingvar"}`, client.metaSubmitted)
+	r.Equal(`{"owner": "igor"}`, client.metaOpened)
 	r.Equal("node-1", client.metaNodeID)
 	r.Contains(plain(m.render()), "Metadata of nomad-server-01 submitted.")
 }

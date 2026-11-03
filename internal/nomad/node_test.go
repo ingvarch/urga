@@ -173,13 +173,10 @@ func TestSubmitNodeMeta_SendsWhatChanged(t *testing.T) {
 
 	client, sent, _ := metaServer(t, nodeMeta)
 
-	err := client.SubmitNodeMeta(context.Background(), "node-1", `{"team": "pelmeni"}`)
+	err := client.SubmitNodeMeta(context.Background(), "node-1", `{"team": "pelmeni"}`, `{"owner": "igor"}`)
 	r.NoError(err)
 
-	request := struct {
-		NodeID string
-		Meta   map[string]*string
-	}{}
+	request := metaRequest{}
 	r.NoError(json.Unmarshal(*sent, &request))
 
 	r.Equal("node-1", request.NodeID)
@@ -191,4 +188,50 @@ func TestSubmitNodeMeta_SendsWhatChanged(t *testing.T) {
 	value, ok := request.Meta["owner"]
 	r.True(ok, "the key that was dropped is sent as removed")
 	r.Nil(value)
+}
+
+type metaRequest struct {
+	NodeID string
+	Meta   map[string]*string
+}
+
+func TestSubmitNodeMeta_KeepsKeysAddedAfterTheFileWasOpened(t *testing.T) {
+	r := require.New(t)
+
+	client, sent, _ := metaServer(t, `{"Dynamic": {"owner": "igor", "rack": "r1"}}`)
+
+	err := client.SubmitNodeMeta(context.Background(), "node-1", `{"owner": "igor", "team": "pelmeni"}`, `{"owner": "igor"}`)
+	r.NoError(err)
+
+	request := metaRequest{}
+	r.NoError(json.Unmarshal(*sent, &request))
+
+	r.NotContains(request.Meta, "rack")
+	r.Equal("pelmeni", *request.Meta["team"])
+}
+
+func TestSubmitNodeMeta_LeavesUnchangedKeysAlone(t *testing.T) {
+	r := require.New(t)
+
+	client, sent, _ := metaServer(t, `{"Dynamic": {"owner": "bob"}}`)
+
+	err := client.SubmitNodeMeta(context.Background(), "node-1", `{"owner": "igor", "team": "pelmeni"}`, `{"owner": "igor"}`)
+	r.NoError(err)
+
+	request := metaRequest{}
+	r.NoError(json.Unmarshal(*sent, &request))
+
+	r.NotContains(request.Meta, "owner")
+}
+
+func TestSubmitNodeMeta_SendsNothingWhenNoKeyChanged(t *testing.T) {
+	r := require.New(t)
+
+	client, sent, asked := metaServer(t, nodeMeta)
+
+	err := client.SubmitNodeMeta(context.Background(), "node-1", "{\n  \"owner\":   \"igor\"\n}", `{"owner": "igor"}`)
+	r.NoError(err)
+
+	r.Empty(*sent)
+	r.Empty(asked.Method, "no request is made")
 }

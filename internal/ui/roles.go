@@ -131,7 +131,7 @@ type (
 		NodeDetail(ctx context.Context, nodeID string) (nomad.NodeDetail, error)
 		NodeMeta(ctx context.Context, nodeID string) ([]nomad.MetaEntry, error)
 		NodeMetaSpec(ctx context.Context, nodeID string) (string, error)
-		SubmitNodeMeta(ctx context.Context, nodeID, source string) error
+		SubmitNodeMeta(ctx context.Context, nodeID, source, opened string) error
 		NodeIdentity(ctx context.Context, nodeID string) (nomad.NodeIdentity, error)
 		RenewNodeIdentity(ctx context.Context, nodeID string) error
 		NodeUsage(ctx context.Context, nodeID string) (nomad.ResourceUse, error)
