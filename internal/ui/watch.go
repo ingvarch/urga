@@ -169,7 +169,7 @@ func (w watchState) keepChange(msg changeMsg) (watchState, tea.Cmd) {
 
 	w.settling = true
 
-	return w, tea.Batch(next, tea.Tick(settle, func(time.Time) tea.Msg { return settleMsg{} }))
+	return w, tea.Batch(next, startTimer(settle, settleMsg{}))
 }
 
 // settled asks the cluster for the rows once a burst of changes is over.

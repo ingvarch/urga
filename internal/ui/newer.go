@@ -50,5 +50,5 @@ func (m Model) keepRelease(msg newerReleaseMsg) (Model, tea.Cmd) {
 		m.newer = msg.version
 	}
 
-	return m, tea.Tick(releaseEvery, func(time.Time) tea.Msg { return checkReleaseMsg{} })
+	return m, startTimer(releaseEvery, checkReleaseMsg{})
 }

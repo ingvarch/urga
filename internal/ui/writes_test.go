@@ -90,9 +90,11 @@ func TestFake_RecordsEveryWrite(t *testing.T) {
 // playOut runs what a key started the way the program does, and answers
 // what it asks the way someone who means it would. A command that has not
 // answered after a moment keeps running, and its answer is taken when it
-// comes: a loaded machine can be slow. One still waiting when the rest is
-// done, like a timer, is left waiting.
+// comes: a loaded machine can be slow. Timers are held while it runs, so a
+// timer answers at once and nothing takes it. One still waiting when the rest
+// is done, like a stream, is left waiting.
 func playOut(m Model, cmd tea.Cmd) Model {
+	defer timersHeld.Store(timersHeld.Swap(true))
 	queue := []tea.Cmd{cmd}
 
 	var running []runningCmd
@@ -163,7 +165,7 @@ type runningCmd struct {
 }
 
 // lateAnswer is how long a command may take, started just before the rest
-// is done, before it is taken for a timer.
+// is done, before it is left waiting.
 const lateAnswer = 100 * time.Millisecond
 
 // takeAnswered takes the answers that came, and keeps the commands that

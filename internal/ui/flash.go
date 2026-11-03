@@ -128,5 +128,5 @@ func (m Model) clearFlash(msg flashOverMsg) Model {
 // flashTimer asks for the redraw that clears a message. Nothing else would
 // redraw the screen in time for it to go away on its own.
 func flashTimer(at time.Time) tea.Cmd {
-	return tea.Tick(flashFor, func(time.Time) tea.Msg { return flashOverMsg{at: at} })
+	return startTimer(flashFor, flashOverMsg{at: at})
 }

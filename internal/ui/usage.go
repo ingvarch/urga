@@ -98,7 +98,7 @@ func (u usageState) setClusterTimer() (usageState, tea.Cmd) {
 
 	u.clusterDue = true
 
-	return u, tea.Tick(usageEvery, func(time.Time) tea.Msg { return pollUsageMsg{} })
+	return u, startTimer(usageEvery, pollUsageMsg{})
 }
 
 // forgetCluster drops the reading of the header: it was taken somewhere the
@@ -247,7 +247,7 @@ func (m Model) keepRowUsage(msg rowUsageMsg) (Model, tea.Cmd) {
 	m.usage = m.usage.keepRows(msg)
 	m.layout()
 
-	return m, askedFor(m.asked, tea.Tick(rowUsageEvery, func(time.Time) tea.Msg { return pollUsageRow{} }))
+	return m, askedFor(m.asked, startTimer(rowUsageEvery, pollUsageRow{}))
 }
 
 // keepClusterUsage shows the reading of the header. When it failed, the

@@ -668,7 +668,7 @@ func (m Model) schedulePoll() (Model, tea.Cmd) {
 	m.polling = true
 	tick := m.pollTick
 
-	return m, tea.Tick(m.pollEvery(), func(time.Time) tea.Msg { return pollMsg{tick: tick} })
+	return m, startTimer(m.pollEvery(), pollMsg{tick: tick})
 }
 
 // restartPoll drops the timer that is running, so that the next schedule
