@@ -22,6 +22,11 @@ type SchedulerConfig struct {
 	// RejectJobRegistration and PauseEvalBroker stop new work from coming
 	// in, or from being scheduled.
 	RejectJobRegistration, PauseEvalBroker bool
+
+	// NodeLimit is how many feasible clients the scheduler considers for a
+	// job with spread or affinity. Zero leaves its default of 100, and a
+	// cluster older than 2.0.1 sends none.
+	NodeLimit uint
 }
 
 // ErrSchedulerChanged is a configuration saved over one that changed since
@@ -44,6 +49,7 @@ func (c *Client) Scheduler(ctx context.Context) (SchedulerConfig, error) {
 		MemoryOversubscription: config.MemoryOversubscriptionEnabled,
 		RejectJobRegistration:  config.RejectJobRegistration,
 		PauseEvalBroker:        config.PauseEvalBroker,
+		NodeLimit:              config.NodeLimitForFeasibilityChecks,
 	}, nil
 }
 
