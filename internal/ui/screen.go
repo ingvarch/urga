@@ -446,6 +446,7 @@ func (m Model) enter() (Model, tea.Cmd) {
 	// Any request still out was made for the screen before.
 	m.asked++
 	m.answered = false
+	m = m.closeQuestion()
 
 	// So were the readings, and their chain ends with that ask.
 	m.usage = m.usage.forgetRows()
@@ -482,6 +483,20 @@ func (m Model) enter() (Model, tea.Cmd) {
 	m = m.restartPoll()
 
 	return m, tea.Batch(m.fetch(), stream, m.watchScreen())
+}
+
+// closeQuestion takes a question off the screen when the screen under it
+// changes: its answer would be sent for the screen that is gone.
+func (m Model) closeQuestion() Model {
+	switch m.overlay {
+	case overlayConfirm:
+		return m.closeConfirm()
+
+	case overlayAnswer:
+		m, _ = m.closePrompt()
+	}
+
+	return m
 }
 
 // shortID keeps a UUID readable in a title.
