@@ -55,6 +55,10 @@ type Alloc struct {
 	// its group in a batch or sysbatch job. Zero is none, and on a cluster
 	// older than 2.0.3. Only Allocation reads it.
 	Timeout time.Duration
+
+	// Claimed is what the allocation keeps of its client while it holds a
+	// place. Only NodeAllocations reads it; other lists leave it zero.
+	Claimed Resources
 }
 
 // Port is where an allocation listens, and the port inside the task it is
@@ -160,7 +164,9 @@ func (c *Client) NodeAllocations(ctx context.Context, nodeID string) ([]Alloc, e
 	// stubs. Copying each into a stub lets newAlloc build every list.
 	allocs := make([]Alloc, 0, len(stubs))
 	for _, stub := range stubs {
-		allocs = append(allocs, newAlloc(stubOf(stub)))
+		out := newAlloc(stubOf(stub))
+		out.Claimed = claimOf(stub)
+		allocs = append(allocs, out)
 	}
 
 	return allocs, nil

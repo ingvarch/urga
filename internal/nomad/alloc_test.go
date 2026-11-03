@@ -493,3 +493,53 @@ func TestAllocation_TheTimeoutOfItsGroup(t *testing.T) {
 		})
 	}
 }
+
+func TestNodeAllocations_ReadWhatEachKeepsOfTheClient(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[
+		{
+			"ID": "a", "TaskGroup": "web",
+			"Job": {"TaskGroups": [
+				{"Name": "other", "Tasks": [{"Name": "web", "Lifecycle": {"Hook": "poststop"}}]},
+				{"Name": "web", "Tasks": [
+					{"Name": "init", "Lifecycle": {"Hook": "prestart"}},
+					{"Name": "proxy", "Lifecycle": {"Hook": "prestart", "Sidecar": true}},
+					{"Name": "web"},
+					{"Name": "cleanup", "Lifecycle": {"Hook": "poststop"}}
+				]}
+			]},
+			"AllocatedResources": {
+				"Tasks": {
+					"init": {"Cpu": {"CpuShares": 3000}, "Memory": {"MemoryMB": 512}},
+					"proxy": {"Cpu": {"CpuShares": 500}, "Memory": {"MemoryMB": 256}},
+					"web": {"Cpu": {"CpuShares": 2000, "ReservedCores": [0]}, "Memory": {"MemoryMB": 1024}},
+					"cleanup": {"Cpu": {"CpuShares": 200}, "Memory": {"MemoryMB": 4096}}
+				},
+				"Shared": {"DiskMB": 300}
+			}
+		},
+		{
+			"ID": "b", "TaskGroup": "web",
+			"AllocatedResources": {
+				"Tasks": {
+					"one": {"Cpu": {"CpuShares": 300}, "Memory": {"MemoryMB": 100}},
+					"two": {"Cpu": {"CpuShares": 200}, "Memory": {"MemoryMB": 50}}
+				},
+				"Shared": {"DiskMB": 20}
+			}
+		},
+		{"ID": "c", "TaskGroup": "web"}
+	]`)
+
+	allocs, err := client.NodeAllocations(context.Background(), "node-1")
+	r.NoError(err)
+	r.Len(allocs, 3)
+
+	// Cores are kept apart, the largest of the phases is added to them, and
+	// only the tasks of the group of the allocation have lifecycles.
+	r.Equal(nomad.Resources{CPU: 5500, MemoryMB: 4096, DiskMB: 300}, allocs[0].Claimed)
+	// Without a job every task counts as a main task.
+	r.Equal(nomad.Resources{CPU: 500, MemoryMB: 150, DiskMB: 20}, allocs[1].Claimed)
+	r.Equal(nomad.Resources{}, allocs[2].Claimed)
+}
