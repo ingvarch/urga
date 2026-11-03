@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -171,7 +170,7 @@ func (p serviceInstancesPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 		// The check results go on the rows, and the timer is set for the
 		// next reading.
 		p.byAlloc = msg.byAlloc
-		next := tea.Tick(checksEvery, func(time.Time) tea.Msg { return pollInstanceChecksMsg{} })
+		next := startTimer(checksEvery, pollInstanceChecksMsg{})
 
 		return p, outcome{cmd: next, reading: true}, true
 

@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -75,7 +74,7 @@ func (p tasksPage) pollChecks(e env) (page, outcome, bool) {
 // reading. A client that did not answer shows an error and is asked again;
 // an answer clears the previous error from the status line.
 func (p tasksPage) keepChecks(msg checksMsg) (page, outcome, bool) {
-	next := tea.Tick(checksEvery, func(time.Time) tea.Msg { return pollChecksMsg{} })
+	next := startTimer(checksEvery, pollChecksMsg{})
 
 	if msg.err != nil {
 		return p, outcome{now: []tea.Msg{failMsg{err: msg.err}}, cmd: next, reading: true}, true

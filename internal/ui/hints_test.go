@@ -512,18 +512,17 @@ func TestEveryScreen_CoversEveryPage(t *testing.T) {
 	}
 }
 
-// pageTypes are the pages of the package, by name: every type that labels
-// a box with title(env, int).
-func pageTypes(t *testing.T) []string {
+// sourceFiles are the files of the package, parsed, without its tests.
+func sourceFiles(t *testing.T) (*token.FileSet, []*ast.File) {
 	t.Helper()
 
-	files, err := filepath.Glob("*.go")
+	names, err := filepath.Glob("*.go")
 	require.NoError(t, err)
 
 	fset := token.NewFileSet()
-	names := []string{}
+	files := []*ast.File{}
 
-	for _, name := range files {
+	for _, name := range names {
 		if strings.HasSuffix(name, "_test.go") {
 			continue
 		}
@@ -531,6 +530,21 @@ func pageTypes(t *testing.T) []string {
 		file, err := parser.ParseFile(fset, name, nil, 0)
 		require.NoError(t, err)
 
+		files = append(files, file)
+	}
+
+	return fset, files
+}
+
+// pageTypes are the pages of the package, by name: every type that labels
+// a box with title(env, int).
+func pageTypes(t *testing.T) []string {
+	t.Helper()
+
+	fset, files := sourceFiles(t)
+	names := []string{}
+
+	for _, file := range files {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Recv == nil || fn.Name.Name != "title" || fn.Type.Params.NumFields() != 2 {
@@ -539,7 +553,7 @@ func pageTypes(t *testing.T) []string {
 
 			// A page is a value: a pointer receiver would not be one.
 			receiver, ok := fn.Recv.List[0].Type.(*ast.Ident)
-			require.True(t, ok, "the title of a page in %s has a pointer receiver", name)
+			require.True(t, ok, "the title of a page in %s has a pointer receiver", fset.Position(fn.Pos()).Filename)
 
 			names = append(names, receiver.Name)
 		}

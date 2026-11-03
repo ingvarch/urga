@@ -6,7 +6,6 @@ import (
 	"image/color"
 	"strconv"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -224,7 +223,7 @@ func (p clientPage) hostOnce(e env) (page, outcome, bool) {
 func (p clientPage) keepHostUse(msg hostUseMsg) (page, outcome, bool) {
 	// The next reading is due whatever came of this one: a machine that did
 	// not answer once is asked again.
-	next := tea.Tick(hostUseEvery, func(time.Time) tea.Msg { return pollHostMsg{} })
+	next := startTimer(hostUseEvery, pollHostMsg{})
 
 	if msg.err != nil {
 		return p, outcome{now: []tea.Msg{failMsg{err: msg.err}}, cmd: next, reading: true}, true
