@@ -356,7 +356,7 @@ func (m Model) panel(width int) []string {
 
 // panel is what the machine is doing, above its allocations.
 func (p clientPage) panel(e env, width, room int) []string {
-	details := p.host.details(width, p.held(), p.allocated(), e.now)
+	details := p.host.details(width, p.held(), p.allocated(), p.moving(), e.now)
 
 	// A box with no room even for the details of the machine, and the line
 	// under them, gives all its rows to the allocations.
@@ -436,6 +436,24 @@ func allocatedOf(of measure, claimed, has int, absolute bool) string {
 	unit, per := of.unit(float64(has))
 
 	return pair(float64(claimed)/per, float64(has)/per, unit)
+}
+
+// moving is how many allocations a drain has left to move off the client, of
+// those it had when it started. Nothing while the client does not drain,
+// unknown until the allocations are read.
+func (p clientPage) moving() string {
+	drain := p.host.node.DrainStrategy
+	if drain == nil {
+		return ""
+	}
+
+	if !p.listed {
+		return unknown
+	}
+
+	left, of := drain.Progress(p.allocs)
+
+	return fmt.Sprintf("%d of %d", left, of)
 }
 
 // view is what a client shows above its allocations: what kind of machine
@@ -572,11 +590,13 @@ func (h hostModel) chart(of measure, absolute bool) chart {
 
 // details is the machine itself, in the fields the Nomad interface shows.
 // The first row is kept, blank while the machine is not read yet, so the
-// panel does not grow when it is; the next is left out when it has no
-// value. held is how many allocations hold a place on it, shown against the
-// limit when it has one, and allocated is how much of what it gives to jobs
-// they keep. The rows start where the columns of the table do.
-func (h hostModel) details(width int, held, allocated string, now time.Time) []string {
+// panel does not grow when it is; the rows after it are left out when they
+// have no value. held is how many allocations hold a place on it, shown
+// against the limit when it has one, allocated is how much of what it gives
+// to jobs they keep, and moving how many a drain has left to move, with the
+// deadline of the drain on the same row. The rows start where the columns of
+// the table do.
+func (h hostModel) details(width int, held, allocated, moving string, now time.Time) []string {
 	node := h.node
 
 	rows := []string{panelRow(fieldLine([]field{
@@ -598,7 +618,24 @@ func (h hostModel) details(width int, held, allocated string, now time.Time) []s
 		{"Identity", identityText(h.identity, now)},
 	}, {
 		{"Allocated", allocated},
+	}, {
+		{"Left to move", moving},
+		{"Deadline", deadlineText(node.DrainStrategy, now)},
 	}}, width)...)
+}
+
+// deadlineText is the time to the deadline of a drain, nothing for a drain
+// without one.
+func deadlineText(drain *nomad.DrainStrategy, now time.Time) string {
+	if drain == nil || drain.Deadline.IsZero() {
+		return ""
+	}
+
+	if !drain.Deadline.After(now) {
+		return "passed"
+	}
+
+	return "in " + age(drain.Deadline.Sub(now))
 }
 
 // eligibilityOf says whether the machine is taking work.

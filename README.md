@@ -56,11 +56,12 @@ One binary, no config to write, no browser.
   task of an allocation with its prestart and sidecar tasks, restarts and
   signals single tasks, opens a shell in a task, and runs a command in a task
   and keeps what it printed.
-- Drains clients, shows their CPU and memory over time and how much of their
-  CPU, memory and disk the allocations reserve, marks the ones that are full,
-  shows when the identity of a client expires and renews it.
-  Purges clients that are down, stopped jobs, and collects the garbage of a
-  client or of the whole cluster.
+- Drains clients and shows how a drain goes: the allocations it has left to
+  move and the time to its deadline. Shows the CPU and memory of a client over
+  time and how much of its CPU, memory and disk the allocations reserve, marks
+  the ones that are full, shows when the identity of a client expires and
+  renews it. Purges clients that are down, stopped jobs, and collects the
+  garbage of a client or of the whole cluster.
 - Shows the health of the servers and how many the cluster can lose.
 - Shows how the scheduler places work, and edits it with check-and-set.
 - Lists the scaling policies and shows what the autoscaler did with the
