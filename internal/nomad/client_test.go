@@ -216,6 +216,26 @@ func TestAgent_ReadsTheBuildAndTheRegion(t *testing.T) {
 	r.Equal("eu", agent.Region)
 }
 
+func TestAgent_AClientAgentReadsItsVersionFromItsConfig(t *testing.T) {
+	for name, tc := range map[string]struct{ version, want string }{
+		"metadata":            {`{"Version":"1.11.4","VersionPrerelease":"","VersionMetadata":"ent"}`, "1.11.4+ent"},
+		"prerelease":          {`{"Version":"2.0.0","VersionPrerelease":"beta.1","VersionMetadata":""}`, "2.0.0-beta.1"},
+		"prerelease and meta": {`{"Version":"1.11.4","VersionPrerelease":"dev","VersionMetadata":"ent"}`, "1.11.4-dev+ent"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			client, _ := recorder(t, `{"config":{"Region":"eu","Version":`+tc.version+`},"member":{}}`)
+
+			agent, err := client.Agent(context.Background())
+			r.NoError(err)
+
+			r.Equal(tc.want, agent.Version)
+			r.Equal("eu", agent.Region)
+		})
+	}
+}
+
 func TestAgent_WithoutABuildTag(t *testing.T) {
 	r := require.New(t)
 
