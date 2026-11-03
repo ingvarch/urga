@@ -46,6 +46,14 @@ With several clients marked, these keys act on all of them that fit:
   in namespaces your token may not read. A resource the client does not
   report, such as a disk it could not measure, is left out, and so is the whole
   line when it reports none;
+- while the client drains, how many of its allocations are left to move off
+  it, of those it had when the drain started, like `Left to move 3 of 10`,
+  and how long until the deadline, when the cluster stops the ones still on
+  it, like `Deadline in 42m`. A drain that leaves system jobs does not count
+  them, and a drain without a deadline shows none. Allocations that ended
+  and that the cluster has since collected as garbage are no longer counted,
+  so after a long drain or a garbage collection the second number can drop.
+  A client that does not drain shows neither;
 - when the client has an identity, when it expires, like `Identity expires in
   23h` (Nomad 1.11 and later). On an older cluster, or an older client, none
   of it shows;
