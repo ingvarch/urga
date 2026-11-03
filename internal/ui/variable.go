@@ -240,7 +240,7 @@ func (p variablePage) panel(_ env, width, room int) []string {
 	}
 
 	head := []string{
-		panelRow(fieldLine([]field{{"Lock", lock.ID}, {"TTL", lock.TTL}, {"Delay", lock.Delay}}, width-tableIndent)),
+		panelRow(fieldLine([]field{{"Lock", shortID(lock.ID)}, {"TTL", lock.TTL}, {"Delay", lock.Delay}}, width-tableIndent)),
 		panelRow(styleMuted.Render(truncate("Only the holder of the lock can change it.", width-tableIndent))),
 	}
 

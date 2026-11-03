@@ -164,8 +164,8 @@ first line and how many lines it has.
 `c` copies the value under the cursor, the whole of it, even while it is
 hidden.
 
-When the variable is held as a lock, a line above the values shows the ID of
-the lock, its TTL and its lock delay, as Nomad reports them.
+When the variable is held as a lock, a line above the values shows the short
+ID of the lock, its TTL and its lock delay, as Nomad reports them.
 
 `ctrl-r` releases the lock, on the list or on the variable, after you
 confirm. Use it when the holder is gone and left the lock held until its TTL

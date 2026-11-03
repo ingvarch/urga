@@ -139,8 +139,11 @@ func TestVariable_SaysWhoHoldsTheLock(t *testing.T) {
 
 	m := onVariable(t, &fakeClient{}, leaderVariable())
 
+	// The ID of a lock lets whoever has it release the lock: the panel shows
+	// only its start, as the list does.
 	out := plain(m.render())
-	r.Contains(out, "Lock "+leaderLock)
+	r.Contains(out, "Lock 874ae5d0 ")
+	r.NotContains(out, leaderLock)
 	r.Contains(out, "TTL 30m0s")
 	r.Contains(out, "Delay 15s")
 	r.Contains(fileRow(t, m, 0), "owner")
