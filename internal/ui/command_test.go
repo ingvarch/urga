@@ -28,6 +28,9 @@ func TestParseCommand(t *testing.T) {
 		{input: "alloc", view: allocationsView, ok: true},
 		{input: "tasks", view: tasksView, ok: true},
 		{input: "ta", view: tasksView, ok: true},
+		{input: "agentlogs", view: agentLogsView, ok: true},
+		{input: "monitor", view: agentLogsView, ok: true},
+		{input: "agent", view: agentLogsView, ok: true},
 
 		// A namespace as the second word opens the resource there.
 		{input: "jobs production", view: jobsView, namespace: "production", ok: true},
@@ -77,7 +80,7 @@ func TestMatchingCommands(t *testing.T) {
 	r.Equal([]string{"scaling"}, matchingCommands("sca"))
 	r.Equal([]string{"evaluations", "events"}, matchingCommands("ev"))
 	r.Equal([]string{
-		"about", "allocations", "authmethods", "bindingrules", "clients", "deployments",
+		"about", "agentlogs", "allocations", "authmethods", "bindingrules", "clients", "deployments",
 		"evaluations", "events", "jobs", "namespaces", "nodepools", "overview", "plugins", "policies", "queue", "roles",
 		"scaling", "scheduler", "servers", "services", "tasks", "tokens", "variables", "volumes", "ctx", "dc", "region", "find", "gc", "run",
 	}, matchingCommands(""))

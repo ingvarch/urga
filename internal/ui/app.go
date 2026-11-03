@@ -217,6 +217,9 @@ type Model struct {
 
 	nomadVersion string
 
+	// agentServer says the agent urga talks to is a server.
+	agentServer bool
+
 	// usage is the CPU and memory use of the cluster and of the rows.
 	usage usageState
 
@@ -719,7 +722,7 @@ func fetchAgent(client clusterClient) tea.Cmd {
 // keepAgent stores what the agent reports about itself: its version goes in
 // the header, and its region is used when the session names none.
 func (m Model) keepAgent(agent agentMsg) Model {
-	m.nomadVersion = agent.Version
+	m.nomadVersion, m.agentServer = agent.Version, agent.Server
 	m.agentRegion = agent.Region
 
 	return m

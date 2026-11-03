@@ -134,7 +134,7 @@ func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 	m.opts.NamespaceGiven = false
 
 	m = m.forgetRegion()
-	m.regionState, m.nomadVersion, m.token = regionState{}, "", nil
+	m.regionState, m.nomadVersion, m.agentServer, m.token = regionState{}, "", false, nil
 
 	m.namespace, m.namespaceOrder, m.namespaces = NamespaceOrAll(conn.Namespace), nil, nil
 	m.screen, m.history = jobsView.opened(), nil

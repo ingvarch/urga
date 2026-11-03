@@ -136,6 +136,7 @@ func (nodesPage) reading(ctx context.Context, client Client, ref rowRef) (nomad.
 
 var nodesKeys = []pageKey[nodesPage]{
 	{press: "enter", label: "Allocations", do: openClient},
+	{press: "ctrl+l", label: "Agent Logs", do: nodeAgentLogs},
 	{press: "ctrl+d", label: "Drain", do: drainNode, writes: true},
 	{press: "i", label: "Toggle Eligibility", do: toggleEligibility, writes: true},
 	{press: "ctrl+p", label: "Purge", do: purgeNodes, writes: true, offered: clientIs(isDown)},

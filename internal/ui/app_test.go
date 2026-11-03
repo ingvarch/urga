@@ -65,7 +65,14 @@ type fakeClient struct {
 	spec     nomad.JobSource
 	specErr  error
 	logs     *nomad.LogStream
-	usage    nomad.Usage
+
+	// agentLogs is the stream of an agent log, or a fresh one that sends
+	// nothing; the rest is what it was asked for and how often it was closed.
+	agentLogs       *nomad.LogStream
+	agentTargets    []nomad.AgentTarget
+	agentLevels     []string
+	agentLogsClosed int
+	usage           nomad.Usage
 
 	// logPart is what the log answers when read further back, and the rest
 	// what it was asked.
@@ -624,6 +631,20 @@ func (f *fakeClient) Logs(_ context.Context, namespace, allocID, task, source st
 	stream.OnClose = func() { f.logsClosed = true }
 
 	return stream, nil
+}
+
+func (f *fakeClient) AgentLogs(_ context.Context, target nomad.AgentTarget, level string) *nomad.LogStream {
+	f.agentTargets = append(f.agentTargets, target)
+	f.agentLevels = append(f.agentLevels, level)
+
+	stream := f.agentLogs
+	if stream == nil {
+		stream = &nomad.LogStream{Lines: make(chan string)}
+	}
+
+	stream.OnClose = func() { f.agentLogsClosed++ }
+
+	return stream
 }
 
 func (f *fakeClient) LogBefore(_ context.Context, namespace, allocID string, at nomad.LogMark, limit int) (nomad.LogPart, error) {

@@ -61,7 +61,7 @@ func TestPrompt_AnEmptyLineOffersNothingUntilTheArrows(t *testing.T) {
 	r.Equal(":about", promptLine(m))
 
 	m, _ = m.update(down())
-	r.Equal(":allocations", promptLine(m))
+	r.Equal(":agentlogs", promptLine(m))
 
 	m, _ = m.update(up())
 	r.Equal(":about", promptLine(m))

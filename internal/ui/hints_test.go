@@ -89,6 +89,7 @@ func everyScreenClient() *fakeClient {
 		describe:       "{}",
 		spec:           nomad.JobSource{Source: "job \"web\" {}"},
 		logs:           &nomad.LogStream{Lines: make(chan string)},
+		agentLogs:      &nomad.LogStream{Lines: make(chan string)},
 
 		// The deployment of the list, with a canary of web that waits to be
 		// promoted under the cursor.
@@ -175,6 +176,8 @@ func listsByName(client *fakeClient) map[string]Model {
 	open["namespacetasks"], _ = typeCommand(newTestModel(client), "tasks").update(allocsMsg(client.allocs))
 
 	open["overview"] = overviewWithCounts(client)
+
+	open["agentlogs"] = typeCommand(newTestModel(client), "agentlogs")
 
 	// This urga, which has no rows.
 	open["about"] = typeCommand(newTestModel(client), "about")

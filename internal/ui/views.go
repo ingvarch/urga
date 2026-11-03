@@ -146,6 +146,13 @@ var (
 		aliases: []string{"about", "version"},
 		open:    func() page { return aboutPage{} },
 	}
+
+	// agentLogsView is the log of the agent urga talks to. It has no stored
+	// name, so the next run does not reopen it.
+	agentLogsView = &view{
+		aliases: []string{"agentlogs", "monitor"},
+		open:    func() page { return agentLogsOf(nomad.AgentTarget{}, "") },
+	}
 )
 
 // views is the one place that knows which lists urga opens by name, so that
@@ -154,7 +161,7 @@ var views = []*view{
 	jobsView, allocationsView, tasksView, deploymentsView, servicesView, evaluationsView,
 	nodesView, variablesView, regionsView, datacentersView, clustersView,
 	namespacesView, serversView, nodePoolsView, queueView, volumesView, pluginsView,
-	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, eventsView, scalingView, schedulerView, overviewView, aboutView,
+	tokensView, policiesView, rolesView, authMethodsView, bindingRulesView, eventsView, scalingView, schedulerView, overviewView, aboutView, agentLogsView,
 }
 
 // opened is the list as a screen just opened, with nothing read into it yet.
