@@ -28,6 +28,24 @@ const (
 	TopicVariable   = "Variable"
 )
 
+// The types of event that report the change of state of the object they
+// carry. The cluster sends other types with an object as it already was: a
+// plan sends a failed allocation again when it replaces it.
+const (
+	// TypeAllocationUpdated is the client's update of an allocation.
+	TypeAllocationUpdated = "AllocationUpdated"
+
+	// TypeNodeStreamEvent is the status update of a client, and an event the
+	// client adds to its list.
+	TypeNodeStreamEvent = "NodeStreamEvent"
+
+	// TypeDeploymentStatusUpdate is the status update of a deployment, and
+	// TypeDeploymentAllocHealth the health of its allocations, which fails
+	// it when one is unhealthy. Both change only a deployment still running.
+	TypeDeploymentStatusUpdate = "DeploymentStatusUpdate"
+	TypeDeploymentAllocHealth  = "DeploymentAllocHealth"
+)
+
 // since is the first version of Nomad that sends the events of a topic. A
 // topic not in it is older than any cluster urga reads.
 var since = map[string]string{
@@ -216,11 +234,57 @@ func (s Subject) topics() map[api.Topic][]string {
 // is the oldest the cluster still keeps. The caller closes it when it stops
 // reading.
 func (c *Client) Feed(ctx context.Context, namespace string, subject Subject, from uint64) (*Feed, error) {
+	return c.feed(ctx, namespace, subject.topics(), from)
+}
+
+// Failures follows what can fail in a namespace: the allocations, the
+// deployments and the clients; AllNamespaces follows every one. It sends
+// every event of those topics, not only the failures, so the reader sees an
+// object leave a failed state. From 0 is the oldest event the cluster still
+// keeps: to start with the next one, ask from LatestIndex plus 1. The caller
+// closes the stream.
+func (c *Client) Failures(ctx context.Context, namespace string, from uint64) (*Feed, error) {
+	topics := map[api.Topic][]string{api.TopicAllocation: nil, api.TopicDeployment: nil, api.TopicNode: nil}
+
+	return c.feed(ctx, namespace, topics, from)
+}
+
+// feed follows the topics of a namespace, from the event of an index on.
+func (c *Client) feed(ctx context.Context, namespace string, topics map[api.Topic][]string, from uint64) (*Feed, error) {
 	// Asked for an index past its newest event, the cluster starts at that
 	// event again: what came before the index was read already.
-	return follow(ctx, c, namespace, subject.topics(), from, func(event api.Event) (Event, bool) {
+	return follow(ctx, c, namespace, topics, from, func(event api.Event) (Event, bool) {
 		return newEvent(event), event.Index >= from
 	})
+}
+
+// LatestIndex is the newest index of the allocations, the deployments and the
+// clients, which is where Failures starts when it is to skip what came
+// before. It reads one row of each, in every namespace.
+func (c *Client) LatestIndex(ctx context.Context) (uint64, error) {
+	paged := func(namespace string) *api.QueryOptions {
+		q := c.query(ctx, namespace)
+		q.PerPage = 1
+
+		return q
+	}
+
+	_, allocs, err := c.api.Allocations().List(paged(AllNamespaces))
+	if err != nil {
+		return 0, err
+	}
+
+	_, deployments, err := c.api.Deployments().List(paged(AllNamespaces))
+	if err != nil {
+		return 0, err
+	}
+
+	_, nodes, err := c.api.Nodes().List(paged(""))
+	if err != nil {
+		return 0, err
+	}
+
+	return max(allocs.LastIndex, deployments.LastIndex, nodes.LastIndex), nil
 }
 
 // newEvent reads an event: what it names, and the namespace, the state and
