@@ -430,19 +430,7 @@ func wordIn(line, word string) []int { return wordFinder(word)(line) }
 
 // wordFinder is wordIn with the word read once, for many lines.
 func wordFinder(word string) func(line string) []int {
-	rx, err := regexp.Compile("(?i)" + word)
-	if err != nil {
-		lower := strings.ToLower(word)
-
-		return func(line string) []int {
-			at := strings.Index(strings.ToLower(line), lower)
-			if at < 0 || word == "" {
-				return nil
-			}
-
-			return []int{at, at + len(word)}
-		}
-	}
+	rx := pattern(word)
 
 	return func(line string) []int {
 		at := rx.FindStringIndex(line)
@@ -485,14 +473,18 @@ func matcher(filter string) func(string) bool {
 		return everything
 	}
 
-	rx, err := regexp.Compile("(?i)" + filter)
-	if err != nil {
-		lower := strings.ToLower(filter)
+	return pattern(filter).MatchString
+}
 
-		return func(s string) bool { return strings.Contains(strings.ToLower(s), lower) }
+// pattern reads a word as a regular expression, or as the plain text when it
+// is not one, in any case. Matching the plain text the same way keeps where
+// it matches in the line itself: a lower-cased line can be longer or shorter.
+func pattern(word string) *regexp.Regexp {
+	if rx, err := regexp.Compile("(?i)" + word); err == nil {
+		return rx
 	}
 
-	return rx.MatchString
+	return regexp.MustCompile("(?i)" + regexp.QuoteMeta(word))
 }
 
 func everything(string) bool { return true }

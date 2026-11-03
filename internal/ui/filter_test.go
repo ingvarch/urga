@@ -71,3 +71,20 @@ func TestFilter_InverseOnTheScreen(t *testing.T) {
 	r.Contains(out, "web")
 	r.NotContains(out, "cron")
 }
+
+func TestFilter_TextThatIsNotAPatternIsMatchedAsWritten(t *testing.T) {
+	r := require.New(t)
+
+	// "web[" does not compile, so it matches as plain text, in any case.
+	r.True(matcher("WEB[")("web[1] production"))
+	r.False(matcher("web[")("web1 production"))
+
+	// A letter whose lower case is longer than itself does not move the
+	// highlight, at the end of the line either.
+	for _, line := range []string{"İstanbul web[1]", "İweb["} {
+		at := matchIn(line, "web[")
+		r.Len(at, 2, "%q", line)
+		r.LessOrEqual(at[1], len(line), "%q", line)
+		r.Equal("web[", line[at[0]:at[1]], "%q", line)
+	}
+}
