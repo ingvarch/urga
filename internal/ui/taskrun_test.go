@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
@@ -199,14 +200,59 @@ func TestTaskRun_ABlankLineRunsNothing(t *testing.T) {
 func TestTaskRun_ACommandThatDoesNotEndShowsTheLimit(t *testing.T) {
 	r := require.New(t)
 
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), actionErr: nomad.ErrNotEnded}
+	m := openTasks(t, client)
+
+	m, cmd := ranCommand(m, "sleep 60")
+	m = follow(m, cmd, 2)
+
+	r.Contains(plain(m.render()), "the command in server did not end within 10s")
+	r.NotContains(plain(m.render()), "sleep 60")
+	r.IsType(tasksPage{}, m.screen.page)
+}
+
+func TestTaskRun_ATimeoutBeforeTheCommandIsSentShowsTheError(t *testing.T) {
+	r := require.New(t)
+
 	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), actionErr: context.DeadlineExceeded}
 	m := openTasks(t, client)
 
 	m, cmd := ranCommand(m, "sleep 60")
 	m = follow(m, cmd, 2)
 
-	r.Contains(plain(m.render()), "sleep 60 did not end within 10s")
-	r.IsType(tasksPage{}, m.screen.page)
+	r.Contains(plain(m.render()), "context deadline exceeded")
+	r.NotContains(plain(m.render()), "did not end")
+}
+
+func TestTaskRun_TheStatusLineSaysTheCommandRunsUntilItsAnswer(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), output: nomad.CommandOutput{Text: "ok\n"}}
+	m := openTasks(t, client)
+
+	m, cmd := ranCommand(m, "sleep 5")
+	r.Contains(status(m), "Running the command in server...")
+
+	// A message goes after a few seconds; this one waits for the answer.
+	m.flash.at = m.flash.at.Add(-time.Minute)
+	r.Contains(status(m), "Running the command in server...")
+
+	m = follow(m, cmd, 2)
+
+	r.IsType(describePage{}, m.screen.page)
+	r.NotContains(status(m), "Running")
+}
+
+func TestTaskRun_TheTimerDoesNotClearTheRunningMessage(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), output: nomad.CommandOutput{Text: "ok\n"}}
+	m := openTasks(t, client)
+
+	m, _ = ranCommand(m, "sleep 5")
+	m, _ = m.update(flashOverMsg{at: m.flash.at})
+
+	r.Contains(status(m), "Running the command in server...")
 }
 
 func TestTaskRun_AnotherErrorShowsAsItIs(t *testing.T) {

@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // askCommand asks which command to run in the task under the cursor.
@@ -30,7 +32,7 @@ func (m Model) runIn(task taskRef, typed string) (Model, tea.Cmd) {
 		return m.warn("No command to run."), nil
 	}
 
-	return m, runCommand(m.client, task, typed)
+	return m.busy(fmt.Sprintf("Running the command in %s...", task.name)), runCommand(m.client, task, typed)
 }
 
 // runCommand runs the line in a shell of the task, so a pipe, quotes and
@@ -38,8 +40,8 @@ func (m Model) runIn(task taskRef, typed string) (Model, tea.Cmd) {
 func runCommand(client allocsClient, task taskRef, line string) tea.Cmd {
 	return request(func(ctx context.Context) (describeMsg, error) {
 		out, err := client.RunCommand(ctx, task.namespace, task.allocID, task.name, []string{"/bin/sh", "-c", line})
-		if errors.Is(err, context.DeadlineExceeded) {
-			return describeMsg{}, fmt.Errorf("%s did not end within %s", line, defaultTimeout)
+		if errors.Is(err, nomad.ErrNotEnded) {
+			return describeMsg{}, fmt.Errorf("the command in %s did not end within %s", task.name, defaultTimeout)
 		}
 
 		if err != nil {

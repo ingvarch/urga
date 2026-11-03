@@ -453,6 +453,11 @@ func (m Model) enter() (Model, tea.Cmd) {
 		m.text = textModel{}
 	}
 
+	// What was going on belonged to the screen before.
+	if m.flash.held {
+		m = m.quiet()
+	}
+
 	// A stream is opened again: the command that read it before belonged to
 	// an ask that is over.
 	m, stream := m.openStream()
