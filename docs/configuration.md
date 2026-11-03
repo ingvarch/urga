@@ -68,6 +68,10 @@ has a color that shows how long the token has left:
 | `Token: not valid` in red | The cluster does not accept the token: it is wrong, deleted or expired. |
 | `Token: anonymous` in grey | No token is set. The cluster answers with what anonymous access allows. |
 
+A token without a name shows the first 8 characters of its accessor ID, like
+`Token: 3fa85f64`. The empty-list and permission-denied lines below name it
+the same way.
+
 On a cluster without ACLs there is no token, and the status line shows
 nothing about it.
 

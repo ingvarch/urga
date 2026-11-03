@@ -21,6 +21,14 @@ func TestTokenStatus(t *testing.T) {
 		return nomad.Token{Name: "deploy-bot", Type: "client", Expires: now.Add(left)}
 	}
 
+	unnamed := nomad.Token{ID: "3fa85f64-5717-4562-b3fc-2c963f66afa6", Type: "client"}
+	unnamedFor := func(left time.Duration) nomad.Token {
+		token := unnamed
+		token.Expires = now.Add(left)
+
+		return token
+	}
+
 	for name, tc := range map[string]struct {
 		token nomad.Token
 		value string
@@ -29,6 +37,8 @@ func TestTokenStatus(t *testing.T) {
 		"no expiry":         {nomad.Token{Name: "deploy-bot", Type: "client"}, "deploy-bot", styleValue},
 		"more than 30 days": {bot(40 * day), "deploy-bot", styleValue},
 		"14 to 30 days":     {bot(20 * day), "deploy-bot", stylePending},
+		"no name":           {unnamed, "3fa85f64", styleValue},
+		"no name, expiring": {unnamedFor(20 * day), "3fa85f64", stylePending},
 		"5 to 14 days":      {bot(10 * day), "deploy-bot", styleWarn},
 		"4 days":            {bot(4*day + 12*time.Hour), "expires in 4 days", styleError},
 		"1 day":             {bot(day + 3*time.Hour), "expires in 1 day", styleError},

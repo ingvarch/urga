@@ -24,6 +24,7 @@ func TestToken(t *testing.T) {
 
 	r.Equal("/v1/acl/token/self", asked.URL.Path)
 	r.Equal(nomad.Token{
+		ID:      "b1",
 		Name:    "deploy-bot",
 		Type:    "client",
 		Expires: time.Date(2026, 9, 24, 23, 27, 1, 0, time.UTC),

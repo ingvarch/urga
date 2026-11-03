@@ -35,6 +35,12 @@ func TestEmptyList_AClientTokenMayNotReachIt(t *testing.T) {
 	r.Contains(m.render(), opening(styleMuted)+"Nothing here")
 }
 
+func TestEmptyList_ATokenWithoutANameIsNamedByItsAccessor(t *testing.T) {
+	m := jobsSeenWith(nomad.Token{ID: "3fa85f64-5717-4562-b3fc-2c963f66afa6", Type: "client"}, nil)
+
+	require.Contains(t, plain(m.render()), "Nothing here that 3fa85f64 can read")
+}
+
 func TestEmptyList_NoTokenSet(t *testing.T) {
 	r := require.New(t)
 
@@ -122,8 +128,12 @@ func TestPermissionDenied_SaysWhy(t *testing.T) {
 		says  string
 	}{
 		"a client token": {deployBot, "Permission denied: deploy-bot may not do this"},
-		"no token":       {nomad.Token{Anonymous: true}, "Permission denied: no token is set"},
-		"a refused one":  {nomad.Token{Refused: true}, "Permission denied: the token is not valid"},
+		"a token without a name": {
+			nomad.Token{ID: "3fa85f64-5717-4562-b3fc-2c963f66afa6", Type: "client"},
+			"Permission denied: 3fa85f64 may not do this",
+		},
+		"no token":      {nomad.Token{Anonymous: true}, "Permission denied: no token is set"},
+		"a refused one": {nomad.Token{Refused: true}, "Permission denied: the token is not valid"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			m := jobsSeenWith(tc.token, twoJobs())

@@ -11,6 +11,9 @@ import (
 
 // Token is the ACL token the session sends, as the cluster sees it.
 type Token struct {
+	// ID is the accessor of the token; it names a token without a name.
+	ID string
+
 	Name string
 
 	// Type is client or management: a management token reads everything.
@@ -47,6 +50,7 @@ func (c *Client) Token(ctx context.Context) (Token, error) {
 	}
 
 	token := Token{
+		ID:        self.AccessorID,
 		Name:      self.Name,
 		Type:      self.Type,
 		Anonymous: self.AccessorID == anonymousAccessor,

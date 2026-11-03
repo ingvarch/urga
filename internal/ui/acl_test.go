@@ -120,6 +120,20 @@ func TestACL_CopyTheSecretOfAToken(t *testing.T) {
 	r.NotContains(plain(m.render()), "s3cr3t")
 }
 
+func TestACL_CopyTheSecretOfATokenWithoutAName(t *testing.T) {
+	r := require.New(t)
+
+	m := onACL(t, &fakeClient{secret: "s3cr3t-0000"}, "tokens")
+	m, _ = m.update(aclMsg{kind: nomad.ACLToken, objects: []nomad.ACLObject{
+		{Kind: nomad.ACLToken, ID: "a1b2c3d4-0000-0000-0000-000000000000"},
+	}})
+
+	m, cmd := m.update(key('c'))
+	m = playOut(m, cmd)
+
+	r.Contains(plain(statusLine(m)), "Copied the secret of the token a1b2c3d4.")
+}
+
 func TestACL_OnlyATokenHasASecret(t *testing.T) {
 	r := require.New(t)
 

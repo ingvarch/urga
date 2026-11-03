@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
 	"image/color"
 	"time"
@@ -83,7 +84,7 @@ func tokenStatus(token nomad.Token, now time.Time) (string, lipgloss.Style, bool
 	case token.Anonymous:
 		return "anonymous", styleMuted, true
 	case token.Expires.IsZero():
-		return token.Name, styleValue, true
+		return tokenName(token), styleValue, true
 	}
 
 	left := token.Expires.Sub(now)
@@ -100,8 +101,11 @@ func tokenStatus(token nomad.Token, now time.Time) (string, lipgloss.Style, bool
 		return "expires in " + timeLeft(left), style, true
 	}
 
-	return token.Name, style, true
+	return tokenName(token), style, true
 }
+
+// tokenName names a token by its name, or by its accessor when it has none.
+func tokenName(token nomad.Token) string { return cmp.Or(token.Name, shortID(token.ID)) }
 
 // timeLeft is how long is left, in the largest whole unit: days, hours, or
 // minutes, and never less than a minute.
@@ -134,7 +138,7 @@ func (m Model) tokenHint() string {
 		return ""
 	}
 
-	return fmt.Sprintf("Nothing here that %s can read: its policies may not allow it.", token.Name)
+	return fmt.Sprintf("Nothing here that %s can read: its policies may not allow it.", tokenName(token))
 }
 
 // withHint puts the hint about the token under the column titles of an
@@ -170,5 +174,5 @@ func (m Model) refusedBecause(err error) (string, bool) {
 		return "", false
 	}
 
-	return fmt.Sprintf("Permission denied: %s may not do this", token.Name), true
+	return fmt.Sprintf("Permission denied: %s may not do this", tokenName(token)), true
 }
