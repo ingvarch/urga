@@ -310,7 +310,7 @@ func openOfAClient(open map[string]Model) {
 
 	for name, press := range map[string]tea.KeyPressMsg{
 		"nodeevents":  key('e'),
-		"drivers":     ctrlKey('d'),
+		"drivers":     key('v'),
 		"nodevolumes": ctrlKey('h'),
 		"attributes":  key('a'),
 		"meta":        key('m'),
@@ -556,4 +556,18 @@ func changed(before, after Model) bool {
 	before.opts.InRegion, after.opts.InRegion = nil, nil
 
 	return !reflect.DeepEqual(before, after)
+}
+
+func TestHints_CtrlDChangesTheClusterWhereverItIsAKey(t *testing.T) {
+	r := require.New(t)
+
+	// A person presses ctrl+d out of habit: on a screen where it is a key,
+	// it must be one that writes.
+	for name, m := range everyScreen(t) {
+		for _, k := range m.pageKeys() {
+			if k.press == "ctrl+d" {
+				r.True(k.writes, "ctrl+d on the %s screen does not change the cluster", name)
+			}
+		}
+	}
 }

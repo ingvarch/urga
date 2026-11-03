@@ -206,7 +206,7 @@ func TestBack_ComesBackToTheRowOfEveryScreenOfAClient(t *testing.T) {
 	left := cursorName(m)
 
 	// Its events, drivers, host volumes, attributes and metadata.
-	for _, press := range []tea.KeyPressMsg{key('e'), ctrlKey('d'), ctrlKey('h'), key('a'), key('m')} {
+	for _, press := range []tea.KeyPressMsg{key('e'), key('v'), ctrlKey('h'), key('a'), key('m')} {
 		back := openAndBack(t, m, press)
 
 		r.IsType(clientPage{}, back.screen.page, press.String())
