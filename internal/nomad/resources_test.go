@@ -166,6 +166,29 @@ func TestNodes_ReadTheCapacity(t *testing.T) {
 	r.Equal(3820, nodes[0].MemoryMB)
 }
 
+func TestNodes_ReadWhatEachClientGivesToJobs(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[
+		{"ID": "n1", "Status": "ready",
+			"NodeResources": {"Cpu": {"CpuShares": 4000}, "Memory": {"MemoryMB": 8192}, "Disk": {"DiskMB": 51200}},
+			"ReservedResources": {"Cpu": {"CpuShares": 1000}, "Memory": {"MemoryMB": 1024}, "Disk": {"DiskMB": 10240}}},
+		{"ID": "n2", "Status": "ready",
+			"NodeResources": {"Cpu": {"CpuShares": 48}, "Memory": {"MemoryMB": 1000}, "Disk": {"DiskMB": 100}},
+			"ReservedResources": {"Cpu": {"CpuShares": 2000}, "Memory": {"MemoryMB": 4000}, "Disk": {"DiskMB": 1000}}},
+		{"ID": "n3", "Status": "ready"}
+	]`)
+
+	nodes, err := client.Nodes(context.Background())
+	r.NoError(err)
+	r.Len(nodes, 3)
+
+	r.Equal(nomad.Resources{CPU: 3000, MemoryMB: 7168, DiskMB: 40960}, nodes[0].Schedulable)
+	r.Equal(4000, nodes[0].CPUShares)
+	r.Equal(nomad.Resources{}, nodes[1].Schedulable)
+	r.Equal(nomad.Resources{}, nodes[2].Schedulable)
+}
+
 func TestVariables_Read(t *testing.T) {
 	r := require.New(t)
 

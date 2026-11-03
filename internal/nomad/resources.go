@@ -130,6 +130,10 @@ type Node struct {
 	CPUShares int
 	MemoryMB  int
 
+	// Schedulable is what the client gives to jobs: what it has less what it
+	// keeps for itself.
+	Schedulable Resources
+
 	// MaxAllocs is how many allocations the client takes at most, zero for
 	// no limit, and Allocs how many hold a place on it. Only WithAllocLimits
 	// counts Allocs, and only for a client with a limit; Node leaves it
@@ -162,6 +166,7 @@ func newNode(n *api.NodeListStub) Node {
 	if n.NodeResources != nil {
 		node.CPUShares = int(n.NodeResources.Cpu.CpuShares)
 		node.MemoryMB = int(n.NodeResources.Memory.MemoryMB)
+		node.Schedulable = schedulable(n)
 	}
 
 	return node

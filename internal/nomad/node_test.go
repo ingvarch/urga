@@ -120,6 +120,20 @@ func TestNode_ReadsTheMachineItself(t *testing.T) {
 	r.Equal(4000, node.CPUShares)
 }
 
+func TestNode_ReadsWhatItGivesToJobs(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `{
+		"ID": "node-1",
+		"NodeResources": {"Cpu": {"CpuShares": 4000}, "Memory": {"MemoryMB": 8192}, "Disk": {"DiskMB": 51200}},
+		"ReservedResources": {"Cpu": {"CpuShares": 1000}, "Memory": {"MemoryMB": 1024}, "Disk": {"DiskMB": 10240}}
+	}`)
+
+	node, err := client.Node(context.Background(), "node-1")
+	r.NoError(err)
+	r.Equal(nomad.Resources{CPU: 3000, MemoryMB: 7168, DiskMB: 40960}, node.Schedulable)
+}
+
 // metaServer answers with the given body and records the request and its
 // body: a call sends some of its data in the body and some in the query.
 func metaServer(t *testing.T, body string) (*nomad.Client, *[]byte, *http.Request) {

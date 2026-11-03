@@ -45,9 +45,9 @@ func (c *Client) Usage(ctx context.Context, datacenter string) (Usage, error) {
 			continue
 		}
 
-		cpu, memory := schedulable(node)
-		cpuCapacity += cpu
-		memoryCapacity += memory
+		has := schedulable(node)
+		cpuCapacity += int64(has.CPU)
+		memoryCapacity += int64(has.MemoryMB)
 	}
 
 	var cpuClaimed, memoryClaimed int64
@@ -137,17 +137,37 @@ func (r *claimedResources) claimed() (cpu, memory int64) {
 	return cpu, memory
 }
 
+// Resources are amounts of what a client has: CPU in MHz, memory and disk
+// in MiB.
+type Resources struct {
+	CPU      int
+	MemoryMB int
+	DiskMB   int
+}
+
 // schedulable is what a client gives to jobs: what it has without what it
 // keeps for itself. A client that keeps more than it has gives nothing.
-func schedulable(node *api.NodeListStub) (cpu, memory int64) {
-	cpu, memory = node.NodeResources.Cpu.CpuShares, node.NodeResources.Memory.MemoryMB
+func schedulable(node *api.NodeListStub) Resources {
+	has := node.NodeResources
+	kept := node.ReservedResources
 
-	if kept := node.ReservedResources; kept != nil {
-		cpu -= int64(kept.Cpu.CpuShares)
-		memory -= int64(kept.Memory.MemoryMB)
+	if has == nil {
+		return Resources{}
 	}
 
-	return max(cpu, 0), max(memory, 0)
+	out := Resources{
+		CPU:      int(has.Cpu.CpuShares),
+		MemoryMB: int(has.Memory.MemoryMB),
+		DiskMB:   int(has.Disk.DiskMB),
+	}
+
+	if kept != nil {
+		out.CPU -= int(kept.Cpu.CpuShares)
+		out.MemoryMB -= int(kept.Memory.MemoryMB)
+		out.DiskMB -= int(kept.Disk.DiskMB)
+	}
+
+	return Resources{CPU: max(out.CPU, 0), MemoryMB: max(out.MemoryMB, 0), DiskMB: max(out.DiskMB, 0)}
 }
 
 // AllocationUsage is how much one allocation uses of what it asked for.

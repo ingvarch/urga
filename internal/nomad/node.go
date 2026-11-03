@@ -136,6 +136,7 @@ func (c *Client) Node(ctx context.Context, nodeID string) (Node, error) {
 		Drain:                 node.Drain,
 		Address:               addr,
 		NodeResources:         node.NodeResources,
+		ReservedResources:     node.ReservedResources,
 	})
 	full.MaxAllocs = node.NodeMaxAllocs
 
