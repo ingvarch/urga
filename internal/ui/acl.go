@@ -159,7 +159,7 @@ func copySecret(p aclPage, e env) (aclPage, outcome) {
 	return p, outcome{cmd: request(func(ctx context.Context) (string, error) {
 		return client.TokenSecret(ctx, o.ID)
 	}, func(secret string) tea.Msg {
-		return copyMsg{field: "the secret of the token " + o.Name, value: secret}
+		return copyMsg{field: "the secret of the token " + cmp.Or(o.Name, shortID(o.ID)), value: secret}
 	})}
 }
 
