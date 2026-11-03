@@ -67,7 +67,7 @@ type watchState struct {
 
 // watchScreen opens an event stream for what the screen shows. A screen
 // that watches nothing, or a cluster that does not stream, is polled the
-// way it always was.
+// way it always was. A screen refused all its topics may follow fewer.
 func (m Model) watchScreen() tea.Cmd {
 	topics := m.screen.page.topics()
 	if len(topics) == 0 || !nomad.Streams(m.nomadVersion, topics) {
@@ -76,8 +76,17 @@ func (m Model) watchScreen() tea.Cmd {
 
 	client, namespace, id := m.client, namespaceOf(m.screen.page, m.env()), m.watch.id
 
+	var fewer []string
+	if n, ok := m.screen.page.(fallback); ok {
+		fewer = n.fewerTopics()
+	}
+
 	return func() tea.Msg {
 		changes, err := client.Events(context.Background(), namespace, topics)
+		if nomad.Forbidden(err) && fewer != nil {
+			changes, err = client.Events(context.Background(), namespace, fewer)
+		}
+
 		if err != nil {
 			return watchEndedMsg{id: id, err: err}
 		}

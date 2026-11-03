@@ -157,6 +157,10 @@ type fakeClient struct {
 	revertedTo       uint64
 	diffErr          error
 
+	// watchRefused, when set, is the error the stream of those topics in a
+	// namespace is refused with; nil opens it.
+	watchRefused func(namespace string, topics []string) error
+
 	calls      int
 	allocCalls int
 
@@ -1227,6 +1231,12 @@ func (f *fakeClient) BatchQueueStatus(_ context.Context, pool string) ([]nomad.Q
 
 func (f *fakeClient) Events(_ context.Context, namespace string, topics []string) (*nomad.Changes, error) {
 	f.watchedNamespace, f.watchedTopics = namespace, topics
+
+	if f.watchRefused != nil {
+		if err := f.watchRefused(namespace, topics); err != nil {
+			return nil, err
+		}
+	}
 
 	if f.watchErr != nil {
 		return nil, f.watchErr

@@ -2,7 +2,9 @@ package ui
 
 import (
 	"errors"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -50,12 +52,75 @@ func TestClients_TheList(t *testing.T) {
 
 	r.Contains(plain(m.render()), "Clients [1]")
 	r.Equal([]string{"ID", "Name", "Datacenter", "Pool", "Version", "Status", "Eligibility", "Drain", "CPU", "MEM", "Address"}, m.screen.page.titles())
-	r.Equal([]string{nomad.TopicNode}, m.screen.page.topics())
+	r.Equal([]string{nomad.TopicNode, nomad.TopicAllocation}, m.screen.page.topics())
 
 	// The CPU and memory use of the machine is unknown until it is read.
 	r.Regexp(`^\s*node-1\s+nomad-server-01\s+dc1\s+default\s+1\.11\.1\s+ready\s+eligible\s+false\s+-\s+-\s+10\.0\.0\.2`, fileRow(t, m, 0))
 
 	r.Equal([]string{"enter Allocations", "ctrl+d Drain", "i Toggle Eligibility", "ctrl+g GC", "space Mark", "ctrl+a Mark All"}, keyNames(m))
+}
+
+func TestClients_WatchTheWorkOfEveryNamespace(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{nodes: busyClient(), changes: newChanges()}
+
+	m, _ := nodeModelOf(client)
+	r.Equal("production", m.namespace)
+
+	m.update(m.watchScreen()())
+
+	r.Equal(nomad.AllNamespaces, client.watchedNamespace)
+	r.Equal([]string{nomad.TopicNode, nomad.TopicAllocation}, client.watchedTopics)
+}
+
+func TestClients_ATokenOfSomeNamespacesFollowsTheClientsAlone(t *testing.T) {
+	r := require.New(t)
+
+	// From Nomad 1.8.10 and 1.9.6 on, following allocations in every
+	// namespace needs a token that may read the jobs of each one.
+	refused := forbidden(t)
+	client := &fakeClient{
+		jobs: twoJobs(), nodes: busyClient(), changes: newChanges(),
+		watchRefused: func(namespace string, topics []string) error {
+			if namespace == nomad.AllNamespaces && slices.Contains(topics, nomad.TopicAllocation) {
+				return refused
+			}
+
+			return nil
+		},
+	}
+
+	// The jobs screen streams, so a refusal on the client list would warn.
+	m := watching(t, client)
+	r.True(m.watch.live())
+
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "nodes")
+	m, _ = m.update(enter())
+	m, _ = m.update(nodesMsg(busyClient()))
+	m, _ = m.update(m.watchScreen()())
+
+	// The list follows what the token may read: the clients.
+	r.Equal(nomad.AllNamespaces, client.watchedNamespace)
+	r.Equal([]string{nomad.TopicNode}, client.watchedTopics)
+	r.True(m.watch.live())
+	r.Empty(m.flash.text)
+	r.Equal(slowPoll, m.pollEvery())
+}
+
+func TestClients_ATokenThatMayNotFollowTheClientsIsRefusedTheStream(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{nodes: busyClient(), watchErr: forbidden(t)}
+
+	m, _ := nodeModelOf(client)
+	m, _ = m.update(m.watchScreen()())
+
+	r.Equal([]string{nomad.TopicNode}, client.watchedTopics)
+	r.False(m.watch.live())
+	r.Contains(m.flash.text, "asking every")
+	r.Equal(time.Millisecond, m.pollEvery())
 }
 
 func TestClients_OnlyThoseThatTakeNoWork(t *testing.T) {

@@ -38,7 +38,14 @@ func (p nodesPage) title(_ env, count int) string {
 }
 
 func (nodesPage) titles() []string { return nodeTitles }
-func (nodesPage) topics() []string { return []string{nomad.TopicNode} }
+func (nodesPage) topics() []string { return []string{nomad.TopicNode, nomad.TopicAllocation} }
+
+// where: the places a client holds are counted over every namespace.
+func (nodesPage) where(env) string { return nomad.AllNamespaces }
+
+// fewerTopics: allocations of every namespace need a token that may read the
+// jobs of each one. Without it the list follows the clients alone.
+func (nodesPage) fewerTopics() []string { return []string{nomad.TopicNode} }
 
 // fetch reads the clients, of the pool when the page has one: the cluster
 // says which clients a pool holds. The list does not carry the allocation
