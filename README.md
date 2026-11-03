@@ -51,7 +51,7 @@ One binary, no config to write, no browser.
   placed or changed.
 - Lists the launches of periodic and parameterized jobs, shows when a
   periodic job runs next, runs it now, and dispatches a parameterized job
-  with its meta and payload.
+  with its meta, payload and priority.
 - Starts, stops, scales and restarts jobs and allocations, restarts every
   task of an allocation with its prestart and sidecar tasks, restarts and
   signals single tasks, opens a shell in a task, and runs a command in a task

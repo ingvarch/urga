@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+
+	"github.com/hashicorp/nomad/api"
 )
 
 // How a parameterized job takes a payload.
@@ -18,6 +20,10 @@ const (
 type DispatchForm struct {
 	Required, Optional []string
 	Payload            string
+
+	// Priority is the one of the job, which a dispatch keeps unless it
+	// gives one.
+	Priority int
 }
 
 // DispatchForm reads what a dispatch of a parameterized job may give it.
@@ -37,13 +43,15 @@ func (c *Client) DispatchForm(ctx context.Context, namespace, jobID string) (Dis
 		Required: config.MetaRequired,
 		Optional: config.MetaOptional,
 		Payload:  cmp.Or(config.Payload, PayloadOptional),
+		Priority: valueOf(job.Priority),
 	}, nil
 }
 
 // DispatchJob dispatches a parameterized job, and says the ID of the job the
-// dispatch launched.
-func (c *Client) DispatchJob(ctx context.Context, namespace, jobID string, meta map[string]string, payload []byte) (string, error) {
-	answer, _, err := c.api.Jobs().Dispatch(jobID, meta, payload, "", c.write(ctx, namespace))
+// dispatch launched. A priority of 0 keeps the one of the job.
+func (c *Client) DispatchJob(ctx context.Context, namespace, jobID string, meta map[string]string, payload []byte, priority int) (string, error) {
+	answer, _, err := c.api.Jobs().DispatchOpts(
+		&api.DispatchOptions{JobID: jobID, Meta: meta, Payload: payload, Priority: priority}, c.write(ctx, namespace))
 	if err != nil {
 		return "", err
 	}

@@ -83,6 +83,9 @@ type env struct {
 	// readOnly takes away every key that changes the cluster.
 	readOnly bool
 
+	// nomadVersion is the version of the cluster, empty until it is read.
+	nomadVersion string
+
 	// found says a word is found in the text on the screen.
 	found bool
 
@@ -112,6 +115,8 @@ func (m Model) env() env {
 		namespaces:  m.namespaces,
 		readOnly:    m.opts.ReadOnly,
 		found:       m.text.found != "",
+
+		nomadVersion: m.nomadVersion,
 		build: buildInfo{
 			version:    m.opts.Version,
 			commit:     m.opts.Commit,

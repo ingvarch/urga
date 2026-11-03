@@ -61,25 +61,32 @@ your editor:
 
 ```
 # Dispatch report in production.
+# Priority: empty keeps the job's, 50.
 # Required meta: day. Optional meta: region.
 # Payload: optional. It is everything below the line "--- payload ---", as it is.
 # Save a change to dispatch: at least delete this line. Quit without saving to drop it.
+priority = 70
 day = monday
 region =
 --- payload ---
 {"rows": 100}
 ```
 
-Each line above the marker is a meta key and its value. A key left empty is
-not sent. Everything below `--- payload ---` is the payload, as you typed it;
-a job that takes no payload has no marker. Save and close the editor to
+Each other line above the marker is a meta key and its value. A key left empty
+is not sent. Everything below `--- payload ---` is the payload, as you typed
+it; a job that takes no payload has no marker. Save and close the editor to
 dispatch; the status line names the job the dispatch launched. A file saved
-unchanged dispatches nothing. When a line does not read as `key = value`, or
-the cluster refuses the dispatch, for example because a required key is
-missing, the file opens again with the reason at the top. If you leave the
-screen, or switch clusters, before the cluster answers, the file does not open
-again: the status line names the file that keeps your text, see
-[Editor](configuration.md#editor).
+unchanged dispatches nothing. When a line does not read as `key = value`, the
+priority is not a number, or the cluster refuses the dispatch, for example
+because a required key is missing, the file opens again with the reason at the
+top. If you leave the screen, or switch clusters, before the cluster answers,
+the file does not open again: the status line names the file that keeps your
+text, see [Editor](configuration.md#editor).
+
+On Nomad 1.10.1 and later the `priority` line sets the priority of the launch.
+Left empty, the launch keeps the priority of the job. A job with a meta key
+named `priority` has no such line. A job that takes no meta and no payload is
+dispatched at its own priority.
 
 ## Starting and stopping
 

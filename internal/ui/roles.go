@@ -73,7 +73,7 @@ type (
 		UntagVersion(ctx context.Context, namespace, jobID, name string) error
 		MarkStable(ctx context.Context, namespace, jobID string, version uint64, stable bool) error
 		DispatchForm(ctx context.Context, namespace, jobID string) (nomad.DispatchForm, error)
-		DispatchJob(ctx context.Context, namespace, jobID string, meta map[string]string, payload []byte) (string, error)
+		DispatchJob(ctx context.Context, namespace, jobID string, meta map[string]string, payload []byte, priority int) (string, error)
 		NextLaunch(ctx context.Context, namespace, jobID string) (time.Time, error)
 		JobVersions(ctx context.Context, namespace, jobID string) ([]nomad.JobVersion, error)
 		JobVersionDiff(ctx context.Context, namespace, jobID string, version uint64) ([]nomad.DiffLine, error)
