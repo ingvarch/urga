@@ -37,6 +37,7 @@ func (variablesPage) title(e env, count int) string {
 }
 
 func (variablesPage) titles() []string { return variableTitles }
+func (variablesPage) unread() page     { return variablesPage{} }
 func (variablesPage) topics() []string { return []string{nomad.TopicVariable} }
 
 func (variablesPage) fetch(e env) tea.Cmd {

@@ -28,6 +28,7 @@ func (scalingPoliciesPage) title(e env, count int) string {
 }
 
 func (scalingPoliciesPage) titles() []string { return scalingPolicyTitles }
+func (scalingPoliciesPage) unread() page     { return scalingPoliciesPage{} }
 
 // topics: a policy is part of its job, and changes with it.
 func (scalingPoliciesPage) topics() []string { return []string{nomad.TopicJob} }

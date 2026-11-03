@@ -59,6 +59,36 @@ func (m Model) namespaceKey(digit int) (Model, tea.Cmd) {
 	return m.switchNamespace(m.namespaceOrder[digit-1])
 }
 
+// moveTo points the session at a namespace. The lists of the namespace left
+// start empty, on the screen and under it, so no rows of the old namespace
+// stay under the new title when the cluster does not answer. They start at
+// the first row, with no filter or sort, as a list entered after a switch.
+func (m Model) moveTo(namespace string) Model {
+	if namespace == m.namespace {
+		return m
+	}
+
+	m.namespace = namespace
+
+	// The place of the open list is saved from the list when a command opens
+	// another screen on top of it.
+	if m.screen.listsTheNamespace() {
+		m.list.filter, m.list.sort = "", newSortState()
+		m.list.table.cursor, m.list.table.top = 0, 0
+	}
+
+	m.screen = m.screen.unread()
+
+	history := make([]screen, len(m.history))
+	for i, s := range m.history {
+		history[i] = s.unread()
+	}
+
+	m.history = history
+
+	return m
+}
+
 // switchNamespace points the session at a namespace and asks the cluster
 // again for what is open.
 func (m Model) switchNamespace(namespace string) (Model, tea.Cmd) {
@@ -68,7 +98,7 @@ func (m Model) switchNamespace(namespace string) (Model, tea.Cmd) {
 
 	// A list opened by name is entered again in the new namespace, with no
 	// filter; a screen opened for a job or an allocation stays in its own.
-	m.namespace = namespace
+	m = m.moveTo(namespace)
 	if m.screen.followsSession() {
 		m.list.filter = ""
 	}

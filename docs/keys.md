@@ -199,7 +199,7 @@ and highlights what matched.
 | `A` to `Z` | Sort by a column, see [Sort](#sort). Press again to reverse. |
 | `!` | Show only rows that need attention. Press again to show all rows. |
 | `enter` | Open the row under the cursor. |
-| `esc` | Go back to the previous screen, to the same row, filter and sort order. |
+| `esc` | Go back to the previous screen, to the same row, filter and sort order. After a namespace switch, a list of the namespace starts at the first row, with no filter or sort. See [Namespaces](clients.md#namespaces). |
 | `up`, `k` / `down`, `j` | Move the cursor. |
 | `pgup`, `ctrl-b` / `pgdn`, `ctrl-f` | Move one page. |
 | `g`, `home` / `G`, `end` | Go to the top or the bottom. On a text screen moved sideways, `home` first goes back to the start of the lines. |

@@ -349,7 +349,7 @@ func (m Model) commit() (Model, tea.Cmd) {
 			return m.fail(fmt.Errorf("no such namespace: %s", cmd.namespace)), nil
 		}
 
-		m.namespace = cmd.namespace
+		m = m.moveTo(cmd.namespace)
 	}
 
 	return m.show(cmd.view)

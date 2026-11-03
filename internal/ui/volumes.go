@@ -32,6 +32,7 @@ func (volumesPage) title(e env, count int) string {
 }
 
 func (volumesPage) titles() []string { return volumesTitles }
+func (volumesPage) unread() page     { return volumesPage{} }
 
 // topics: the plugin as well, because the colour of a CSI volume follows the
 // health of its plugin, which only a plugin event reports.

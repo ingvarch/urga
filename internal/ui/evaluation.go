@@ -31,6 +31,7 @@ func (p evaluationsPage) title(e env, count int) string {
 }
 
 func (evaluationsPage) titles() []string { return evaluationTitles }
+func (p evaluationsPage) unread() page   { return evaluationsPage{fault: p.fault} }
 func (evaluationsPage) topics() []string { return []string{nomad.TopicEvaluation} }
 
 func (evaluationsPage) fetch(e env) tea.Cmd {

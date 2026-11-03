@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"errors"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -199,4 +201,161 @@ func TestNamespaces_OneThatIsGoneLosesItsNumberKey(t *testing.T) {
 	m, _ = m.update(namespacesMsg([]nomad.Namespace{{Name: "staging"}}))
 
 	r.Equal([]string{"staging"}, m.namespaceOrder)
+}
+
+func TestNamespaceKeys_EveryListOfTheNamespaceLeftIsEmptied(t *testing.T) {
+	tests := []struct {
+		name  string
+		page  page
+		read  tea.Msg
+		title string
+	}{
+		{"jobs", jobsPage{}, jobsMsg(twoJobs()), "Jobs (staging) [0]"},
+		{"dead jobs", jobsPage{fault: faultDead}, jobsMsg(deadJobsFixture()), "Jobs (staging, dead) [0]"},
+		{"allocations", allocationsPage{}, allocsMsg(twoAllocs()), "Allocations (staging) [0]"},
+		{"failed allocations", allocationsPage{fault: faultFailedOrLost}, allocsMsg{{ID: "a1", JobID: "web", Namespace: "production", Status: "failed"}}, "Allocations (staging, failed or lost) [0]"},
+		{"tasks", namespaceTasksPage{}, allocsMsg(twoAllocs()), "Tasks (staging) [0]"},
+		{"deployments", deploymentsPage{}, deploymentsMsg{{ID: "d1", JobID: "web", Namespace: "production", Status: "running"}}, "Deployments (staging) [0]"},
+		{"failed deployments", deploymentsPage{fault: faultFailed}, deploymentsMsg{{ID: "d1", JobID: "web", Namespace: "production", Status: "failed"}}, "Deployments (staging, failed) [0]"},
+		{"evaluations", evaluationsPage{}, evaluationsMsg{{ID: "e1", JobID: "web", Namespace: "production", Status: "complete"}}, "Evaluations (staging) [0]"},
+		{"blocked evaluations", evaluationsPage{fault: faultBlocked}, evaluationsMsg{{ID: "e1", JobID: "web", Namespace: "production", Status: "blocked"}}, "Evaluations (staging, blocked) [0]"},
+		{"services", servicesPage{}, servicesMsg{{Name: "web", Namespace: "production"}}, "Services (staging) [0]"},
+		{"scaling policies", scalingPoliciesPage{}, scalingPoliciesMsg(twoPolicies()), "Scaling Policies (staging) [0]"},
+		{"variables", variablesPage{}, variablesMsg{webVariable().Variable}, "Variables (staging) [0]"},
+		{"volumes", volumesPage{}, volumesMsg(twoVolumes()), "Volumes (staging) [0]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := require.New(t)
+
+			m := newTestModel(&fakeClient{err: errors.New("connection refused")})
+			m.namespaceOrder = []string{"production", "staging"}
+			m, _ = m.update(openMsg{tt.page})
+			m, _ = m.update(tt.read)
+			r.NotEmpty(m.rows())
+
+			m, _ = m.update(key('2'))
+
+			r.Empty(m.rows())
+			r.Contains(plain(m.render()), tt.title)
+		})
+	}
+}
+
+func TestCommand_ANamespaceGivenEmptiesTheListOfTheNamespaceLeft(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{}
+	m, _ := onVariables(t, client, "production")
+	m, _ = m.update(namespacesMsg(threeNamespaces()))
+	client.err = errors.New("connection refused")
+
+	m = typeCommand(m, "variables staging")
+
+	out := plain(m.render())
+	r.Contains(out, "Variables (staging) [0]")
+	r.NotContains(out, "nomad/jobs/web")
+}
+
+func TestNamespaceKeys_AListUnderTheScreenIsEmptiedToo(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges()}
+	m := newTestModel(client)
+	m.namespaceOrder = []string{"production", "staging", "dev"}
+	m, _ = m.update(jobsMsg(client.jobs))
+
+	m, cmd := m.update(enter())
+	m = playOut(m, cmd)
+	r.Contains(plain(m.render()), "Allocations (Job: web)")
+
+	m, cmd = m.update(key('3'))
+	m = playOut(m, cmd)
+
+	client.err = errors.New("connection refused")
+	m, cmd = m.update(escape())
+	m = drain(m, cmd)
+
+	out := plain(m.render())
+	r.Contains(out, "Jobs (dev) [0]")
+	r.NotContains(out, "cron")
+}
+
+func TestNamespaceKeys_TheClientsKeepTheirRows(t *testing.T) {
+	r := require.New(t)
+
+	m := newTestModel(&fakeClient{err: errors.New("connection refused")})
+	m.namespaceOrder = []string{"production", "staging"}
+	m, _ = m.update(openMsg{nodesPage{}})
+	m, _ = m.update(nodesMsg(busyClient()))
+	r.NotEmpty(m.rows())
+
+	m, _ = m.update(key('2'))
+
+	r.NotEmpty(m.rows())
+}
+
+func TestNamespaceSwitch_AListLeftComesBackLikeOneEnteredFresh(t *testing.T) {
+	stagingJobs := []nomad.Job{
+		{ID: "api", Name: "api", Namespace: "staging", Type: "service", Status: "running"},
+		{ID: "db", Name: "db", Namespace: "staging", Type: "service", Status: "running"},
+	}
+
+	moves := []struct {
+		name string
+		move func(Model) Model
+	}{
+		{name: "the cursor", move: func(m Model) Model { m, _ = m.update(down()); return m }},
+		{name: "the filter", move: func(m Model) Model {
+			m, _ = m.update(key('/'))
+			m = typeIn(m, "web")
+			m, _ = m.update(enter())
+
+			return m
+		}},
+		{name: "the sort", move: func(m Model) Model { m, _ = m.update(key('N')); return m }},
+	}
+
+	// A number key switches with the list under another screen; a command
+	// switches with the list open, and puts its screen on top.
+	switches := []struct {
+		name  string
+		leave func(Model) Model
+	}{
+		{name: "a number key", leave: func(m Model) Model {
+			m, cmd := m.update(enter())
+			m = playOut(m, cmd)
+			m, cmd = m.update(key('2'))
+
+			return playOut(m, cmd)
+		}},
+		{name: "a command", leave: func(m Model) Model { return typeCommand(m, "variables staging") }},
+	}
+
+	for _, sw := range switches {
+		for _, test := range moves {
+			t.Run(test.name+" after "+sw.name, func(t *testing.T) {
+				r := require.New(t)
+
+				client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges()}
+				m := newTestModel(client)
+				m, _ = m.update(namespacesMsg(threeNamespaces()))
+				m.namespaceOrder = []string{"production", "staging"}
+				m, _ = m.update(jobsMsg(client.jobs))
+				m = test.move(m)
+
+				m = sw.leave(m)
+
+				client.jobs = stagingJobs
+				m, cmd := m.update(escape())
+				m = drain(m, cmd)
+
+				r.Contains(plain(m.render()), "Jobs (staging) [2]")
+				r.Zero(m.list.table.cursor)
+				r.Empty(m.list.filter)
+				r.Equal(newSortState(), m.list.sort)
+			})
+		}
+	}
 }
