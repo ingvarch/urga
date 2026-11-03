@@ -14,7 +14,7 @@ func TestDispatchForm(t *testing.T) {
 	r := require.New(t)
 
 	client, asked := clusterServer(t, map[string]string{
-		"/v1/job/report": `{"ID": "report", "ParameterizedJob": {"Payload": "required", "MetaRequired": ["day"], "MetaOptional": ["region", "zone"]}}`,
+		"/v1/job/report": `{"ID": "report", "Priority": 70, "ParameterizedJob": {"Payload": "required", "MetaRequired": ["day"], "MetaOptional": ["region", "zone"]}}`,
 	})
 
 	form, err := client.DispatchForm(context.Background(), "production", "report")
@@ -25,6 +25,7 @@ func TestDispatchForm(t *testing.T) {
 		Required: []string{"day"},
 		Optional: []string{"region", "zone"},
 		Payload:  nomad.PayloadRequired,
+		Priority: 70,
 	}, form)
 }
 
@@ -55,7 +56,7 @@ func TestDispatchJob(t *testing.T) {
 		"/v1/job/report/dispatch": `{"DispatchedJobID": "report/dispatch-1790611292-1fcb1371", "EvalID": "eval-1"}`,
 	})
 
-	id, err := client.DispatchJob(context.Background(), "production", "report", map[string]string{"day": "monday"}, []byte("hello"))
+	id, err := client.DispatchJob(context.Background(), "production", "report", map[string]string{"day": "monday"}, []byte("hello"), 80)
 	r.NoError(err)
 	r.Equal("report/dispatch-1790611292-1fcb1371", id)
 
@@ -63,4 +64,5 @@ func TestDispatchJob(t *testing.T) {
 	r.Equal("production", sent.namespace)
 	r.Equal(map[string]any{"day": "monday"}, sent.body["Meta"])
 	r.Equal(base64.StdEncoding.EncodeToString([]byte("hello")), sent.body["Payload"])
+	r.Equal(float64(80), sent.body["Priority"])
 }

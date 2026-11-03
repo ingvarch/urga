@@ -265,9 +265,10 @@ type fakeClient struct {
 
 	// dispatchForm is what a dispatch may give any parameterized job;
 	// dispatchedMeta and dispatchedPayload what the last dispatch gave.
-	dispatchForm      nomad.DispatchForm
-	dispatchedMeta    map[string]string
-	dispatchedPayload []byte
+	dispatchForm       nomad.DispatchForm
+	dispatchedMeta     map[string]string
+	dispatchedPayload  []byte
+	dispatchedPriority int
 
 	// health is how the servers stand, or healthErr why it is not known.
 	health    nomad.ClusterHealth
@@ -694,10 +695,10 @@ func (f *fakeClient) DispatchForm(_ context.Context, namespace, jobID string) (n
 	return f.dispatchForm, f.err
 }
 
-func (f *fakeClient) DispatchJob(_ context.Context, namespace, jobID string, meta map[string]string, payload []byte) (string, error) {
+func (f *fakeClient) DispatchJob(_ context.Context, namespace, jobID string, meta map[string]string, payload []byte, priority int) (string, error) {
 	f.wrote("DispatchJob")
 	f.askedNamespace, f.askedID = namespace, jobID
-	f.dispatchedMeta, f.dispatchedPayload = meta, payload
+	f.dispatchedMeta, f.dispatchedPayload, f.dispatchedPriority = meta, payload, priority
 
 	return jobID + "/dispatch-1790611292-1fcb1371", f.refused(f.actionErr)
 }
