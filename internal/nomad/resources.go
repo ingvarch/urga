@@ -2,6 +2,7 @@ package nomad
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -295,7 +296,12 @@ func (c *Client) PoolNodes(ctx context.Context, pool string) ([]Node, error) {
 func (c *Client) PoolJobs(ctx context.Context, pool string) ([]Job, error) {
 	stubs, _, err := c.api.NodePools().ListJobs(pool, c.query(ctx, AllNamespaces))
 
-	return listed(stubs, err, newJob)
+	jobs, err := listed(stubs, err, newJob)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.withCounts(ctx, AllNamespaces, fmt.Sprintf("%s and NodePool == %q", services, pool), jobs)
 }
 
 // listed reads each item of a list the cluster answered, or passes on why

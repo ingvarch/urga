@@ -7,12 +7,22 @@ versions, evaluations and deployments. For the keys of each screen, see
 ## Job list
 
 The job list shows the ID, name, type, namespace, status, running and desired
-allocations, and age of each job. The color of a row shows the state of the
-job, for example running, pending or dead. A batch job that ended is grey, or
-red when a task group of it failed: it ended with allocations failed or lost
-and none complete. When a batch job is pending in a node pool configured with a
-batch job queue (Nomad 2.1+), its status shows `placing` when handed over to
-the scheduler or its place in line as `queued <position>` (for example `queued 2`).
+allocations, and age of each job. For a service, desired is the count its task
+groups ask for, so a service short of allocations, for example while a failed
+one waits to be placed again, is red. A service that runs more allocations than
+its groups ask for, for example while canaries wait for promotion, is red too.
+For other jobs, a stopped service, on Nomad before 1.8, or when the token may
+not read the job, desired is what runs, starts or waits to be placed. To read
+the counts, each reload of the job list or the overview also asks
+`/v1/jobs/statuses` about the services of the namespace, or of the pool on the
+job list of a pool. The servers read every allocation of each service to answer
+it, so on a large cluster this reload costs them more than the list alone. The
+color of a row shows the state of the job, for example running, pending or
+dead. A batch job that ended is grey, or red when a task group of it failed: it
+ended with allocations failed or lost and none complete. When a batch job is
+pending in a node pool configured with a batch job queue (Nomad 2.1+), its
+status shows `placing` when handed over to the scheduler or its place in line
+as `queued <position>` (for example `queued 2`).
 
 From the list:
 

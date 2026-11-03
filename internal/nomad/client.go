@@ -4,6 +4,8 @@ package nomad
 
 import (
 	"context"
+	"net/http"
+	"slices"
 	"time"
 
 	"github.com/hashicorp/nomad/api"
@@ -120,7 +122,9 @@ type Job struct {
 	Status    string
 
 	// Running and Desired are allocations: how many are up out of how many
-	// the job asks for.
+	// the job asks for. For a service Desired is the counts of its task
+	// groups; for the rest, or when the cluster does not say, it is what
+	// runs, starts and waits to be placed.
 	Running int
 	Desired int
 
@@ -151,7 +155,67 @@ type Job struct {
 func (c *Client) Jobs(ctx context.Context, namespace string) ([]Job, error) {
 	stubs, _, err := c.api.Jobs().List(c.query(ctx, namespace))
 
-	return listed(stubs, err, newJob)
+	jobs, err := listed(stubs, err, newJob)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.withCounts(ctx, namespace, services, jobs)
+}
+
+// groupCount is what the cluster says a job asks for.
+type groupCount struct {
+	ID            string
+	Namespace     string
+	GroupCountSum *int
+}
+
+// asksForCounts says the job is a service that was not stopped: the only
+// kind whose allocations are compared with the counts of its groups.
+func asksForCounts(job Job) bool {
+	return job.Type == "service" && !job.Stopped
+}
+
+// services is the filter that names the jobs whose counts are read.
+const services = `Type == "service"`
+
+// withCounts sets Desired of the services to the counts their task groups
+// ask for. The filter names the services to read. When the cluster does not
+// have the counts or the token may not read them, the numbers of the summary
+// stay; any other failure fails the list.
+func (c *Client) withCounts(ctx context.Context, namespace, filter string, jobs []Job) ([]Job, error) {
+	if !slices.ContainsFunc(jobs, asksForCounts) {
+		return jobs, nil
+	}
+
+	q := c.query(ctx, namespace)
+	q.Filter = filter
+
+	var counts []groupCount
+
+	if _, err := c.api.Raw().Query("/v1/jobs/statuses", &counts, q); err != nil {
+		if answered(err, http.StatusNotFound) || answered(err, http.StatusForbidden) {
+			return jobs, nil
+		}
+
+		return nil, err
+	}
+
+	asked := map[[2]string]int{}
+
+	for _, count := range counts {
+		if count.GroupCountSum != nil {
+			asked[[2]string{count.Namespace, count.ID}] = *count.GroupCountSum
+		}
+	}
+
+	for i, job := range jobs {
+		if sum, ok := asked[[2]string{job.Namespace, job.ID}]; ok && asksForCounts(job) {
+			jobs[i].Desired = sum
+		}
+	}
+
+	return jobs, nil
 }
 
 // Agent is what the agent the client talks to says about itself.
