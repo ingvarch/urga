@@ -139,8 +139,21 @@ func (c *Client) Node(ctx context.Context, nodeID string) (Node, error) {
 		ReservedResources:     node.ReservedResources,
 	})
 	full.MaxAllocs = node.NodeMaxAllocs
+	full.DrainStrategy = drainOf(node.DrainStrategy)
 
 	return full, nil
+}
+
+func drainOf(strategy *api.DrainStrategy) *DrainStrategy {
+	if strategy == nil {
+		return nil
+	}
+
+	return &DrainStrategy{
+		Started:          strategy.StartedAt,
+		Deadline:         strategy.ForceDeadline,
+		IgnoreSystemJobs: strategy.IgnoreSystemJobs,
+	}
 }
 
 // WithAllocLimits returns the clients with the allocation limit of those that

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -118,6 +119,7 @@ func TestNode_ReadsTheMachineItself(t *testing.T) {
 	r.Equal("down", node.Status)
 	r.True(node.Drain)
 	r.Equal(4000, node.CPUShares)
+	r.Nil(node.DrainStrategy)
 }
 
 func TestNode_ReadsWhatItGivesToJobs(t *testing.T) {
@@ -265,4 +267,61 @@ func TestSubmitNodeMeta_SendsNothingWhenNoKeyChanged(t *testing.T) {
 
 	r.Empty(*sent)
 	r.Empty(asked.Method, "no request is made")
+}
+
+func TestNode_ReadsHowItDrains(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `{
+		"ID": "node-1",
+		"Drain": true,
+		"DrainStrategy": {
+			"Deadline": 3600000000000,
+			"ForceDeadline": "2026-11-03T13:00:00Z",
+			"StartedAt": "2026-11-03T12:00:00Z",
+			"IgnoreSystemJobs": true
+		}
+	}`)
+
+	node, err := client.Node(context.Background(), "node-1")
+	r.NoError(err)
+
+	r.Equal(&nomad.DrainStrategy{
+		Started:          time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC),
+		Deadline:         time.Date(2026, 11, 3, 13, 0, 0, 0, time.UTC),
+		IgnoreSystemJobs: true,
+	}, node.DrainStrategy)
+}
+
+func TestDrainStrategy_CountsWhatIsLeftToMove(t *testing.T) {
+	started := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+
+	for name, tc := range map[string]struct {
+		drain nomad.DrainStrategy
+		alloc nomad.Alloc
+		left  int
+		of    int
+	}{
+		"running":             {alloc: nomad.Alloc{Status: "running"}, left: 1, of: 1},
+		"pending":             {alloc: nomad.Alloc{Status: "pending"}, left: 1, of: 1},
+		"told to stop":        {alloc: nomad.Alloc{Status: "running", DesiredStatus: "stop"}, left: 1, of: 1},
+		"out of reach":        {alloc: nomad.Alloc{Status: "unknown"}, left: 1, of: 1},
+		"moved":               {alloc: nomad.Alloc{Status: "complete", Modified: started.Add(time.Minute)}, left: 0, of: 1},
+		"failed at the start": {alloc: nomad.Alloc{Status: "failed", Modified: started}, left: 0, of: 1},
+		"lost at the start":   {alloc: nomad.Alloc{Status: "lost", Modified: started}, left: 0, of: 1},
+		"ended before":        {alloc: nomad.Alloc{Status: "complete", Modified: started.Add(-time.Minute)}, left: 0, of: 0},
+		"ended at an unknown": {alloc: nomad.Alloc{Status: "complete"}, left: 0, of: 0},
+		"system job ignored":  {drain: nomad.DrainStrategy{IgnoreSystemJobs: true}, alloc: nomad.Alloc{Status: "running", JobType: "system"}, left: 0, of: 0},
+		"system job counted":  {alloc: nomad.Alloc{Status: "running", JobType: "system"}, left: 1, of: 1},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			tc.drain.Started = started
+			left, of := tc.drain.Progress([]nomad.Alloc{tc.alloc})
+
+			r.Equal(tc.left, left)
+			r.Equal(tc.of, of)
+		})
+	}
 }

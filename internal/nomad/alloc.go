@@ -33,6 +33,11 @@ type Alloc struct {
 
 	JobVersion uint64
 
+	// JobType is service, batch, system or sysbatch, and Modified when the
+	// allocation last changed.
+	JobType  string
+	Modified time.Time
+
 	// Health is what the client reported of its checks: healthy, unhealthy,
 	// or checking until it decides. One in a deployment with nothing
 	// reported yet is checking; one with neither has none.
@@ -144,12 +149,18 @@ func holdsPlace(desired, status string) bool {
 		return false
 	}
 
+	return !endedOnClient(status)
+}
+
+// endedOnClient reports a client status after which the allocation no longer
+// runs on the client. Unknown does not: the client is out of reach, not done.
+func endedOnClient(status string) bool {
 	switch status {
 	case api.AllocClientStatusComplete, api.AllocClientStatusFailed, api.AllocClientStatusLost:
-		return false
+		return true
 	}
 
-	return true
+	return false
 }
 
 // NodeAllocations lists what one machine of the cluster runs, whichever
@@ -277,6 +288,7 @@ func stubOf(alloc *api.Allocation) *api.AllocationListStub {
 		DesiredStatus: alloc.DesiredStatus,
 		TaskStates:    alloc.TaskStates,
 		CreateTime:    alloc.CreateTime,
+		ModifyTime:    alloc.ModifyTime,
 
 		DeploymentStatus: alloc.DeploymentStatus,
 		NextAllocation:   alloc.NextAllocation,
@@ -286,6 +298,8 @@ func stubOf(alloc *api.Allocation) *api.AllocationListStub {
 		if alloc.Job.Version != nil {
 			stub.JobVersion = *alloc.Job.Version
 		}
+
+		stub.JobType = valueOf(alloc.Job.Type)
 	}
 
 	return stub
@@ -304,6 +318,7 @@ func newAlloc(stub *api.AllocationListStub) Alloc {
 		DesiredStatus: stub.DesiredStatus,
 		Tasks:         newTasks(stub.TaskStates),
 		JobVersion:    stub.JobVersion,
+		JobType:       stub.JobType,
 		Next:          stub.NextAllocation,
 	}
 
@@ -315,6 +330,7 @@ func newAlloc(stub *api.AllocationListStub) Alloc {
 	}
 
 	alloc.Created = unixTime(stub.CreateTime)
+	alloc.Modified = unixTime(stub.ModifyTime)
 
 	return alloc
 }

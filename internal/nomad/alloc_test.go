@@ -543,3 +543,21 @@ func TestNodeAllocations_ReadWhatEachKeepsOfTheClient(t *testing.T) {
 	r.Equal(nomad.Resources{CPU: 500, MemoryMB: 150, DiskMB: 20}, allocs[1].Claimed)
 	r.Equal(nomad.Resources{}, allocs[2].Claimed)
 }
+
+func TestNodeAllocations_ReadTheTypeOfTheirJobAndWhenTheyChanged(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := recorder(t, `[{
+		"ID": "a1",
+		"ClientStatus": "complete",
+		"ModifyTime": 1762171200000000000,
+		"Job": {"Type": "system", "Version": 3}
+	}]`)
+
+	allocs, err := client.NodeAllocations(context.Background(), "node-1")
+	r.NoError(err)
+
+	r.Equal("system", allocs[0].JobType)
+	r.True(allocs[0].Modified.Equal(time.Unix(0, 1762171200000000000)))
+	r.Equal(uint64(3), allocs[0].JobVersion)
+}
