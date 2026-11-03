@@ -267,9 +267,8 @@ func (p clientPage) logsOf(env) logScope {
 // allocations on it, which work here as on any other list of allocations.
 var clientKeys = append([]pageKey[clientPage]{
 	{press: "e", label: "Events", do: nodeScreen(func(d machine) page { return nodeEventsPage{machine: d} })},
-	// Draining is a key of the list of clients; on the screen of one client
-	// the same key opens its drivers.
-	{press: "ctrl+d", label: "Drivers", do: nodeScreen(func(d machine) page { return nodeDriversPage{machine: d} })},
+	// ctrl+d changes the cluster wherever it is a key: on the list of clients it drains.
+	{press: "v", label: "Drivers", do: nodeScreen(func(d machine) page { return nodeDriversPage{machine: d} })},
 	{press: "ctrl+h", label: "Host Volumes", do: nodeScreen(func(d machine) page { return nodeVolumesPage{machine: d} })},
 	{press: "a", label: "Attributes", do: nodeScreen(func(d machine) page { return nodeAttributesPage{machine: d} })},
 	{press: "m", label: "Meta", do: nodeScreen(func(d machine) page { return nodeMetaPage{nodeID: d.nodeID, name: d.name} })},

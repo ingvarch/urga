@@ -51,7 +51,7 @@ small terminal, the charts are left out to keep room for the allocations.
 From the client screen:
 
 - `e` shows the events of the client;
-- `ctrl-d` lists its drivers, and `enter` on a driver shows what it reports;
+- `v` lists its drivers, and `enter` on a driver shows what it reports;
 - `ctrl-h` lists its host volumes;
 - `a` shows its attributes;
 - `m` shows its metadata. `e` opens the metadata in your editor, and urga

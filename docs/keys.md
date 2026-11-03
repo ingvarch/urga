@@ -487,7 +487,7 @@ The client screen lists the allocations of the client. It has the keys of
 | Key | What it does | Changes |
 | --- | --- | --- |
 | `e` | Events of the client | |
-| `ctrl-d` | Drivers | |
+| `v` | Drivers | |
 | `ctrl-h` | Host volumes | |
 | `a` | Attributes | |
 | `m` | Metadata | |

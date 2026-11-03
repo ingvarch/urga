@@ -87,7 +87,7 @@ func TestClient_ShowsWhatHappenedToIt(t *testing.T) {
 func TestClient_ShowsWhatItCanRun(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := pressed(t, ctrlKey('d'))
+	m, _ := pressed(t, key('v'))
 
 	r.IsType(nodeDriversPage{}, m.screen.page)
 
@@ -101,7 +101,7 @@ func TestClient_ShowsWhatItCanRun(t *testing.T) {
 func TestClient_ADriverOpensItsOwnDetails(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := pressed(t, ctrlKey('d'))
+	m, _ := pressed(t, key('v'))
 
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
@@ -127,7 +127,7 @@ func TestClient_DriversGoByWhenTheyWereUpdated(t *testing.T) {
 		{Name: "docker", Updated: time.Now().Add(-time.Hour)},
 	}
 
-	m, cmd := m.update(ctrlKey('d'))
+	m, cmd := m.update(key('v'))
 	m = drain(m, cmd)
 
 	m, _ = m.update(key('U'))
@@ -305,7 +305,7 @@ var machineScreens = []struct {
 	keys   []string
 }{
 	{"events", key('e'), []string{"Age", "Subsystem", "Message"}, []string{}},
-	{"drivers", ctrlKey('d'), []string{"Driver", "Detected", "Healthy", "Updated", "Description"}, []string{"enter Details"}},
+	{"drivers", key('v'), []string{"Driver", "Detected", "Healthy", "Updated", "Description"}, []string{"enter Details"}},
 	{"volumes", ctrlKey('h'), []string{"Name", "Path", "Read only"}, []string{}},
 	{"attributes", key('a'), []string{"Field", "Value"}, []string{"c Copy"}},
 	{"meta", key('m'), []string{"Field", "Value", "Set by"}, []string{"c Copy", "e Edit"}},
@@ -325,7 +325,7 @@ func TestClient_EachOfItsScreensHasItsColumnsAndKeys(t *testing.T) {
 		r.Empty(m.screen.page.topics(), s.name)
 	}
 
-	m, _ := pressed(t, ctrlKey('d'))
+	m, _ := pressed(t, key('v'))
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
@@ -353,7 +353,7 @@ func TestClient_WhatAnotherMachineSaysIsNotShownOnAnyOfItsScreens(t *testing.T) 
 		r.NotContains(plain(m.render()), "elsewhere", s.name)
 	}
 
-	m, _ := pressed(t, ctrlKey('d'))
+	m, _ := pressed(t, key('v'))
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
@@ -378,7 +378,7 @@ func TestClient_EachOfItsScreensKeepsUpWithTheMachine(t *testing.T) {
 		r.Contains(plain(m.render()), "later", s.name)
 	}
 
-	m, _ := pressed(t, ctrlKey('d'))
+	m, _ := pressed(t, key('v'))
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
@@ -396,7 +396,7 @@ func TestClient_EachOfItsScreensKeepsUpWithTheMachine(t *testing.T) {
 func TestClient_ADriverShowsWhatItSaysBeforeItIsAskedAgain(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := pressed(t, ctrlKey('d'))
+	m, _ := pressed(t, key('v'))
 
 	// What the list of drivers read is what the driver shows until the
 	// machine answers again.
@@ -459,11 +459,27 @@ func TestClient_AScreenOfAnotherClientStartsEmpty(t *testing.T) {
 func TestClient_TheDriverUnderTheCursorIsTheOneThatOpens(t *testing.T) {
 	r := require.New(t)
 
-	m, _ := pressed(t, ctrlKey('d'))
+	m, _ := pressed(t, key('v'))
 	m, _ = m.update(down())
 
 	m, cmd := m.update(enter())
 	m = drain(m, cmd)
 
 	r.Contains(plain(m.render()), "Driver exec [0]")
+}
+
+func TestClient_CtrlDIsNoKeyOfOneClient(t *testing.T) {
+	r := require.New(t)
+
+	// ctrl+d drains on the list of clients; on one client it does nothing,
+	// so the key never changes the cluster by habit.
+	m, _ := onAClient(t)
+
+	r.False(offers(m, "ctrl-d"))
+	r.True(offers(m, "v"))
+
+	m, cmd := m.update(ctrlKey('d'))
+
+	r.IsType(clientPage{}, m.screen.page)
+	r.Nil(cmd)
 }
