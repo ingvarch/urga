@@ -70,9 +70,11 @@ func (c *Client) Servers(ctx context.Context) ([]Server, error) {
 
 	// The leader is a separate request, and the cluster may not answer it
 	// during an election. The list is shown either way, so its error is
-	// ignored. That endpoint takes no options, so it carries no context of
-	// its own. Every region has a leader of its own.
-	leader, _ := c.api.Status().RegionLeader(c.region)
+	// ignored. The request goes with the context of the list. Every region
+	// has a leader of its own.
+	var leader string
+
+	_, _ = c.api.Raw().Query("/v1/status/leader", &leader, c.query(ctx, ""))
 
 	servers := make([]Server, 0, len(members.Members))
 
