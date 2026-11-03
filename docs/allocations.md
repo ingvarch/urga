@@ -142,8 +142,9 @@ opens the same log in the allocation it replaced.
 
 `e` reads the 1 MiB before what is shown and puts it above, keeping the window
 where it is. Press it again to go further back, as far as the cluster keeps
-the log. The title then says how much of the log is read, for example `last
-1.1 MiB of 5.3 MiB`. It stops at the 50,000 lines a screen keeps. It needs a
+the log; while a read is still out, `e` waits for it. The title then says how
+much of the log is read, for example `last 1.1 MiB of 5.3 MiB`, until the log
+drops lines off its front. It stops at the 50,000 lines a screen keeps. It needs a
 token that can read the files of the allocation, as `b` does.
 
 A line under the title shows the state of three toggles:

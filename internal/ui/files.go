@@ -178,6 +178,9 @@ type filePage struct {
 
 // title says which file of which allocation it is, and when only its end
 // was read, how much of it.
+// title keeps the span of a file even once its text dropped lines: without
+// it the title would read as the whole file. A log without one is still a
+// log being followed.
 func (p filePage) title(env, int) string {
 	return fmt.Sprintf("File (Allocation: %s) [%s%s]", shortID(p.allocID), p.path, p.read.span())
 }

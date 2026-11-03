@@ -329,7 +329,7 @@ The list of `:tasks` has these keys too, except `c`, `p`, `n` and `f`.
 | `w` | Wrap on or off |
 | `ctrl-e` | Switch between stdout and stderr |
 | `p` | Same log in the allocation this one replaced |
-| `e` | Read 1 MiB further back and put it above the lines there. Shown while the cluster keeps more and the screen has room. |
+| `e` | Read 1 MiB further back and put it above the lines there. Shown while the cluster keeps more, the screen has room and no read is out. |
 | `ctrl-s` | Save the log to a file |
 | `c` | Copy the log to the clipboard, the last 64 KiB at most |
 | `f` | Find a word: every line stays and the word is lit |

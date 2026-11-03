@@ -445,3 +445,51 @@ func TestLogEarlier_TheLogsOfEveryAllocationAndAFileOfferNoKey(t *testing.T) {
 	r.IsType(filePage{}, m.screen.page)
 	r.False(offers(m, "e"))
 }
+
+func TestLogEarlier_TheTitleDropsTheSpanOnceLinesLeaveTheFront(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m, stream := sentLog(t, client, midLog, numberedLines("late", 0, 100))
+
+	client.logPart = nomad.LogPart{Lines: numberedLines("early", 0, 10), From: nomad.LogMark{File: midLog.File, Offset: 60_000}, Before: 60_000, Size: 130_000}
+	m = pressEarlier(m)
+	r.Contains(m.title(), "last 68.4 KiB of 127.0 KiB")
+
+	m, _ = m.update(logLineMsg{stream: stream, text: strings.Join(numberedLines("more", 0, maxTextLines), "\n") + "\n"})
+
+	r.Positive(logOf(m).content.dropped)
+	r.NotContains(m.title(), "last")
+}
+
+func TestLogEarlier_ASecondPressWaitsForTheReadOut(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m, _ := sentLog(t, client, midLog, numberedLines("late", 0, 5))
+
+	client.logPart = nomad.LogPart{Lines: numberedLines("early", 0, 3), From: nomad.LogMark{File: midLog.File, Offset: 60_000}, Before: 60_000, Size: 130_000}
+
+	m, first := m.update(key('e'))
+	r.False(offersLabel(m, "e", "Read Earlier"))
+
+	m, second := m.update(key('e'))
+	r.Nil(second)
+
+	m = drain(m, first)
+	r.Len(shownRows(m), 8)
+	r.True(offersLabel(m, "e", "Read Earlier"))
+}
+
+func TestLogEarlier_AFailedReadOffersTheKeyAgain(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}
+	m, _ := sentLog(t, client, midLog, numberedLines("late", 0, 5))
+
+	client.err = errors.New("read failed")
+	m = pressEarlier(m)
+
+	r.Contains(status(m), "read failed")
+	r.True(offersLabel(m, "e", "Read Earlier"))
+}
