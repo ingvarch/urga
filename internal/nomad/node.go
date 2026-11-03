@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net"
 	"net/http"
 	"slices"
 	"sort"
@@ -119,6 +120,9 @@ func (c *Client) Node(ctx context.Context, nodeID string) (Node, error) {
 		return Node{}, err
 	}
 
+	// The list names a client by its address without the port.
+	addr, _, _ := net.SplitHostPort(node.HTTPAddr)
+
 	// The answer holds more than a list entry; copying it into a list stub
 	// lets newNode build both.
 	full := newNode(&api.NodeListStub{
@@ -130,7 +134,7 @@ func (c *Client) Node(ctx context.Context, nodeID string) (Node, error) {
 		Status:                node.Status,
 		SchedulingEligibility: node.SchedulingEligibility,
 		Drain:                 node.Drain,
-		Address:               node.HTTPAddr,
+		Address:               addr,
 		NodeResources:         node.NodeResources,
 	})
 	full.MaxAllocs = node.NodeMaxAllocs
