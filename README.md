@@ -31,7 +31,7 @@ One binary, no config to write, no browser.
   and its allocations, until it ends.
 - Updates the screen when the cluster changes, using the Nomad event stream,
   and shows the stream itself on `:events`, for the namespace, or for one job
-  or allocation.
+  or allocation. It says when a job was stopped or purged.
 - Counts on one screen what needs attention: dead jobs, failed allocations,
   tasks that restart or run out of memory, clients that are down or draining,
   blocked evaluations and failed deployments, and opens the list of each with

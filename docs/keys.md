@@ -149,7 +149,9 @@ on it.
 topic, the type of the event, the namespace, the name of the object and the
 state it reports, like `Allocation AllocationUpdated default web.frontend[0]
 failed`. It starts with the events the cluster still keeps, the last 100 by
-default, so it shows at once what just happened. urga keeps the last 1000.
+default, so it shows at once what just happened. urga keeps the last 1000. A
+job that was stopped reports `stopped`, and one that was purged reports
+`purged`. A cluster older than Nomad 1.11.3 does not say a job was purged.
 
 What failed, was lost or went down is red. An evaluation that could not place
 its work is in the attention color. `!` keeps both, and `/failed` shows only
