@@ -19,7 +19,6 @@ type Alloc struct {
 	Name      string
 	Namespace string
 	JobID     string
-	JobType   string
 	TaskGroup string
 
 	NodeID   string
@@ -30,8 +29,7 @@ type Alloc struct {
 
 	Tasks []Task
 
-	Created  time.Time
-	Modified time.Time
+	Created time.Time
 
 	JobVersion uint64
 
@@ -273,17 +271,12 @@ func stubOf(alloc *api.Allocation) *api.AllocationListStub {
 		DesiredStatus: alloc.DesiredStatus,
 		TaskStates:    alloc.TaskStates,
 		CreateTime:    alloc.CreateTime,
-		ModifyTime:    alloc.ModifyTime,
 
 		DeploymentStatus: alloc.DeploymentStatus,
 		NextAllocation:   alloc.NextAllocation,
 	}
 
 	if alloc.Job != nil {
-		if alloc.Job.Type != nil {
-			stub.JobType = *alloc.Job.Type
-		}
-
 		if alloc.Job.Version != nil {
 			stub.JobVersion = *alloc.Job.Version
 		}
@@ -298,7 +291,6 @@ func newAlloc(stub *api.AllocationListStub) Alloc {
 		Name:          stub.Name,
 		Namespace:     stub.Namespace,
 		JobID:         stub.JobID,
-		JobType:       stub.JobType,
 		TaskGroup:     stub.TaskGroup,
 		NodeID:        stub.NodeID,
 		NodeName:      stub.NodeName,
@@ -317,7 +309,6 @@ func newAlloc(stub *api.AllocationListStub) Alloc {
 	}
 
 	alloc.Created = unixTime(stub.CreateTime)
-	alloc.Modified = unixTime(stub.ModifyTime)
 
 	return alloc
 }

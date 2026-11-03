@@ -460,14 +460,12 @@ func TestNodeAllocations_ReadTheVersionAndHealth(t *testing.T) {
 	r.Len(allocs, 3)
 
 	r.Equal(uint64(7), allocs[0].JobVersion)
-	r.Equal("batch", allocs[0].JobType)
 	r.Equal("unhealthy", allocs[0].Health)
 	r.True(allocs[0].Canary)
 
 	r.Zero(allocs[1].JobVersion)
 	r.Empty(allocs[1].Health)
 
-	r.Equal("service", allocs[2].JobType)
 	r.Zero(allocs[2].JobVersion)
 }
 
