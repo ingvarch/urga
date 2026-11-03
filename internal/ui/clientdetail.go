@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image/color"
 	"sort"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -80,7 +81,7 @@ func (p nodeEventsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, ok
 }
 
-func (p nodeEventsPage) rows(env) []tableRow { return nodeEventRows(p.detail.Events) }
+func (p nodeEventsPage) rows(e env) []tableRow { return nodeEventRows(p.detail.Events, e.now) }
 
 // nodeDriversPage is what the machine can run.
 type nodeDriversPage struct {
@@ -100,7 +101,7 @@ func (p nodeDriversPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, ok
 }
 
-func (p nodeDriversPage) rows(env) []tableRow { return driverRows(p.detail.Drivers) }
+func (p nodeDriversPage) rows(e env) []tableRow { return driverRows(p.detail.Drivers, e.now) }
 
 var nodeDriversKeys = []pageKey[nodeDriversPage]{{press: "enter", label: "Details", do: openDriver}}
 
@@ -264,12 +265,12 @@ func (p nodeMetaPage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, nodeMetaKeys, k)
 }
 
-func nodeEventRows(events []nomad.NodeEvent) []tableRow {
+func nodeEventRows(events []nomad.NodeEvent, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(events))
 
 	for _, event := range events {
 		row := tableRow{color: eventColor(event)}
-		row.addAge(event.Time)
+		row.addAge(event.Time, now)
 		row.add(event.Subsystem, event.Message)
 
 		rows = append(rows, row)
@@ -287,13 +288,13 @@ func eventColor(event nomad.NodeEvent) color.Color {
 	return nil
 }
 
-func driverRows(drivers []nomad.Driver) []tableRow {
+func driverRows(drivers []nomad.Driver, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(drivers))
 
 	for _, driver := range drivers {
 		row := tableRow{color: driverColor(driver)}
 		row.add(driver.Name, yesNo(driver.Detected), yesNo(driver.Healthy))
-		row.addAge(driver.Updated)
+		row.addAge(driver.Updated, now)
 		row.add(driver.Description)
 
 		rows = append(rows, row)

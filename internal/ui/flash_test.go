@@ -66,7 +66,7 @@ func TestFlash_GoesAwayOnItsOwn(t *testing.T) {
 
 	// A message from a minute ago is out of date, so it clears itself
 	// after flashFor.
-	m.flash.at = time.Now().Add(-flashFor - time.Second)
+	m.now = m.flash.at.Add(flashFor + time.Second)
 
 	out := plain(m.render())
 	r.NotContains(out, "connection refused")

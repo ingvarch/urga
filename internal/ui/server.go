@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -316,17 +317,17 @@ func (p serverPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, true
 }
 
-func (p serverPage) rows(env) []tableRow {
+func (p serverPage) rows(e env) []tableRow {
 	rows := serverDetailRows(p.server, p.peers, p.raftErr)
 
-	return slices.Insert(rows, raftRow(rows)+1, p.standingRows()...)
+	return slices.Insert(rows, raftRow(rows)+1, p.standingRows(e.now)...)
 }
 
 // standingRows are how the server stands, after its role in the raft: its
 // health, how long ago it heard from the leader, how far behind it is, and
 // for how long it has been as healthy as it is. Nothing before the cluster
 // answers.
-func (p serverPage) standingRows() []tableRow {
+func (p serverPage) standingRows(now time.Time) []tableRow {
 	if !p.healthRead {
 		return nil
 	}
@@ -356,7 +357,7 @@ func (p serverPage) standingRows() []tableRow {
 	rows = append(rows, tableRow{cells: []string{"Raft index", index}})
 
 	if !s.StableSince.IsZero() {
-		rows = append(rows, tableRow{cells: []string{"Stable for", ageOf(s.StableSince)}})
+		rows = append(rows, tableRow{cells: []string{"Stable for", ageOf(s.StableSince, now)}})
 	}
 
 	return rows

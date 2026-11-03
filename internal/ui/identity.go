@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -43,12 +44,12 @@ func fetchIdentity(client nodesClient, nodeID string) tea.Cmd {
 
 // identityText is what the panel says of the identity: when it expires, or
 // nothing when it has no expiry.
-func identityText(identity *nomad.NodeIdentity) string {
+func identityText(identity *nomad.NodeIdentity, now time.Time) string {
 	if identity == nil || identity.Expires.IsZero() {
 		return ""
 	}
 
-	left := expiresIn(identity.Expires)
+	left := expiresIn(identity.Expires, now)
 	if left == "expired" {
 		return left
 	}

@@ -43,7 +43,7 @@ func TestJobRows(t *testing.T) {
 		{ID: "cron", Name: "cron", Namespace: "default", Type: "batch", Status: "dead"},
 	}
 
-	rows := jobRows(jobs, nil, nil)
+	rows := jobRows(jobs, nil, nil, time.Now())
 	r.Len(rows, 2)
 
 	r.Equal([]string{"web", "web", "service", "production", "running", "3/4", "2h"}, rows[0].cells)
@@ -158,7 +158,7 @@ func TestJobs_BatchQueuePositionInRows(t *testing.T) {
 		"default/batch-running":   {JobID: "batch-running", Namespace: "default", Status: "queued", Position: 3},
 	}
 
-	rows := jobRows(jobs, nil, queue)
+	rows := jobRows(jobs, nil, queue, time.Now())
 	r.Len(rows, 6)
 
 	r.Equal("placing", rows[0].cells[4])

@@ -55,7 +55,7 @@ func TestAllocPanel_Checks(t *testing.T) {
 		"  ● served/ready           pending",
 		"  ● served/alive           success  3s ago",
 		"",
-	}, unstyled(t, allocPanel(running(), servedChecks(), time.Time{}, 120, 100)))
+	}, unstyled(t, allocPanel(running(), servedChecks(), time.Now(), 120, 100)))
 }
 
 func TestAllocPanel_ChecksThatDoNotFit(t *testing.T) {
@@ -75,13 +75,13 @@ func TestAllocPanel_ChecksThatDoNotFit(t *testing.T) {
 		"  ● web/c1  success",
 		"  + 3 more checks",
 		"",
-	}, unstyled(t, allocPanel(running(), checks, time.Time{}, 120, 7)))
+	}, unstyled(t, allocPanel(running(), checks, time.Now(), 120, 7)))
 
 	// With no room for one of them, the tasks come first.
 	r.Equal([]string{
 		" Status running   Desired run   Client node-01   Version 0",
 		"",
-	}, unstyled(t, allocPanel(running(), checks, time.Time{}, 120, 4)))
+	}, unstyled(t, allocPanel(running(), checks, time.Now(), 120, 4)))
 }
 
 func TestTasks_TheirChecksComeWithTheAllocation(t *testing.T) {

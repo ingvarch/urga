@@ -50,7 +50,7 @@ func TestAllocations_ShowTheVersionRestartsAndOOM(t *testing.T) {
 		"ID", "TaskGroup", "JobID", "Ver", "Namespace", "Node", "Status", "Desired", "Rst", "OOM", "CPU", "MEM", "Age",
 	}, allocTitles)
 
-	rows := allocRows(troubledAllocs(), nil)
+	rows := allocRows(troubledAllocs(), nil, time.Now())
 
 	r.Equal("3", cellOf(allocTitles, rows[0], "Ver"))
 	r.Equal("2", cellOf(allocTitles, rows[1], "Ver"))
@@ -67,7 +67,7 @@ func TestAllocations_ShowTheVersionRestartsAndOOM(t *testing.T) {
 func TestAllocations_ARecentRestartOrOOMNeedsAttention(t *testing.T) {
 	r := require.New(t)
 
-	rows := allocRows(troubledAllocs(), nil)
+	rows := allocRows(troubledAllocs(), nil, time.Now())
 
 	// A restart or an OOM kill of the last hour is a task in trouble now:
 	// red, as k9s paints a pod that crashes.
@@ -92,7 +92,7 @@ func TestAllocations_ARecentRestartOrOOMNeedsAttention(t *testing.T) {
 func TestDeployment_AllocationsShowRestartsAndOOM(t *testing.T) {
 	r := require.New(t)
 
-	rows := deploymentAllocRows(troubledAllocs(), nil)
+	rows := deploymentAllocRows(troubledAllocs(), nil, time.Now())
 
 	r.Equal("3", cellOf(deploymentAllocTitles, rows[0], "Rst"))
 	r.Equal("yes", cellOf(deploymentAllocTitles, rows[1], "OOM"))

@@ -16,7 +16,7 @@ import (
 func sortTable(tbl *tableModel, column int) {
 	order := tbl.sort.by(column)
 
-	rows, _ := sortRows(tbl.rows, nil, order, tbl.titles)
+	rows, _ := sortRows(tbl.rows, nil, order, tbl.titles, time.Now())
 	tbl.show(rows, order)
 }
 
@@ -66,7 +66,7 @@ func agedRow(id string, ago time.Duration) tableRow {
 
 	var row tableRow
 	row.add(id)
-	row.addAge(moment)
+	row.addAge(moment, time.Now())
 
 	return row
 }
@@ -92,37 +92,37 @@ func TestSort_AgeGoesByTime(t *testing.T) {
 func TestSort_EveryAgeColumnGoesByTime(t *testing.T) {
 	sortsByTime(t, []ageList{
 		{"jobs", jobTitles, "Age", func(at time.Time) []tableRow {
-			return jobRows([]nomad.Job{{SubmitTime: at}}, nil, nil)
+			return jobRows([]nomad.Job{{SubmitTime: at}}, nil, nil, time.Now())
 		}},
 		{"allocations", allocTitles, "Age", func(at time.Time) []tableRow {
-			return allocRows([]nomad.Alloc{{Created: at}}, nil)
+			return allocRows([]nomad.Alloc{{Created: at}}, nil, time.Now())
 		}},
 		{"allocations of a deployment", deploymentAllocTitles, "Age", func(at time.Time) []tableRow {
-			return deploymentAllocRows([]nomad.Alloc{{Created: at}}, nil)
+			return deploymentAllocRows([]nomad.Alloc{{Created: at}}, nil, time.Now())
 		}},
 		{"task events", taskEventTitles, "Age", func(at time.Time) []tableRow {
-			return taskEventRows([]nomad.TaskEvent{{Time: at}})
+			return taskEventRows([]nomad.TaskEvent{{Time: at}}, time.Now())
 		}},
 		{"client events", nodeEventTitles, "Age", func(at time.Time) []tableRow {
-			return nodeEventRows([]nomad.NodeEvent{{Time: at}})
+			return nodeEventRows([]nomad.NodeEvent{{Time: at}}, time.Now())
 		}},
 		{"drivers", driverTitles, "Updated", func(at time.Time) []tableRow {
-			return driverRows([]nomad.Driver{{Updated: at}})
+			return driverRows([]nomad.Driver{{Updated: at}}, time.Now())
 		}},
 		{"files", fileTitles, "Modified", func(at time.Time) []tableRow {
-			return fileRows([]nomad.File{{Name: "stdout", Modified: at}})
+			return fileRows([]nomad.File{{Name: "stdout", Modified: at}}, time.Now())
 		}},
 		{"evaluations", evaluationTitles, "Age", func(at time.Time) []tableRow {
-			return evaluationRows([]nomad.Evaluation{{Created: at}})
+			return evaluationRows([]nomad.Evaluation{{Created: at}}, time.Now())
 		}},
 		{"variables by age", variableTitles, "Age", func(at time.Time) []tableRow {
-			return variableRows([]nomad.Variable{{Created: at}})
+			return variableRows([]nomad.Variable{{Created: at}}, time.Now())
 		}},
 		{"variables by change", variableTitles, "Modified", func(at time.Time) []tableRow {
-			return variableRows([]nomad.Variable{{Modified: at}})
+			return variableRows([]nomad.Variable{{Modified: at}}, time.Now())
 		}},
 		{"versions", versionTitles, "Age", func(at time.Time) []tableRow {
-			return versionRows([]nomad.JobVersion{{Submitted: at}})
+			return versionRows([]nomad.JobVersion{{Submitted: at}}, time.Now())
 		}},
 	})
 }
@@ -132,16 +132,16 @@ func TestSort_EveryAgeColumnGoesByTime(t *testing.T) {
 func TestSort_EveryTaskTimeColumnGoesByTime(t *testing.T) {
 	sortsByTime(t, []ageList{
 		{"tasks", taskTitles, "Started", func(at time.Time) []tableRow {
-			return taskRows([]nomad.Task{{Started: at}}, nil)
+			return taskRows([]nomad.Task{{Started: at}}, nil, time.Now())
 		}},
 		{"tasks by end", taskTitles, "Finished", func(at time.Time) []tableRow {
-			return taskRows([]nomad.Task{{State: "dead", Started: at.Add(-time.Minute), Finished: at}}, nil)
+			return taskRows([]nomad.Task{{State: "dead", Started: at.Add(-time.Minute), Finished: at}}, nil, time.Now())
 		}},
 		{"tasks of the namespace by start", namespaceTaskTitles, "Started", func(at time.Time) []tableRow {
-			return namespaceTaskRows([]allocTask{{task: nomad.Task{Started: at}}})
+			return namespaceTaskRows([]allocTask{{task: nomad.Task{Started: at}}}, time.Now())
 		}},
 		{"tasks of the namespace by end", namespaceTaskTitles, "Finished", func(at time.Time) []tableRow {
-			return namespaceTaskRows([]allocTask{{task: nomad.Task{State: "dead", Started: at.Add(-time.Minute), Finished: at}}})
+			return namespaceTaskRows([]allocTask{{task: nomad.Task{State: "dead", Started: at.Add(-time.Minute), Finished: at}}}, time.Now())
 		}},
 	})
 }
@@ -182,7 +182,7 @@ func TestSort_AnAgeThatIsNotThereCountsAsNew(t *testing.T) {
 	r := require.New(t)
 
 	tbl := newTableModel(taskTitles)
-	tbl.show(taskRows([]nomad.Task{{Name: "web", Started: time.Now().Add(-time.Hour)}, {Name: "sidecar"}}, nil), newSortState())
+	tbl.show(taskRows([]nomad.Task{{Name: "web", Started: time.Now().Add(-time.Hour)}, {Name: "sidecar"}}, nil, time.Now()), newSortState())
 
 	sortTable(&tbl, slices.Index(taskTitles, "Started"))
 
@@ -294,7 +294,7 @@ func TestSort_UptimeGoesByLength(t *testing.T) {
 
 	tbl := newTableModel(taskTitles)
 	tbl.setSize(100, 6)
-	tbl.show(taskRows([]nomad.Task{ran("long", 2*time.Hour), ran("short", 5*time.Minute)}, nil), newSortState())
+	tbl.show(taskRows([]nomad.Task{ran("long", 2*time.Hour), ran("short", 5*time.Minute)}, nil, time.Now()), newSortState())
 
 	sortTable(&tbl, slices.Index(taskTitles, "Uptime"))
 

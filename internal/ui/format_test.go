@@ -34,10 +34,10 @@ func TestAge(t *testing.T) {
 func TestAgeOf(t *testing.T) {
 	r := require.New(t)
 
-	r.Equal("2h", ageOf(time.Now().Add(-2*time.Hour)))
+	r.Equal("2h", ageOf(time.Now().Add(-2*time.Hour), time.Now()))
 
 	// A job with no submit time has no age either.
-	r.Equal("-", ageOf(time.Time{}))
+	r.Equal("-", ageOf(time.Time{}, time.Now()))
 }
 
 func TestTruncate(t *testing.T) {

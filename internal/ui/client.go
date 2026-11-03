@@ -6,6 +6,7 @@ import (
 	"image/color"
 	"strconv"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -245,7 +246,7 @@ func (p clientPage) restart() page {
 	return p
 }
 
-func (p clientPage) rows(e env) []tableRow { return allocRows(p.allocs, e.usage) }
+func (p clientPage) rows(e env) []tableRow { return allocRows(p.allocs, e.usage, e.now) }
 
 func (p clientPage) visible(env) []nomad.Alloc { return p.allocs }
 
@@ -351,8 +352,8 @@ func (m Model) panel(width int) []string {
 }
 
 // panel is what the machine is doing, above its allocations.
-func (p clientPage) panel(_ env, width, room int) []string {
-	details := p.host.details(width, p.held())
+func (p clientPage) panel(e env, width, room int) []string {
+	details := p.host.details(width, p.held(), e.now)
 
 	// A box with no room even for the details of the machine, and the line
 	// under them, gives all its rows to the allocations.
@@ -512,7 +513,7 @@ func (h hostModel) chart(of measure, absolute bool) chart {
 // panel does not grow when it is; the next is left out when it has no
 // value. held is how many allocations hold a place on it, shown against the
 // limit when it has one. The rows start where the columns of the table do.
-func (h hostModel) details(width int, held string) []string {
+func (h hostModel) details(width int, held string, now time.Time) []string {
 	node := h.node
 
 	rows := []string{panelRow(fieldLine([]field{
@@ -531,7 +532,7 @@ func (h hostModel) details(width int, held string) []string {
 
 	return append(rows, fieldLineRows([][]field{{
 		{"Allocations", allocations},
-		{"Identity", identityText(h.identity)},
+		{"Identity", identityText(h.identity, now)},
 	}}, width)...)
 }
 

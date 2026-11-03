@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -9,6 +10,8 @@ import (
 // update hands a message to whoever it is for: the page on top first, then
 // the root, by what the message is about.
 func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
+	m.now = time.Now()
+
 	// The open page handles the answers to its own requests.
 	if next, out, ok := m.screen.page.take(msg, m.env()); ok {
 		return m.took(next, out)

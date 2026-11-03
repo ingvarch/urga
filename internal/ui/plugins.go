@@ -172,7 +172,7 @@ func (p pluginPage) panel(_ env, width, room int) []string {
 	return fitPanel([]string{line}, panelBlock{}, room)
 }
 
-func (p pluginPage) rows(env) []tableRow {
+func (p pluginPage) rows(e env) []tableRow {
 	rows := make([]tableRow, 0, len(p.plugin.Instances))
 
 	for _, in := range p.plugin.Instances {
@@ -182,7 +182,7 @@ func (p pluginPage) rows(env) []tableRow {
 		}
 
 		row.add(in.Kind, dashed(in.NodeName), yesNo(in.Healthy), in.Description)
-		row.addAge(in.Updated)
+		row.addAge(in.Updated, e.now)
 
 		rows = append(rows, row)
 	}

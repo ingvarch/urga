@@ -564,10 +564,11 @@ func pageTypes(t *testing.T) []string {
 
 // changed says a key did something to the model. Connect and InRegion are
 // functions, and two functions are never equal: they are left out of the
-// comparison.
+// comparison. So is now, which every message sets.
 func changed(before, after Model) bool {
 	before.opts.Connect, after.opts.Connect = nil, nil
 	before.opts.InRegion, after.opts.InRegion = nil, nil
+	before.now, after.now = time.Time{}, time.Time{}
 
 	return !reflect.DeepEqual(before, after)
 }

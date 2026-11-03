@@ -313,15 +313,15 @@ func (p deploymentPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 // panel is the panel of the deployment the page read. Until it has, there
 // is none.
-func (p deploymentPage) panel(_ env, width, room int) []string {
+func (p deploymentPage) panel(e env, width, room int) []string {
 	if !p.read {
 		return nil
 	}
 
-	return deploymentPanel(p.deployment, width, room)
+	return deploymentPanel(p.deployment, width, room, e.now)
 }
 
-func (p deploymentPage) rows(e env) []tableRow { return deploymentAllocRows(p.allocs, e.usage) }
+func (p deploymentPage) rows(e env) []tableRow { return deploymentAllocRows(p.allocs, e.usage, e.now) }
 
 func (p deploymentPage) visible(env) []nomad.Alloc { return p.allocs }
 
@@ -422,21 +422,21 @@ func fetchDeployment(client deploymentsClient, namespace, deploymentID string) t
 
 // deploymentPanel is the panel above the allocations of a deployment: what
 // the deployment is, and how far it got with each group.
-func deploymentPanel(d nomad.DeploymentDetail, width, room int) []string {
+func deploymentPanel(d nomad.DeploymentDetail, width, room int, now time.Time) []string {
 	head := fieldLineRows([][]field{{{"Status", d.Status}, {"Job", d.JobID}, {"Version", fmt.Sprint(d.JobVersion)}}}, width)
 
 	if d.StatusDescription != "" {
 		head = append(head, panelRow(styleMuted.Render(truncate(d.StatusDescription, width-tableIndent))))
 	}
 
-	return fitPanel(head, groupBlock(d.Groups, d.Active(), width), room)
+	return fitPanel(head, groupBlock(d.Groups, d.Active(), width, now), room)
 }
 
 // groupBlock is the groups of a deployment as a table.
-func groupBlock(groups []nomad.DeploymentGroup, active bool, width int) panelBlock {
+func groupBlock(groups []nomad.DeploymentGroup, active bool, width int, now time.Time) panelBlock {
 	cells := make([][]string, 0, len(groups))
 	for _, g := range groups {
-		cells = append(cells, groupCells(g, active))
+		cells = append(cells, groupCells(g, active, now))
 	}
 
 	widths := make([]int, len(groupTitles))
@@ -473,7 +473,7 @@ func groupBlock(groups []nomad.DeploymentGroup, active bool, width int) panelBlo
 
 // groupCells are the cells of one group. A group without canaries has
 // nothing to promote, and shows a dash there.
-func groupCells(g nomad.DeploymentGroup, active bool) []string {
+func groupCells(g nomad.DeploymentGroup, active bool, now time.Time) []string {
 	canaries, promoted := "-", "-"
 	if g.DesiredCanaries > 0 {
 		canaries = fmt.Sprintf("%d/%d", g.PlacedCanaries, g.DesiredCanaries)
@@ -488,7 +488,7 @@ func groupCells(g nomad.DeploymentGroup, active bool) []string {
 	// The cluster keeps the deadline of the last step of a deployment that
 	// is over: nothing is due by it any more.
 	progressBy := "-"
-	if left := time.Until(g.RequireProgressBy); active && !g.RequireProgressBy.IsZero() && left > 0 {
+	if left := g.RequireProgressBy.Sub(now); active && !g.RequireProgressBy.IsZero() && left > 0 {
 		progressBy = "in " + age(left)
 	}
 
@@ -521,7 +521,7 @@ func groupStyle(g nomad.DeploymentGroup) lipgloss.Style {
 
 // deploymentAllocRows are the allocations of a deployment, with whether each
 // is a canary and how the deployment judged it.
-func deploymentAllocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []tableRow {
+func deploymentAllocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(allocs))
 
 	for _, alloc := range allocs {
@@ -532,7 +532,7 @@ func deploymentAllocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUs
 			canary = "yes"
 		}
 
-		row := tableRow{color: allocColor(alloc)}
+		row := tableRow{color: allocColor(alloc, now)}
 		row.add(
 			shortID(alloc.ID),
 			alloc.TaskGroup,
@@ -545,7 +545,7 @@ func deploymentAllocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUs
 			cpuCell(use, known),
 			memoryCell(use, known),
 		)
-		row.addAge(alloc.Created)
+		row.addAge(alloc.Created, now)
 
 		rows = append(rows, row)
 	}

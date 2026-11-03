@@ -214,9 +214,9 @@ func TestTableRow_AnAgeStaysWithItsCell(t *testing.T) {
 	// The moment is stored under the index of its cell, so a cell moved
 	// among the others takes its moment with it.
 	var row tableRow
-	row.addAge(started)
+	row.addAge(started, time.Now())
 	row.add("web", "running")
-	row.addAge(changed)
+	row.addAge(changed, time.Now())
 
 	r.Equal([]string{"1h", "web", "running", "2d"}, row.cells)
 	r.Equal(moments{0: span{from: started}, 3: span{from: changed}}, row.ages)
@@ -229,9 +229,9 @@ func TestTableRow_ASpanIsAgeToNowOrBetweenTwoMoments(t *testing.T) {
 	to := from.Add(5 * time.Minute)
 
 	var row tableRow
-	row.addSpan(time.Time{}, time.Time{})
-	row.addSpan(from, time.Time{})
-	row.addSpan(from, to)
+	row.addSpan(time.Time{}, time.Time{}, time.Now())
+	row.addSpan(from, time.Time{}, time.Now())
+	row.addSpan(from, to, time.Now())
 
 	// No start reads "-"; no end counts to now; an end stops the count there.
 	r.Equal([]string{"-", "3h", "5m"}, row.cells)

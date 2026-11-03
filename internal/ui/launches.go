@@ -27,8 +27,8 @@ func fetchNextLaunch(client jobsClient, job nomad.Job) tea.Cmd {
 
 // nextIn is when the next launch is, as a title says it: nothing when none
 // is due.
-func nextIn(next time.Time) string {
-	if left := time.Until(next); !next.IsZero() && left > 0 {
+func nextIn(next, now time.Time) string {
+	if left := next.Sub(now); !next.IsZero() && left > 0 {
 		return ", next in " + age(left)
 	}
 

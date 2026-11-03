@@ -120,7 +120,7 @@ func TestEvaluation_OpensTheOneUnderTheCursorWhereItLives(t *testing.T) {
 func TestEvaluationLines(t *testing.T) {
 	r := require.New(t)
 
-	text := strings.Join(texts(evaluationLines(shortOfRoom())), "\n")
+	text := strings.Join(texts(evaluationLines(shortOfRoom(), time.Now())), "\n")
 
 	r.Contains(text, "Evaluation    1ad88fd0-6b1c-da67-5e8f-482b5a15af1f")
 	r.Contains(text, "Triggered by  queued-allocs")
@@ -139,7 +139,7 @@ func TestEvaluationLines_WhenEverythingWasPlaced(t *testing.T) {
 
 	placed := nomad.EvaluationDetail{Evaluation: nomad.Evaluation{ID: "e1", Status: "complete"}}
 
-	text := strings.Join(texts(evaluationLines(placed)), "\n")
+	text := strings.Join(texts(evaluationLines(placed, time.Now())), "\n")
 	r.NotContains(text, "Placement failures")
 	r.NotContains(text, "Planned for each group")
 	r.NotContains(text, "Preempted allocations")
@@ -159,7 +159,7 @@ func plannedEvaluation() nomad.EvaluationDetail {
 func TestEvaluationLines_WhatItPlannedForEachGroup(t *testing.T) {
 	r := require.New(t)
 
-	lines := evaluationLines(plannedEvaluation())
+	lines := evaluationLines(plannedEvaluation(), time.Now())
 	words := texts(lines)
 
 	r.Subset(words, []string{

@@ -8,6 +8,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -78,15 +79,15 @@ func evaluationJobMark(eval nomad.Evaluation) string {
 	return jobMark(nomad.Job{Namespace: eval.Namespace, ID: eval.JobID})
 }
 
-func (p evaluationsPage) rows(e env) []tableRow { return evaluationRows(p.visible(e)) }
+func (p evaluationsPage) rows(e env) []tableRow { return evaluationRows(p.visible(e), e.now) }
 
-func evaluationRows(evals []nomad.Evaluation) []tableRow {
+func evaluationRows(evals []nomad.Evaluation, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(evals))
 
 	for _, e := range evals {
 		row := tableRow{color: evaluationColor(e)}
 		row.add(shortID(e.ID), e.JobID, e.Namespace, e.Type, e.TriggeredBy, e.Status)
-		row.addAge(e.Created)
+		row.addAge(e.Created, now)
 
 		rows = append(rows, row)
 	}
@@ -156,14 +157,14 @@ func evalAllocations(eval evalRef) page {
 func describeEvaluation(client evaluationsClient, namespace, id string) tea.Cmd {
 	return request(func(ctx context.Context) (nomad.EvaluationDetail, error) {
 		return client.Evaluation(ctx, namespace, id)
-	}, func(eval nomad.EvaluationDetail) tea.Msg { return evaluationScreen(eval) })
+	}, func(eval nomad.EvaluationDetail) tea.Msg { return evaluationScreen(eval, time.Now()) })
 }
 
 // evaluationScreen is an evaluation as a page, with its namespace and ID for the allocations key.
-func evaluationScreen(eval nomad.EvaluationDetail) describeMsg {
+func evaluationScreen(eval nomad.EvaluationDetail, now time.Time) describeMsg {
 	return describeMsg{
 		label:      fmt.Sprintf("Evaluation %s", shortID(eval.ID)),
-		lines:      evaluationLines(eval),
+		lines:      evaluationLines(eval, now),
 		evaluation: evalRef{eval.Namespace, eval.ID},
 	}
 }
@@ -222,7 +223,7 @@ func placementOf(client evaluationsClient, namespace, jobID string) tea.Cmd {
 			return describeMsg{}, err
 		}
 
-		screen := evaluationScreen(eval)
+		screen := evaluationScreen(eval, time.Now())
 		screen.label = label
 
 		return screen, nil
@@ -232,7 +233,7 @@ func placementOf(client evaluationsClient, namespace, jobID string) tea.Cmd {
 // evaluationLines are an evaluation as a page: its fields, why each group it
 // could not place was not placed, what it planned for each group, the
 // allocations it preempted, and the evaluations it is chained to.
-func evaluationLines(eval nomad.EvaluationDetail) []paintedLine {
+func evaluationLines(eval nomad.EvaluationDetail, now time.Time) []paintedLine {
 	status := eval.Status
 	if eval.StatusDescription != "" {
 		status += ": " + eval.StatusDescription
@@ -245,7 +246,7 @@ func evaluationLines(eval nomad.EvaluationDetail) []paintedLine {
 		{"Type", eval.Type},
 		{"Triggered by", eval.TriggeredBy},
 		{"Status", status},
-		{"Created", ageOf(eval.Created) + " ago"},
+		{"Created", ageOf(eval.Created, now) + " ago"},
 		{"Previous", eval.PreviousEval},
 		{"Blocked by", eval.BlockedEval},
 		{"Next", eval.NextEval},

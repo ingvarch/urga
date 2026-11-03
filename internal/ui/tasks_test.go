@@ -213,7 +213,7 @@ func TestTasks_ShowWhenATaskEndedAndHowLongItRan(t *testing.T) {
 		{Name: "restarting", State: "pending", Started: now.Add(-3 * time.Hour), Finished: now.Add(-2 * time.Hour)},
 	}
 
-	rows := taskRows(tasks, nil)
+	rows := taskRows(tasks, nil, time.Now())
 	finished, uptime := slices.Index(taskTitles, "Finished"), slices.Index(taskTitles, "Uptime")
 
 	cells := func(i int) []string { return []string{rows[i].cells[finished], rows[i].cells[uptime]} }

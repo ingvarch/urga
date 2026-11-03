@@ -1,5 +1,7 @@
 package ui
 
+import "time"
+
 // list is the rows of a screen: the table they are drawn in, their filter
 // and sort order, which resource each row shows, and which of them are
 // marked.
@@ -50,13 +52,13 @@ func newList(titles []string) list {
 // on no row, and a key that acts on a row does nothing. A new filter or !
 // slides it to the row that has its number, since the person asked for the
 // view; a cursor that was on no row goes to the first row.
-func (l list) read(all []tableRow, titles, ids []string, troubled bool) list {
+func (l list) read(all []tableRow, titles, ids []string, troubled bool, now time.Time) list {
 	l.held = len(all)
 	chosen, chose := l.table.chosen()
 
-	now := narrowing{filter: l.filter, troubled: troubled}
-	reread := now == l.looked
-	l.looked = now
+	narrowed := narrowing{filter: l.filter, troubled: troubled}
+	reread := narrowed == l.looked
+	l.looked = narrowed
 
 	rows, index := filterRows(all, l.filter)
 
@@ -64,7 +66,7 @@ func (l list) read(all []tableRow, titles, ids []string, troubled bool) list {
 		rows, index = troubledRows(rows, index)
 	}
 
-	rows, index = sortRows(rows, index, l.sort, titles)
+	rows, index = sortRows(rows, index, l.sort, titles, now)
 	l.shown = len(rows)
 	l.index = index
 

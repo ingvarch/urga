@@ -63,14 +63,14 @@ func (r *tableRow) add(cells ...string) {
 // addAge puts at the end of a row how long ago a moment was, and keeps its
 // span under the same column. Set apart from the cell, the span could get
 // the wrong column number and make another column sort by time.
-func (r *tableRow) addAge(moment time.Time) {
+func (r *tableRow) addAge(moment, now time.Time) {
 	r.keep(span{from: moment})
-	r.add(ageOf(moment))
+	r.add(ageOf(moment, now))
 }
 
 // addSpan puts at the end of a row how long passed between two moments, or
 // since the first when there is no second. It reads "-" without a start.
-func (r *tableRow) addSpan(from, to time.Time) {
+func (r *tableRow) addSpan(from, to, now time.Time) {
 	s := span{from: from, to: to}
 
 	r.keep(s)
@@ -81,7 +81,7 @@ func (r *tableRow) addSpan(from, to time.Time) {
 		return
 	}
 
-	r.add(age(s.length(time.Now())))
+	r.add(age(s.length(now)))
 }
 
 // keep stores the span under the column of the cell that comes next.

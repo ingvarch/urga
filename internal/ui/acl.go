@@ -22,7 +22,7 @@ type aclMsg struct {
 type aclKind struct {
 	title, noun string
 	titles      []string
-	add         func(row *tableRow, o nomad.ACLObject)
+	add         func(row *tableRow, o nomad.ACLObject, now time.Time)
 }
 
 // aclKinds are the kinds of ACL object, with only what their list answers.
@@ -30,33 +30,35 @@ var aclKinds = map[string]aclKind{
 	nomad.ACLToken: {
 		title: "Tokens", noun: "Token",
 		titles: []string{"Accessor", "Name", "Type", "Policies", "Roles", "Global", "Expires", "Age"},
-		add: func(row *tableRow, o nomad.ACLObject) {
+		add: func(row *tableRow, o nomad.ACLObject, now time.Time) {
 			row.add(shortID(o.ID), o.Name, o.Type, strings.Join(o.Policies, ", "), strings.Join(o.Roles, ", "),
-				yesNo(o.Global), expiresIn(o.Expires))
-			row.addAge(o.Created)
+				yesNo(o.Global), expiresIn(o.Expires, now))
+			row.addAge(o.Created, now)
 		},
 	},
 	nomad.ACLPolicy: {
 		title: "Policies", noun: "Policy",
 		titles: []string{"Name", "Description"},
-		add:    func(row *tableRow, o nomad.ACLObject) { row.add(o.Name, o.Description) },
+		add:    func(row *tableRow, o nomad.ACLObject, _ time.Time) { row.add(o.Name, o.Description) },
 	},
 	nomad.ACLRole: {
 		title: "Roles", noun: "Role",
 		titles: []string{"Name", "Description", "Policies"},
-		add: func(row *tableRow, o nomad.ACLObject) {
+		add: func(row *tableRow, o nomad.ACLObject, _ time.Time) {
 			row.add(o.Name, o.Description, strings.Join(o.Policies, ", "))
 		},
 	},
 	nomad.ACLAuthMethod: {
 		title: "Auth Methods", noun: "Auth method",
 		titles: []string{"Name", "Type", "Default"},
-		add:    func(row *tableRow, o nomad.ACLObject) { row.add(o.Name, o.Type, yesNo(o.Default)) },
+		add:    func(row *tableRow, o nomad.ACLObject, _ time.Time) { row.add(o.Name, o.Type, yesNo(o.Default)) },
 	},
 	nomad.ACLBindingRule: {
 		title: "Binding Rules", noun: "Binding rule",
 		titles: []string{"ID", "Auth Method", "Description"},
-		add:    func(row *tableRow, o nomad.ACLObject) { row.add(shortID(o.ID), o.AuthMethod, o.Description) },
+		add: func(row *tableRow, o nomad.ACLObject, _ time.Time) {
+			row.add(shortID(o.ID), o.AuthMethod, o.Description)
+		},
 	},
 }
 
@@ -100,13 +102,13 @@ func (p aclPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 
 func (p aclPage) ids(env) []string { return names(p.objects, aclMark) }
 
-func (p aclPage) rows(env) []tableRow {
-	kind, now := aclKinds[p.kind], time.Now()
+func (p aclPage) rows(e env) []tableRow {
+	kind, now := aclKinds[p.kind], e.now
 	rows := make([]tableRow, 0, len(p.objects))
 
 	for _, o := range p.objects {
 		row := tableRow{color: tokenColor(o.Expires, now)}
-		kind.add(&row, o)
+		kind.add(&row, o, now)
 
 		rows = append(rows, row)
 	}
@@ -280,12 +282,12 @@ func deleteACL(p aclPage, e env) (aclPage, outcome) {
 }
 
 // expiresIn is when a token stops working: a dash for never.
-func expiresIn(expires time.Time) string {
+func expiresIn(expires, now time.Time) string {
 	if expires.IsZero() {
 		return "-"
 	}
 
-	left := time.Until(expires)
+	left := expires.Sub(now)
 	if left <= 0 {
 		return "expired"
 	}
