@@ -598,6 +598,28 @@ func TestClient_ComingBackReadsAgain(t *testing.T) {
 	r.Len(trailOf(m), before+1)
 }
 
+func TestClient_ComingBackStartsTheChartOver(t *testing.T) {
+	r := require.New(t)
+
+	m, client := onClient(t)
+	m, _ = m.update(reading(10))
+	m, _ = m.update(reading(20))
+
+	m, _ = m.update(enter())
+	r.IsType(tasksPage{}, m.screen.page)
+
+	// The readings from before the gap would be drawn as recent: the chart
+	// counts one reading per interval.
+	m, _ = m.update(escape())
+	r.IsType(clientPage{}, m.screen.page)
+	r.Empty(trailOf(m))
+
+	m, cmd := m.update(allocsMsg(client.nodeAllocs))
+	m = drain(m, cmd)
+
+	r.Len(trailOf(m), 1)
+}
+
 // drawnPanel is how many rows the screen draws above its table.
 func drawnPanel(m Model) int {
 	width := m.innerWidth()
