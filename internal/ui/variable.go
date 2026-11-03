@@ -310,7 +310,7 @@ func deleteVariable(p variablesPage, e env) (variablesPage, outcome) {
 	client := e.client
 
 	return p, then(askMsg{
-		question: fmt.Sprintf("Really delete the variable %s?", v.Path),
+		question: fmt.Sprintf("Really delete the variable %s in namespace %s?", v.Path, v.Namespace),
 		apply: act(fmt.Sprintf("Variable %s deleted.", v.Path), func(ctx context.Context) error {
 			return client.DeleteVariable(ctx, v.Namespace, v.Path, v.Index)
 		}),
