@@ -217,7 +217,7 @@ func TestSubmitVariable_SaysTheVariableIsLocked(t *testing.T) {
 	conflict := conflictOf(t, client)
 
 	r.Equal(&nomad.VariableLock{ID: "874ae5d0-f47a-afb0-804f-fcdb04a14a0b", TTL: "30m0s", Delay: "15s"}, conflict.Lock)
-	r.EqualError(conflict, "variable nomad/jobs/web is locked: only the holder of lock 874ae5d0-f47a-afb0-804f-fcdb04a14a0b can change it")
+	r.EqualError(conflict, "variable nomad/jobs/web is locked: only the holder of lock 874ae5d0 can change it")
 }
 
 func TestSubmitVariable_NamesTheLockWhenItWasTakenBeforeTheRead(t *testing.T) {
@@ -231,7 +231,7 @@ func TestSubmitVariable_NamesTheLockWhenItWasTakenBeforeTheRead(t *testing.T) {
 	conflict := conflictOf(t, client)
 
 	r.False(conflict.Held)
-	r.EqualError(conflict, "variable nomad/jobs/web is locked: only the holder of lock 874ae5d0-f47a-afb0-804f-fcdb04a14a0b can change it")
+	r.EqualError(conflict, "variable nomad/jobs/web is locked: only the holder of lock 874ae5d0 can change it")
 }
 
 func TestSubmitVariable_SaysTheVariableIsHeldWhenNothingChangedIt(t *testing.T) {

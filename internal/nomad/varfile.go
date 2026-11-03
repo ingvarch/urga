@@ -34,7 +34,13 @@ func (e *VariableConflict) Error() string {
 	case e.Held:
 		return fmt.Sprintf("variable %s is locked: only the holder of its lock can change it", e.Path)
 	case e.Lock != nil:
-		return fmt.Sprintf("variable %s is locked: only the holder of lock %s can change it", e.Path, e.Lock.ID)
+		// The whole ID releases the lock; the start is enough to tell it.
+		id := e.Lock.ID
+		if len(id) > 8 {
+			id = id[:8]
+		}
+
+		return fmt.Sprintf("variable %s is locked: only the holder of lock %s can change it", e.Path, id)
 	}
 
 	return fmt.Sprintf("variable %s changed since it was read", e.Path)
