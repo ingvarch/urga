@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -114,4 +115,20 @@ func TestSubmitScheduler_NotJSON(t *testing.T) {
 
 	r.ErrorContains(client.SubmitScheduler(context.Background(), `{"SchedulerAlgorithm":`, 42), "not valid JSON")
 	r.Empty(*asked)
+}
+
+func TestScheduler_TheNodeLimit(t *testing.T) {
+	r := require.New(t)
+
+	answer := strings.Replace(schedulerAnswer, `"PauseEvalBroker": false,`, `"PauseEvalBroker": false, "NodeLimitForFeasibilityChecks": 50,`, 1)
+	client, _ := clusterServer(t, map[string]string{"/v1/operator/scheduler/configuration": answer})
+
+	config, err := client.Scheduler(context.Background())
+	r.NoError(err)
+	r.Equal(uint(50), config.NodeLimit)
+
+	// The file of an edit holds it, and the save sends it back.
+	spec, err := client.SchedulerSpec(context.Background())
+	r.NoError(err)
+	r.Contains(spec.Source, `"NodeLimitForFeasibilityChecks": 50`)
 }

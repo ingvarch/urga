@@ -120,3 +120,18 @@ func TestScheduler_NothingBeforeTheClusterAnswers(t *testing.T) {
 	// A "no" would read as a setting.
 	require.Empty(t, schedulerPage{}.rows(env{}))
 }
+
+func TestScheduler_TheNodeLimitWhenSet(t *testing.T) {
+	r := require.New(t)
+
+	set := schedulerPage{config: nomad.SchedulerConfig{Algorithm: "spread", NodeLimit: 50}, read: true}.rows(env{})
+	r.Len(set, 9)
+	r.Equal([]string{"Node limit for feasibility checks", "50"}, set[8].cells)
+
+	unset := schedulerPage{config: nomad.SchedulerConfig{Algorithm: "spread"}, read: true}.rows(env{})
+	r.Len(unset, 8)
+
+	for _, row := range unset {
+		r.NotEqual("Node limit for feasibility checks", row.cells[0])
+	}
+}

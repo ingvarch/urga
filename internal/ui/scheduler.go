@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"strconv"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -53,7 +54,7 @@ func (p schedulerPage) rows(env) []tableRow {
 
 	c := p.config
 
-	return []tableRow{
+	rows := []tableRow{
 		{cells: []string{"Algorithm", c.Algorithm}},
 		{cells: []string{"System preemption", yesNo(c.PreemptSystem)}},
 		{cells: []string{"Sysbatch preemption", yesNo(c.PreemptSysBatch)}},
@@ -63,6 +64,12 @@ func (p schedulerPage) rows(env) []tableRow {
 		{cells: []string{"Reject job registration", yesNo(c.RejectJobRegistration)}},
 		{cells: []string{"Pause eval broker", yesNo(c.PauseEvalBroker)}},
 	}
+
+	if c.NodeLimit > 0 {
+		rows = append(rows, tableRow{cells: []string{"Node limit for feasibility checks", strconv.FormatUint(uint64(c.NodeLimit), 10)}})
+	}
+
+	return rows
 }
 
 var schedulerKeys = []pageKey[schedulerPage]{

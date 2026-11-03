@@ -91,14 +91,17 @@ health out; the rest of the screen stays as it is.
 `:scheduler` shows how the scheduler of the cluster places work: the
 algorithm, binpack or spread, the types of job that may preempt others,
 whether memory oversubscription is on, and whether the cluster takes new jobs
-and schedules them.
+and schedules them. When the node limit of feasibility checks is set (Nomad
+2.0.1 and later), a row shows how many feasible clients the scheduler
+considers for a job with spread or affinity. Unset, it considers 100.
 
 `e` opens the configuration in your editor as JSON, and urga saves it when you
 close the editor. It is saved with check-and-set: if someone changed the
 configuration after you opened it, the cluster keeps theirs and the editor
 opens again with the reason. Quit the editor without saving and press `e` to
-start from the new one. If you leave the screen, or switch clusters, before
-the cluster answers, the editor does not open again: the status line names the
+start from the new one. The limit is the field `NodeLimitForFeasibilityChecks`;
+0 leaves the default. If you leave the screen, or switch clusters, before the
+cluster answers, the editor does not open again: the status line names the
 file that keeps your text, see [Editor](configuration.md#editor).
 
 Reading the configuration needs `operator:read`, saving it `operator:write`.
