@@ -76,7 +76,10 @@ a job that takes no payload has no marker. Save and close the editor to
 dispatch; the status line names the job the dispatch launched. A file saved
 unchanged dispatches nothing. When a line does not read as `key = value`, or
 the cluster refuses the dispatch, for example because a required key is
-missing, the file opens again with the reason at the top.
+missing, the file opens again with the reason at the top. If you leave the
+screen, or switch clusters, before the cluster answers, the file does not open
+again: the status line names the file that keeps your text, see
+[Editor](configuration.md#editor).
 
 ## Starting and stopping
 
@@ -128,6 +131,11 @@ When you save and close the editor, urga does not submit the job yet. It asks
 the cluster for a plan and shows it. If the cluster cannot plan the file, for
 example because of a syntax error, urga opens the editor again with your edit
 and the reason at the top. See [Editor](configuration.md#editor).
+If you leave the screen you pressed `e` on, or switch clusters, before the plan
+arrives, the plan does not open, and neither does the editor for an edit the
+cluster refused. The status line says so and names the file that keeps your
+text: `urga-*.hcl` or `urga-*.json` in the system temp directory (`$TMPDIR`,
+or `%TMP%` on Windows). urga does not delete it.
 
 The file edits the job it was opened for. If it names another job, for
 example after you change `job "web"` to `job "web2"`, urga does not plan it.

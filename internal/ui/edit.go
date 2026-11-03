@@ -26,6 +26,15 @@ type (
 		path     string
 		original string
 		submit   func(source string) tea.Cmd
+
+		// edited says the file holds text a person wrote: a refused edit
+		// opened again.
+		edited bool
+
+		// asked is the ask of the screen the editor opened on, set by
+		// startEdit: the editor blocks the program, and the screen can
+		// change before it closes.
+		asked int
 	}
 
 	editedMsg struct {
@@ -105,6 +114,9 @@ type file struct {
 	extension string
 	content   string
 	submit    func(source string) tea.Cmd
+
+	// edited says the content is text a person wrote.
+	edited bool
 }
 
 // load reads a resource as a file.
@@ -139,6 +151,7 @@ func jobFile(client jobsClient, job nomad.Job) load {
 				jobType:   job.Type,
 				launches:  launchesOthers(job),
 				source:    source,
+				extension: extension,
 				vars:      spec.Variables,
 				read:      spec.Index,
 				opened:    opened,
@@ -222,14 +235,10 @@ func editAdvice(err error) string {
 // reason is removed before the file is sent: JSON has no comments, and the
 // comments at the top of a job are part of it.
 func (m Model) reopenEdit(msg refusedEditMsg) tea.Cmd {
-	reason, ok := m.refusedBecause(msg.err)
-	if !ok {
-		reason = nomad.Reason(msg.err)
-	}
-
-	header := refusal(reason, msg.advice)
+	header := refusal(m.reasonOf(msg.err), msg.advice)
 
 	again, submit := msg.again, msg.again.submit
+	again.edited = true
 	again.content = header + again.content
 	again.submit = func(source string) tea.Cmd { return submit(strings.TrimPrefix(source, header)) }
 
@@ -262,21 +271,31 @@ func openEditor(read load) tea.Cmd {
 			return editFileMsg{}, err
 		}
 
-		file, err := os.CreateTemp("", "urga-*."+loaded.extension)
+		path, err := writeTemp(loaded.extension, loaded.content)
 		if err != nil {
 			return editFileMsg{}, err
 		}
 
-		if _, err := file.WriteString(loaded.content); err != nil {
-			return editFileMsg{}, err
-		}
-
-		if err := file.Close(); err != nil {
-			return editFileMsg{}, err
-		}
-
-		return editFileMsg{path: file.Name(), original: loaded.content, submit: loaded.submit}, nil
+		return editFileMsg{path: path, original: loaded.content, submit: loaded.submit, edited: loaded.edited}, nil
 	}, func(msg editFileMsg) tea.Msg { return msg })
+}
+
+// writeTemp writes the content to a new temporary file and returns its path.
+func writeTemp(extension, content string) (string, error) {
+	file, err := os.CreateTemp("", "urga-*."+extension)
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := file.WriteString(content); err != nil {
+		return "", err
+	}
+
+	if err := file.Close(); err != nil {
+		return "", err
+	}
+
+	return file.Name(), nil
 }
 
 // startEdit opens the file in the editor.
@@ -285,6 +304,7 @@ func (m Model) startEdit(msg editFileMsg) (Model, tea.Cmd) {
 		return m.fail(errors.New("no editor: set EDITOR or VISUAL")), nil
 	}
 
+	msg.asked = m.asked
 	m.editing = msg
 
 	return m, m.opts.Editor.Edit(msg.path)
@@ -316,5 +336,5 @@ func (m Model) finishEdit(msg editedMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	return m, edit.submit(source)
+	return m, wroteFor(edit.asked, edit.submit(source))
 }

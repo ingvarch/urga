@@ -408,12 +408,107 @@ func TestClusters_ADescriptionAskedBeforeTheSwitchIsDropped(t *testing.T) {
 func TestClusters_ARevertPlannedBeforeTheSwitchDoesNotOpen(t *testing.T) {
 	r := require.New(t)
 
+	dir := tempDir(t)
+
 	m, clusters := onDev(t)
 
 	m, revert := m.update(key('u'))
 	m = typeCommand(m, "ctx prod")
+	said := m.flash.text
+
 	m = drain(m, revert)
 
 	r.IsType(jobsPage{}, m.screen.page)
 	r.Empty(clusters.prod.writes)
+	r.Equal(said, m.flash.text)
+	r.Empty(keptTexts(t, dir))
+}
+
+func TestClusters_AnEditPlannedBeforeTheSwitchDoesNotOpen(t *testing.T) {
+	r := require.New(t)
+
+	tempDir(t)
+
+	m, clusters := onDev(t)
+	m.opts.Editor = &fakeEditor{replace: "job \"web\" {\n  type = \"batch\"\n}"}
+
+	m, read := m.update(key('e'))
+	m, edit := m.update(read())
+	m, submit := m.update(edit())
+
+	m = typeCommand(m, "ctx prod")
+	m = drain(m, submit)
+
+	r.IsType(jobsPage{}, m.screen.page)
+	r.Zero(clusters.prod.submitted)
+}
+
+func TestClusters_AnEditSavedAfterTheSwitchIsNotPlanned(t *testing.T) {
+	r := require.New(t)
+
+	tempDir(t)
+
+	m, clusters := onDev(t)
+	m.opts.Editor = &fakeEditor{replace: "job \"web\" {\n  type = \"batch\"\n}"}
+
+	m, connect := m.switchCluster("prod")
+
+	m, read := m.update(key('e'))
+	m, edit := m.update(read())
+
+	// The switch finishes while the editor is open.
+	m, _ = m.update(connect())
+
+	m, submit := m.update(edit())
+	m = drain(m, submit)
+
+	r.IsType(jobsPage{}, m.screen.page)
+	r.Zero(clusters.prod.submitted)
+	r.Zero(clusters.prod.planCalls)
+}
+
+func TestClusters_AnEditPlannedAfterTheSwitchKeepsTheText(t *testing.T) {
+	r := require.New(t)
+
+	dir := tempDir(t)
+
+	m, _ := onDev(t)
+	m.opts.Editor = &fakeEditor{replace: "job \"web\" {\n  type = \"batch\"\n}"}
+
+	m, connect := m.switchCluster("prod")
+
+	m, read := m.update(key('e'))
+	m, edit := m.update(read())
+	m, _ = m.update(connect())
+
+	m, submit := m.update(edit())
+	m = drain(m, submit)
+
+	r.Regexp(`^Your text is in .+\. The plan of web was not opened: the screen changed\.$`, m.flash.text)
+	r.Equal([]string{"job \"web\" {\n  type = \"batch\"\n}"}, keptTexts(t, dir))
+}
+
+func TestClusters_AJSONEditPlannedAfterTheSwitchIsKeptAsJSON(t *testing.T) {
+	r := require.New(t)
+
+	dir := tempDir(t)
+
+	m, clusters := onDev(t)
+	clusters.dev.spec = nomad.JobSource{Source: "{\n  \"ID\": \"web\"\n}", Format: nomad.FormatJSON}
+
+	edited := "{\n  \"ID\": \"web\",\n  \"Type\": \"batch\"\n}"
+	m.opts.Editor = &fakeEditor{replace: edited}
+
+	m, connect := m.switchCluster("prod")
+
+	m, read := m.update(key('e'))
+	m, edit := m.update(read())
+	m, _ = m.update(connect())
+
+	m, submit := m.update(edit())
+	drain(m, submit)
+
+	extension, text := keptFile(t, dir)
+	r.Equal(".json", extension)
+	r.Equal(edited, text)
 }

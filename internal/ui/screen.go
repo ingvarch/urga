@@ -4,6 +4,8 @@ import (
 	"context"
 
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/ingvarch/urga/internal/nomad"
 )
 
 // screen is a page on the stack.
@@ -531,10 +533,10 @@ func (m Model) takeAnswer(msg answerMsg) (Model, tea.Cmd) {
 }
 
 // reportLate shows what a write did after its screen was left: on the status
-// line only. Marks, pages and questions of the screen now open stay as they
-// are, except that what the write did on the client in use is no longer
-// marked. A switch of the session to another namespace still happens on the
-// cluster it was made for.
+// line, with the text of a late edit kept in a file. Marks, pages and
+// questions of the screen now open stay as they are, except that what the
+// write did on the client in use is no longer marked. A switch of the session
+// to another namespace still happens on the cluster it was made for.
 func (m Model) reportLate(asked int, msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case doneMsg:
@@ -555,7 +557,34 @@ func (m Model) reportLate(asked int, msg tea.Msg) (Model, tea.Cmd) {
 		return m.warn(msg.said()), nil
 
 	case refusedEditMsg:
-		return m.failLate(msg.err), nil
+		text := m.reasonOf(msg.err)
+		if msg.again.content != "" {
+			kept, _ := keepText(msg.again.content, msg.again.extension)
+			text = kept + " Not saved: " + text + "."
+		}
+
+		return m.failedLate(text), nil
+
+	case openMsg:
+		if plan, ok := msg.page.(planPage); ok {
+			extension := plan.extension
+			if extension == "" {
+				extension = "hcl"
+			}
+
+			kept, ok := keepText(plan.source, extension)
+			text := kept + sprintf(" The plan of %s was not opened: the screen changed.", plan.jobID)
+			if !ok {
+				return m.failedLate(text), nil
+			}
+
+			return m.warn(text), nil
+		}
+
+	case editFileMsg:
+		if msg.edited {
+			return m.warn(keptIn(msg.path) + " The edit was not opened again: the screen changed."), nil
+		}
 
 	case connectionMsg:
 		if _, ok := msg.msg.(switchNamespaceMsg); ok {
@@ -589,15 +618,32 @@ func (m Model) doneLate(asked int, msg doneMsg) Model {
 // failLate shows the error of a write that ended after its screen was left.
 // The screen now open answers on its own, and that must not clear it.
 func (m Model) failLate(err error) Model {
-	if why, ok := m.refusedBecause(err); ok {
-		m = m.flashed(why, flashErr)
-	} else {
-		m = m.fail(err)
-	}
+	return m.failedLate(m.reasonOf(err))
+}
 
+// failedLate shows the text as an error of an action.
+func (m Model) failedLate(text string) Model {
+	m = m.flashed(text, flashErr)
 	m.flash.ofAction = true
 
 	return m
+}
+
+// keepText writes the text of an edit that has no screen to open on, and says
+// where it is, or that it is lost.
+func keepText(content, extension string) (string, bool) {
+	path, err := writeTemp(extension, content)
+	if err != nil {
+		return sprintf("Your text could not be kept: %s.", nomad.Reason(err)), false
+	}
+
+	return keptIn(path), true
+}
+
+// keptIn names the file that keeps the text of an edit. A message starts with
+// it: a status line too narrow for the message cuts off the end.
+func keptIn(path string) string {
+	return sprintf("Your text is in %s.", path)
 }
 
 // unmark takes the marks off what an action did. The map is copied: the

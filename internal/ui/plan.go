@@ -31,6 +31,10 @@ type planState struct {
 	read   uint64
 	index  uint64
 
+	// extension is the one the source is saved with when no screen opens its
+	// plan. Empty is hcl.
+	extension string
+
 	// opened are the counts of the groups in the file as it was opened. Nil
 	// for a new job and a revert: they keep no counts.
 	opened map[string]int

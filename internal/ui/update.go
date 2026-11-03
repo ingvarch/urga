@@ -145,7 +145,7 @@ func (m Model) fromAction(msg tea.Msg) (Model, tea.Cmd, bool) {
 		return taken(m.finishEdit(msg))
 
 	case refusedEditMsg:
-		return m, m.reopenEdit(msg), true
+		return m, wroteFor(m.asked, m.reopenEdit(msg)), true
 
 	case savedMsg:
 		return m.say(fmt.Sprintf("Saved to %s.", msg.path)), nil, true

@@ -155,6 +155,16 @@ func (m Model) withHint(table string, width int) string {
 // managementToken is the type of a token that may do anything.
 const managementToken = "management"
 
+// reasonOf is what to tell about an error of the cluster: the likely reason
+// when the token is it, the error of the cluster otherwise.
+func (m Model) reasonOf(err error) string {
+	if why, ok := m.refusedBecause(err); ok {
+		return why
+	}
+
+	return nomad.Reason(err)
+}
+
 // refusedBecause says why the cluster refused a request, when the token is
 // the likely reason. For a management token, the error of the cluster
 // explains it best.

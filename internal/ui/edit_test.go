@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,17 +78,24 @@ func editModel(t *testing.T, client *fakeClient) (Model, *fakeEditor) {
 }
 
 // tempDir points the temp dir urga writes to at a new directory of the test,
-// and returns it. Windows reads TMP and TEMP instead of TMPDIR.
+// and returns it.
 func tempDir(t *testing.T) string {
 	t.Helper()
 
 	dir := t.TempDir()
+	useTempDir(t, dir)
+
+	return dir
+}
+
+// useTempDir points the temp dir urga writes to at dir. Windows reads TMP and
+// TEMP instead of TMPDIR.
+func useTempDir(t *testing.T, dir string) {
+	t.Helper()
 
 	for _, name := range []string{"TMPDIR", "TMP", "TEMP"} {
 		t.Setenv(name, dir)
 	}
-
-	return dir
 }
 
 func TestEdit_OpensTheJobFile(t *testing.T) {
@@ -394,4 +403,181 @@ func TestEdit_TheFileOfAnEditThatArrivesAfterLeavingIsRemoved(t *testing.T) {
 	r.NoFileExists(path)
 	r.Empty(editor.seen)
 	r.Empty(m.editing.path)
+}
+
+// keptTexts are the files urga left in dir.
+func keptTexts(t *testing.T, dir string) []string {
+	t.Helper()
+
+	paths, err := filepath.Glob(filepath.Join(dir, "urga-*"))
+	require.NoError(t, err)
+
+	texts := []string{}
+
+	for _, path := range paths {
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+
+		texts = append(texts, string(data))
+	}
+
+	return texts
+}
+
+// keptFile is the one file urga left in dir: its extension and its text.
+func keptFile(t *testing.T, dir string) (string, string) {
+	t.Helper()
+
+	paths, err := filepath.Glob(filepath.Join(dir, "urga-*"))
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+
+	data, err := os.ReadFile(paths[0])
+	require.NoError(t, err)
+
+	return filepath.Ext(paths[0]), string(data)
+}
+
+func TestEdit_ARefusalAfterLeavingKeepsTheTextAndDoesNotReopen(t *testing.T) {
+	r := require.New(t)
+
+	dir := tempDir(t)
+
+	client := &fakeClient{jobs: twoJobs(), refusals: []error{errors.New("syntax error")}}
+	m, editor := editModel(t, client)
+	editor.replace = "job \"web\" {\n  type = \"batch\"\n}"
+
+	m, read := m.update(key('e'))
+	m, edit := m.update(read())
+	m, submit := m.update(edit())
+
+	m, _ = m.update(enter())
+	m = follow(m, submit, 4)
+
+	r.Len(editor.seen, 1)
+	r.IsType(allocationsPage{}, m.screen.page)
+	r.Equal([]string{editor.replace}, keptTexts(t, dir))
+
+	// The path of the kept text comes first and the temp dir of a test is
+	// long: the reason is read from the message, not the status line.
+	r.Regexp(`^Your text is in .+\. Not saved: syntax error\.$`, m.flash.text)
+}
+
+func TestEdit_ARefusedEditReopenedAfterLeavingKeepsTheTextAndDoesNotOpen(t *testing.T) {
+	r := require.New(t)
+
+	dir := tempDir(t)
+
+	client := &fakeClient{jobs: twoJobs(), refusals: []error{errors.New("syntax error")}}
+	m, editor := editModel(t, client)
+	editor.replace = "job \"web\" {\n  type = \"batch\"\n}"
+
+	m, read := m.update(key('e'))
+	m, edit := m.update(read())
+	m, submit := m.update(edit())
+
+	m, reopen := m.update(submit())
+
+	m, _ = m.update(enter())
+	m = follow(m, reopen, 3)
+
+	r.Len(editor.seen, 1)
+	r.IsType(allocationsPage{}, m.screen.page)
+
+	texts := keptTexts(t, dir)
+	r.Len(texts, 1)
+	r.Contains(texts[0], editor.replace)
+	r.Contains(texts[0], "syntax error")
+	r.Regexp(`^Your text is in .+\. The edit was not opened again: the screen changed\.$`, m.flash.text)
+}
+
+func TestEdit_ARefusalAfterLeavingTheTokenExplainsSaysWhy(t *testing.T) {
+	r := require.New(t)
+
+	tempDir(t)
+
+	m, _ := onAllocations(t)
+	m, _ = m.update(tokenMsg(deployBot))
+
+	refused := refusedEditMsg{err: forbidden(t), again: file{extension: "hcl", content: "job \"web\" {}"}}
+	m, _ = m.update(answerMsg{asked: m.asked - 1, wrote: true, msg: refused})
+
+	r.Regexp(`^Your text is in .+\. Not saved: Permission denied: deploy-bot may not do this\.$`, m.flash.text)
+}
+
+func TestEdit_ALateEditWhoseTextCannotBeKeptSaysWhy(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing")
+	text := "job \"web\" {}"
+
+	for name, tc := range map[string]struct {
+		late tea.Msg
+		then string
+	}{
+		"plan": {
+			openMsg{page: planPage{planState: planState{jobID: "web", source: text}}},
+			"The plan of web was not opened: the screen changed.",
+		},
+		"refusal": {
+			refusedEditMsg{err: errors.New("syntax error"), again: file{extension: "hcl", content: text}},
+			"Not saved: syntax error.",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			useTempDir(t, missing)
+
+			m, _ := onAllocations(t)
+			m, _ = m.update(answerMsg{asked: m.asked - 1, wrote: true, msg: tc.late})
+
+			why := `open ` + regexp.QuoteMeta(missing) + `.+: .+`
+			require.Regexp(t, `^Your text could not be kept: `+why+`\. `+regexp.QuoteMeta(tc.then)+`$`, m.flash.text)
+			require.Equal(t, flashErr, m.flash.level)
+		})
+	}
+}
+
+func TestEdit_TheFileThatKeepsALateEditFitsOnTheStatusLine(t *testing.T) {
+	text := "job \"web\" {\n  type = \"batch\"\n}"
+	refused := errors.New("<stdin>:1,1-10: Missing required argument; The argument \"group\" is required, but no definition was found")
+
+	// The message for a file in the temp dir of macOS, the longest of the
+	// usual ones.
+	onMacOS := "Your text is in /var/folders/xx/" + strings.Repeat("x", 30) + "/T/urga-1234567890.hcl."
+
+	for name, late := range map[string]func(t *testing.T, dir string) tea.Msg{
+		"plan": func(*testing.T, string) tea.Msg {
+			return openMsg{page: planPage{planState: planState{jobID: "web", source: text}}}
+		},
+		"refusal": func(*testing.T, string) tea.Msg {
+			return refusedEditMsg{err: refused, again: file{extension: "hcl", content: text}}
+		},
+		"reopened": func(t *testing.T, dir string) tea.Msg {
+			path := filepath.Join(dir, "urga-1234567890.hcl")
+			require.NoError(t, os.WriteFile(path, []byte(text), 0o600))
+
+			return editFileMsg{path: path, edited: true}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			dir := tempDir(t)
+
+			m, _ := onAllocations(t)
+			r.Equal(120, m.width)
+
+			m, _ = m.update(answerMsg{asked: m.asked - 1, wrote: true, msg: late(t, dir)})
+
+			paths, err := filepath.Glob(filepath.Join(dir, "urga-*"))
+			r.NoError(err)
+			r.Len(paths, 1)
+
+			said := m.flash.text
+			r.True(strings.HasPrefix(said, "Your text is in "+paths[0]+"."), said)
+
+			// The temp dir of a test is longer: the status line shows as much
+			// of the message as the path on macOS takes.
+			r.Greater(len(said), len(onMacOS))
+			r.Contains(plain(m.render()), said[:len(onMacOS)])
+		})
+	}
 }
