@@ -530,18 +530,29 @@ func (t *textModel) follow() {
 
 func (t textModel) view() string {
 	lines := t.rows()
+	find := t.highlights()
 
 	rows := make([]string, 0, t.height)
 
 	for i := t.top; i < len(lines) && i < t.top+t.height; i++ {
-		rows = append(rows, t.line(lines[i]))
+		rows = append(rows, t.line(lines[i], find))
 	}
 
 	return strings.Join(rows, "\n")
 }
 
+// highlights is where the matches to light are in a piece of a row: the found
+// word, or the filter when no word is found. It is nil when there are none.
+func (t textModel) highlights() func(piece string) []int {
+	if t.found != "" {
+		return wordFinder(t.found)
+	}
+
+	return filterFinder(t.filter)
+}
+
 // line draws one row in its colour, with the matches highlighted.
-func (t textModel) line(row textRow) string {
+func (t textModel) line(row textRow, find func(string) []int) string {
 	style := styleText
 	if row.style != nil {
 		style = *row.style
@@ -557,16 +568,16 @@ func (t textModel) line(row textRow) string {
 	// tagFrom and tagTo count cells: splitting the row by cells ends every
 	// piece on a whole character.
 	text := onScreen(row.text)
-	lit := t.lit(ansi.Cut(text, 0, row.tagFrom), style) +
-		t.lit(ansi.Cut(text, row.tagFrom, row.tagTo), label) +
-		t.lit(ansi.TruncateLeft(text, row.tagTo, ""), style)
+	drawn := lit(ansi.Cut(text, 0, row.tagFrom), style, find) +
+		lit(ansi.Cut(text, row.tagFrom, row.tagTo), label, find) +
+		lit(ansi.TruncateLeft(text, row.tagTo, ""), style, find)
 
 	// TruncateLeft keeps a wide character whole when the edge cuts it in
 	// half. The half that shows is drawn as a blank, so the row starts at
 	// the shift.
-	cut := ansi.TruncateLeft(lit, t.shift, "")
+	cut := ansi.TruncateLeft(drawn, t.shift, "")
 	if ansi.StringWidth(cut) > max(row.width-t.shift, 0) {
-		cut = style.Render(" ") + ansi.TruncateLeft(lit, t.shift+1, "")
+		cut = style.Render(" ") + ansi.TruncateLeft(drawn, t.shift+1, "")
 	}
 
 	shown := truncate(cut, t.width)
@@ -596,26 +607,20 @@ func (t *textModel) slide(by int) {
 	t.shift = max(0, min(t.shift+by, t.kept.widest-t.width))
 }
 
-// lit is a piece of a row in its style, with the matches of the found word
-// highlighted, or of the filter when no word is found.
-func (t textModel) lit(piece string, style lipgloss.Style) string {
+// lit is a piece of a row in its style, with the matches of find highlighted.
+func lit(piece string, style lipgloss.Style, find func(string) []int) string {
 	if piece == "" {
 		return ""
 	}
 
-	word, find := t.filter, matchIn
-	if t.found != "" {
-		word, find = t.found, wordIn
-	}
-
-	if word == "" {
+	if find == nil {
 		return style.Render(piece)
 	}
 
 	out := strings.Builder{}
 
 	for rest := piece; rest != ""; {
-		at := find(rest, word)
+		at := find(rest)
 		if at == nil {
 			out.WriteString(style.Render(rest))
 

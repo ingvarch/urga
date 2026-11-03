@@ -414,23 +414,21 @@ func filterRows(rows []tableRow, filter string) ([]tableRow, []int) {
 	return kept, index
 }
 
-// matchIn is where a filter matches in a line, or nil when it does not. An
-// empty match has nothing to highlight.
-func matchIn(line, filter string) []int {
-	// A line kept because it does not contain the word has nothing to
-	// highlight, and the letters of a fuzzy filter are spread all over it.
-	if strings.HasPrefix(filter, filterNot) || strings.HasPrefix(filter, filterFuzzy) {
+// filterFinder is where a filter matches in a line, read once for many
+// lines, or nil when there is nothing to highlight. A line kept because it
+// does not contain the word has nothing to highlight, and the letters of a
+// fuzzy filter are spread all over it.
+func filterFinder(filter string) func(line string) []int {
+	if filter == "" || strings.HasPrefix(filter, filterNot) || strings.HasPrefix(filter, filterFuzzy) {
 		return nil
 	}
 
-	return wordIn(line, filter)
+	return wordFinder(filter)
 }
 
-// wordIn is where a word matches in a line, as it is written: a regular
-// expression, or the plain text when it is not one.
-func wordIn(line, word string) []int { return wordFinder(word)(line) }
-
-// wordFinder is wordIn with the word read once, for many lines.
+// wordFinder is where a word matches in a line, as it is written: a regular
+// expression, or the plain text when it is not one. The word is read once,
+// for many lines. An empty match has nothing to highlight.
 func wordFinder(word string) func(line string) []int {
 	rx := pattern(word)
 

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -51,11 +52,11 @@ func TestFilter_NothingIsLitUpForOneThatExcludes(t *testing.T) {
 
 	// A line is kept because it does not contain the word: there is nothing
 	// in it to highlight.
-	r.Nil(matchIn("cron production", "!web"))
+	r.Nil(filterFinder("!web"))
 
 	// And the letters of a fuzzy filter are spread over the line, so
 	// highlighting the first of them would be misleading.
-	r.Nil(matchIn("pelmeni_buh_bot", "-f pbb"))
+	r.Nil(filterFinder("-f pbb"))
 }
 
 func TestFilter_InverseOnTheScreen(t *testing.T) {
@@ -82,9 +83,36 @@ func TestFilter_TextThatIsNotAPatternIsMatchedAsWritten(t *testing.T) {
 	// A letter whose lower case is longer than itself does not move the
 	// highlight, at the end of the line either.
 	for _, line := range []string{"İstanbul web[1]", "İweb["} {
-		at := matchIn(line, "web[")
+		at := filterFinder("web[")(line)
 		r.Len(at, 2, "%q", line)
 		r.LessOrEqual(at[1], len(line), "%q", line)
 		r.Equal("web[", line[at[0]:at[1]], "%q", line)
+	}
+}
+
+func TestFilter_LightsEveryMatchOfARowAndItsTag(t *testing.T) {
+	r := require.New(t)
+
+	text := newTextModel("")
+	text.add([]string{"web says web"}, arrivedAt, &tag{text: "web-1 │ "}, nil)
+	text.setSize(80, 5)
+
+	plainView := text.view()
+
+	text.filter = "web"
+	r.Equal(3, strings.Count(text.view(), styleMatch.Render("web")))
+
+	// The word that is found wins over the filter.
+	text.found = "says"
+	r.Equal(0, strings.Count(text.view(), styleMatch.Render("web")))
+	r.Equal(1, strings.Count(text.view(), styleMatch.Render("says")))
+
+	// A filter that excludes, or spreads its letters, lights nothing.
+	text.found = ""
+
+	for _, filter := range []string{"!cron", "-f wsw"} {
+		text.filter = filter
+		r.Equal(plainView, text.view(), "%q", filter)
+		r.Nil(text.highlights(), "%q", filter)
 	}
 }
