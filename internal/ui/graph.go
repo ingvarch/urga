@@ -71,6 +71,7 @@ func (c chart) render(width, height int) []string {
 	rows := []string{pad(c.headline(width), width)}
 	rows = append(rows, strings.Split(c.plot(plot, height), "\n")...)
 
+	// The times are padded to the plot, so the line under the chart is as wide as the chart.
 	return append(rows,
 		styleMuted.Render(strings.Repeat(" ", c.axisWidth())+pad(c.times(plot), plot)))
 }
@@ -179,9 +180,6 @@ func (c chart) headline(width int) string {
 
 	return left + strings.Repeat(" ", gap) + right
 }
-
-// times are padded to the plot so that the line under the chart is as wide
-// as the chart itself.
 
 // times are the ends of the time axis: how far back the chart reaches, and
 // the reading that has just come in.
