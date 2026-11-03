@@ -265,6 +265,7 @@ func TestEdit_ANamespace(t *testing.T) {
 
 func TestEdit_WithoutAnEditor(t *testing.T) {
 	r := require.New(t)
+	tempDir(t)
 
 	// urga runs where EDITOR is not set, and shows an error instead of
 	// doing nothing.
