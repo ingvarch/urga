@@ -471,7 +471,7 @@ func (p jobLogsPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 		}
 
 		// What an allocation wrote goes at the end, behind its tag.
-		return p.lines(allocID, nil, linesOf(msg.text)...), outcome{cmd: waitForStream(msg.stream), reading: true}, true
+		return p.chunk(allocID, linesOf(msg.text), msg.old), outcome{cmd: waitForStream(msg.stream), reading: true}, true
 
 	case logEndMsg:
 		allocID, ok := p.logs.streams[msg.stream]
@@ -502,6 +502,14 @@ func (p jobLogsPage) reloaded(client filesClient, allocs []nomad.Alloc) (page, o
 	warn := warnMsg(fmt.Sprintf("%s runs in no allocation now", p.task))
 
 	return p, outcome{now: []tea.Msg{warn}, cmd: cmd, reading: true}, true
+}
+
+// chunk adds the lines of a chunk of an allocation: the first old were there
+// when its log was opened and have no time.
+func (p jobLogsPage) chunk(allocID string, lines []string, old int) jobLogsPage {
+	p.content.addChunk(lines, old, time.Now(), p.logs.tags[allocID], nil)
+
+	return p
 }
 
 // lines adds lines of an allocation, all with the one time they arrived, in

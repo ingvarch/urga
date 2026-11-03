@@ -736,3 +736,17 @@ func TestJobLogs_TheSameTaskInTwoNamespacesIsTwoChoices(t *testing.T) {
 
 	r.Equal([]string{staging[0].ID}, client.logsOpened)
 }
+
+func TestJobLogs_TheLinesALogHeldWhenItOpenedHaveNoTime(t *testing.T) {
+	r := require.New(t)
+
+	m, client := oneTask(t)
+
+	m, _ = m.update(logLineMsg{stream: client.logsByAlloc[newer], text: "first\nsecond\n", old: 1})
+	m, _ = m.update(key('t'))
+
+	out := plain(m.render())
+	r.Regexp(`\d\d:\d\d:\d\d  aaaa1111 │ second`, out)
+	r.NotRegexp(`\d\d:\d\d:\d\d  aaaa1111 │ first`, out)
+	r.Contains(out, "aaaa1111 │ first")
+}

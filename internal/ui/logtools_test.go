@@ -334,3 +334,22 @@ func TestLogs_ASaveNameIsAName(t *testing.T) {
 	// A long name cut on a dash does not end with one before the time.
 	r.Equal(strings.Repeat("a", nameLength-1), plainName(strings.Repeat("a", nameLength-1)+" b"))
 }
+
+func TestLogs_TheLinesTheLogHeldWhenItOpenedHaveNoTime(t *testing.T) {
+	r := require.New(t)
+
+	stream := &nomad.LogStream{Lines: make(chan string)}
+	m := openLog(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}, stream)
+
+	m, _ = m.update(logLineMsg{stream: stream, text: "first\nsecond\n", old: 2})
+	m, _ = m.update(logLineMsg{stream: stream, text: "third\n"})
+	m, _ = m.update(key('t'))
+
+	blank := strings.Repeat(" ", len(logTimeFormat)+2)
+	rows := shownRows(m)
+
+	r.Equal(blank+"first", rows[0])
+	r.Equal(blank+"second", rows[1])
+	r.NotEqual(blank, rows[2][:len(blank)])
+	r.Contains(rows[2], "third")
+}

@@ -152,8 +152,9 @@ A line under the title shows the state of three toggles:
 - **Autoscroll**: follow the end of the log. `s` turns it on or off.
   Scrolling up turns it off.
 - **Timestamps**: show when urga received each line. Nomad does not store a
-  time for log lines, so this is the only time there is. `t` turns it on or
-  off.
+  time for log lines, so this is the only time there is. The lines the log
+  held when it was opened, and the lines `e` reads back, have no time. `t`
+  turns it on or off.
 - **Wrap**: wrap long lines. `w` turns it on or off. With wrap off, `left` and
   `right` (`h`, `l`) move sideways, and the line adds from which column the
   log shows, for example `Column:41`.

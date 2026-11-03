@@ -520,3 +520,95 @@ func TestLogBefore_AStepThatEndsAtTheStartOfAFileKeepsALineWithNoBreakWhole(t *t
 	r.Len(part.Lines, 1)
 	r.Positive(part.Before)
 }
+
+// oldServer answers for the allocation a1 like logServer, and answers the read
+// of the end of the log (an offset of 1) with endFrames, or with a failure
+// when endStatus is set.
+func oldServer(t *testing.T, state string, endFrames []frame, endStatus int, frames ...frame) *nomad.Client {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		switch req.URL.Path {
+		case "/v1/allocation/a1":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"ID": "a1", "Namespace": "production", "NodeID": "n1", "TaskStates": {"server": {"State": %q}}}`, state)
+
+		case "/v1/client/fs/logs/a1":
+			sent := frames
+
+			if req.URL.Query().Get("offset") == "1" {
+				if endStatus != 0 {
+					http.Error(w, "no", endStatus)
+
+					return
+				}
+
+				sent = endFrames
+			}
+
+			out := json.NewEncoder(w)
+			for _, f := range sent {
+				_ = out.Encode(f)
+			}
+
+		default:
+			http.NotFound(w, req)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	return client
+}
+
+func TestLogs_OldSaysWhichLinesTheLogHeldWhenItOpened(t *testing.T) {
+	const log = "alloc/logs/server.stdout."
+
+	tests := []struct {
+		name      string
+		state     string
+		end       []frame
+		endStatus int
+		frames    []frame
+		want      []int
+	}{
+		{"a log with lines in it", "running",
+			[]frame{{Data: []byte("\n"), File: log + "0", Offset: 13}},
+			0,
+			[]frame{{Data: []byte("first\nsecond\n"), File: log + "0", Offset: 13}, {Data: []byte("third\n"), File: log + "0", Offset: 19}},
+			[]int{2, 0}},
+		{"an empty log", "running", nil, 0,
+			[]frame{{Data: []byte("first\n"), File: log + "0", Offset: 6}},
+			[]int{0}},
+		{"a tail over two files", "running",
+			[]frame{{Data: []byte("\n"), File: log + "4", Offset: 6}},
+			0,
+			[]frame{{Data: []byte("cut\nold\n"), File: log + "3", Offset: 1000}, {Data: []byte("older\nnew\n"), File: log + "4", Offset: 6}},
+			[]int{1, 1}},
+		{"a dead task", "dead", nil, 0,
+			[]frame{{Data: []byte("a\nb\n"), File: log + "0", Offset: 4}},
+			[]int{2}},
+		{"an end that cannot be read", "running", nil, http.StatusInternalServerError,
+			[]frame{{Data: []byte("a\nb\n"), File: log + "0", Offset: 4}},
+			[]int{0}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := oldServer(t, tt.state, tt.end, tt.endStatus, tt.frames...)
+
+			stream, err := client.Logs(context.Background(), "production", "a1", "server", nomad.LogStdout)
+			require.NoError(t, err)
+
+			var got []int
+
+			for chunk := range stream.Lines {
+				got = append(got, stream.Old(chunk))
+			}
+
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

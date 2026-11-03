@@ -3,6 +3,9 @@ package nomad
 import (
 	"bytes"
 	"context"
+	"math"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -54,8 +57,20 @@ type LogStream struct {
 
 	cancel chan struct{}
 
-	// start is written by the goroutine that reads the frames.
+	// start and there are written by the goroutine that reads the frames,
+	// before it sends the first line. there is how many bytes of the text
+	// the log held when it was opened, and given how many bytes Old has
+	// seen.
 	start atomic.Pointer[LogMark]
+	there atomic.Int64
+	given atomic.Int64
+
+	// end is where the log ended when it was opened, when endKnown says it
+	// was read. all says every line was there when it opened: a dead task
+	// writes no more.
+	end      LogMark
+	endKnown bool
+	all      bool
 }
 
 // Start is where the first line the stream sent begins: the zero mark until
@@ -66,6 +81,32 @@ func (s *LogStream) Start() LogMark {
 	}
 
 	return LogMark{}
+}
+
+// Old says how many whole lines at the front of a chunk the log held when it
+// was opened, the rest being what the task wrote after. It is called once per
+// chunk, in the order they were sent.
+func (s *LogStream) Old(chunk string) int {
+	there, given := s.there.Load(), s.given.Load()
+	s.given.Store(given + int64(len(chunk)))
+
+	count, at := 0, 0
+
+	for at < len(chunk) {
+		end := len(chunk)
+		if i := strings.IndexByte(chunk[at:], '\n'); i >= 0 {
+			end = at + i + 1
+		}
+
+		if given+int64(end) > there {
+			break
+		}
+
+		count++
+		at = end
+	}
+
+	return count
 }
 
 // Close stops the stream and the request behind it.
@@ -99,12 +140,52 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 	// would stay open with no more lines to come.
 	finished := taskDead(alloc, task)
 
+	stream := &LogStream{Finished: finished, Previous: alloc.PreviousAllocation, cancel: cancel, all: finished}
+
+	// Where a running log ends is read before the stream opens, so that
+	// what the task writes from then on is told from what was there.
+	if !finished {
+		stream.end, stream.endKnown = c.logEnd(ctx, namespace, alloc, task, source)
+	}
+
 	frames, errs := c.api.AllocFS().Logs(alloc, !finished, task, source, "end", logTail, cancel, c.query(context.Background(), namespace))
 
-	stream := &LogStream{Err: errs, Finished: finished, Previous: alloc.PreviousAllocation, cancel: cancel}
-	stream.Lines = streamLines(frames, startsCut, nil, &stream.start, cancel)
+	stream.Err = errs
+	stream.Lines = streamLines(frames, startsCut, nil, stream, cancel)
 
 	return stream, nil
+}
+
+// logEnd reads where a log ends now. A log that is empty, or one that cannot
+// be read, has no end known.
+func (c *Client) logEnd(ctx context.Context, namespace string, alloc *api.Allocation, task, source string) (LogMark, bool) {
+	cancel := make(chan struct{})
+	defer close(cancel)
+
+	frames, errs := c.api.AllocFS().Logs(alloc, false, task, source, "end", 1, cancel, c.query(ctx, namespace))
+
+	var (
+		end   LogMark
+		known bool
+	)
+
+	for {
+		select {
+		case frame, open := <-frames:
+			if !open {
+				return end, known
+			}
+
+			if frame != nil && len(frame.Data) > 0 {
+				end, known = LogMark{File: frame.File, Offset: frame.Offset}, true
+			}
+
+		case <-errs:
+			go drain(frames)
+
+			return LogMark{}, false
+		}
+	}
 }
 
 // streamLines passes on what the frames hold, from the first whole line when
@@ -114,9 +195,9 @@ func (c *Client) Logs(ctx context.Context, namespace, allocID, task, source stri
 // the stream ends, or after logTail bytes. atEnd, when not nil, says a frame
 // reached the end of what was there when the stream began, and what is held
 // is sent after it, once: a file does not end, so its last line gets no break.
-// start, when not nil, gets the mark of the first byte sent, before anything
-// is sent.
-func streamLines(frames <-chan *api.StreamFrame, startsCut, atEnd func(frame *api.StreamFrame) bool, start *atomic.Pointer[LogMark], cancel <-chan struct{}) <-chan string {
+// stream, when not nil, gets the mark of the first byte sent and how much of
+// the text was there when it opened, before anything is sent.
+func streamLines(frames <-chan *api.StreamFrame, startsCut, atEnd func(frame *api.StreamFrame) bool, stream *LogStream, cancel <-chan struct{}) <-chan string {
 	lines := make(chan string)
 
 	go func() {
@@ -125,7 +206,7 @@ func streamLines(frames <-chan *api.StreamFrame, startsCut, atEnd func(frame *ap
 		send := func(chunk []byte) bool { return sendChunk(lines, chunk, frames, cancel) }
 
 		var (
-			whole = wholeLines{first: true, startsCut: startsCut, start: start}
+			whole = wholeLines{first: true, startsCut: startsCut, stream: stream}
 			frame *api.StreamFrame
 			open  bool
 		)
@@ -180,8 +261,8 @@ type wholeLines struct {
 	first, cut bool
 	startsCut  func(first *api.StreamFrame) bool
 
-	// start, when not nil, is set once, to where the first byte kept is.
-	start *atomic.Pointer[LogMark]
+	// stream, when not nil, gets once where the first byte kept is.
+	stream *LogStream
 
 	// next is where the frame after the last one begins.
 	next LogMark
@@ -247,11 +328,46 @@ func (w *wholeLines) frontOf(frame *api.StreamFrame) LogMark {
 
 // noteStart records where the first byte kept is, when there is one in data.
 func (w *wholeLines) noteStart(mark LogMark, data []byte) {
-	if w.start == nil || len(data) == 0 || w.start.Load() != nil {
+	if w.stream == nil || len(data) == 0 || w.stream.start.Load() != nil {
 		return
 	}
 
-	w.start.Store(&mark)
+	w.stream.there.Store(w.thereFrom(mark))
+	w.stream.start.Store(&mark)
+}
+
+// thereFrom is how many bytes of the text, which begins at start, the log
+// held when it was opened: the text of the frames read so far ends at w.next.
+func (w *wholeLines) thereFrom(start LogMark) int64 {
+	s := w.stream
+
+	switch {
+	case s.all:
+		return math.MaxInt64
+	case !s.endKnown:
+		return 0
+	case s.end.File == start.File:
+		return max(s.end.Offset-start.Offset, 0)
+	case follows(start.File, s.end.File):
+		// The tail's part in the start's file is one read under 64 KiB, so it
+		// ends in the frame that holds the start.
+		return w.next.Offset - start.Offset + s.end.Offset
+	}
+
+	return 0
+}
+
+// follows says next is the file a log is turned over into after file: the
+// same name with the number one up.
+func follows(file, next string) bool {
+	at := strings.LastIndexByte(file, '.')
+	if at < 0 {
+		return false
+	}
+
+	n, err := strconv.Atoi(file[at+1:])
+
+	return err == nil && next == file[:at+1]+strconv.Itoa(n+1)
 }
 
 // rest gives back what is held and forgets it.
