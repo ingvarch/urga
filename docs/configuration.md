@@ -160,12 +160,14 @@ line says so.
 
 `CPU Alloc` and `MEM Alloc` in the header are how much of the cluster the
 running allocations asked for, out of what the ready clients give to jobs.
-They are not what the machines use. Tasks of an allocation that do not run at
-the same time are not added up: like the scheduler, urga takes the largest of
-the prestart, main and poststop tasks, and counts sidecar and poststart tasks
-with the main ones. They are updated every 15 seconds. CPU and
-memory of allocations and clients in a list are what they use, updated every
-5 seconds.
+They are not what the machines use. They are updated every 15 seconds. When a
+reading fails, the header keeps the last numbers, the status line says why
+once, and urga reads again 15 seconds later. Tasks of an allocation that do not
+run at the same time are not added up: like the scheduler, urga takes the
+largest of the prestart, main and poststop tasks, counts prestart sidecars with
+both the prestart and the main tasks, and poststart tasks with the main ones.
+CPU and memory of allocations and clients in a list are what they use, updated
+every 5 seconds.
 
 ## Saved session
 
