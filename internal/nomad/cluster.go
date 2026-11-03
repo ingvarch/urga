@@ -170,6 +170,45 @@ func schedulable(node *api.NodeListStub) Resources {
 	return Resources{CPU: max(out.CPU, 0), MemoryMB: max(out.MemoryMB, 0), DiskMB: max(out.DiskMB, 0)}
 }
 
+// claimOf is what a full allocation keeps of its client: its tasks counted
+// the way Usage counts them, and its shared disk.
+func claimOf(alloc *api.Allocation) Resources {
+	ar := alloc.AllocatedResources
+	if ar == nil {
+		return Resources{}
+	}
+
+	cpu, memory := (&claimedResources{Tasks: ar.Tasks, TaskLifecycles: lifecyclesOf(alloc)}).claimed()
+
+	return Resources{CPU: int(cpu), MemoryMB: int(memory), DiskMB: int(ar.Shared.DiskMB)}
+}
+
+// lifecyclesOf reads the lifecycles of the tasks of the group of an
+// allocation from its job. Without them every task counts as a main task.
+func lifecyclesOf(alloc *api.Allocation) map[string]*api.TaskLifecycle {
+	if alloc.Job == nil {
+		return nil
+	}
+
+	for _, group := range alloc.Job.TaskGroups {
+		if group == nil || group.Name == nil || *group.Name != alloc.TaskGroup {
+			continue
+		}
+
+		lifecycles := map[string]*api.TaskLifecycle{}
+
+		for _, task := range group.Tasks {
+			if task != nil {
+				lifecycles[task.Name] = task.Lifecycle
+			}
+		}
+
+		return lifecycles
+	}
+
+	return nil
+}
+
 // AllocationUsage is how much one allocation uses of what it asked for.
 func (c *Client) AllocationUsage(ctx context.Context, namespace, allocID string) (ResourceUse, error) {
 	tasks, err := c.taskReadings(ctx, namespace, allocID)
