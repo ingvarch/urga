@@ -100,6 +100,10 @@ type shellSession struct {
 
 	stdin          io.Reader
 	stdout, stderr io.Writer
+
+	// measure reads the size of the terminal on a descriptor; nil reads it
+	// from the system.
+	measure func(fd int) (width, height int, err error)
 }
 
 func (s *shellSession) SetStdin(r io.Reader)  { s.stdin = r }
@@ -123,12 +127,30 @@ func (s *shellSession) Run() error {
 		defer func() { _ = term.Restore(fd, state) }()
 	}
 
-	sizes := make(chan nomad.TerminalSize, 1)
-	go watchSize(ctx, fd, sizes)
+	out, measureOn := terminalOf(s.stdout), s.measure
+	if measureOn == nil {
+		measureOn = term.GetSize
+	}
 
-	_, height, _ := term.GetSize(fd)
+	measure := func() (int, int, error) { return measureOn(out) }
+
+	sizes := make(chan nomad.TerminalSize, 1)
+	go watchSize(ctx, measure, sizes)
+
+	_, height, _ := measure()
 
 	return s.open(ctx, height, sizes)
+}
+
+// terminalOf is the descriptor to measure the terminal on: the output when it
+// has one, else the input. Windows reads the size of a console only from an
+// output handle.
+func terminalOf(out io.Writer) int {
+	if f, ok := out.(interface{ Fd() uintptr }); ok {
+		return int(f.Fd())
+	}
+
+	return int(os.Stdin.Fd())
 }
 
 // open starts the shell in the task and connects the terminal to it. The
