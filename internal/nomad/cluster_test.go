@@ -2,6 +2,7 @@ package nomad_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -168,4 +169,79 @@ func TestClusterUsage_AClientThatKeepsMoreThanItHas(t *testing.T) {
 	// 1000 of 4000 shares, 2000 of 8000 megabytes.
 	r.Equal(25, usage.CPUPercent)
 	r.Equal(25, usage.MemoryPercent)
+}
+
+func TestClusterUsage_TasksThatDoNotRunTogether(t *testing.T) {
+	task := func(cpu, memory int, cores string) string {
+		return fmt.Sprintf(`{"Cpu": {"CpuShares": %d, "ReservedCores": %s}, "Memory": {"MemoryMB": %d}}`, cpu, cores, memory)
+	}
+
+	tests := []struct {
+		name       string
+		tasks      string
+		lifecycles string
+		cpu        int
+		memory     int
+	}{
+		{
+			name: "prestart, main and poststop take the largest",
+			tasks: `{"init": ` + task(4000, 1000, "null") + `, "web": ` + task(2000, 2000, "null") +
+				`, "cleanup": ` + task(500, 6000, "null") + `}`,
+			lifecycles: `{"init": {"Hook": "prestart"}, "web": null, "cleanup": {"Hook": "poststop"}}`,
+			cpu:        40, memory: 60,
+		},
+		{
+			name: "a prestart sidecar runs with main",
+			tasks: `{"init": ` + task(2500, 500, "null") + `, "proxy": ` + task(1000, 1000, "null") +
+				`, "web": ` + task(2000, 2000, "null") + `}`,
+			lifecycles: `{"init": {"Hook": "prestart"}, "proxy": {"Hook": "prestart", "Sidecar": true}}`,
+			cpu:        35, memory: 30,
+		},
+		{
+			name: "a poststart task runs with main",
+			tasks: `{"init": ` + task(2500, 2500, "null") + `, "web": ` + task(2000, 2000, "null") +
+				`, "after": ` + task(1000, 1000, "null") + `}`,
+			lifecycles: `{"init": {"Hook": "prestart"}, "after": {"Hook": "poststart"}}`,
+			cpu:        30, memory: 30,
+		},
+		{
+			name:       "reserved cores are added outside the largest",
+			tasks:      `{"init": ` + task(3000, 1000, "null") + `, "web": ` + task(2000, 1000, "[0, 1]") + `}`,
+			lifecycles: `{"init": {"Hook": "prestart"}}`,
+			cpu:        50, memory: 10,
+		},
+		{
+			name:       "an older cluster sends no lifecycles",
+			tasks:      `{"web": ` + task(1000, 1000, "null") + `, "worker": ` + task(2000, 2000, "null") + `}`,
+			lifecycles: `null`,
+			cpu:        30, memory: 30,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			usage := usageOfOneAllocation(t, tt.tasks, tt.lifecycles)
+
+			require.Equal(t, tt.cpu, usage.CPUPercent)
+			require.Equal(t, tt.memory, usage.MemoryPercent)
+		})
+	}
+}
+
+// usageOfOneAllocation reads the usage of a cluster of one ready node of
+// 10000 shares and 10000 megabytes with one running allocation.
+func usageOfOneAllocation(t *testing.T, tasks, lifecycles string) nomad.Usage {
+	t.Helper()
+
+	client := usageServer(t, `[
+		{"ID": "n1", "Status": "ready",
+			"NodeResources": {"Cpu": {"CpuShares": 10000}, "Memory": {"MemoryMB": 10000}}}
+	]`, `[
+		{"ID": "a1", "ClientStatus": "running", "AllocatedResources": {"Tasks": `+tasks+`, "TaskLifecycles": `+lifecycles+`}}
+	]`)
+
+	usage, err := client.Usage(context.Background(), "")
+	require.NoError(t, err)
+
+	return usage
 }

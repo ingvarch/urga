@@ -24,8 +24,9 @@ func (c *Client) Usage(ctx context.Context, datacenter string) (Usage, error) {
 		return Usage{}, err
 	}
 
-	allocs, _, err := c.api.Allocations().List(c.resourceQuery(ctx, AllNamespaces))
-	if err != nil {
+	var allocs []claim
+
+	if _, err := c.api.Raw().Query("/v1/allocations", &allocs, c.resourceQuery(ctx, AllNamespaces)); err != nil {
 		return Usage{}, err
 	}
 
@@ -60,16 +61,80 @@ func (c *Client) Usage(ctx context.Context, datacenter string) (Usage, error) {
 			continue
 		}
 
-		for _, task := range alloc.AllocatedResources.Tasks {
-			cpuClaimed += task.Cpu.CpuShares
-			memoryClaimed += task.Memory.MemoryMB
-		}
+		cpu, memory := alloc.AllocatedResources.claimed()
+		cpuClaimed += cpu
+		memoryClaimed += memory
 	}
 
 	return Usage{
 		CPUPercent:    percent(cpuClaimed, cpuCapacity),
 		MemoryPercent: percent(memoryClaimed, memoryCapacity),
 	}, nil
+}
+
+// claim is the part of an allocation the load of the cluster is read from.
+// The list in the api package has no lifecycles, so the tasks cannot be told
+// apart by when they run.
+type claim struct {
+	NodeID             string
+	ClientStatus       string
+	AllocatedResources *claimedResources
+}
+
+type claimedResources struct {
+	Tasks          map[string]*api.AllocatedTaskResources
+	TaskLifecycles map[string]*api.TaskLifecycle
+}
+
+type phase struct{ cpu, memory int64 }
+
+func (p phase) add(cpu, memory int64) phase {
+	return phase{p.cpu + cpu, p.memory + memory}
+}
+
+// claimed sums the tasks the way the scheduler does: the prestart tasks, the
+// main tasks (with the poststart ones and the prestart sidecars, which keep
+// running) and the poststop tasks do not run together, so each resource takes
+// the largest of the three. Shares of reserved cores are added on top.
+func (r *claimedResources) claimed() (cpu, memory int64) {
+	var prestart, main, poststop phase
+
+	var cores int64
+
+	for name, task := range r.Tasks {
+		if task == nil {
+			continue
+		}
+
+		shares, mb := task.Cpu.CpuShares, task.Memory.MemoryMB
+
+		if len(task.Cpu.ReservedCores) > 0 {
+			cores += shares
+			shares = 0
+		}
+
+		life := r.TaskLifecycles[name]
+
+		switch {
+		case life == nil:
+			main = main.add(shares, mb)
+		case life.Hook == api.TaskLifecycleHookPrestart:
+			prestart = prestart.add(shares, mb)
+
+			if life.Sidecar {
+				main = main.add(shares, mb)
+			}
+		case life.Hook == api.TaskLifecycleHookPoststart:
+			main = main.add(shares, mb)
+		case life.Hook == api.TaskLifecycleHookPoststop:
+			poststop = poststop.add(shares, mb)
+		}
+	}
+
+	cpu = cores + max(prestart.cpu, main.cpu, poststop.cpu)
+	memory = max(prestart.memory, main.memory, poststop.memory)
+
+	return cpu, memory
 }
 
 // schedulable is what a client gives to jobs: what it has without what it
