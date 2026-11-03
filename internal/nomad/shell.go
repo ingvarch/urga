@@ -3,6 +3,8 @@ package nomad
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"unicode/utf8"
@@ -45,6 +47,10 @@ func (c *Client) Exec(
 
 	return c.exec(ctx, namespace, allocID, task, true, command, stdin, stdout, stderr, apiSizes)
 }
+
+// ErrNotEnded says a command was running when its time was up: it had been
+// sent to the task.
+var ErrNotEnded = errors.New("the command did not end in time")
 
 // CommandOutput is what a command printed to stdout and stderr, in the order
 // the task printed it, and the exit code.
@@ -141,5 +147,10 @@ func (c *Client) exec(
 		return 0, err
 	}
 
-	return c.api.Allocations().Exec(ctx, alloc, task, tty, command, stdin, stdout, stderr, sizes, c.query(ctx, namespace))
+	code, err := c.api.Allocations().Exec(ctx, alloc, task, tty, command, stdin, stdout, stderr, sizes, c.query(ctx, namespace))
+	if errors.Is(err, context.DeadlineExceeded) {
+		return code, fmt.Errorf("%w: %w", ErrNotEnded, err)
+	}
+
+	return code, err
 }

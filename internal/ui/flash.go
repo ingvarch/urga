@@ -32,6 +32,10 @@ type flash struct {
 	level flashLevel
 	at    time.Time
 
+	// held keeps the message until another one takes its place or the
+	// screen changes: it says what is going on, so it has no time of its own.
+	held bool
+
 	// ofAction says the error is of an action: the answer to the next read
 	// does not make it out of date.
 	ofAction bool
@@ -56,6 +60,15 @@ func (m Model) fail(err error) Model {
 	}
 
 	return m.flashed(nomad.Reason(err), flashErr)
+}
+
+// busy says what is going on, until its answer or another screen takes the
+// message off.
+func (m Model) busy(text string) Model {
+	m = m.flashed(text, flashInfo)
+	m.flash.held = true
+
+	return m
 }
 
 // quiet takes the message off the screen.
@@ -84,7 +97,7 @@ func (m Model) forget() Model {
 
 // fresh says the message is still worth reading.
 func (f flash) fresh() bool {
-	return f.text != "" && time.Since(f.at) < flashFor
+	return f.text != "" && (f.held || time.Since(f.at) < flashFor)
 }
 
 // view is the message as the status line reads it: what went wrong and what
@@ -103,9 +116,9 @@ func (f flash) view(width int) string {
 }
 
 // clearFlash takes a message off once its time is up, unless a newer one has
-// taken its place.
+// taken its place. A held message stays.
 func (m Model) clearFlash(msg flashOverMsg) Model {
-	if m.flash.at.After(msg.at) {
+	if m.flash.held || m.flash.at.After(msg.at) {
 		return m
 	}
 

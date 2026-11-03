@@ -117,7 +117,8 @@ These keys work on the task under the cursor while it is running:
 - `ctrl-x` asks for a command and runs it with `/bin/sh -c`, without a
   terminal and with nothing on its stdin. It opens what the command printed to
   stdout and stderr, in the order it printed it, with the exit code in the
-  title. `/`, `f`, `c`, `ctrl-s` and `w` work on it as on a log. Of an output
+  title. While the command runs, the status line says so. `/`, `f`, `c`,
+  `ctrl-s` and `w` work on it as on a log. Of an output
   larger than 1 MiB it keeps the last 1 MiB, and the title says so. urga waits
   10 seconds for the command and then shows an error. A task without `/bin/sh`
   cannot run it.

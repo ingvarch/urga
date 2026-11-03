@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/hashicorp/nomad/api"
@@ -172,4 +173,64 @@ func printing(t *testing.T, text string) *nomad.Client {
 	require.NoError(t, err)
 
 	return client
+}
+
+func TestRunCommand_ACommandStillRunningAtTheDeadlineDidNotEnd(t *testing.T) {
+	r := require.New(t)
+
+	upgrader := websocket.Upgrader{}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/allocation/alloc-1", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ID":"alloc-1","NodeID":"node-1","Namespace":"production"}`))
+	})
+	mux.HandleFunc("/v1/client/allocation/alloc-1/exec", func(w http.ResponseWriter, req *http.Request) {
+		conn, err := upgrader.Upgrade(w, req, nil)
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+
+		var first api.ExecStreamingInput
+		_ = conn.ReadJSON(&first)
+
+		time.Sleep(time.Second)
+	})
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_, err = client.RunCommand(ctx, "production", "alloc-1", "server", []string{"sleep", "60"})
+
+	r.ErrorIs(err, nomad.ErrNotEnded)
+}
+
+func TestRunCommand_ATimeoutWhileTheAllocationIsReadIsNotThat(t *testing.T) {
+	r := require.New(t)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/allocation/alloc-1", func(_ http.ResponseWriter, req *http.Request) {
+		<-req.Context().Done()
+	})
+
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	_, err = client.RunCommand(ctx, "production", "alloc-1", "server", []string{"env"})
+
+	r.ErrorIs(err, context.DeadlineExceeded)
+	r.NotErrorIs(err, nomad.ErrNotEnded)
 }
