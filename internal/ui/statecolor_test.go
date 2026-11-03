@@ -77,24 +77,24 @@ func TestAllocColor_TheLifeOfAnAllocation(t *testing.T) {
 	}
 
 	// Placed, its tasks not started yet.
-	r.Equal(colorPending, allocColor(nomad.Alloc{Status: statusPending}))
+	r.Equal(colorPending, allocColor(nomad.Alloc{Status: statusPending}, time.Now()))
 
 	// Started, its deployment still waits for the checks to pass, or saw
 	// them fail.
-	r.Equal(colorDead, allocColor(running("run", "checking")))
-	r.Equal(colorDead, allocColor(running("run", "unhealthy")))
+	r.Equal(colorDead, allocColor(running("run", "checking"), time.Now()))
+	r.Equal(colorDead, allocColor(running("run", "unhealthy"), time.Now()))
 
 	// Up and healthy, or up outside a deployment.
-	r.Nil(allocColor(running("run", "healthy")))
-	r.Nil(allocColor(running("run", "")))
+	r.Nil(allocColor(running("run", "healthy"), time.Now()))
+	r.Nil(allocColor(running("run", ""), time.Now()))
 
 	// Told to stop, still running: on its way out.
-	r.Equal(colorStopping, allocColor(running("stop", "healthy")))
-	r.Equal(colorStopping, allocColor(running("evict", "")))
+	r.Equal(colorStopping, allocColor(running("stop", "healthy"), time.Now()))
+	r.Equal(colorStopping, allocColor(running("evict", ""), time.Now()))
 
-	r.Equal(colorDead, allocColor(nomad.Alloc{Status: statusFailed}))
-	r.Equal(colorDead, allocColor(nomad.Alloc{Status: statusLost}))
-	r.Equal(colorSpent, allocColor(nomad.Alloc{Status: statusComplete}))
+	r.Equal(colorDead, allocColor(nomad.Alloc{Status: statusFailed}, time.Now()))
+	r.Equal(colorDead, allocColor(nomad.Alloc{Status: statusLost}, time.Now()))
+	r.Equal(colorSpent, allocColor(nomad.Alloc{Status: statusComplete}, time.Now()))
 }
 
 func TestAllocColor_GoingAwayOutranksTrouble(t *testing.T) {
@@ -106,7 +106,7 @@ func TestAllocColor_GoingAwayOutranksTrouble(t *testing.T) {
 		Tasks: []nomad.Task{{Name: "server", LastRestart: time.Now().Add(-time.Minute)}},
 	}
 
-	r.Equal(colorStopping, allocColor(alloc))
+	r.Equal(colorStopping, allocColor(alloc, time.Now()))
 }
 
 func TestAllocColor_APoststopTaskDoesNotHoldItBack(t *testing.T) {
@@ -119,7 +119,7 @@ func TestAllocColor_APoststopTaskDoesNotHoldItBack(t *testing.T) {
 		Tasks: []nomad.Task{{Name: "server", State: statusRunning}, {Name: "cleanup", State: statusPending}},
 	}
 
-	r.Nil(allocColor(alloc))
+	r.Nil(allocColor(alloc, time.Now()))
 }
 
 func TestTrouble_LeavesOutWhatIsGoingAway(t *testing.T) {
@@ -131,7 +131,7 @@ func TestTrouble_LeavesOutWhatIsGoingAway(t *testing.T) {
 		{ID: "pending", Status: statusPending},
 	}
 
-	rows, index := troubledRows(allocRows(allocs, nil), []int{0, 1, 2})
+	rows, index := troubledRows(allocRows(allocs, nil, time.Now()), []int{0, 1, 2})
 
 	// A stop somebody asked for is not trouble; a start that is not healthy
 	// yet is red, and red rows are what the trouble filter keeps.

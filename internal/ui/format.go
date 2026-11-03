@@ -38,12 +38,12 @@ func exactly(d time.Duration) string {
 }
 
 // ageOf is the age of a moment, a dash when there is none.
-func ageOf(moment time.Time) string {
+func ageOf(moment, now time.Time) string {
 	if moment.IsZero() {
 		return "-"
 	}
 
-	return age(time.Since(moment))
+	return age(now.Sub(moment))
 }
 
 // truncate cuts a value to the width of its column. The tail is cut off: a

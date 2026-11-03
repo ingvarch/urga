@@ -39,7 +39,7 @@ type jobsPage struct {
 
 func (p jobsPage) title(e env, count int) string {
 	if p.ofParent() {
-		return sprintf("Launches (Job: %s%s) [%d]", p.parent.ID, nextIn(p.next), count)
+		return sprintf("Launches (Job: %s%s) [%d]", p.parent.ID, nextIn(p.next, e.now), count)
 	}
 
 	if p.alone() {
@@ -186,7 +186,9 @@ func (p jobsPage) lists(job nomad.Job) bool {
 	return job.ParentID == ""
 }
 
-func (p jobsPage) rows(e env) []tableRow { return jobRows(p.visible(e), lastLaunches(p.jobs), p.queue) }
+func (p jobsPage) rows(e env) []tableRow {
+	return jobRows(p.visible(e), lastLaunches(p.jobs), p.queue, e.now)
+}
 
 func (p jobsPage) ids(e env) []string { return names(p.visible(e), jobMark) }
 
@@ -250,13 +252,13 @@ func namespaceLabel(namespace string) string {
 
 // jobRows is one row per job, in the order of the columns. last are the
 // newest launches of the jobs that launch others.
-func jobRows(jobs []nomad.Job, last map[string]nomad.Job, queue map[string]nomad.QueueWorkload) []tableRow {
+func jobRows(jobs []nomad.Job, last map[string]nomad.Job, queue map[string]nomad.QueueWorkload, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(jobs))
 
 	for _, job := range jobs {
 		row := tableRow{color: launcherColor(job, last)}
 		row.add(job.ID, job.Name, job.Type, job.Namespace, jobStatus(job, queue), fmt.Sprintf("%d/%d", job.Running, job.Desired))
-		row.addAge(job.SubmitTime)
+		row.addAge(job.SubmitTime, now)
 
 		rows = append(rows, row)
 	}

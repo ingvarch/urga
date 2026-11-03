@@ -77,7 +77,7 @@ func (p queuePage) titles() []string {
 	return queueTitlesFifo
 }
 
-func (p queuePage) rows(env) []tableRow {
+func (p queuePage) rows(e env) []tableRow {
 	rows := make([]tableRow, 0, len(p.items))
 	dynamic := p.dynamic()
 
@@ -106,7 +106,7 @@ func (p queuePage) rows(env) []tableRow {
 			}
 		}
 
-		row.addAge(item.CreatedAt)
+		row.addAge(item.CreatedAt, e.now)
 		rows = append(rows, row)
 	}
 

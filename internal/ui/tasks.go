@@ -23,10 +23,6 @@ type tasksPage struct {
 	alloc nomad.Alloc
 	read  bool
 
-	// at is when the allocation was read. The time it has left counts to
-	// it, so it does not change with the clock between two reads.
-	at time.Time
-
 	// checks are the last results of the checks of the allocation.
 	checks []nomad.Check
 
@@ -63,7 +59,7 @@ func (p tasksPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 			return p, outcome{}, false
 		}
 
-		p.alloc, p.read, p.at = nomad.Alloc(msg), true, time.Now()
+		p.alloc, p.read = nomad.Alloc(msg), true
 
 		return p.checksOnce(e)
 
@@ -89,7 +85,7 @@ func (p tasksPage) restart() page {
 	return p
 }
 
-func (p tasksPage) rows(e env) []tableRow { return taskRows(p.alloc.Tasks, e.usage) }
+func (p tasksPage) rows(e env) []tableRow { return taskRows(p.alloc.Tasks, e.usage, e.now) }
 
 func (p tasksPage) ids(env) []string { return names(p.alloc.Tasks, taskMark) }
 
@@ -146,7 +142,7 @@ func (p tasksPage) press(k string, e env) (page, outcome, bool) {
 // taskTitles are the columns of the task list.
 var taskTitles = []string{"Name", "State", "Failed", "Restarts", "CPU", "MEM", "Started", "Finished", "Uptime"}
 
-func taskRows(tasks []nomad.Task, usage map[string]nomad.ResourceUse) []tableRow {
+func taskRows(tasks []nomad.Task, usage map[string]nomad.ResourceUse, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(tasks))
 
 	for _, task := range tasks {
@@ -161,7 +157,7 @@ func taskRows(tasks []nomad.Task, usage map[string]nomad.ResourceUse) []tableRow
 			cpuCell(use, known),
 			memoryCell(use, known),
 		)
-		addTaskTimes(&row, task)
+		addTaskTimes(&row, task, now)
 
 		rows = append(rows, row)
 	}
@@ -171,20 +167,20 @@ func taskRows(tasks []nomad.Task, usage map[string]nomad.ResourceUse) []tableRow
 
 // addTaskTimes puts when a task started and ended, and how long it ran, at
 // the end of a row.
-func addTaskTimes(row *tableRow, task nomad.Task) {
+func addTaskTimes(row *tableRow, task nomad.Task, now time.Time) {
 	ended := finishedAt(task)
 
-	row.addAge(task.Started)
-	row.addAge(ended)
+	row.addAge(task.Started, now)
+	row.addAge(ended, now)
 
 	// Only a running task counts to now; one that ended counts to its end.
 	switch {
 	case task.State == statusRunning:
-		row.addSpan(task.Started, time.Time{})
+		row.addSpan(task.Started, time.Time{}, now)
 	case !ended.IsZero():
-		row.addSpan(task.Started, ended)
+		row.addSpan(task.Started, ended, now)
 	default:
-		row.addSpan(time.Time{}, time.Time{})
+		row.addSpan(time.Time{}, time.Time{}, now)
 	}
 }
 
@@ -270,7 +266,9 @@ func (p taskEventsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, true
 }
 
-func (p taskEventsPage) rows(env) []tableRow { return taskEventRows(eventsOf(p.alloc, p.task)) }
+func (p taskEventsPage) rows(e env) []tableRow {
+	return taskEventRows(eventsOf(p.alloc, p.task), e.now)
+}
 
 // eventsOf are what happened to one task of an allocation.
 func eventsOf(alloc nomad.Alloc, task string) []nomad.TaskEvent {
@@ -286,12 +284,12 @@ func eventsOf(alloc nomad.Alloc, task string) []nomad.TaskEvent {
 // taskEventTitles are the columns of what happened to a task.
 var taskEventTitles = []string{"Age", "Type", "Message"}
 
-func taskEventRows(events []nomad.TaskEvent) []tableRow {
+func taskEventRows(events []nomad.TaskEvent, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(events))
 
 	for _, event := range events {
 		var row tableRow
-		row.addAge(event.Time)
+		row.addAge(event.Time, now)
 		row.add(event.Type, event.Message)
 
 		if event.Failed {

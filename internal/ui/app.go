@@ -242,6 +242,11 @@ type Model struct {
 	// refused is a request the cluster refused before it reported whose
 	// token the session sends.
 	refused error
+
+	// now is the time of the message being handled. What a screen shows of
+	// time counts from it, so a render gives the same string for the same
+	// state.
+	now time.Time
 }
 
 // New builds the model. Nothing is asked of the cluster until Init runs.
@@ -566,7 +571,7 @@ func (m Model) status() string {
 		return m.statusLeft(width)
 	}
 
-	value, style, ok := tokenStatus(*m.token, time.Now())
+	value, style, ok := tokenStatus(*m.token, m.now)
 	if !ok {
 		return m.statusLeft(width)
 	}
@@ -582,7 +587,7 @@ func (m Model) status() string {
 // statusLeft is what the status line shows on the left: a message, the mode
 // the list is in, or the keys that work everywhere.
 func (m Model) statusLeft(width int) string {
-	if m.flash.fresh() {
+	if m.flash.fresh(m.now) {
 		return m.flash.view(width)
 	}
 
@@ -651,7 +656,7 @@ func (m *Model) layout() {
 	_, arrives := m.screen.page.(arriving)
 	onTop := arrives && m.list.table.cursor == 0
 
-	m.list = m.list.read(m.rows(), m.screen.page.titles(), m.ids(), m.troubled)
+	m.list = m.list.read(m.rows(), m.screen.page.titles(), m.ids(), m.troubled, m.now)
 
 	if onTop {
 		m.list.table.move(-m.list.table.cursor)

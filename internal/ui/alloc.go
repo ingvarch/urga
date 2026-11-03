@@ -105,7 +105,7 @@ func (p allocationsPage) visible(env) []nomad.Alloc {
 	return keep(allocs, func(alloc nomad.Alloc) bool { return allocHasFault(alloc, p.fault, p.read) })
 }
 
-func (p allocationsPage) rows(e env) []tableRow { return allocRows(p.visible(e), e.usage) }
+func (p allocationsPage) rows(e env) []tableRow { return allocRows(p.visible(e), e.usage, e.now) }
 
 func (p allocationsPage) ids(e env) []string { return names(p.visible(e), allocMark) }
 
@@ -250,13 +250,13 @@ var allocTitles = []string{
 	"ID", "TaskGroup", "JobID", "Ver", "Namespace", "Node", "Status", "Desired", "Rst", "OOM", "CPU", "MEM", "Age",
 }
 
-func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []tableRow {
+func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(allocs))
 
 	for _, alloc := range allocs {
 		use, known := usage[alloc.ID]
 
-		row := tableRow{color: allocColor(alloc)}
+		row := tableRow{color: allocColor(alloc, now)}
 		row.add(
 			shortID(alloc.ID),
 			alloc.TaskGroup,
@@ -271,7 +271,7 @@ func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []table
 			cpuCell(use, known),
 			memoryCell(use, known),
 		)
-		row.addAge(alloc.Created)
+		row.addAge(alloc.Created, now)
 
 		rows = append(rows, row)
 	}
@@ -281,10 +281,10 @@ func allocRows(allocs []nomad.Alloc, usage map[string]nomad.ResourceUse) []table
 
 // allocColor says where an allocation is in its life: waiting to start,
 // started and not healthy yet, on its way out, or broken.
-func allocColor(alloc nomad.Alloc) color.Color {
+func allocColor(alloc nomad.Alloc, now time.Time) color.Color {
 	switch alloc.Status {
 	case statusRunning:
-		return runningColor(alloc)
+		return runningColor(alloc, now)
 	case statusPending:
 		return colorPending
 	case statusFailed, statusLost:
@@ -299,11 +299,11 @@ func allocColor(alloc nomad.Alloc) color.Color {
 // runningColor is the colour of an allocation that runs. Going away
 // outranks the rest: what is being stopped is not worth a look for how its
 // tasks run on the way out.
-func runningColor(alloc nomad.Alloc) color.Color {
+func runningColor(alloc nomad.Alloc, now time.Time) color.Color {
 	switch {
 	case alloc.DesiredStatus == desiredStop || alloc.DesiredStatus == desiredEvict:
 		return colorStopping
-	case alloc.Health == nomad.HealthChecking || alloc.Health == nomad.HealthUnhealthy || struggling(alloc, time.Now()):
+	case alloc.Health == nomad.HealthChecking || alloc.Health == nomad.HealthUnhealthy || struggling(alloc, now):
 		return colorDead
 	}
 

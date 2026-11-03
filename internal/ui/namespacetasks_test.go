@@ -84,7 +84,7 @@ func TestNamespaceTasks_ARowShowsTheNamespaceOfItsAllocation(t *testing.T) {
 	column := slices.Index(namespaceTaskTitles, "Namespace")
 	r.Equal(slices.Index(namespaceTaskTitles, "Job")+1, column)
 
-	rows := namespaceTaskRows([]allocTask{{alloc: nomad.Alloc{JobID: "web", Namespace: "staging"}}})
+	rows := namespaceTaskRows([]allocTask{{alloc: nomad.Alloc{JobID: "web", Namespace: "staging"}}}, time.Now())
 
 	r.Equal("staging", rows[0].cells[column])
 }
@@ -97,7 +97,7 @@ func TestNamespaceTasks_RowsHaveTheColorsOfTheTasks(t *testing.T) {
 		{task: nomad.Task{State: "dead", Failed: true}},
 		{task: nomad.Task{State: "pending"}},
 		{task: nomad.Task{State: "dead"}},
-	})
+	}, time.Now())
 
 	r.Nil(rows[0].color)
 	r.Equal(colorDead, rows[1].color)
@@ -111,7 +111,7 @@ func TestNamespaceTasks_ShowWhenTheyStartedAndEnded(t *testing.T) {
 	now := time.Now()
 	rows := namespaceTaskRows([]allocTask{
 		{task: nomad.Task{State: "dead", Started: now.Add(-3 * time.Hour), Finished: now.Add(-1 * time.Hour)}},
-	})
+	}, time.Now())
 
 	started, finished, uptime := slices.Index(namespaceTaskTitles, "Started"), slices.Index(namespaceTaskTitles, "Finished"), slices.Index(namespaceTaskTitles, "Uptime")
 

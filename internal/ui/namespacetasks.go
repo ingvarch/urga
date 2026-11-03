@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -68,11 +69,11 @@ func (p namespaceTasksPage) tasks() []allocTask {
 	return tasks
 }
 
-func (p namespaceTasksPage) rows(env) []tableRow { return namespaceTaskRows(p.tasks()) }
+func (p namespaceTasksPage) rows(e env) []tableRow { return namespaceTaskRows(p.tasks(), e.now) }
 
 func (p namespaceTasksPage) ids(env) []string { return names(p.tasks(), allocTaskMark) }
 
-func namespaceTaskRows(tasks []allocTask) []tableRow {
+func namespaceTaskRows(tasks []allocTask, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(tasks))
 
 	for _, t := range tasks {
@@ -87,7 +88,7 @@ func namespaceTaskRows(tasks []allocTask) []tableRow {
 			t.task.State,
 			sprintf("%d", t.task.Restarts),
 		)
-		addTaskTimes(&row, t.task)
+		addTaskTimes(&row, t.task, now)
 
 		rows = append(rows, row)
 	}

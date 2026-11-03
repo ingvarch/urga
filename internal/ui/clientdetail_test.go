@@ -409,12 +409,12 @@ func TestClient_WhatReadsAsWrong(t *testing.T) {
 	r := require.New(t)
 
 	// An event the machine marks as failed.
-	events := nodeEventRows([]nomad.NodeEvent{{Details: map[string]string{"failed": "true"}}, {}})
+	events := nodeEventRows([]nomad.NodeEvent{{Details: map[string]string{"failed": "true"}}, {}}, time.Now())
 	r.Equal(colorDead, events[0].color)
 	r.Nil(events[1].color)
 
 	// A driver that works, one found and broken, and one never found.
-	drivers := driverRows([]nomad.Driver{{Detected: true, Healthy: true}, {Detected: true}, {}})
+	drivers := driverRows([]nomad.Driver{{Detected: true, Healthy: true}, {Detected: true}, {}}, time.Now())
 	r.Nil(drivers[0].color)
 	r.Equal(colorDead, drivers[1].color)
 	r.Equal(colorSpent, drivers[2].color)

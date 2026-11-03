@@ -50,7 +50,7 @@ func TestDeploymentPanel(t *testing.T) {
 		" api    2        2       2        0          -         -         no           10m       -",
 		" web    3        1       0        0          1/1       no        yes          10m       in 4m",
 		"",
-	}, unstyled(t, deploymentPanel(waitingCanary(), 120, 100)))
+	}, unstyled(t, deploymentPanel(waitingCanary(), 120, 100, time.Now())))
 }
 
 func TestDeploymentPanel_ASystemJob(t *testing.T) {
@@ -63,7 +63,7 @@ func TestDeploymentPanel_ASystemJob(t *testing.T) {
 		Groups:     []nomad.DeploymentGroup{{Name: "agent", DesiredTotal: 12, Placed: 12, Healthy: 12}},
 	}
 
-	lines := unstyled(t, deploymentPanel(system, 120, 100))
+	lines := unstyled(t, deploymentPanel(system, 120, 100, time.Now()))
 	r.Contains(lines, " agent  12       12      12       0          -         -         no           -         -")
 }
 
@@ -77,7 +77,7 @@ func TestDeploymentPanel_GroupsThatDoNotFit(t *testing.T) {
 
 	// Room for the head, the table header and two groups: the rest are
 	// counted, and the allocations under the panel keep their rows.
-	lines := unstyled(t, deploymentPanel(many, 120, 8))
+	lines := unstyled(t, deploymentPanel(many, 120, 8, time.Now()))
 	r.Len(lines, 8)
 	r.Equal("  + 4 more groups", lines[6])
 }
@@ -186,7 +186,7 @@ func TestDeploymentPanel_ADeploymentThatIsOver(t *testing.T) {
 
 	// The cluster keeps the deadline of the last step; nothing is due by it
 	// any more.
-	for _, line := range unstyled(t, deploymentPanel(done, 120, 100)) {
+	for _, line := range unstyled(t, deploymentPanel(done, 120, 100, time.Now())) {
 		r.NotContains(line, "in 4m")
 	}
 }

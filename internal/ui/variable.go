@@ -7,6 +7,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -59,18 +60,18 @@ func (p variablesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, true
 }
 
-func (p variablesPage) rows(env) []tableRow { return variableRows(p.variables) }
+func (p variablesPage) rows(e env) []tableRow { return variableRows(p.variables, e.now) }
 
 func (p variablesPage) ids(env) []string { return names(p.variables, variableMark) }
 
-func variableRows(variables []nomad.Variable) []tableRow {
+func variableRows(variables []nomad.Variable, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(variables))
 
 	for _, v := range variables {
 		var row tableRow
 		row.add(v.Path, v.Namespace, lockOf(v))
-		row.addAge(v.Created)
-		row.addAge(v.Modified)
+		row.addAge(v.Created, now)
+		row.addAge(v.Modified, now)
 
 		rows = append(rows, row)
 	}

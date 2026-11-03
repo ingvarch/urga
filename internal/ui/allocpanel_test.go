@@ -294,13 +294,13 @@ func TestAllocPanel_TheTimeoutAndTheTimeLeft(t *testing.T) {
 	r.NotContains(strings.Join(unstyled(t, allocPanel(a, nil, now, 120, 100)), "\n"), "Timeout")
 }
 
-func TestTasks_TheTimeLeftCountsFromTheRead(t *testing.T) {
+func TestTasks_TheTimeLeftCountsFromTheClockOfTheModel(t *testing.T) {
 	a := running()
 	a.Created, a.Timeout = time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC), time.Hour
 
-	p := tasksPage{alloc: a, read: true, at: a.Created.Add(20 * time.Minute)}
+	p := tasksPage{alloc: a, read: true}
 
-	require.Contains(t, plain(strings.Join(p.panel(env{}, 120, 100), "\n")), "Time left 40m")
+	require.Contains(t, plain(strings.Join(p.panel(env{now: a.Created.Add(20 * time.Minute)}, 120, 100), "\n")), "Time left 40m")
 }
 
 func TestTasks_TheTimeLeftOfAnAllocationRead(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -53,7 +54,7 @@ func (p versionsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, true
 }
 
-func (p versionsPage) rows(env) []tableRow { return versionRows(p.versions) }
+func (p versionsPage) rows(e env) []tableRow { return versionRows(p.versions, e.now) }
 
 func (p versionsPage) ids(env) []string { return names(p.versions, versionMark) }
 
@@ -86,13 +87,13 @@ func openVersions(p jobsPage, e env) (jobsPage, outcome) {
 	return p, then(openMsg{versionsPage{namespace: job.Namespace, jobID: job.ID, jobType: job.Type, launches: launchesOthers(job)}})
 }
 
-func versionRows(versions []nomad.JobVersion) []tableRow {
+func versionRows(versions []nomad.JobVersion, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(versions))
 
 	for _, version := range versions {
 		row := tableRow{color: versionColor(version)}
 		row.add(fmt.Sprintf("%d", version.Version), versionState(version), version.Tag, changes(version.Changes))
-		row.addAge(version.Submitted)
+		row.addAge(version.Submitted, now)
 
 		rows = append(rows, row)
 	}

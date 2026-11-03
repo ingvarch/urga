@@ -176,7 +176,7 @@ func (p scalingPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 }
 
 // rows are the events, newest first; one that failed is red.
-func (p scalingPage) rows(env) []tableRow {
+func (p scalingPage) rows(e env) []tableRow {
 	rows := make([]tableRow, 0, len(p.scaling.Events))
 
 	for _, event := range p.scaling.Events {
@@ -186,7 +186,7 @@ func (p scalingPage) rows(env) []tableRow {
 		}
 
 		row.add(change(event), event.Message)
-		row.addAge(event.At)
+		row.addAge(event.At, e.now)
 
 		rows = append(rows, row)
 	}

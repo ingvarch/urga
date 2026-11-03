@@ -95,13 +95,12 @@ func columnOfLetter(titles []string, letter rune) (int, bool) {
 
 // sortRows orders the rows and carries the index along, so that the cursor
 // still points at the resource under it.
-func sortRows(rows []tableRow, index []int, state sortState, titles []string) ([]tableRow, []int) {
+func sortRows(rows []tableRow, index []int, state sortState, titles []string, now time.Time) ([]tableRow, []int) {
 	if state.column == noColumn || state.column >= len(titles) {
 		return rows, index
 	}
 
 	byTime := holdsAges(rows, state.column)
-	now := time.Now()
 
 	order := make([]int, len(rows))
 	for i := range order {

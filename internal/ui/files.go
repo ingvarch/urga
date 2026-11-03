@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -80,7 +81,7 @@ func (p filesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, false
 }
 
-func (p filesPage) rows(env) []tableRow { return fileRows(p.entries()) }
+func (p filesPage) rows(e env) []tableRow { return fileRows(p.entries(), e.now) }
 
 // entries are the rows of the directory, the one above it first when there
 // is one.
@@ -242,7 +243,7 @@ func (p filePage) press(k string, e env) (page, outcome, bool) {
 	return pressOf(p, e, fileKeys, k)
 }
 
-func fileRows(files []nomad.File) []tableRow {
+func fileRows(files []nomad.File, now time.Time) []tableRow {
 	rows := make([]tableRow, 0, len(files))
 
 	for _, f := range files {
@@ -254,12 +255,12 @@ func fileRows(files []nomad.File) []tableRow {
 
 		case f.Dir:
 			row.add(f.Name+"/", "")
-			row.addAge(f.Modified)
+			row.addAge(f.Modified, now)
 			row.color = colorTitle
 
 		default:
 			row.add(f.Name, sizeOf(f.Size))
-			row.addAge(f.Modified)
+			row.addAge(f.Modified, now)
 
 			// Nothing to read here: it is read by whoever holds its
 			// other end.

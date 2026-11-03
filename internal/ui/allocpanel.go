@@ -14,7 +14,7 @@ import (
 
 // panel is the panel of the allocation the page read, cut to room rows so
 // the tasks keep theirs. Before the allocation is read there is no panel.
-func (p tasksPage) panel(_ env, width, room int) []string {
+func (p tasksPage) panel(e env, width, room int) []string {
 	if !p.read {
 		return nil
 	}
@@ -25,7 +25,7 @@ func (p tasksPage) panel(_ env, width, room int) []string {
 		checks = p.checks
 	}
 
-	return allocPanel(p.alloc, checks, p.at, width, room)
+	return allocPanel(p.alloc, checks, e.now, width, room)
 }
 
 // allocHas offers a key when the allocation on the screen has the ID the key
@@ -144,7 +144,7 @@ func allocPanel(alloc nomad.Alloc, checks []nomad.Check, now time.Time, width, r
 
 	rows := fieldLineRows(lines, width)
 
-	return fitPanel(rows, checkBlock(checks, width), room)
+	return fitPanel(rows, checkBlock(checks, width, now), room)
 }
 
 // panelBlock is a part of a panel that lists things under a title: the
@@ -218,7 +218,7 @@ func blockRows(block panelBlock, room int) []string {
 
 // checkBlock is the checks of an allocation. A failed check shows its output
 // on the row under it.
-func checkBlock(checks []nomad.Check, width int) panelBlock {
+func checkBlock(checks []nomad.Check, width int, now time.Time) panelBlock {
 
 	named := 0
 	for _, check := range checks {
@@ -233,7 +233,7 @@ func checkBlock(checks []nomad.Check, width int) panelBlock {
 		line := "  " + style.Render("●") + " " + styleText.Render(pad(check.Service+"/"+check.Name, named)) +
 			"  " + style.Render(check.Status)
 		if !check.Time.IsZero() {
-			line += "  " + styleMuted.Render(ageOf(check.Time)+" ago")
+			line += "  " + styleMuted.Render(ageOf(check.Time, now)+" ago")
 		}
 
 		entry := []string{truncate(line, width)}

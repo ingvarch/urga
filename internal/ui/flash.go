@@ -96,8 +96,8 @@ func (m Model) forget() Model {
 }
 
 // fresh says the message is still worth reading.
-func (f flash) fresh() bool {
-	return f.text != "" && (f.held || time.Since(f.at) < flashFor)
+func (f flash) fresh(now time.Time) bool {
+	return f.text != "" && (f.held || now.Sub(f.at) < flashFor)
 }
 
 // view is the message as the status line reads it: what went wrong and what

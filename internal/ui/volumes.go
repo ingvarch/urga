@@ -59,13 +59,13 @@ func (p volumesPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 	return p, outcome{}, true
 }
 
-func (p volumesPage) rows(env) []tableRow {
+func (p volumesPage) rows(e env) []tableRow {
 	rows := make([]tableRow, 0, len(p.volumes))
 
 	for _, v := range p.volumes {
 		row := tableRow{color: volumeColor(v)}
 		row.add(volumeID(v), v.Name, v.Kind, v.Namespace, v.PluginID, dashed(v.NodeName), dashed(knownSize(v.CapacityBytes)), v.State, claimsOf(v))
-		row.addAge(v.Created)
+		row.addAge(v.Created, e.now)
 
 		rows = append(rows, row)
 	}
@@ -232,7 +232,7 @@ func (p volumePage) panel(_ env, width, room int) []string {
 	return volumePanel(p.volume, width, room)
 }
 
-func (p volumePage) rows(e env) []tableRow { return allocRows(p.volume.Allocs, e.usage) }
+func (p volumePage) rows(e env) []tableRow { return allocRows(p.volume.Allocs, e.usage, e.now) }
 
 func (p volumePage) visible(env) []nomad.Alloc { return p.volume.Allocs }
 

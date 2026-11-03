@@ -234,13 +234,13 @@ func withWaiting(feed *nomad.Feed, first nomad.Event) []nomad.Event {
 	}
 }
 
-func (p feedPage) rows(env) []tableRow {
+func (p feedPage) rows(e env) []tableRow {
 	rows := make([]tableRow, 0, len(p.events))
 
 	for _, event := range p.events {
 		row := tableRow{color: stateColor(event.State)}
 		row.add(event.Topic, event.Type, event.Namespace, event.Name, event.State)
-		row.addAge(event.At)
+		row.addAge(event.At, e.now)
 
 		rows = append(rows, row)
 	}

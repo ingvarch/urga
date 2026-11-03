@@ -58,7 +58,7 @@ func TestTaskEvents_OpenOnATask(t *testing.T) {
 func TestTaskEvents_WhatTookTheTaskDownStandsOut(t *testing.T) {
 	r := require.New(t)
 
-	rows := taskEventRows(allocsWithEvents()[0].Tasks[0].Events)
+	rows := taskEventRows(allocsWithEvents()[0].Tasks[0].Events, time.Now())
 
 	r.Len(rows, 2)
 	r.Equal(colorDead, rows[0].color)

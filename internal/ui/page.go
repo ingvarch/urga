@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -91,6 +92,9 @@ type env struct {
 
 	// build is this urga, for the about screen.
 	build buildInfo
+
+	// now is the time of the model, for ages and countdowns.
+	now time.Time
 }
 
 // env is the session as the pages see it.
@@ -125,6 +129,7 @@ func (m Model) env() env {
 			releases:   m.opts.Releases,
 			unchecked:  m.opts.Unchecked,
 		},
+		now: m.now,
 	}
 }
 

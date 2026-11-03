@@ -160,7 +160,7 @@ func (p deployWatchPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
 }
 
 // panel is what the watch adds, then the groups of the deployment.
-func (p deployWatchPage) panel(_ env, width, room int) []string {
+func (p deployWatchPage) panel(e env, width, room int) []string {
 	if !p.read {
 		return nil
 	}
@@ -173,7 +173,7 @@ func (p deployWatchPage) panel(_ env, width, room int) []string {
 
 	head = append(head, panelRow(truncate(p.standing(), width-tableIndent)))
 
-	return fitPanel(head, groupBlock(p.deployment.deployment.Groups, p.deployment.active(), width), room)
+	return fitPanel(head, groupBlock(p.deployment.deployment.Groups, p.deployment.active(), width, e.now), room)
 }
 
 // standing is one line on how the deploy stands.
