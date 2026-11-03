@@ -583,7 +583,8 @@ where the file was saved.
 
 On every text screen, `f` asks for a word and keeps every line on the screen,
 lighting the word where it is. The window goes to the first match from its
-top, and the status line says which one it is. `n` and `N` go to the next and
+top, and the status line says which one it is. With wrap off, the window also
+moves sideways to a match past either edge. `n` and `N` go to the next and
 the previous match, round past the end and the start; after you scroll away
 from a match, they start from what the window shows. An empty word drops the find, and
 `esc` keeps the word as it was. The filter (`/`) still narrows the lines, and

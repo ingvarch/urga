@@ -659,7 +659,31 @@ func (t *textModel) seek(from int, backward bool) (nth, of int) {
 
 	t.at = hits[i]
 	t.move(max(t.at-t.height/3, 0) - t.top)
+	t.reveal(t.rows()[t.at].text)
 	t.following = false
 
 	return i + 1, len(hits)
+}
+
+// reveal moves the window sideways to the match in the row, when it is not
+// in view. A wrapped text has no sides.
+func (t *textModel) reveal(row string) {
+	if t.wrap {
+		return
+	}
+
+	at := wordFinder(t.found)(row)
+	if at == nil {
+		return
+	}
+
+	from := ansi.StringWidth(onScreen(row[:at[0]]))
+	to := ansi.StringWidth(onScreen(row[:at[1]]))
+
+	if from >= t.shift && to <= t.shift+t.width {
+		return
+	}
+
+	t.shift = max(from-t.width/4, 0)
+	t.slide(0)
 }

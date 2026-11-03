@@ -324,3 +324,51 @@ func TestFind_KeepsItsPlaceWhenLinesLeaveTheFront(t *testing.T) {
 	nth, _ = text.seek(text.at+1, false)
 	r.Equal(4, nth)
 }
+
+func TestFind_MovesSidewaysToAMatchPastTheRightEdge(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onLogs(t, strings.Repeat("a", 290)+" target\n", "short\n")
+	m = foundIn(m, "target")
+
+	r.Contains(plain(m.text.view()), "target")
+	r.Positive(m.text.shift)
+	r.Contains(togglesOf(m), "Column:")
+}
+
+func TestFind_NextGoesSidewaysToTheMatchAndBack(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onLogs(t, "target at the start\n", strings.Repeat("b", 290)+" target\n")
+	m = foundIn(m, "target")
+	r.Zero(m.text.shift)
+
+	m, _ = m.update(key('n'))
+	r.Positive(m.text.shift)
+	r.Contains(plain(m.text.view()), "target")
+
+	m, _ = m.update(key('n'))
+	r.Zero(m.text.shift)
+}
+
+func TestFind_AMatchInViewKeepsTheShift(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onLogs(t, strings.Repeat("a", 101)+" target\n", strings.Repeat("c", 300)+"\n")
+	m = right(m)
+	r.Positive(m.text.shift)
+	before := m.text.shift
+	m = foundIn(m, "target")
+
+	r.Equal(before, m.text.shift)
+}
+
+func TestFind_WithWrapTheShiftStaysZero(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onLogs(t, strings.Repeat("a", 290)+" target\n")
+	m, _ = m.update(key('w'))
+	m = foundIn(m, "target")
+
+	r.Zero(m.text.shift)
+}
