@@ -150,8 +150,10 @@ func TestCopyText_EveryTextScreenOffersIt(t *testing.T) {
 
 	about := aboutOf(t, released(readsReleases(threeReleases()[2:], nil, new(int))))
 
+	agent := onAgentLogs(t, &fakeClient{})
+
 	screens := map[string]Model{
-		"logs": logs, "job logs": jobLogs, "describe": describe,
+		"logs": logs, "job logs": jobLogs, "describe": describe, "agent logs": agent,
 		"file": file, "plan": plan, "about": about,
 	}
 

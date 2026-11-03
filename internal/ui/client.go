@@ -276,6 +276,7 @@ var clientKeys = append([]pageKey[clientPage]{
 	{press: "a", label: "Attributes", do: nodeScreen(func(d machine) page { return nodeAttributesPage{machine: d} })},
 	{press: "m", label: "Meta", do: nodeScreen(func(d machine) page { return nodeMetaPage{nodeID: d.nodeID, name: d.name} })},
 	{press: "u", label: "Units", do: toggleUnits},
+	{press: "ctrl+l", label: "Agent Logs", do: clientAgentLogs},
 	{press: "i", label: "Identity", do: showIdentity, offered: holdsIdentity},
 	{press: "ctrl+n", label: "Renew", do: renewIdentity, writes: true, offered: holdsIdentity},
 }, allocKeys[clientPage]()...)

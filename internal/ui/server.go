@@ -252,7 +252,10 @@ func (p serversPage) visible(e env) []nomad.Server { return serversIn(e.datacent
 
 func (p serversPage) rows(e env) []tableRow { return serverRows(p.visible(e), p.health, p.known) }
 
-var serversKeys = []pageKey[serversPage]{{press: "enter", label: "Details", do: openServer}}
+var serversKeys = []pageKey[serversPage]{
+	{press: "enter", label: "Details", do: openServer},
+	{press: "ctrl+l", label: "Agent Logs", do: serversAgentLogs, offered: onServerAgent[serversPage]},
+}
 
 func (p serversPage) keys(e env) []keyHint { return hintsOf(p, e, serversKeys) }
 
@@ -375,7 +378,10 @@ func raftRow(rows []tableRow) int {
 	return len(rows) - 1
 }
 
-var serverKeys = []pageKey[serverPage]{copyKey[serverPage]()}
+var serverKeys = []pageKey[serverPage]{
+	{press: "ctrl+l", label: "Agent Logs", do: serverAgentLogs, offered: onServerAgent[serverPage]},
+	copyKey[serverPage](),
+}
 
 func (p serverPage) keys(e env) []keyHint { return hintsOf(p, e, serverKeys) }
 

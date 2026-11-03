@@ -38,6 +38,7 @@ type (
 		Address() string
 		Region() string
 		Agent(ctx context.Context) (nomad.Agent, error)
+		AgentLogs(ctx context.Context, target nomad.AgentTarget, level string) *nomad.LogStream
 		Regions(ctx context.Context) ([]string, error)
 		Datacenters(ctx context.Context) ([]string, error)
 		Token(ctx context.Context) (nomad.Token, error)

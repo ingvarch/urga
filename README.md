@@ -42,6 +42,9 @@ One binary, no config to write, no browser.
 - Shows task logs and the files of an allocation, follows them as they grow,
   and reads a log further back than its last 64 KiB. Shows the log of a task
   from every allocation of a job at once.
+- Follows what a Nomad agent logs, the one urga talks to, any client, or,
+  through a server, any server, at a level from trace to error, starting with
+  the past lines of its log file where the cluster keeps them.
 - Edits a job in your editor and shows the plan before it submits anything.
 - Shows the values of variables, hidden until you ask for them, and who holds
   a variable as a lock, and releases a lock left held. Creates, edits and
@@ -139,7 +142,8 @@ quit.
 - [Allocations and tasks](docs/allocations.md): allocations, every task of
   the namespace with `:tasks`, checks, task actions, logs and files.
 - [Clients, servers and other resources](docs/clients.md): clients,
-  servers, the scheduler, namespaces, services, variables and node pools.
+  servers, agent logs, the scheduler, namespaces, services, variables and
+  node pools.
 - [Storage](docs/storage.md): CSI volumes, dynamic host volumes and CSI
   plugins.
 - [Access control](docs/acl.md): ACL tokens, policies, roles, auth methods

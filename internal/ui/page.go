@@ -87,6 +87,9 @@ type env struct {
 	// nomadVersion is the version of the cluster, empty until it is read.
 	nomadVersion string
 
+	// agentServer says the agent urga talks to is a server.
+	agentServer bool
+
 	// found says a word is found in the text on the screen.
 	found bool
 
@@ -121,6 +124,7 @@ func (m Model) env() env {
 		found:       m.text.found != "",
 
 		nomadVersion: m.nomadVersion,
+		agentServer:  m.agentServer,
 		build: buildInfo{
 			version:    m.opts.Version,
 			commit:     m.opts.Commit,

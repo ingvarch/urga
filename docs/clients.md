@@ -1,7 +1,7 @@
 # Clients, servers and other resources
 
-This page covers clients, servers, the scheduler, namespaces, services,
-variables and node pools. For the keys of each screen, see
+This page covers clients, servers, agent logs, the scheduler, namespaces,
+services, variables and node pools. For the keys of each screen, see
 [Keys and commands](keys.md).
 
 ## Client list
@@ -102,6 +102,29 @@ healthy as it is, and the tags the cluster was built with.
 The health comes from the operator endpoint, which a token needs
 `operator:read` for. Without it, the columns show `-` and the title leaves the
 health out; the rest of the screen stays as it is.
+
+## Agent logs
+
+`:agentlogs` (or `:monitor`) follows what the agent urga talks to logs.
+`ctrl-l` on a client or a server, in its list or on its screen, follows that
+agent through the cluster. `ctrl-l` on a server shows only when urga talks to
+a server: a client agent does not pass the request on to a server.
+
+The log starts at `info`. `v` steps to more detail (`debug`, then `trace`),
+then back to `error` and `warn`, and the log starts again at the new level.
+The title shows the level.
+
+First comes the last MiB of the log file of the agent, at the level and
+above, then new lines as they are logged. The past lines need Nomad 1.10.4 or
+later and an agent with `log_file` set. On an older cluster, with an agent
+that logs only to journald, and on a server opened with `ctrl-l`, only new
+lines show. A big log file takes a moment before its lines show.
+
+The log needs `agent:read`. Without it, the status line shows the refusal of
+the cluster.
+
+Autoscroll, wrap, find, filter, saving and copying work as on a task log.
+`esc` closes the log and its request.
 
 ## Scheduler
 

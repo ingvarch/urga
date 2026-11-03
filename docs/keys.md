@@ -45,6 +45,7 @@ Press `:` to open the command line, type a command and press `enter`.
 | `roles` | `role` | ACL roles |
 | `authmethods` | `authmethod`, `auth` | ACL auth methods |
 | `bindingrules` | `bindingrule`, `br` | ACL binding rules |
+| `agentlogs` | `monitor` | What the agent urga talks to logs. See [Agent logs](clients.md#agent-logs). |
 | `about` | `version` | This urga: its version, a newer release and what changed. See [Newer releases](configuration.md#newer-releases). |
 
 You do not have to type the whole word. The line completes the command that
@@ -476,6 +477,7 @@ leaves it; the deploy goes on.
 | Key | What it does | Changes |
 | --- | --- | --- |
 | `enter` | Open the client | |
+| `ctrl-l` | Agent logs of the client | |
 | `ctrl-d` | Drain, or stop draining | yes |
 | `i` | Allow or stop new work on the client | yes |
 | `ctrl-p` | Purge a client that is down: the cluster forgets it. Shown on one that is down. | yes |
@@ -495,6 +497,7 @@ The client screen lists the allocations of the client. It has the keys of
 | `a` | Attributes | |
 | `m` | Metadata | |
 | `u` | Units: percents or numbers on the charts and the allocated line | |
+| `ctrl-l` | Agent logs of the client | |
 | `i` | Claims of the identity of the client. Shown when it has one. | |
 | `ctrl-n` | Renew the identity of the client. Shown when it has one. | yes |
 
@@ -521,6 +524,19 @@ metadata, `e` edits it in your editor.
 | Key | What it does |
 | --- | --- |
 | `enter` | Details of the server |
+| `ctrl-l` | Agent logs of the server, from the list or its screen. Shown when urga talks to a server. |
+
+### Agent logs
+
+| Key | What it does |
+| --- | --- |
+| `v` | Next level: info, debug, trace, then error, warn. The log starts again. |
+| `s` | Autoscroll on or off |
+| `w` | Wrap on or off |
+| `ctrl-s` | Save the log to a file |
+| `c` | Copy the log to the clipboard |
+| `f` | Find a word: every line stays and the word is lit |
+| `n`, `N` | Next or previous match. Shown once a word is found. |
 
 ### Scheduler
 

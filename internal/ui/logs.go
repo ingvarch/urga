@@ -248,7 +248,9 @@ func (l logState) waitForLog() tea.Cmd {
 	return waitForStream(l.stream)
 }
 
-// waitForStream waits for the next thing a stream sends.
+// waitForStream waits for the next thing a stream sends. An end is checked
+// for an error first: a stream that sends its error before it ends has both
+// ready at once, and the select takes either.
 func waitForStream(stream *nomad.LogStream) tea.Cmd {
 	if stream == nil {
 		return nil
@@ -258,7 +260,7 @@ func waitForStream(stream *nomad.LogStream) tea.Cmd {
 		select {
 		case line, ok := <-stream.Lines:
 			if !ok {
-				return logEndMsg{stream: stream}
+				return endOf(stream)
 			}
 
 			return logLineMsg{stream: stream, text: line, start: stream.Start(), old: stream.Old(line)}
@@ -271,6 +273,20 @@ func waitForStream(stream *nomad.LogStream) tea.Cmd {
 			return logEndMsg{stream: stream}
 		}
 	}
+}
+
+// endOf is the end of a stream whose lines closed: its error, when it sent
+// one.
+func endOf(stream *nomad.LogStream) tea.Msg {
+	select {
+	case err := <-stream.Err:
+		if err != nil {
+			return errMsg{err: err}
+		}
+	default:
+	}
+
+	return logEndMsg{stream: stream}
 }
 
 // opened keeps the stream that was opened and waits for its first line.
@@ -477,7 +493,8 @@ func (m Model) toggleRows() int {
 }
 
 // readsAStream says the screen reads what something writes: the log of a
-// task, the logs of a task in every allocation, or a file of an allocation.
+// task, the logs of a task in every allocation, a file of an allocation, or
+// the log of an agent.
 func (m Model) readsAStream() bool {
 	_, ok := m.screen.page.(streamer)
 
