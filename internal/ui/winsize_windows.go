@@ -6,8 +6,6 @@ import (
 	"context"
 	"time"
 
-	"golang.org/x/term"
-
 	"github.com/ingvarch/urga/internal/nomad"
 )
 
@@ -17,10 +15,10 @@ const sizeEvery = time.Second
 
 // watchSize tells the task how big the terminal is, now and whenever it
 // turns out to have changed.
-func watchSize(ctx context.Context, fd int, sizes chan<- nomad.TerminalSize) {
+func watchSize(ctx context.Context, measure func() (width, height int, err error), sizes chan<- nomad.TerminalSize) {
 	defer close(sizes)
 
-	last := sendSize(ctx, fd, sizes, nomad.TerminalSize{})
+	last := sendSize(ctx, measure, sizes, nomad.TerminalSize{})
 
 	ticker := time.NewTicker(sizeEvery)
 	defer ticker.Stop()
@@ -28,7 +26,7 @@ func watchSize(ctx context.Context, fd int, sizes chan<- nomad.TerminalSize) {
 	for {
 		select {
 		case <-ticker.C:
-			last = sendSize(ctx, fd, sizes, last)
+			last = sendSize(ctx, measure, sizes, last)
 		case <-ctx.Done():
 			return
 		}
@@ -37,8 +35,13 @@ func watchSize(ctx context.Context, fd int, sizes chan<- nomad.TerminalSize) {
 
 // sendSize sends the size of the terminal when it differs from the last one
 // sent.
-func sendSize(ctx context.Context, fd int, sizes chan<- nomad.TerminalSize, last nomad.TerminalSize) nomad.TerminalSize {
-	width, height, err := term.GetSize(fd)
+func sendSize(
+	ctx context.Context,
+	measure func() (width, height int, err error),
+	sizes chan<- nomad.TerminalSize,
+	last nomad.TerminalSize,
+) nomad.TerminalSize {
+	width, height, err := measure()
 	if err != nil {
 		return last
 	}

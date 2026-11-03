@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -13,13 +12,12 @@ func TestWatchSize_StopsWithTheSession(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sizes := make(chan nomad.TerminalSize, 1)
 
-	go watchSize(ctx, int(os.Stdin.Fd()), sizes)
+	go watchSize(ctx, func() (int, int, error) { return 80, 24, nil }, sizes)
 
 	cancel()
 
-	// The watcher closes the channel when the shell ends, whatever the
-	// platform tells it about the terminal. Anything it managed to send
-	// first is drained on the way.
+	// The watcher closes the channel when the shell ends. Anything it
+	// managed to send first is drained on the way.
 	done := make(chan struct{})
 
 	go func() {
