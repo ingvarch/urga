@@ -53,8 +53,9 @@ type env struct {
 	row   int
 	onRow bool
 
-	// marks are the resources an action applies to, by the ids the page
-	// names its rows with.
+	// marks are the resources that carry a mark, by the ids the page names
+	// its rows with. They can include rows the filter hides; an action takes
+	// those on the screen.
 	marks map[string]bool
 
 	// index are the rows the filter and the order leave on the screen, by
@@ -128,21 +129,23 @@ func pickedFrom[T any](e env, items []T) (T, bool) {
 	return items[e.row], true
 }
 
-// markedFrom are the items that carry a mark. A mark is on the resource,
-// not on the line it sits on, so a filter or a sort does not change what an
-// action applies to. Without any mark, it returns the item under the
-// cursor, which is how every action uses a list.
+// markedFrom are the items on the screen that carry a mark. A mark is on the
+// resource, not on the line it sits on, so a sort does not change what an
+// action applies to. A filter or ! does: a mark on a row they hide stays and
+// shows again with the row, but the action leaves it out. Without any mark,
+// it returns the item under the cursor, which is how every action uses a
+// list.
 func markedFrom[T any](e env, items []T, id func(T) string) []T {
 	out := []T{}
 
-	for _, item := range items {
-		if e.marks[id(item)] {
-			out = append(out, item)
+	for _, at := range e.index {
+		if at < len(items) && e.marks[id(items[at])] {
+			out = append(out, items[at])
 		}
 	}
 
-	// When no mark matches an item on this page any more, the item under
-	// the cursor is used, so the key still does something.
+	// When no mark matches an item on the screen, the item under the
+	// cursor is used, so the key still does something.
 	if len(out) > 0 {
 		return out
 	}

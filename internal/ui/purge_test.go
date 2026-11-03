@@ -59,9 +59,13 @@ func TestPurge_OnlyTheStoppedOfTheMarked(t *testing.T) {
 	r.Equal("Really purge the job cron? Its versions and history go with it.", m.confirm.question)
 
 	m, cmd := answerYes(m)
-	drain(m, cmd)
+	m = drain(m, cmd)
 
 	r.Equal([]string{"cron"}, client.purged)
+
+	// The key was asked about the job that runs too, so its mark goes with
+	// the rest.
+	r.Empty(m.list.marks)
 }
 
 // upAndDown are a client that runs, one that is down, and another that

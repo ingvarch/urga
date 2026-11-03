@@ -227,7 +227,7 @@ func TestMarks_AreLetGoOfWhenTheActionIsDone(t *testing.T) {
 	r.Empty(markedRows(m))
 }
 
-func TestMarks_AreActedOnEvenWhenTheFilterHidesThem(t *testing.T) {
+func TestMarks_AnActionLeavesOutWhatTheFilterHides(t *testing.T) {
 	r := require.New(t)
 
 	m, client := onAllocations(t)
@@ -238,15 +238,44 @@ func TestMarks_AreActedOnEvenWhenTheFilterHidesThem(t *testing.T) {
 	m = typeIn(m, "backend")
 	m, _ = m.update(enter())
 
-	// The mark is on an allocation, not on a line of the screen. A key that
-	// silently does nothing is worse than either answer.
-	m, _ = m.update(key('r'))
-	r.Contains(plain(m.render()), "restart the allocation af1f37df")
+	// The mark stays on its allocation and shows again with its row, but
+	// the action applies to what is on the screen.
+	r.True(m.list.marks["af1f37df-7b19-6b1c-da67-5e8f482b5a15"])
 
-	_, cmd := answerYes(m)
-	drain(m, cmd)
+	m, _ = m.update(key('r'))
+	r.Contains(plain(m.render()), "restart the allocation b2222222")
+	r.NotContains(plain(m.render()), "af1f37df")
+
+	m, cmd := answerYes(m)
+	m = drain(m, cmd)
 
 	r.Equal(1, client.restarted)
+	r.Equal("b2222222-0000-0000-0000-000000000000", client.askedID)
+
+	// The action did not touch the hidden mark, so it is still there.
+	r.True(m.list.marks["af1f37df-7b19-6b1c-da67-5e8f482b5a15"])
+}
+
+func TestMarks_AnActionWithoutAQuestionUnmarksOnlyWhatIsShown(t *testing.T) {
+	r := require.New(t)
+
+	m, _ := onAllocations(t)
+
+	m, _ = m.update(space())
+
+	m, _ = m.update(key('/'))
+	m = typeIn(m, "backend")
+	m, _ = m.update(enter())
+	m, _ = m.update(space())
+
+	r.True(m.list.marks["af1f37df-7b19-6b1c-da67-5e8f482b5a15"])
+	r.True(m.list.marks["b2222222-0000-0000-0000-000000000000"])
+
+	// A save or a dispatch from a form asks no question and acts on no mark.
+	m, _ = m.update(doneMsg{said: "Saved."})
+
+	r.False(m.list.marks["b2222222-0000-0000-0000-000000000000"])
+	r.True(m.list.marks["af1f37df-7b19-6b1c-da67-5e8f482b5a15"])
 }
 
 func TestMarks_AnActionThatFailsPartWaySaysHowFar(t *testing.T) {

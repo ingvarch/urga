@@ -16,8 +16,9 @@ type list struct {
 	// sort is the column the list is ordered by.
 	sort sortState
 
-	// marks are the resources of the open screen that an action applies to,
-	// by the ids the screen names them with.
+	// marks are the resources of the open screen that carry a mark, by the
+	// ids the screen names them with. They can include rows the filter
+	// hides; an action takes those on the screen.
 	marks map[string]bool
 
 	// looked is what the rows were narrowed by the last time they were read.
@@ -169,4 +170,18 @@ func (l list) toggleAll(ids []string) list {
 	l.marks = marks
 
 	return l
+}
+
+// shownMarks are the marks on the rows on the screen: those a key that acts
+// on the marked rows takes.
+func (l list) shownMarks() map[string]bool {
+	out := map[string]bool{}
+
+	for _, id := range l.table.ids {
+		if l.marks[id] {
+			out[id] = true
+		}
+	}
+
+	return out
 }

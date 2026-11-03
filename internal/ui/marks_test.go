@@ -112,10 +112,13 @@ func TestDeployment_MarkTheMarkedUnhealthy(t *testing.T) {
 	r.Contains(plain(m.render()), "Really mark 2 allocations unhealthy? The deployment counts them as failed.")
 
 	m, cmd := m.update(key('y'))
-	playOut(m, cmd)
+	m = playOut(m, cmd)
 
 	r.Len(client.marked, 2)
 	r.False(client.markedHealth)
+
+	// What was marked has been acted on, so the key does not repeat it.
+	r.Empty(m.list.marks)
 }
 
 func TestDeployment_NoHealthToMarkWhenItIsOver(t *testing.T) {

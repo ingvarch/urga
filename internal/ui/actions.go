@@ -16,9 +16,13 @@ type doneMsg struct {
 	said string
 	err  error
 
-	// kept are the marks that stay after the action: what did not happen is
-	// still marked, so the same key tries it again, and what did happen is
-	// unmarked, so the key does not undo it.
+	// took are the marks on the screen when the action was asked for, which
+	// is what a key that acts on the marked rows takes. kept are the ones
+	// that stay: what did not happen is still marked, so the same key tries
+	// it again, and what did happen is unmarked, so the key does not undo
+	// it. A mark the filter or ! hid was left out, so it stays as it is.
+	// Without a question, took is nil and done takes the marks on the screen.
+	took map[string]bool
 	kept map[string]bool
 }
 
@@ -33,6 +37,9 @@ const (
 type confirmModel struct {
 	question string
 	apply    tea.Cmd
+
+	// took are the marks on the screen when it was asked.
+	took map[string]bool
 
 	// choice is the button under the cursor. It starts on cancel: enter out
 	// of habit then changes nothing in the cluster.
@@ -70,7 +77,7 @@ func button(label string, on bool) string {
 // answered.
 func (m Model) ask(question string, apply tea.Cmd) (Model, tea.Cmd) {
 	m.overlay = overlayConfirm
-	m.confirm = confirmModel{question: question, apply: apply}
+	m.confirm = confirmModel{question: question, apply: apply, took: m.list.shownMarks()}
 	m.layout()
 
 	return m, nil
@@ -104,11 +111,19 @@ func (m Model) confirmKey(msg tea.KeyPressMsg) (Model, tea.Cmd) {
 
 // applyConfirm runs the confirmed action. The marks stay until it is known
 // to have worked: what did not happen is still marked, and the same key
-// tries it again.
+// tries it again. The result names the marks the question was about.
 func (m Model) applyConfirm() (Model, tea.Cmd) {
-	apply := m.confirm.apply
+	apply, took := m.confirm.apply, m.confirm.took
 
-	return m.closeConfirm(), apply
+	return m.closeConfirm(), labelled(apply, func(msg tea.Msg) tea.Msg {
+		if done, ok := msg.(doneMsg); ok {
+			done.took = took
+
+			return done
+		}
+
+		return msg
+	})
 }
 
 // closeConfirm takes the question off the screen.
@@ -301,8 +316,27 @@ func each[T any](done, label string, items []T, mark func(T) string, do func(con
 // done shows the result of an action on the marked rows.
 func (m Model) done(msg doneMsg) (Model, tea.Cmd) {
 	// What did not happen stays marked, so the same key tries it again;
-	// what did happen is unmarked, so the key does not undo it.
-	m.list.marks = msg.kept
+	// what did happen is unmarked, so the key does not undo it. A mark the
+	// action did not take stays. An action that asked no question took
+	// the marks on the screen.
+	took := msg.took
+	if took == nil {
+		took = m.list.shownMarks()
+	}
+
+	marks := map[string]bool{}
+
+	for id := range m.list.marks {
+		if !took[id] {
+			marks[id] = true
+		}
+	}
+
+	for id := range msg.kept {
+		marks[id] = true
+	}
+
+	m.list.marks = marks
 
 	if msg.err != nil {
 		m = m.fail(msg.err)

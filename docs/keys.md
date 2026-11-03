@@ -210,7 +210,9 @@ and highlights what matched.
 
 On jobs, allocations and clients, `space` marks the row under the cursor and
 `ctrl-a` marks every row on the screen, or clears all marks. An action such as
-start, stop, restart or drain then applies to every marked row.
+start, stop, restart or drain then applies to every marked row on the screen.
+A mark on a row that the filter or `!` hides stays and shows again with the
+row, but an action leaves it out.
 
 ## Keys by screen
 
