@@ -469,6 +469,18 @@ func TestFile_OnlyTheEndOfABigOne(t *testing.T) {
 	r.Contains(plain(m.render()), "[/server/local/app.env, last 1.0 MiB of 3.0 MiB]")
 }
 
+func TestFile_ABigOneKeepsItsSpanWhenShortLinesDropTheFront(t *testing.T) {
+	r := require.New(t)
+
+	big := written(strings.Repeat("x\n", maxTextLines+10))
+	big.Size, big.From = 3<<20, 2<<20
+
+	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), file: big}
+	m := openedEnv(t, client)
+
+	r.Contains(plain(m.render()), "[/server/local/app.env, last 1.0 MiB of 3.0 MiB]")
+}
+
 func TestFiles_APipeIsNotOpened(t *testing.T) {
 	r := require.New(t)
 

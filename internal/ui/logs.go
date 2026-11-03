@@ -33,6 +33,7 @@ type (
 	logPartMsg struct {
 		at   nomad.LogMark
 		part nomad.LogPart
+		err  error
 	}
 
 	logEndMsg struct{ stream *nomad.LogStream }
@@ -62,6 +63,9 @@ type logState struct {
 	// keeps more of the log before it.
 	before nomad.LogMark
 	more   bool
+
+	// asking says a read of the part before the text is out.
+	asking bool
 }
 
 // logsPage is what one task of an allocation writes to stdout or stderr,
@@ -90,7 +94,12 @@ func (p logsPage) title(env, int) string {
 		source += ", task finished"
 	}
 
-	return fmt.Sprintf("Logs (Task: %s, Allocation: %s) [%s%s]", p.task, shortID(p.allocID), source, p.read.span())
+	span := p.read.span()
+	if p.read.content.dropped > 0 {
+		span = "" // the text no longer starts at the byte the span counts from
+	}
+
+	return fmt.Sprintf("Logs (Task: %s, Allocation: %s) [%s%s]", p.task, shortID(p.allocID), source, span)
 }
 
 func (logsPage) titles() []string           { return nil }
@@ -202,21 +211,30 @@ func openPrevious(p logsPage, _ env) (logsPage, outcome) {
 }
 
 // hasEarlier says the cluster keeps more of the log before what is shown,
-// and the screen has room for it: a text that dropped lines is full.
+// no read of it is out, and the screen has room for it: a text that dropped
+// lines is full.
 func hasEarlier(p logsPage, _ env) bool {
-	return p.read.more && len(p.read.content.lines) < maxTextLines
+	return p.read.more && !p.read.asking && len(p.read.content.lines) < maxTextLines
 }
 
 // readEarlier reads the step of the log before what is shown, to put above
-// it. The answer says which mark it was read for, so that a second press
-// while one is out does not put the same lines twice.
+// it. The key is not offered while a read is out, and the answer says which
+// mark it was read for. A failure comes back as an answer too, so that the
+// page sees it end.
 func readEarlier(p logsPage, e env) (logsPage, outcome) {
 	client, namespace, allocID := e.client, p.namespace, p.allocID
 	at, room := p.read.before, maxTextLines-len(p.read.content.lines)
 
-	read := request(func(ctx context.Context) (nomad.LogPart, error) {
-		return client.LogBefore(ctx, namespace, allocID, at, room)
-	}, func(part nomad.LogPart) tea.Msg { return logPartMsg{at: at, part: part} })
+	p.read.asking = true
+
+	read := func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+
+		part, err := client.LogBefore(ctx, namespace, allocID, at, room)
+
+		return logPartMsg{at: at, part: part, err: err}
+	}
 
 	return p, then(requestMsg(read))
 }
@@ -306,13 +324,20 @@ func (l logState) take(msg tea.Msg) (logState, outcome, bool) {
 }
 
 // earlier puts a part read from before the text in front of it, when it was
-// read for the place the text starts at now. The answer is dropped if the
-// stream took lines off the front meanwhile: the text no longer starts there.
-// It is also dropped if the stream added so many lines meanwhile that it no
-// longer fits under the limit, with a warning: the press shows nothing else.
+// read for the place the text starts at now. A failed read shows its error.
+// The answer is dropped if the stream took lines off the front meanwhile: the
+// text no longer starts there. It is also dropped if the stream added so many
+// lines meanwhile that it no longer fits under the limit, with a warning: the
+// press shows nothing else.
 func (l logState) earlier(msg logPartMsg) (logState, outcome, bool) {
+	l.asking = false
+
+	if msg.err != nil {
+		return l, outcome{now: []tea.Msg{errMsg{msg.err}}, reading: true}, true
+	}
+
 	if msg.at != l.before || l.content.dropped > 0 {
-		return l, outcome{}, false
+		return l, outcome{reading: true}, true
 	}
 
 	if len(l.content.lines)+len(msg.part.Lines) > maxTextLines {
