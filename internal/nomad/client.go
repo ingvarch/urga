@@ -236,7 +236,33 @@ func (c *Client) Agent(_ context.Context) (Agent, error) {
 
 	region, _ := self.Config["Region"].(string)
 
-	return Agent{Version: self.Member.Tags["build"], Region: region}, nil
+	version := self.Member.Tags["build"]
+	if version == "" {
+		version = configVersion(self.Config)
+	}
+
+	return Agent{Version: version, Region: region}, nil
+}
+
+// configVersion builds the version of an agent that has no build tag, as
+// Nomad writes the tag: Version[-Prerelease][+Metadata].
+func configVersion(config map[string]any) string {
+	info, _ := config["Version"].(map[string]any)
+
+	number, _ := info["Version"].(string)
+	if number == "" {
+		return ""
+	}
+
+	if pre, _ := info["VersionPrerelease"].(string); pre != "" {
+		number += "-" + pre
+	}
+
+	if meta, _ := info["VersionMetadata"].(string); meta != "" {
+		number += "+" + meta
+	}
+
+	return number
 }
 
 func (c *Client) query(ctx context.Context, namespace string) *api.QueryOptions {
