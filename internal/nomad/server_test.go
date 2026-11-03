@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -121,6 +122,63 @@ func TestServers_TakeTheContext(t *testing.T) {
 	// screen that asked for it is gone.
 	_, err := client.Servers(ctx)
 	r.Error(err)
+}
+
+func TestServers_TheLeaderStopsWithTheRequest(t *testing.T) {
+	r := require.New(t)
+
+	t.Setenv("NOMAD_REGION", "")
+
+	release := make(chan struct{})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		if req.URL.Path == "/v1/status/leader" {
+			select {
+			case <-release:
+			case <-req.Context().Done():
+			}
+
+			return
+		}
+
+		_, _ = w.Write([]byte(members))
+	}))
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(release) })
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	type answer struct {
+		servers []nomad.Server
+		err     error
+	}
+
+	done := make(chan answer, 1)
+
+	go func() {
+		servers, err := client.Servers(ctx)
+		done <- answer{servers, err}
+	}()
+
+	// The leader is asked with the deadline of the list; without it the
+	// list waits for an answer that does not come.
+	select {
+	case got := <-done:
+		r.NoError(got.err)
+		r.Len(got.servers, 2)
+
+		for _, server := range got.servers {
+			r.False(server.Leader)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the list of servers waited for the leader past its deadline")
+	}
 }
 
 func TestServers_WithoutALeader(t *testing.T) {
