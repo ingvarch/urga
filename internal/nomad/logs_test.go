@@ -243,6 +243,11 @@ func TestLogs_StartIsWhereTheFirstLineBegins(t *testing.T) {
 			{Data: []byte("def\nwhole\n"), File: log + "0", Offset: 70013},
 		}, nomad.LogMark{File: log + "0", Offset: 70007}},
 		{"a rotated file", []frame{{Data: []byte("the rest\nwhole\n"), File: log + "3", Offset: 15}}, nomad.LogMark{File: log + "3", Offset: 9}},
+		{"a rotated file whose frame holds two reads", []frame{{Data: []byte("the rest\nwhole\nmore\n"), File: log + "3", Offset: 15}}, nomad.LogMark{File: log + "3", Offset: 9}},
+		{"a frame after a full one, under its Offset plus its length", []frame{
+			{Data: []byte("abc"), File: log + "0", Offset: 70003},
+			{Data: []byte("def\nwhole\n"), File: log + "0", Offset: 70006},
+		}, nomad.LogMark{File: log + "0", Offset: 70007}},
 		{"the first frame kept, not a later one", []frame{
 			{Data: []byte("tail\nfirst\n"), File: log + "1", Offset: 100},
 			{Data: []byte("second\n"), File: log + "1", Offset: 107},
