@@ -31,6 +31,7 @@ type (
 		region     string
 		datacenter string
 		usage      nomad.Usage
+		err        error
 	}
 
 	pollUsageMsg struct{}
@@ -60,6 +61,11 @@ type usageState struct {
 	// second timer next to the first.
 	clusterDue bool
 
+	// clusterFailed is true while the last reading failed and its error was
+	// shown: a refused reading repeats every 15 seconds, and the same error
+	// is not shown again each time.
+	clusterFailed bool
+
 	// rows is what each row on the screen takes, by its id, and why the
 	// rest of them have no reading.
 	rows    map[string]nomad.ResourceUse
@@ -73,13 +79,19 @@ type usageState struct {
 }
 
 // keepCluster shows a reading of the header that was taken where the
-// session is now, and sets the timer for the next one unless it is already
-// pending.
+// session is now, and clears the failure of the reading before it. It sets
+// the timer for the next one unless it is already pending.
 func (u usageState) keepCluster(use nomad.Usage, here bool) (usageState, tea.Cmd) {
 	if here {
-		u.cluster, u.clusterRead = use, true
+		u.cluster, u.clusterRead, u.clusterFailed = use, true, false
 	}
 
+	return u.setClusterTimer()
+}
+
+// setClusterTimer sets the timer for the next reading of the header unless it
+// is already pending.
+func (u usageState) setClusterTimer() (usageState, tea.Cmd) {
 	if u.clusterDue {
 		return u, nil
 	}
@@ -92,7 +104,7 @@ func (u usageState) keepCluster(use nomad.Usage, here bool) (usageState, tea.Cmd
 // forgetCluster drops the reading of the header: it was taken somewhere the
 // session has left.
 func (u usageState) forgetCluster() usageState {
-	u.cluster, u.clusterRead = nomad.Usage{}, false
+	u.cluster, u.clusterRead, u.clusterFailed = nomad.Usage{}, false, false
 
 	return u
 }
@@ -238,11 +250,28 @@ func (m Model) keepRowUsage(msg rowUsageMsg) (Model, tea.Cmd) {
 	return m, askedFor(m.asked, tea.Tick(rowUsageEvery, func(time.Time) tea.Msg { return pollUsageRow{} }))
 }
 
-// keepClusterUsage shows the reading of the header.
+// keepClusterUsage shows the reading of the header. When it failed, the
+// header keeps the last numbers, the error is shown once, and the next
+// reading is still due.
 func (m Model) keepClusterUsage(msg usageMsg) (Model, tea.Cmd) {
 	var tick tea.Cmd
 
 	here := msg.region == m.client.Region() && msg.datacenter == m.datacenter
+
+	if msg.err != nil {
+		m.usage, tick = m.usage.setClusterTimer()
+		if m.usage.clusterFailed || !here {
+			return m, tick
+		}
+
+		m.usage.clusterFailed = true
+		var shown tea.Cmd
+
+		m, shown = m.takeError(msg.err)
+
+		return m, tea.Batch(tick, shown)
+	}
+
 	m.usage, tick = m.usage.keepCluster(msg.usage, here)
 
 	return m, tick
@@ -262,11 +291,14 @@ func (m Model) readClusterUsage() (Model, tea.Cmd) {
 func (m Model) fetchClusterUsage() tea.Cmd {
 	client, datacenter := m.client, m.datacenter
 
-	return m.onConnection(request(func(ctx context.Context) (nomad.Usage, error) {
-		return client.Usage(ctx, datacenter)
-	}, func(usage nomad.Usage) tea.Msg {
-		return usageMsg{region: client.Region(), datacenter: datacenter, usage: usage}
-	}))
+	return m.onConnection(func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+		defer cancel()
+
+		usage, err := client.Usage(ctx, datacenter)
+
+		return usageMsg{region: client.Region(), datacenter: datacenter, usage: usage, err: err}
+	})
 }
 
 // percentCell is what a machine of the cluster is busy with: there is no

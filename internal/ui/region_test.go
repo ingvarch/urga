@@ -278,6 +278,52 @@ func TestUsage_KeepsOneTimer(t *testing.T) {
 	r.Nil(second)
 }
 
+// readUsage runs the timer of the header and delivers what the reading
+// answers.
+func readUsage(m Model) Model {
+	m, cmd := m.update(pollUsageMsg{})
+	m, _ = m.update(cmd())
+
+	return m
+}
+
+func TestUsage_AFailedReadingSetsTheTimerForTheNext(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{usage: nomad.Usage{CPUPercent: 15}}
+	m := newTestModel(client)
+	m, _ = m.update(usageMsg{usage: client.usage})
+
+	client.err = errTest
+	m = readUsage(m)
+
+	r.True(m.usage.clusterDue, "a failed reading is read again")
+	r.Contains(headerOf(m), "CPU Alloc: 15%")
+	r.Contains(m.flash.text, errTest.Error())
+}
+
+func TestUsage_AFailedReadingSaysWhyOnce(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{usage: nomad.Usage{CPUPercent: 15}}
+	m := newTestModel(client)
+	m, _ = m.update(usageMsg{usage: client.usage})
+
+	client.err = errTest
+	m = readUsage(m)
+	r.Contains(m.flash.text, errTest.Error())
+
+	m = readUsage(m.quiet())
+	r.Empty(m.flash.text, "the same failure is not shown every 15 seconds")
+
+	client.err = nil
+	m = readUsage(m)
+
+	client.err = errTest
+	m = readUsage(m)
+	r.Contains(m.flash.text, errTest.Error())
+}
+
 // regionalModel is a session that can switch regions: the fake takes on the
 // region it is asked in, and knows two of them.
 func regionalModel(t *testing.T, client *fakeClient) Model {
@@ -664,6 +710,52 @@ func TestRegionCommand_TheNumbersOfTheRegionLeftAreGone(t *testing.T) {
 
 	r.Contains(headerOf(m), "CPU Alloc: n/a")
 	r.Contains(headerOf(m), "MEM Alloc: n/a")
+}
+
+func TestRegionCommand_AFailureInTheNewRegionShowsItsReason(t *testing.T) {
+	r := require.New(t)
+
+	m := regionalModel(t, &fakeClient{region: "eu"})
+	m, _ = m.update(usageMsg{region: "eu", err: errTest})
+	r.Contains(m.flash.text, errTest.Error())
+
+	m, _ = runLine(m.quiet(), "region us")
+	m = m.quiet()
+	m, _ = m.update(usageMsg{region: "us", err: errors.New("Permission denied")})
+
+	r.Contains(m.flash.text, "Permission denied", "a failure in eu does not hide the first one in us")
+}
+
+func TestRegionCommand_AFailureOfTheRegionLeftIsNotShown(t *testing.T) {
+	r := require.New(t)
+
+	m := regionalModel(t, &fakeClient{})
+	m, _ = runLine(m, "region us")
+	m = m.quiet()
+
+	m, _ = m.update(usageMsg{region: "eu", err: errTest})
+	r.Empty(m.flash.text)
+
+	m, _ = m.update(usageMsg{region: "us", err: errors.New("Permission denied")})
+	r.Contains(m.flash.text, "Permission denied")
+}
+
+func TestRegionCommand_AReadingOfTheRegionLeftDoesNotShowTheFailureAgain(t *testing.T) {
+	r := require.New(t)
+
+	failure := errors.New("Permission denied")
+
+	m := regionalModel(t, &fakeClient{})
+	m, _ = runLine(m, "region us")
+	m = m.quiet()
+
+	m, _ = m.update(usageMsg{region: "us", err: failure})
+	r.Contains(m.flash.text, "Permission denied")
+	m = m.quiet()
+
+	m, _ = m.update(usageMsg{region: "eu", usage: nomad.Usage{CPUPercent: 40}})
+	m, _ = m.update(usageMsg{region: "us", err: failure})
+	r.Empty(m.flash.text)
 }
 
 func TestDatacenterCommand_NarrowsWhatIsOnTheScreenAtOnce(t *testing.T) {
