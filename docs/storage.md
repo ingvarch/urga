@@ -9,7 +9,8 @@ that client, see [A client](clients.md).
 ## Volume list
 
 `:volumes` lists the CSI volumes and the dynamic host volumes of the namespace
-in one table. `:volume` and `:vol` work too.
+in one table. `:volume` and `:vol` work too. Nomad 1.9 and older have no
+dynamic host volumes, so the list there holds the CSI volumes only.
 
 | Column | Description |
 | --- | --- |

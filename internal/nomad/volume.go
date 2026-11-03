@@ -2,7 +2,10 @@ package nomad
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"slices"
 	"strings"
@@ -60,8 +63,7 @@ func (c *Client) Volumes(ctx context.Context, namespace string) ([]Volume, error
 		return nil, err
 	}
 
-	// A cluster older than dynamic host volumes answers with none.
-	host, _, err := c.api.HostVolumes().List(nil, c.query(ctx, namespace))
+	host, err := c.hostVolumes(ctx, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +89,25 @@ func (c *Client) Volumes(ctx context.Context, namespace string) ([]Volume, error
 	}
 
 	return volumes, nil
+}
+
+// hostVolumes lists the dynamic host volumes of a namespace. A cluster older
+// than them answers with an empty body, which the api client cannot decode:
+// it reads as none.
+func (c *Client) hostVolumes(ctx context.Context, namespace string) ([]*api.HostVolumeStub, error) {
+	body, err := c.api.Raw().Response("/v1/volumes?type="+VolumeHost, c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() { _ = body.Close() }()
+
+	var host []*api.HostVolumeStub
+	if err := json.NewDecoder(body).Decode(&host); err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+
+	return host, nil
 }
 
 // nodeNames are the names of the nodes of the cluster, by ID. A token

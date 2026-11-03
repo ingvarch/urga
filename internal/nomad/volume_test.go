@@ -109,10 +109,10 @@ func TestVolumes_AClusterBeforeHostVolumes(t *testing.T) {
 	r := require.New(t)
 
 	// A cluster older than dynamic host volumes answers the other type with
-	// nothing at all.
+	// an empty body: 200 and not a byte.
 	client, _ := clusterServer(t, map[string]string{
 		"/v1/volumes?type=csi":  csiList,
-		"/v1/volumes?type=host": `null`,
+		"/v1/volumes?type=host": ``,
 	})
 
 	volumes, err := client.Volumes(context.Background(), "production")
