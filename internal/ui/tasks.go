@@ -23,6 +23,10 @@ type tasksPage struct {
 	alloc nomad.Alloc
 	read  bool
 
+	// at is when the allocation was read. The time it has left counts to
+	// it, so it does not change with the clock between two reads.
+	at time.Time
+
 	// checks are the last results of the checks of the allocation.
 	checks []nomad.Check
 
@@ -59,7 +63,7 @@ func (p tasksPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 			return p, outcome{}, false
 		}
 
-		p.alloc, p.read = nomad.Alloc(msg), true
+		p.alloc, p.read, p.at = nomad.Alloc(msg), true, time.Now()
 
 		return p.checksOnce(e)
 

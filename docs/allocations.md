@@ -43,6 +43,9 @@ allocation, the scheduler places a new one if the job still needs it.
 - the status and desired status;
 - the client it runs on;
 - the job version;
+- for a batch or sysbatch job whose group sets `max_run_duration` (Nomad 2.0.3
+  and later), that timeout, and while the allocation runs or waits to start,
+  the time it has left before Nomad stops it;
 - the deployment health: `healthy`, `unhealthy` or `checking`, and whether it
   is a canary;
 - the ports it listens on, as `label address`, with `->port` when the port

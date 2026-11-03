@@ -52,6 +52,11 @@ type Alloc struct {
 	Previous string
 	Next     string
 	FollowUp string
+
+	// Timeout is how long the allocation may run: the max_run_duration of
+	// its group in a batch or sysbatch job. Zero is none, and on a cluster
+	// older than 2.0.3. Only Allocation reads it.
+	Timeout time.Duration
 }
 
 // Port is where an allocation listens, and the port inside the task it is
@@ -174,7 +179,8 @@ func (c *Client) Allocation(ctx context.Context, namespace, allocID string) (All
 }
 
 // withDetail adds the fields only a full allocation has: its deployment
-// health, its ports, the allocation before it and the evaluation after it.
+// health, its ports, the allocation before it, the evaluation after it and
+// the timeout of its group.
 func withDetail(out Alloc, alloc *api.Allocation) Alloc {
 	out.Health = healthOf(alloc.DeploymentID, alloc.DeploymentStatus)
 
@@ -194,8 +200,29 @@ func withDetail(out Alloc, alloc *api.Allocation) Alloc {
 
 	out.Previous = alloc.PreviousAllocation
 	out.FollowUp = alloc.FollowupEvalID
+	out.Timeout = timeoutOf(alloc)
 
 	return out
+}
+
+// timeoutOf is the max_run_duration of the group of an allocation, when its
+// job is a batch or sysbatch one.
+func timeoutOf(alloc *api.Allocation) time.Duration {
+	if alloc.Job == nil {
+		return 0
+	}
+
+	if jobType := valueOf(alloc.Job.Type); jobType != api.JobTypeBatch && jobType != api.JobTypeSysbatch {
+		return 0
+	}
+
+	for _, group := range alloc.Job.TaskGroups {
+		if group != nil && valueOf(group.Name) == alloc.TaskGroup {
+			return max(valueOf(group.MaxRunDuration), 0)
+		}
+	}
+
+	return 0
 }
 
 // The health a deployment reports for an allocation.
