@@ -319,3 +319,21 @@ func TestTaskGroups_Read(t *testing.T) {
 	r.Equal("backend", groups[1].Name)
 	r.Equal(1, groups[1].Count)
 }
+
+func TestPoolJobs_AServiceAsksForTheCountsOfItsGroups(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/node/pool/gpu/jobs": serviceWithAFailedAlloc,
+		"/v1/jobs/statuses":      `[{"ID": "web", "Namespace": "default", "GroupCountSum": 3}]`,
+	})
+
+	jobs, err := client.PoolJobs(context.Background(), "gpu")
+	r.NoError(err)
+	r.Len(jobs, 1)
+	r.Equal(3, jobs[0].Desired)
+
+	r.Len(*asked, 2)
+	r.Equal("*", (*asked)[1].namespace)
+	r.Equal(`Type == "service" and NodePool == "gpu"`, (*asked)[1].query.Get("filter"))
+}

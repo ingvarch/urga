@@ -383,8 +383,8 @@ func runningJobColor(job nomad.Job) color.Color {
 	return nil
 }
 
-// startingService says a service runs fewer allocations than it asks for:
-// not ready yet, which is red, and not dead.
+// startingService says a service runs fewer or more allocations than it asks
+// for: a start, rollout or scale down not done yet, which is red, and not dead.
 func startingService(job nomad.Job) bool {
 	return job.Status == statusRunning && job.Type == typeService && job.Running != job.Desired
 }

@@ -309,3 +309,203 @@ func TestTargetNamespace(t *testing.T) {
 		require.Equal(t, want, nomad.TargetNamespace(namespace), "namespace %q", namespace)
 	}
 }
+
+// serviceWithAFailedAlloc is a list that holds a running service of two
+// allocations up and one failed.
+const serviceWithAFailedAlloc = `[
+	{"ID": "web", "Namespace": "default", "Type": "service", "Status": "running",
+		"JobSummary": {"Summary": {"web": {"Running": 2, "Failed": 1}}}}
+]`
+
+func TestJobs_AServiceAsksForTheCountsOfItsGroups(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/jobs":          serviceWithAFailedAlloc,
+		"/v1/jobs/statuses": `[{"ID": "web", "Namespace": "default", "GroupCountSum": 3}]`,
+	})
+
+	jobs, err := client.Jobs(context.Background(), "default")
+	r.NoError(err)
+	r.Len(jobs, 1)
+
+	r.Equal(2, jobs[0].Running)
+	r.Equal(3, jobs[0].Desired)
+
+	r.Len(*asked, 2)
+	r.Equal("/v1/jobs/statuses", (*asked)[1].path)
+	r.Equal("default", (*asked)[1].namespace)
+	r.Equal(`Type == "service"`, (*asked)[1].query.Get("filter"))
+}
+
+// A short service read with the numbers of the summary looks whole, so a
+// failure that is not a missing endpoint or a refused token is shown.
+func TestJobs_AFailedReadingOfTheCountsFailsTheList(t *testing.T) {
+	for name, status := range map[string]int{
+		"bad request":  http.StatusBadRequest,
+		"server error": http.StatusInternalServerError,
+	} {
+		t.Run(name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				if req.URL.Path == "/v1/jobs/statuses" {
+					http.Error(w, "boom", status)
+
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(serviceWithAFailedAlloc))
+			}))
+			t.Cleanup(server.Close)
+
+			client, err := nomad.New(nomad.Config{Address: server.URL})
+			require.NoError(t, err)
+
+			_, err = client.Jobs(context.Background(), "default")
+			require.ErrorContains(t, err, "boom")
+		})
+	}
+}
+
+func TestJobs_ACancelledContextFailsTheList(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// The list answers; the context is cancelled while the counts are read.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/v1/jobs/statuses" {
+			cancel()
+			<-req.Context().Done()
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(serviceWithAFailedAlloc))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	require.NoError(t, err)
+
+	_, err = client.Jobs(ctx, "default")
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+func TestJobs_AClusterWithoutTheCountsKeepsTheSummary(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := clusterServer(t, map[string]string{"/v1/jobs": serviceWithAFailedAlloc})
+
+	jobs, err := client.Jobs(context.Background(), "default")
+	r.NoError(err)
+	r.Equal(2, jobs[0].Desired)
+}
+
+func TestJobs_ATokenThatMayNotReadTheCountsKeepsTheSummary(t *testing.T) {
+	r := require.New(t)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/v1/jobs/statuses" {
+			http.Error(w, "Permission denied", http.StatusForbidden)
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(serviceWithAFailedAlloc))
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	jobs, err := client.Jobs(context.Background(), "default")
+	r.NoError(err)
+	r.Equal(2, jobs[0].Desired)
+}
+
+func TestJobs_AStoppedServiceKeepsItsSummaryNextToARunningOne(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := clusterServer(t, map[string]string{
+		"/v1/jobs": `[
+			{"ID": "web", "Namespace": "default", "Type": "service", "Status": "running",
+				"JobSummary": {"Summary": {"web": {"Running": 2}}}},
+			{"ID": "old", "Namespace": "default", "Type": "service", "Status": "dead", "Stop": true,
+				"JobSummary": {"Summary": {"old": {"Running": 1}}}}
+		]`,
+		"/v1/jobs/statuses": `[{"ID": "web", "Namespace": "default", "GroupCountSum": 3},
+			{"ID": "old", "Namespace": "default", "GroupCountSum": 3}]`,
+	})
+
+	jobs, err := client.Jobs(context.Background(), "default")
+	r.NoError(err)
+
+	desired := map[string]int{}
+	for _, job := range jobs {
+		desired[job.ID] = job.Desired
+	}
+
+	r.Equal(map[string]int{"web": 3, "old": 1}, desired)
+}
+
+func TestJobs_EachNamespaceTakesTheCountOfItsOwnService(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := clusterServer(t, map[string]string{
+		"/v1/jobs": `[
+			{"ID": "web", "Namespace": "prod", "Type": "service", "Status": "running",
+				"JobSummary": {"Summary": {"web": {"Running": 2}}}},
+			{"ID": "web", "Namespace": "dev", "Type": "service", "Status": "running",
+				"JobSummary": {"Summary": {"web": {"Running": 1}}}}
+		]`,
+		"/v1/jobs/statuses": `[{"ID": "web", "Namespace": "prod", "GroupCountSum": 3},
+			{"ID": "web", "Namespace": "dev", "GroupCountSum": 1}]`,
+	})
+
+	jobs, err := client.Jobs(context.Background(), "*")
+	r.NoError(err)
+
+	desired := map[string]int{}
+	for _, job := range jobs {
+		desired[job.Namespace] = job.Desired
+	}
+
+	r.Equal(map[string]int{"prod": 3, "dev": 1}, desired)
+}
+
+func TestJobs_AServiceTheCountsLeaveOutKeepsItsSummary(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := clusterServer(t, map[string]string{
+		"/v1/jobs":          serviceWithAFailedAlloc,
+		"/v1/jobs/statuses": `[{"ID":"web","Namespace":"default"}]`,
+	})
+
+	jobs, err := client.Jobs(context.Background(), "default")
+	r.NoError(err)
+	r.Equal(2, jobs[0].Desired)
+}
+
+func TestJobs_OnlyAServiceThatWasNotStoppedAsksForACount(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := clusterServer(t, map[string]string{
+		"/v1/jobs": `[
+			{"ID": "agent", "Namespace": "default", "Type": "system", "Status": "running",
+				"JobSummary": {"Summary": {"agent": {"Running": 5}}}},
+			{"ID": "old", "Namespace": "default", "Type": "service", "Status": "dead", "Stop": true,
+				"JobSummary": {"Summary": {"old": {"Running": 1}}}}
+		]`,
+		"/v1/jobs/statuses": `[{"ID": "old", "Namespace": "default", "GroupCountSum": 9},
+			{"ID": "agent", "Namespace": "default", "GroupCountSum": 9}]`,
+	})
+
+	jobs, err := client.Jobs(context.Background(), "default")
+	r.NoError(err)
+
+	r.Equal(5, jobs[0].Desired)
+	r.Equal(1, jobs[1].Desired)
+	r.Len(*asked, 1, "no service to compare, no request")
+}
