@@ -235,9 +235,9 @@ func newEvent(e api.Event) Event {
 			event.Namespace, event.Name, event.State, event.At = a.Namespace, a.Name, a.ClientStatus, unixTime(a.ModifyTime)
 		}
 	case api.TopicJob:
-		if j, err := e.Job(); err == nil && j != nil {
+		if j, deleted, err := e.DeregisteredJob(); err == nil && j != nil {
 			event.Namespace, event.Name = valueOf(j.Namespace), valueOf(j.ID)
-			event.State, event.At = valueOf(j.Status), unixTime(valueOf(j.SubmitTime))
+			event.State, event.At = jobState(j, deleted), unixTime(valueOf(j.SubmitTime))
 		}
 	case api.TopicDeployment:
 		if d, err := e.Deployment(); err == nil && d != nil {
@@ -264,6 +264,19 @@ func newEvent(e api.Event) Event {
 	}
 
 	return event
+}
+
+// jobState is the status of a job, or that it was stopped or purged. A
+// cluster older than 1.11.3 does not say a job was purged.
+func jobState(j *api.Job, deleted bool) string {
+	switch {
+	case deleted:
+		return "purged"
+	case valueOf(j.Stop):
+		return "stopped"
+	}
+
+	return valueOf(j.Status)
 }
 
 // readStored names an event of a topic the api module cannot decode.

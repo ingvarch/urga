@@ -406,3 +406,38 @@ func TestFeed_NamesVolumesPluginsAndVariables(t *testing.T) {
 		r.WithinDuration(time.Unix(0, 1790671900000000000), event.At, time.Microsecond, c.name)
 	}
 }
+
+func TestFeed_SaysAJobWasStoppedOrPurged(t *testing.T) {
+	deregistered := func(job string) string {
+		return `{"Index": 3, "Events": [{"Topic": "Job", "Type": "JobDeregistered", "Key": "web", "Index": 3,
+			"Payload": ` + job + `}]}`
+	}
+
+	for name, tc := range map[string]struct{ payload, state string }{
+		"purged": {
+			`{"Job":{"ID":"web","Namespace":"ml","Status":"running","Stop":true},"Deleted":true}`, "purged",
+		},
+		"stopped": {
+			`{"Job":{"ID":"web","Namespace":"ml","Status":"running","Stop":true}}`, "stopped",
+		},
+		"an older cluster's purge": {
+			`{"Job":{"ID":"web","Namespace":"ml","Status":"running"}}`, "running",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			client, _ := eventServer(t, deregistered(tc.payload))
+
+			feed, err := client.Feed(context.Background(), "ml", nomad.Subject{}, 1)
+			r.NoError(err)
+
+			defer feed.Close()
+
+			event := waitForEvent(t, feed)
+			r.Equal("web", event.Name)
+			r.Equal("ml", event.Namespace)
+			r.Equal(tc.state, event.State)
+		})
+	}
+}
