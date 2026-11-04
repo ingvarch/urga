@@ -115,9 +115,14 @@ func (c *Client) RevertJobTo(ctx context.Context, namespace, jobID string, versi
 }
 
 func (c *Client) versions(ctx context.Context, namespace, jobID string) ([]*api.Job, []*api.JobDiff, error) {
-	jobs, diffs, _, err := c.api.Jobs().Versions(jobID, true, c.query(ctx, namespace))
+	jobs, diffs, meta, err := c.api.Jobs().Versions(jobID, true, c.query(ctx, namespace))
+	if err != nil {
+		return nil, nil, err
+	}
 
-	return jobs, diffs, err
+	readAt(ctx, meta, TopicJob)
+
+	return jobs, diffs, nil
 }
 
 // countChanges is how many fields a diff changes, counted on the diff tree:

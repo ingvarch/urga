@@ -153,14 +153,14 @@ type Job struct {
 
 // Jobs lists the jobs of a namespace. AllNamespaces lists the whole cluster.
 func (c *Client) Jobs(ctx context.Context, namespace string) ([]Job, error) {
-	stubs, _, err := c.api.Jobs().List(c.query(ctx, namespace))
-
-	jobs, err := listed(stubs, err, newJob)
+	stubs, meta, err := c.api.Jobs().List(c.query(ctx, namespace))
 	if err != nil {
 		return nil, err
 	}
 
-	return c.withCounts(ctx, namespace, services, jobs)
+	readAt(ctx, meta, TopicJob)
+
+	return c.withCounts(ctx, namespace, services, listed(stubs, newJob))
 }
 
 // groupCount is what the cluster says a job asks for.
@@ -193,6 +193,9 @@ func (c *Client) withCounts(ctx context.Context, namespace, filter string, jobs 
 
 	var counts []groupCount
 
+	// The index of this answer is the newest change of the services on the
+	// page and of their allocations, not of the jobs: the read index stays
+	// the one of the list.
 	if _, err := c.api.Raw().Query("/v1/jobs/statuses", &counts, q); err != nil {
 		if answered(err, http.StatusNotFound) || answered(err, http.StatusForbidden) {
 			return jobs, nil

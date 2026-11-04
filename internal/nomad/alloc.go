@@ -110,18 +110,21 @@ type TaskEvent struct {
 func (c *Client) Allocations(ctx context.Context, namespace, jobID string) ([]Alloc, error) {
 	var (
 		stubs []*api.AllocationListStub
+		meta  *api.QueryMeta
 		err   error
 	)
 
 	if jobID == "" {
-		stubs, _, err = c.api.Allocations().List(c.query(ctx, namespace))
+		stubs, meta, err = c.api.Allocations().List(c.query(ctx, namespace))
 	} else {
-		stubs, _, err = c.api.Jobs().Allocations(jobID, true, c.query(ctx, namespace))
+		stubs, meta, err = c.api.Jobs().Allocations(jobID, true, c.query(ctx, namespace))
 	}
 
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicAllocation)
 
 	return allocsOf(stubs), nil
 }
@@ -166,10 +169,12 @@ func endedOnClient(status string) bool {
 // NodeAllocations lists what one machine of the cluster runs, whichever
 // namespace the work belongs to.
 func (c *Client) NodeAllocations(ctx context.Context, nodeID string) ([]Alloc, error) {
-	stubs, _, err := c.api.Nodes().Allocations(nodeID, c.query(ctx, AllNamespaces))
+	stubs, meta, err := c.api.Nodes().Allocations(nodeID, c.query(ctx, AllNamespaces))
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicAllocation)
 
 	// The node returns full allocations where the other lists return
 	// stubs. Copying each into a stub lets newAlloc build every list.
@@ -185,10 +190,12 @@ func (c *Client) NodeAllocations(ctx context.Context, nodeID string) ([]Alloc, e
 
 // Allocation is one allocation as the cluster holds it now.
 func (c *Client) Allocation(ctx context.Context, namespace, allocID string) (Alloc, error) {
-	alloc, _, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))
+	alloc, meta, err := c.api.Allocations().Info(allocID, c.query(ctx, namespace))
 	if err != nil {
 		return Alloc{}, err
 	}
+
+	readAt(ctx, meta, TopicAllocation)
 
 	return withDetail(newAlloc(stubOf(alloc)), alloc), nil
 }

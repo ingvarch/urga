@@ -163,10 +163,12 @@ func (c *Client) FailedPlacement(ctx context.Context, namespace, jobID string) (
 
 // NewestEvaluation is the newest evaluation of the job, nil when it has none.
 func (c *Client) NewestEvaluation(ctx context.Context, namespace, jobID string) (*EvaluationDetail, error) {
-	evals, _, err := c.api.Jobs().Evaluations(jobID, c.query(ctx, namespace))
+	evals, meta, err := c.api.Jobs().Evaluations(jobID, c.query(ctx, namespace))
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicEvaluation)
 
 	newest := newestOf(evals, func(*api.Evaluation) bool { return true })
 	if newest == nil {
@@ -198,10 +200,12 @@ func newestOf(evals []*api.Evaluation, wanted func(*api.Evaluation) bool) *api.E
 
 // EvaluationAllocations are the allocations an evaluation placed or changed.
 func (c *Client) EvaluationAllocations(ctx context.Context, namespace, evalID string) ([]Alloc, error) {
-	stubs, _, err := c.api.Evaluations().Allocations(evalID, c.query(ctx, namespace))
+	stubs, meta, err := c.api.Evaluations().Allocations(evalID, c.query(ctx, namespace))
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicAllocation)
 
 	return allocsOf(stubs), nil
 }

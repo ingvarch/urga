@@ -42,10 +42,12 @@ func (s ServiceInstance) Stale() bool {
 // ServiceInstances are the registrations of a service, in the order of their
 // addresses, each with the allocation that made it.
 func (c *Client) ServiceInstances(ctx context.Context, namespace, name string) ([]ServiceInstance, error) {
-	registrations, _, err := c.api.Services().Get(name, c.query(ctx, namespace))
+	registrations, meta, err := c.api.Services().Get(name, c.query(ctx, namespace))
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicService)
 
 	// The allocations of every job that registered the service, read once
 	// per job.

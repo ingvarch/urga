@@ -115,10 +115,12 @@ func (c *Client) RenewNodeIdentity(ctx context.Context, nodeID string) error {
 // Node reads one client from the cluster instead of from the list, so a
 // screen open on it shows its current state.
 func (c *Client) Node(ctx context.Context, nodeID string) (Node, error) {
-	node, _, err := c.api.Nodes().Info(nodeID, c.query(ctx, ""))
+	node, meta, err := c.api.Nodes().Info(nodeID, c.query(ctx, ""))
 	if err != nil {
 		return Node{}, err
 	}
+
+	readAt(ctx, meta, TopicNode)
 
 	// The list names a client by its address without the port.
 	addr, _, _ := net.SplitHostPort(node.HTTPAddr)
@@ -168,7 +170,7 @@ func (c *Client) WithAllocLimits(ctx context.Context, nodes []Node) ([]Node, err
 	if err != nil {
 		// A cluster older than 1.10.2 may refuse a filter on a field it lacks.
 		if answered(err, http.StatusBadRequest) {
-			return nodes, nil
+			return withoutLimits(ctx, nodes), nil
 		}
 
 		return nil, err
@@ -180,14 +182,14 @@ func (c *Client) WithAllocLimits(ctx context.Context, nodes []Node) ([]Node, err
 	}
 
 	if len(limits) == 0 {
-		return nodes, nil
+		return withoutLimits(ctx, nodes), nil
 	}
 
 	held, err := c.heldPlaces(ctx, limits)
 	// A token that reads clients but no job in any namespace cannot count
 	// the allocations; the clients go without a limit.
 	if Forbidden(err) {
-		return nodes, nil
+		return withoutLimits(ctx, nodes), nil
 	}
 
 	if err != nil {
@@ -202,6 +204,15 @@ func (c *Client) WithAllocLimits(ctx context.Context, nodes []Node) ([]Node, err
 	}
 
 	return out, nil
+}
+
+// withoutLimits returns the clients as they are. No allocation reaches the
+// list then, so no change of one makes it stale: a client that gets a limit
+// is a change of the client, and the read it brings counts the allocations.
+func withoutLimits(ctx context.Context, nodes []Node) []Node {
+	NoteRead(ctx, EveryIndex, TopicAllocation)
+
+	return nodes
 }
 
 // limitReaders is how many clients are read at once.
@@ -270,10 +281,12 @@ func (c *Client) heldPlaces(ctx context.Context, limits map[string]int) (map[str
 	q := c.query(ctx, AllNamespaces)
 	q.Filter = strings.Join(terms, " or ")
 
-	allocs, _, err := c.api.Allocations().List(q)
+	allocs, meta, err := c.api.Allocations().List(q)
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicAllocation)
 
 	held := map[string]int{}
 

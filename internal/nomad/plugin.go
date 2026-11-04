@@ -50,9 +50,14 @@ type PluginInstance struct {
 
 // Plugins lists the CSI plugins of the cluster.
 func (c *Client) Plugins(ctx context.Context) ([]Plugin, error) {
-	list, _, err := c.api.CSIPlugins().List(c.query(ctx, ""))
+	list, meta, err := c.api.CSIPlugins().List(c.query(ctx, ""))
+	if err != nil {
+		return nil, err
+	}
 
-	return listed(list, err, newPlugin)
+	readAt(ctx, meta, TopicCSIPlugin)
+
+	return listed(list, newPlugin), nil
 }
 
 func newPlugin(p *api.CSIPluginListStub) Plugin {
@@ -66,10 +71,12 @@ func newPlugin(p *api.CSIPluginListStub) Plugin {
 
 // Plugin reads one CSI plugin.
 func (c *Client) Plugin(ctx context.Context, id string) (PluginDetail, error) {
-	p, _, err := c.api.CSIPlugins().Info(id, c.query(ctx, ""))
+	p, meta, err := c.api.CSIPlugins().Info(id, c.query(ctx, ""))
 	if err != nil {
 		return PluginDetail{}, err
 	}
+
+	readAt(ctx, meta, TopicCSIPlugin)
 
 	// The instances name their node by ID; the allocations that run them
 	// carry its name.
