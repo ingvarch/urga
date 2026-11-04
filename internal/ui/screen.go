@@ -535,8 +535,8 @@ func (m Model) takeAnswer(msg answerMsg) (Model, tea.Cmd) {
 // reportLate shows what a write did after its screen was left: on the status
 // line, with the text of a late edit kept in a file. Marks, pages and
 // questions of the screen now open stay as they are, except that what the
-// write did on the client in use is no longer marked. A switch of the session
-// to another namespace still happens on the cluster it was made for.
+// write did on the client in use is no longer marked. A namespace the write
+// deleted still takes a session that is in it to default.
 func (m Model) reportLate(asked int, msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case doneMsg:
@@ -586,12 +586,7 @@ func (m Model) reportLate(asked int, msg tea.Msg) (Model, tea.Cmd) {
 			return m.warn(keptIn(msg.path) + " The edit was not opened again: the screen changed."), nil
 		}
 
-	case connectionMsg:
-		if _, ok := msg.msg.(switchNamespaceMsg); ok {
-			return m.update(msg)
-		}
-
-	case sayMsg, warnMsg, copyMsg, savedMsg:
+	case sayMsg, warnMsg, copyMsg, savedMsg, namespaceDeletedMsg:
 		return m.update(msg)
 	}
 
@@ -610,6 +605,10 @@ func (m Model) doneLate(asked int, msg doneMsg) Model {
 
 	if msg.err != nil {
 		return m.failLate(msg.err)
+	}
+
+	if msg.said == "" {
+		return m
 	}
 
 	return m.say(msg.said)

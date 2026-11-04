@@ -72,33 +72,32 @@ func newNamespace(p namespacesPage, e env) (namespacesPage, outcome) {
 	})}
 }
 
+// namespaceDeletedMsg is a namespace the cluster deleted, on the connection it
+// was deleted on.
+type namespaceDeletedMsg struct {
+	name       string
+	connection int
+}
+
 // deleteNamespace deletes the namespace under the cursor, after the user
-// confirms. A session in it goes to default: every list of the one deleted
-// would be empty.
+// confirms. A session that is in it when the cluster answers goes to default:
+// every list of the one deleted would be empty.
 func deleteNamespace(p namespacesPage, e env) (namespacesPage, outcome) {
 	namespace, ok := pickedFrom(e, e.namespaces)
 	if !ok {
 		return p, outcome{}
 	}
 
-	client, name, session, connection := e.client, namespace.Name, e.namespace, e.connection
+	client, name, connection := e.client, namespace.Name, e.connection
 
 	return p, then(askMsg{
 		question: sprintf("Really delete the namespace %s?", name),
 		apply: request(func(ctx context.Context) (string, error) {
 			return name, client.DeleteNamespace(ctx, name)
 		}, func(string) tea.Msg {
-			if name != session {
-				return doneMsg{said: sprintf("Namespace %s deleted.", name)}
-			}
-
 			return tea.BatchMsg{
-				func() tea.Msg {
-					return connectionMsg{connection: connection, msg: switchNamespaceMsg(nomad.DefaultNamespace)}
-				},
-				func() tea.Msg {
-					return doneMsg{said: sprintf("Namespace %s deleted. The session is in %s now.", name, nomad.DefaultNamespace)}
-				},
+				func() tea.Msg { return namespaceDeletedMsg{name: name, connection: connection} },
+				func() tea.Msg { return doneMsg{} },
 			}
 		}),
 	})

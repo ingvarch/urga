@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -133,4 +134,172 @@ func TestNamespaces_DeletingTheOneOfTheSessionGoesToDefaultAfterASwitchOfCluster
 
 	r.Equal("production", clusters.dev.deletedNamespace)
 	r.Equal(nomad.DefaultNamespace, m.namespace)
+}
+
+// answersOf runs a command and, one level down at a time, every command of
+// the batches it returns, and gives the messages.
+func answersOf(cmd tea.Cmd) []tea.Msg {
+	if cmd == nil {
+		return nil
+	}
+
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		var out []tea.Msg
+		for _, c := range batch {
+			out = append(out, answersOf(c)...)
+		}
+
+		return out
+	}
+
+	if msg == nil {
+		return nil
+	}
+
+	return []tea.Msg{msg}
+}
+
+// deleteAnswer deletes the namespace under the cursor and gives the answers
+// of the cluster: the done message, and the one that moves the session, which
+// is nil when the answer has none.
+func deleteAnswer(t *testing.T, m Model) (next Model, move, done tea.Msg) {
+	t.Helper()
+
+	next, _ = m.update(ctrlKey('d'))
+	next, cmd := answerYes(next)
+
+	for _, msg := range answersOf(cmd) {
+		if _, ok := answered(t, msg).(doneMsg); ok {
+			require.Nil(t, done, "two done messages")
+
+			done = msg
+
+			continue
+		}
+
+		require.Nil(t, move, "two moves")
+
+		move = msg
+	}
+
+	require.NotNil(t, done)
+
+	return next, move, done
+}
+
+// takeInOrder gives the answers to the model, the move first or the done
+// message first, and runs what each starts.
+func takeInOrder(m Model, move, done tea.Msg, moveFirst bool) Model {
+	order := []tea.Msg{move, done}
+	if !moveFirst {
+		order = []tea.Msg{done, move}
+	}
+
+	for _, msg := range order {
+		if msg == nil {
+			continue
+		}
+
+		var cmd tea.Cmd
+
+		m, cmd = m.update(msg)
+		m = playOut(m, cmd)
+	}
+
+	return m
+}
+
+func TestNamespaces_ADeleteReadsTheSameInEitherOrder(t *testing.T) {
+	for name, tc := range map[string]struct {
+		keys      string
+		namespace string
+		want      string
+		notWant   string
+	}{
+		"of the session": {"", nomad.DefaultNamespace, "Namespace production deleted. The session is in default now.", ""},
+		"of another one": {"j", "production", "Namespace staging deleted.", "The session is in"},
+	} {
+		for _, moveFirst := range []bool{true, false} {
+			t.Run(sprintf("%s, move first %t", name, moveFirst), func(t *testing.T) {
+				r := require.New(t)
+
+				m := onNamespaces(t, &fakeClient{}, &fakeEditor{})
+				for _, k := range tc.keys {
+					m, _ = m.update(key(k))
+				}
+
+				m, move, done := deleteAnswer(t, m)
+				m = takeInOrder(m, move, done, moveFirst)
+
+				r.Equal(tc.namespace, m.namespace)
+				r.Contains(plain(m.render()), tc.want)
+
+				if tc.notWant != "" {
+					r.NotContains(plain(m.render()), tc.notWant)
+				}
+			})
+		}
+	}
+}
+
+func TestNamespaces_ALateDeleteMovesOnlyASessionStillInIt(t *testing.T) {
+	for name, tc := range map[string]struct {
+		keys      string
+		namespace string
+		said      string
+		notWant   string
+	}{
+		"after the session left it":      {"", "staging", "Namespace production deleted.", "The session is in"},
+		"after the session went into it": {"j", nomad.DefaultNamespace, "Namespace staging deleted. The session is in default now.", ""},
+	} {
+		for _, moveFirst := range []bool{true, false} {
+			t.Run(sprintf("%s, move first %t", name, moveFirst), func(t *testing.T) {
+				r := require.New(t)
+
+				m := onNamespaces(t, &fakeClient{}, &fakeEditor{})
+				for _, k := range tc.keys {
+					m, _ = m.update(key(k))
+				}
+
+				m, move, done := deleteAnswer(t, m)
+				m = typeCommand(m, "jobs staging")
+				m = takeInOrder(m, move, done, moveFirst)
+
+				r.Equal(tc.namespace, m.namespace)
+				r.Contains(plain(m.render()), tc.said)
+
+				if tc.notWant != "" {
+					r.NotContains(plain(m.render()), tc.notWant)
+				}
+			})
+		}
+	}
+}
+
+func TestNamespaces_ALateDeleteAfterASwitchOfClustersLeavesTheSessionWhereItIs(t *testing.T) {
+	for _, moveFirst := range []bool{true, false} {
+		t.Run(sprintf("move first %t", moveFirst), func(t *testing.T) {
+			r := require.New(t)
+
+			m, clusters := onDev(t)
+			clusters.dev.namespaces = twoNamespaces()
+			clusters.prod.namespaces = twoNamespaces()
+
+			m = typeCommand(m, "ctx prod")
+			m = typeCommand(m, "ctx dev")
+			m = typeCommand(m, "ns production")
+
+			m, move, done := deleteAnswer(t, m)
+			r.Equal("production", clusters.dev.deletedNamespace)
+
+			m = typeCommand(m, "ctx prod")
+			m = typeCommand(m, "ns production")
+			m = takeInOrder(m, move, done, moveFirst)
+
+			r.Equal("production", m.namespace)
+			r.Contains(plain(m.render()), "Namespace production deleted.")
+			r.NotContains(plain(m.render()), "The session is in")
+		})
+	}
 }

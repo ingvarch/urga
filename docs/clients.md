@@ -166,8 +166,9 @@ it, so urga refuses and opens the file again with the reason.
 `ctrl-d` deletes the namespace under the cursor, after you confirm. The
 cluster refuses to delete a namespace that still holds jobs, variables or
 volumes, and says why. `default` cannot be deleted, so `ctrl-d` is not
-offered on it. When you delete the namespace the session is in, the session
-goes to `default`.
+offered on it. When the cluster has deleted a namespace, a session that is
+still in it goes to `default`. If you went to another namespace or cluster
+before the answer, the session stays there.
 
 The number keys `1` to `9` switch to a namespace, and `0` shows all
 namespaces. The header shows which namespace each key opens. urga keeps this
