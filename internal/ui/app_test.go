@@ -1295,7 +1295,7 @@ func (f *fakeClient) BatchQueueStatus(_ context.Context, pool string) ([]nomad.Q
 	return nil, f.err
 }
 
-func (f *fakeClient) Events(_ context.Context, namespace string, topics []string) (*nomad.Changes, error) {
+func (f *fakeClient) Events(_ context.Context, namespace string, topics []string, _ uint64) (*nomad.Changes, error) {
 	f.watchedNamespace, f.watchedTopics = namespace, topics
 
 	if f.streamOf != nil {

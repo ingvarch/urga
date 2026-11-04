@@ -149,6 +149,9 @@ type Change struct {
 	// namespace is not in it; the stream is asked for one namespace at a
 	// time.
 	Key string
+
+	// Index is the index of the event.
+	Index uint64
 }
 
 // Stream is what the cluster sends as it happens. It arrives on C until
@@ -181,16 +184,16 @@ type Changes = Stream[Change]
 //
 // A cluster that does not stream returns an error at once: the caller then
 // keeps polling the way it did before.
-func (c *Client) Events(ctx context.Context, namespace string, topics []string) (*Changes, error) {
+func (c *Client) Events(ctx context.Context, namespace string, topics []string, from uint64) (*Changes, error) {
 	watch := map[api.Topic][]string{}
 	for _, topic := range topics {
 		watch[api.Topic(topic)] = nil
 	}
 
-	// The stream starts with the next change: anything before it is already
-	// in the list the screen read.
-	return follow(ctx, c, namespace, watch, 0, func(event api.Event) (Change, bool) {
-		return Change{Topic: string(event.Topic), Type: event.Type, Key: event.Key}, true
+	// From 0 is the oldest event the cluster keeps. The caller drops what it
+	// already read.
+	return follow(ctx, c, namespace, watch, from, func(event api.Event) (Change, bool) {
+		return Change{Topic: string(event.Topic), Type: event.Type, Key: event.Key, Index: event.Index}, true
 	})
 }
 

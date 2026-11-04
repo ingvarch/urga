@@ -103,7 +103,7 @@ func (m Model) watchScreen() tea.Cmd {
 	client, namespace, id := m.client, namespaceOf(m.screen.page, m.env()), m.watch.id
 
 	return func() tea.Msg {
-		changes, err := client.Events(context.Background(), namespace, topics)
+		changes, err := client.Events(context.Background(), namespace, topics, 0)
 		if err != nil {
 			return watchEndedMsg{id: id, err: err}
 		}
