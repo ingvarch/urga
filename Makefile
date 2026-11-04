@@ -9,7 +9,7 @@ LDFLAGS := -s -w \
 	-X $(PKG)/internal/version.Commit=$(COMMIT) \
 	-X $(PKG)/internal/version.Date=$(DATE)
 
-.PHONY: check fmt vet lint licenses notices test build dist run clean
+.PHONY: check fmt vet lint licenses notices test build dist run screens clean
 
 check: fmt vet lint licenses test build
 
@@ -50,6 +50,10 @@ dist:
 
 run: build
 	./bin/$(BINARY)
+
+# screens retakes the pictures of urga in the README.
+screens:
+	./scripts/screens.sh
 
 clean:
 	rm -rf bin THIRD_PARTY_NOTICES
