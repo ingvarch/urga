@@ -139,6 +139,11 @@ type fakeClient struct {
 	nodesErr  error
 	allocsErr error
 
+	// jobCountsErr fails the jobs after their list answered, as a failed read
+	// of their counts does. queueErrs fail the queue of one pool.
+	jobCountsErr error
+	queueErrs    map[string]error
+
 	// lists are the namespaces each list was asked in, by list; the
 	// allocations carry the job after a slash.
 	lists map[string][]string
@@ -172,6 +177,10 @@ type fakeClient struct {
 
 	calls      int
 	allocCalls int
+
+	// readIndex is the index the cluster reports for a read of each topic;
+	// a topic without one is read with no index, as by an older cluster.
+	readIndex map[string]uint64
 
 	// writes are the calls that change the cluster, in the order made.
 	writes []string
@@ -388,15 +397,31 @@ func (f *fakeClient) listed(list, asked string) {
 	f.lists[list] = append(f.lists[list], asked)
 }
 
-func (f *fakeClient) Jobs(_ context.Context, namespace string) ([]nomad.Job, error) {
+// noteRead notes the read index of the topics, as a read that succeeded does.
+func (f *fakeClient) noteRead(ctx context.Context, topics ...string) {
+	if f.err != nil {
+		return
+	}
+
+	for _, topic := range topics {
+		nomad.NoteRead(ctx, f.readIndex[topic], topic)
+	}
+}
+
+func (f *fakeClient) Jobs(ctx context.Context, namespace string) ([]nomad.Job, error) {
 	f.askedNamespace = namespace
 	f.listed("jobs", namespace)
 	f.calls++
+	f.noteRead(ctx, nomad.TopicJob)
+
+	if f.jobCountsErr != nil {
+		return nil, f.jobCountsErr
+	}
 
 	return f.jobs, f.err
 }
 
-func (f *fakeClient) Allocations(_ context.Context, namespace, jobID string) ([]nomad.Alloc, error) {
+func (f *fakeClient) Allocations(ctx context.Context, namespace, jobID string) ([]nomad.Alloc, error) {
 	f.askedNamespace, f.askedJobID = namespace, jobID
 	f.allocCalls++
 	f.listed("allocations", namespace+"/"+jobID)
@@ -404,6 +429,8 @@ func (f *fakeClient) Allocations(_ context.Context, namespace, jobID string) ([]
 	if f.allocsErr != nil {
 		return nil, f.allocsErr
 	}
+
+	f.noteRead(ctx, nomad.TopicAllocation)
 
 	return f.allocs, f.err
 }
@@ -471,12 +498,14 @@ func (f *fakeClient) FailedPlacement(_ context.Context, namespace, jobID string)
 	return f.evaluation, f.placementErr
 }
 
-func (f *fakeClient) NodeAllocations(_ context.Context, nodeID string) ([]nomad.Alloc, error) {
+func (f *fakeClient) NodeAllocations(ctx context.Context, nodeID string) ([]nomad.Alloc, error) {
 	f.askedNodeID = nodeID
 
 	if f.allocsErr != nil {
 		return nil, f.allocsErr
 	}
+
+	f.noteRead(ctx, nomad.TopicAllocation)
 
 	return f.nodeAllocs, f.err
 }
@@ -508,8 +537,9 @@ func (f *fakeClient) RevertJobTo(_ context.Context, _, jobID string, version, fr
 	return f.actionErr
 }
 
-func (f *fakeClient) Node(_ context.Context, nodeID string) (nomad.Node, error) {
+func (f *fakeClient) Node(ctx context.Context, nodeID string) (nomad.Node, error) {
 	f.askedNodeID = nodeID
+	f.noteRead(ctx, nomad.TopicNode)
 
 	for _, node := range f.nodes {
 		if node.ID == nodeID {
@@ -1186,9 +1216,10 @@ func (f *fakeClient) NewestEvaluation(_ context.Context, namespace, jobID string
 	return f.newest, f.err
 }
 
-func (f *fakeClient) Deployments(_ context.Context, namespace string) ([]nomad.Deployment, error) {
+func (f *fakeClient) Deployments(ctx context.Context, namespace string) ([]nomad.Deployment, error) {
 	f.askedNamespace = namespace
 	f.listed("deployments", namespace)
+	f.noteRead(ctx, nomad.TopicDeployment)
 
 	return f.deployments, f.err
 }
@@ -1203,19 +1234,22 @@ func (f *fakeClient) Services(_ context.Context, namespace string) ([]nomad.Serv
 	return f.services, f.err
 }
 
-func (f *fakeClient) Evaluations(_ context.Context, namespace string) ([]nomad.Evaluation, error) {
+func (f *fakeClient) Evaluations(ctx context.Context, namespace string) ([]nomad.Evaluation, error) {
 	f.askedNamespace = namespace
 	f.listed("evaluations", namespace)
+	f.noteRead(ctx, nomad.TopicEvaluation)
 
 	return f.evaluations, f.err
 }
 
-func (f *fakeClient) Nodes(context.Context) ([]nomad.Node, error) {
+func (f *fakeClient) Nodes(ctx context.Context) ([]nomad.Node, error) {
 	f.listed("nodes", "")
 
 	if f.nodesErr != nil {
 		return nil, f.nodesErr
 	}
+
+	f.noteRead(ctx, nomad.TopicNode)
 
 	return f.nodes, f.err
 }
@@ -1259,7 +1293,9 @@ func (f *fakeClient) refused(otherwise error) error {
 	return err
 }
 
-func (f *fakeClient) NodePools(context.Context) ([]nomad.NodePool, error) {
+func (f *fakeClient) NodePools(ctx context.Context) ([]nomad.NodePool, error) {
+	f.noteRead(ctx, nomad.TopicNodePool)
+
 	return f.nodePools, f.err
 }
 
@@ -1275,10 +1311,17 @@ func (f *fakeClient) PoolNodes(_ context.Context, pool string) ([]nomad.Node, er
 	return f.poolNodes, f.err
 }
 
-func (f *fakeClient) BatchQueueJobs(_ context.Context, pool string) ([]nomad.QueueWorkload, error) {
+func (f *fakeClient) BatchQueueJobs(ctx context.Context, pool string) ([]nomad.QueueWorkload, error) {
 	err := f.err
 	if f.queueErr != nil {
 		err = f.queueErr
+	}
+	if f.queueErrs[pool] != nil {
+		err = f.queueErrs[pool]
+	}
+
+	if err == nil && pool != "" {
+		f.noteRead(ctx, nomad.TopicJob)
 	}
 	if f.queueWorkloads != nil {
 		return f.queueWorkloads[pool], err

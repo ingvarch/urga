@@ -145,9 +145,18 @@ func readPart[T any](namespace string, load func(ctx context.Context) ([]T, erro
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
+		ctx, reads := nomad.WithReads(ctx)
+
 		items, err := load(ctx)
 
-		return partMsg[T]{namespace: namespace, items: items, err: err, at: time.Now()}
+		part := partMsg[T]{namespace: namespace, items: items, err: err, at: time.Now()}
+		if err != nil {
+			// A list can answer before the part fails: its index is not what
+			// the line shows.
+			return part
+		}
+
+		return withReads(part, reads)
 	}
 }
 

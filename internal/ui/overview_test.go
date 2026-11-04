@@ -528,3 +528,25 @@ func TestOverview_RestartsAreJudgedAtTheTimeOfTheRead(t *testing.T) {
 	r.Len(opened.list.table.rows, 1)
 	r.Equal("aaaa1111", opened.list.table.rows[0].cells[0][:8])
 }
+
+func TestOverview_KeepsTheReadIndexOfEachList(t *testing.T) {
+	client := &fakeClient{readIndex: map[string]uint64{
+		nomad.TopicJob: 11, nomad.TopicAllocation: 12, nomad.TopicNode: 13,
+		nomad.TopicEvaluation: 14, nomad.TopicDeployment: 15,
+	}}
+
+	m := overviewAnswered(client)
+
+	require.Equal(t, client.readIndex, m.watch.read)
+}
+
+func TestOverview_AListThatFailedAfterItWasReadKeepsNoReadIndex(t *testing.T) {
+	client := &fakeClient{jobCountsErr: errors.New("timeout"), readIndex: map[string]uint64{
+		nomad.TopicJob: 50, nomad.TopicAllocation: 12, nomad.TopicNode: 13,
+		nomad.TopicEvaluation: 14, nomad.TopicDeployment: 15,
+	}}
+
+	m := overviewAnswered(client)
+
+	require.NotContains(t, m.watch.read, nomad.TopicJob)
+}
