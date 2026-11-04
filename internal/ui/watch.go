@@ -215,8 +215,9 @@ func (m Model) watchEnded(msg watchEndedMsg) (Model, tea.Cmd) {
 
 	m.watch = m.watch.end()
 
-	// A screen that can follow fewer topics does, with no warning, and its
-	// poll timer stays as it was.
+	// A screen that can follow fewer topics does, with no warning. Its poll
+	// timer is not sped up: the stream of the fewer topics resets it at the
+	// slow pace once it opens.
 	if refused {
 		m.watch.fewer = true
 
@@ -296,10 +297,19 @@ func (m Model) pollEvery() time.Duration {
 
 // startWatch keeps the stream the cluster opened.
 func (m Model) startWatch(msg watchingMsg) (Model, tea.Cmd) {
+	wasLive := m.watch.live()
+
 	var cmd tea.Cmd
 	m.watch, cmd = m.watch.start(msg, m.now)
 
-	return m, cmd
+	if wasLive || !m.watch.live() || !m.polling {
+		return m, cmd
+	}
+
+	// The timer set before the stream opened is the fast one.
+	m, poll := m.restartPoll().schedulePoll()
+
+	return m, tea.Batch(cmd, poll)
 }
 
 // keepChange handles a change the stream reported.

@@ -910,6 +910,7 @@ func TestClient_ARefusedStreamOfItsAllocationsFollowsTheClientAlone(t *testing.T
 	for name, refuse := range refusals(t) {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
+			holdTimers(t)
 
 			var asked [][]string
 
@@ -940,6 +941,10 @@ func TestClient_ARefusedStreamOfItsAllocationsFollowsTheClientAlone(t *testing.T
 			r.NotNil(cmd)
 			m, _ = m.update(cmd())
 
+			// The fast timer set before the stream opened asks for nothing.
+			_, asks := m.update(pollMsg{tick: tick})
+			r.Nil(asks)
+
 			r.Equal([][]string{
 				{nomad.TopicNode, nomad.TopicAllocation},
 				{nomad.TopicNode},
@@ -950,7 +955,6 @@ func TestClient_ARefusedStreamOfItsAllocationsFollowsTheClientAlone(t *testing.T
 			r.True(m.watch.live())
 			r.Empty(m.flash.text)
 			r.Equal(slowPoll, m.pollEvery())
-			r.Equal(tick, m.pollTick)
 		})
 	}
 }
