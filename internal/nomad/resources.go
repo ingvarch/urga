@@ -20,9 +20,14 @@ type Deployment struct {
 
 // Deployments lists the rollouts of a namespace.
 func (c *Client) Deployments(ctx context.Context, namespace string) ([]Deployment, error) {
-	list, _, err := c.api.Deployments().List(c.query(ctx, namespace))
+	list, meta, err := c.api.Deployments().List(c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
 
-	return listed(list, err, newDeployment)
+	readAt(ctx, meta, TopicDeployment)
+
+	return listed(list, newDeployment), nil
 }
 
 func newDeployment(d *api.Deployment) Deployment {
@@ -46,8 +51,11 @@ type Namespace struct {
 // Namespaces lists the namespaces of the cluster.
 func (c *Client) Namespaces(ctx context.Context) ([]Namespace, error) {
 	list, _, err := c.api.Namespaces().List(c.query(ctx, ""))
+	if err != nil {
+		return nil, err
+	}
 
-	return listed(list, err, newNamespace)
+	return listed(list, newNamespace), nil
 }
 
 func newNamespace(n *api.Namespace) Namespace {
@@ -63,10 +71,12 @@ type Service struct {
 
 // Services lists the service catalog of a namespace.
 func (c *Client) Services(ctx context.Context, namespace string) ([]Service, error) {
-	list, _, err := c.api.Services().List(c.query(ctx, namespace))
+	list, meta, err := c.api.Services().List(c.query(ctx, namespace))
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicService)
 
 	// Nomad groups them by namespace, the list shows one service per row.
 	out := []Service{}
@@ -96,9 +106,14 @@ type Evaluation struct {
 
 // Evaluations lists the scheduling decisions of a namespace.
 func (c *Client) Evaluations(ctx context.Context, namespace string) ([]Evaluation, error) {
-	list, _, err := c.api.Evaluations().List(c.query(ctx, namespace))
+	list, meta, err := c.api.Evaluations().List(c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
 
-	return listed(list, err, newEvaluation)
+	readAt(ctx, meta, TopicEvaluation)
+
+	return listed(list, newEvaluation), nil
 }
 
 func newEvaluation(e *api.Evaluation) Evaluation {
@@ -179,9 +194,14 @@ func (d DrainStrategy) Progress(allocs []Alloc) (left, of int) {
 
 // Nodes lists the clients of the cluster.
 func (c *Client) Nodes(ctx context.Context) ([]Node, error) {
-	list, _, err := c.api.Nodes().List(c.resourceQuery(ctx, ""))
+	list, meta, err := c.api.Nodes().List(c.resourceQuery(ctx, ""))
+	if err != nil {
+		return nil, err
+	}
 
-	return listed(list, err, newNode)
+	readAt(ctx, meta, TopicNode)
+
+	return listed(list, newNode), nil
 }
 
 // newNode reads one machine of the list.
@@ -239,17 +259,24 @@ type VariableDetail struct {
 
 // Variables lists what the variable store of a namespace holds.
 func (c *Client) Variables(ctx context.Context, namespace string) ([]Variable, error) {
-	list, _, err := c.api.Variables().List(c.query(ctx, namespace))
+	list, meta, err := c.api.Variables().List(c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
 
-	return listed(list, err, variableOf)
+	readAt(ctx, meta, TopicVariable)
+
+	return listed(list, variableOf), nil
 }
 
 // Variable reads a variable with its values.
 func (c *Client) Variable(ctx context.Context, namespace, path string) (VariableDetail, error) {
-	v, _, err := c.api.Variables().Read(path, c.query(ctx, namespace))
+	v, meta, err := c.api.Variables().Read(path, c.query(ctx, namespace))
 	if err != nil {
 		return VariableDetail{}, err
 	}
+
+	readAt(ctx, meta, TopicVariable)
 
 	return VariableDetail{
 		Variable: variableOf(v.Metadata()),
@@ -288,9 +315,14 @@ type NodePool struct {
 
 // NodePools lists the pools nodes are grouped into.
 func (c *Client) NodePools(ctx context.Context) ([]NodePool, error) {
-	list, _, err := c.api.NodePools().List(c.query(ctx, ""))
+	list, meta, err := c.api.NodePools().List(c.query(ctx, ""))
+	if err != nil {
+		return nil, err
+	}
 
-	return listed(list, err, newNodePool)
+	readAt(ctx, meta, TopicNodePool)
+
+	return listed(list, newNodePool), nil
 }
 
 func newNodePool(p *api.NodePool) NodePool {
@@ -327,36 +359,36 @@ func queueOf(cfg *api.BatchQueueConfig) string {
 // PoolNodes lists the clients of a node pool, as the cluster counts them:
 // the pool all holds every client, whatever pool each is in.
 func (c *Client) PoolNodes(ctx context.Context, pool string) ([]Node, error) {
-	list, _, err := c.api.NodePools().ListNodes(pool, c.resourceQuery(ctx, ""))
+	list, meta, err := c.api.NodePools().ListNodes(pool, c.resourceQuery(ctx, ""))
+	if err != nil {
+		return nil, err
+	}
 
-	return listed(list, err, newNode)
+	readAt(ctx, meta, TopicNode)
+
+	return listed(list, newNode), nil
 }
 
 // PoolJobs lists the jobs of every namespace that run in a node pool.
 func (c *Client) PoolJobs(ctx context.Context, pool string) ([]Job, error) {
-	stubs, _, err := c.api.NodePools().ListJobs(pool, c.query(ctx, AllNamespaces))
-
-	jobs, err := listed(stubs, err, newJob)
+	stubs, meta, err := c.api.NodePools().ListJobs(pool, c.query(ctx, AllNamespaces))
 	if err != nil {
 		return nil, err
 	}
 
-	return c.withCounts(ctx, AllNamespaces, fmt.Sprintf("%s and NodePool == %q", services, pool), jobs)
+	readAt(ctx, meta, TopicJob)
+
+	return c.withCounts(ctx, AllNamespaces, fmt.Sprintf("%s and NodePool == %q", services, pool), listed(stubs, newJob))
 }
 
-// listed reads each item of a list the cluster answered, or passes on why
-// it did not.
-func listed[S, T any](items []S, err error, read func(S) T) ([]T, error) {
-	if err != nil {
-		return nil, err
-	}
-
+// listed reads each item of a list the cluster answered.
+func listed[S, T any](items []S, read func(S) T) []T {
 	out := make([]T, 0, len(items))
 	for _, item := range items {
 		out = append(out, read(item))
 	}
 
-	return out, nil
+	return out
 }
 
 // TaskGroup is one group of a job: how many allocations it asks for and how

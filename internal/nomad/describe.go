@@ -23,10 +23,12 @@ func (c *Client) DescribeJob(ctx context.Context, namespace, jobID string) (stri
 
 // JobMeta is the meta of the job block, which is nil when the job has none.
 func (c *Client) JobMeta(ctx context.Context, namespace, jobID string) (map[string]string, error) {
-	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
+	job, meta, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicJob)
 
 	return job.Meta, nil
 }

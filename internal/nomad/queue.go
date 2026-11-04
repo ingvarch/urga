@@ -71,6 +71,8 @@ func (c *Client) BatchQueueJobs(ctx context.Context, pool string) ([]QueueWorklo
 			return nil, err
 		}
 
+		readAt(ctx, qm, TopicJob)
+
 		if resp == nil {
 			return allWorkloads, nil
 		}

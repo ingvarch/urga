@@ -45,14 +45,19 @@ type ScalingEvent struct {
 
 // ScalingPolicies lists the scaling policies of a namespace.
 func (c *Client) ScalingPolicies(ctx context.Context, namespace string) ([]ScalingPolicy, error) {
-	stubs, _, err := c.api.Scaling().ListPolicies(c.query(ctx, namespace))
+	stubs, meta, err := c.api.Scaling().ListPolicies(c.query(ctx, namespace))
+	if err != nil {
+		return nil, err
+	}
 
-	return listed(stubs, err, func(p *api.ScalingPolicyListStub) ScalingPolicy {
+	readAt(ctx, meta, TopicJob)
+
+	return listed(stubs, func(p *api.ScalingPolicyListStub) ScalingPolicy {
 		return ScalingPolicy{
 			ID: p.ID, Namespace: p.Target["Namespace"], Job: p.Target["Job"], Group: p.Target["Group"],
 			Type: p.Type, Enabled: p.Enabled,
 		}
-	})
+	}), nil
 }
 
 // DescribeScalingPolicy is a policy in full, as JSON: its bounds and the
@@ -64,15 +69,19 @@ func (c *Client) DescribeScalingPolicy(ctx context.Context, namespace, id string
 // GroupScaling reads how a task group of a job is scaled. The policy is part
 // of the job, the counts and the events are in its scale status.
 func (c *Client) GroupScaling(ctx context.Context, namespace, jobID, group string) (GroupScaling, error) {
-	job, _, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
+	job, meta, err := c.api.Jobs().Info(jobID, c.query(ctx, namespace))
 	if err != nil {
 		return GroupScaling{}, err
 	}
 
-	status, _, err := c.api.Jobs().ScaleStatus(jobID, c.query(ctx, namespace))
+	readAt(ctx, meta, TopicJob)
+
+	status, meta, err := c.api.Jobs().ScaleStatus(jobID, c.query(ctx, namespace))
 	if err != nil {
 		return GroupScaling{}, err
 	}
+
+	readAt(ctx, meta, TopicJob)
 
 	var scaling GroupScaling
 

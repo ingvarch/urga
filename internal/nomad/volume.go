@@ -58,10 +58,12 @@ type Volume struct {
 
 // Volumes lists the CSI and the dynamic host volumes of a namespace.
 func (c *Client) Volumes(ctx context.Context, namespace string) ([]Volume, error) {
-	csi, _, err := c.api.CSIVolumes().List(c.query(ctx, namespace))
+	csi, meta, err := c.api.CSIVolumes().List(c.query(ctx, namespace))
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicCSIVolume, TopicCSIPlugin)
 
 	host, err := c.hostVolumes(ctx, namespace)
 	if err != nil {
@@ -216,10 +218,12 @@ func (c *Client) DescribeVolume(ctx context.Context, namespace, kind, id string)
 func noKind(kind string) error { return fmt.Errorf("no volume of kind %q", kind) }
 
 func (c *Client) csiVolume(ctx context.Context, namespace, id string) (VolumeDetail, error) {
-	v, _, err := c.api.CSIVolumes().Info(id, c.query(ctx, namespace))
+	v, meta, err := c.api.CSIVolumes().Info(id, c.query(ctx, namespace))
 	if err != nil {
 		return VolumeDetail{}, err
 	}
+
+	readAt(ctx, meta, TopicCSIVolume, TopicCSIPlugin, TopicAllocation)
 
 	return VolumeDetail{
 		Volume: Volume{
@@ -247,10 +251,12 @@ func (c *Client) csiVolume(ctx context.Context, namespace, id string) (VolumeDet
 }
 
 func (c *Client) hostVolume(ctx context.Context, namespace, id string) (VolumeDetail, error) {
-	v, _, err := c.api.HostVolumes().Get(id, c.query(ctx, namespace))
+	v, meta, err := c.api.HostVolumes().Get(id, c.query(ctx, namespace))
 	if err != nil {
 		return VolumeDetail{}, err
 	}
+
+	readAt(ctx, meta, TopicHostVolume, TopicAllocation)
 
 	// A node that is gone leaves the volume without a name for it, not
 	// without the volume.

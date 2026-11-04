@@ -53,10 +53,12 @@ func (g DeploymentGroup) WaitsForPromotion() bool {
 
 // Deployment is one deployment with its groups, in the order of their names.
 func (c *Client) Deployment(ctx context.Context, namespace, deploymentID string) (DeploymentDetail, error) {
-	d, _, err := c.api.Deployments().Info(deploymentID, c.query(ctx, namespace))
+	d, meta, err := c.api.Deployments().Info(deploymentID, c.query(ctx, namespace))
 	if err != nil {
 		return DeploymentDetail{}, err
 	}
+
+	readAt(ctx, meta, TopicDeployment)
 
 	return newDeploymentDetail(d), nil
 }
@@ -64,10 +66,12 @@ func (c *Client) Deployment(ctx context.Context, namespace, deploymentID string)
 // JobDeployments are the deployments of a job, the newest first: one for
 // each version that made one. A batch job has none.
 func (c *Client) JobDeployments(ctx context.Context, namespace, jobID string) ([]DeploymentDetail, error) {
-	list, _, err := c.api.Jobs().Deployments(jobID, false, c.query(ctx, namespace))
+	list, meta, err := c.api.Jobs().Deployments(jobID, false, c.query(ctx, namespace))
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicDeployment)
 
 	out := make([]DeploymentDetail, 0, len(list))
 
@@ -111,10 +115,12 @@ func newDeploymentDetail(d *api.Deployment) DeploymentDetail {
 // DeploymentAllocations are the allocations a deployment placed, with how
 // it judged each of them.
 func (c *Client) DeploymentAllocations(ctx context.Context, namespace, deploymentID string) ([]Alloc, error) {
-	stubs, _, err := c.api.Deployments().Allocations(deploymentID, c.query(ctx, namespace))
+	stubs, meta, err := c.api.Deployments().Allocations(deploymentID, c.query(ctx, namespace))
 	if err != nil {
 		return nil, err
 	}
+
+	readAt(ctx, meta, TopicAllocation)
 
 	allocs := make([]Alloc, 0, len(stubs))
 	for _, stub := range stubs {
