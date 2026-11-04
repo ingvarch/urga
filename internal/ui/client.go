@@ -137,6 +137,11 @@ func (clientPage) topics() []string { return []string{nomad.TopicAllocation, nom
 // watches.
 func (clientPage) where(env) string { return nomad.AllNamespaces }
 
+// fewerTopics: allocations of every namespace need a token that may read the
+// jobs of each one. Without it the screen follows the clients alone, and its
+// allocations are read on the poll.
+func (clientPage) fewerTopics() []string { return []string{nomad.TopicNode} }
+
 // fetch reads the work of the machine, and the machine itself: what the
 // panel says about it keeps up with the rest of the screen. What the host is
 // doing is read on the timer of the chart, not with the list.
