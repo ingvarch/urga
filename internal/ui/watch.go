@@ -58,9 +58,12 @@ type (
 	}
 
 	// changeMsg reports that something the screen shows changed in the
-	// cluster. The screen reads the new state with its usual request, so
-	// what exactly changed is not carried here.
-	changeMsg struct{ id int }
+	// cluster. The screen reads the new state with its usual request; the
+	// change only says whether the screen read it already.
+	changeMsg struct {
+		id     int
+		change nomad.Change
+	}
 
 	// settleMsg is the end of a burst of changes.
 	settleMsg struct{}
@@ -89,6 +92,12 @@ type watchState struct {
 	// read is the read index of what the screen shows, by topic.
 	read map[string]uint64
 
+	// newest is the newest index the screen waits to read, by topic: of a
+	// change of the burst, or of the page before an older answer replaced it.
+	// A change of a topic the page shows nothing of is kept too, for an
+	// answer that shows that topic from an index below it.
+	newest map[string]uint64
+
 	// due says the screen wants its stream and has had no answer yet: the
 	// stream opens after the first answer, from what that answer read.
 	due bool
@@ -98,11 +107,17 @@ type watchState struct {
 }
 
 // keepRead notes the read index of an answer. The newest answer replaces the
-// old index because it is what the page shows.
-func (w watchState) keepRead(read map[string]uint64) watchState {
+// old index because it is what the page shows. An answer read before the one
+// the page showed leaves out what changed in between, which the stream does
+// not send again: the screen reads again once the burst settles. A page that
+// showed nothing of a topic left nothing of it out, but a change of the topic
+// that came since may be newer than the answer.
+func (w watchState) keepRead(read map[string]uint64) (watchState, tea.Cmd) {
 	if len(read) == 0 {
-		return w
+		return w, nil
 	}
+
+	shown := w.read
 
 	w.read = maps.Clone(w.read)
 	if w.read == nil {
@@ -111,13 +126,28 @@ func (w watchState) keepRead(read map[string]uint64) watchState {
 
 	maps.Copy(w.read, read)
 
-	return w
+	var settles []tea.Cmd
+
+	for topic, index := range read {
+		was := shown[topic]
+		if was == nomad.EveryIndex {
+			was = w.newest[topic]
+		}
+
+		if index < was {
+			var cmd tea.Cmd
+			w, cmd = w.await(topic, was)
+			settles = append(settles, cmd)
+		}
+	}
+
+	return w, tea.Batch(settles...)
 }
 
 // entered is the state of a screen just opened: no stream, nothing read.
 func (w watchState) entered() watchState {
 	w = w.end()
-	w.read, w.due = nil, true
+	w.read, w.newest, w.settling, w.due = nil, nil, false, true
 
 	return w
 }
@@ -201,7 +231,7 @@ func (w watchState) waitForChange() tea.Cmd {
 
 	id := w.id
 
-	return waitOn(changes.C, changes.Err, func(_ nomad.Change, ok bool) tea.Msg {
+	return waitOn(changes.C, changes.Err, func(change nomad.Change, ok bool) tea.Msg {
 		if !ok {
 			// A stream that dropped sends its error before it
 			// closes, and both are then ready at once: reading the
@@ -209,7 +239,7 @@ func (w watchState) waitForChange() tea.Cmd {
 			return watchEndedMsg{id: id, err: reasonOf(changes)}
 		}
 
-		return changeMsg{id: id}
+		return changeMsg{id: id, change: change}
 	}, func(err error) tea.Msg {
 		return watchEndedMsg{id: id, err: err}
 	})
@@ -246,7 +276,9 @@ func (w watchState) start(msg watchingMsg, now time.Time) (watchState, tea.Cmd) 
 
 // keepChange notes that something changed and waits for the burst to end
 // before it asks the cluster: the stream only signals a change, and one
-// request reads the new state.
+// request reads the new state. A change the screen read already only waits
+// for the next one; a change of a topic the page shows nothing of is kept
+// for the answer that shows it.
 func (w watchState) keepChange(msg changeMsg) (watchState, tea.Cmd) {
 	if !w.current(msg.id) {
 		return w, nil
@@ -255,18 +287,69 @@ func (w watchState) keepChange(msg changeMsg) (watchState, tea.Cmd) {
 	w.heard = true
 	next := w.waitForChange()
 
-	if w.settling {
+	topic, index := msg.change.Topic, msg.change.Index
+	if read, ok := w.read[topic]; ok && index <= read {
+		if read == nomad.EveryIndex {
+			w = w.keep(topic, index)
+		}
+
 		return w, next
+	}
+
+	w, settles := w.await(topic, index)
+
+	return w, tea.Batch(next, settles)
+}
+
+// await keeps a change the screen has yet to read, and waits for the burst
+// to end unless it waits already.
+func (w watchState) await(topic string, index uint64) (watchState, tea.Cmd) {
+	w = w.keep(topic, index)
+
+	if w.settling {
+		return w, nil
 	}
 
 	w.settling = true
 
-	return w, tea.Batch(next, startTimer(settle, settleMsg{}))
+	return w, startTimer(settle, settleMsg{})
 }
 
-// settled asks the cluster for the rows once a burst of changes is over.
+// keep notes the newest change of a topic.
+func (w watchState) keep(topic string, index uint64) watchState {
+	w.newest = maps.Clone(w.newest)
+	if w.newest == nil {
+		w.newest = map[string]uint64{}
+	}
+
+	w.newest[topic] = max(w.newest[topic], index)
+
+	return w
+}
+
+// stale says a change of the burst is newer than what the screen read, or
+// is of a topic it read at no index.
+func (w watchState) stale() bool {
+	for topic, index := range w.newest {
+		if read, ok := w.read[topic]; !ok || index > read {
+			return true
+		}
+	}
+
+	return false
+}
+
+// settled asks the cluster for the rows once a burst of changes is over,
+// unless the screen read them since.
 func (m Model) settled() (Model, tea.Cmd) {
 	m.watch.settling = false
+
+	stale := m.watch.stale()
+	m.watch.newest = nil
+
+	if !stale {
+		return m, nil
+	}
 
 	return m, m.fetch()
 }
