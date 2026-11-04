@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"maps"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -84,8 +85,36 @@ type watchState struct {
 	// stream of all of them.
 	fewer bool
 
+	// read is the read index of what the screen shows, by topic.
+	read map[string]uint64
+
 	// streamStart is when the open stream opened and whether it sent an event.
 	streamStart
+}
+
+// keepRead notes the read index of an answer. The newest answer replaces the
+// old index because it is what the page shows.
+func (w watchState) keepRead(read map[string]uint64) watchState {
+	if len(read) == 0 {
+		return w
+	}
+
+	w.read = maps.Clone(w.read)
+	if w.read == nil {
+		w.read = map[string]uint64{}
+	}
+
+	maps.Copy(w.read, read)
+
+	return w
+}
+
+// entered is the state of a screen just opened: no stream, nothing read.
+func (w watchState) entered() watchState {
+	w = w.end()
+	w.read = nil
+
+	return w
 }
 
 // watchScreen opens an event stream for what the screen shows. A screen

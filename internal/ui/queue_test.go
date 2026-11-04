@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -183,4 +184,59 @@ func TestQueue_EnterOpensJobAllocations(t *testing.T) {
 
 	r.IsType(allocationsPage{}, m.screen.page)
 	r.Contains(plain(m.render()), "Allocations (Job: batch-run)")
+}
+
+func TestQueue_KeepsTheReadIndexOfThePoolsAndTheQueue(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		nodePools: []nomad.NodePool{{Name: "batch-1", Queue: "fifo"}},
+		queueWorkloads: map[string][]nomad.QueueWorkload{
+			"batch-1": {{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: "fifo", Status: "queued"}},
+		},
+		readIndex: map[string]uint64{nomad.TopicNodePool: 9, nomad.TopicJob: 4},
+	}
+
+	m, _ := sessionModel(t, client)
+	m = typeCommand(m, "queue")
+
+	r.Contains(plain(m.render()), "job-b")
+	r.Equal(map[string]uint64{nomad.TopicNodePool: 9, nomad.TopicJob: 4}, m.watch.read)
+}
+
+func TestQueue_APoolThatFailedLeavesNoReadIndexOfTheJobs(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		nodePools: []nomad.NodePool{{Name: "batch-1", Queue: "fifo"}, {Name: "batch-2", Queue: "fifo"}},
+		queueWorkloads: map[string][]nomad.QueueWorkload{
+			"batch-1": {{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: "fifo", Status: "queued"}},
+		},
+		queueErrs: map[string]error{"batch-2": errors.New("timeout")},
+		readIndex: map[string]uint64{nomad.TopicNodePool: 9, nomad.TopicJob: 4},
+	}
+
+	m, _ := sessionModel(t, client)
+	m = typeCommand(m, "queue")
+
+	r.Contains(plain(m.render()), "job-b")
+	r.NotContains(m.watch.read, nomad.TopicJob)
+}
+
+func TestQueue_KeepsTheReadIndexOfTheQueueOfAPool(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		queueWorkloads: map[string][]nomad.QueueWorkload{
+			"batch-1": {{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: "fifo", Status: "queued"}},
+		},
+		readIndex: map[string]uint64{nomad.TopicJob: 4},
+	}
+
+	m, _ := sessionModel(t, client)
+	m, _ = m.update(openMsg{queuePage{pool: "batch-1", queueType: "fifo"}})
+	m = playOut(m, m.fetch())
+
+	r.Contains(plain(m.render()), "job-b")
+	r.Equal(map[string]uint64{nomad.TopicJob: 4}, m.watch.read)
 }

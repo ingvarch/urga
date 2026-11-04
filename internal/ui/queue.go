@@ -238,6 +238,8 @@ func fetchPoolQueue(client Client, pool string) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
+		ctx, reads := nomad.WithReads(ctx)
+
 		items, err := client.BatchQueueJobs(ctx, pool)
 		if err != nil {
 			if errors.Is(err, nomad.ErrQueueUnsupported) {
@@ -247,7 +249,7 @@ func fetchPoolQueue(client Client, pool string) tea.Cmd {
 			return errMsg{err: err}
 		}
 
-		return queueItemsMsg{pool: pool, items: items}
+		return withReads(queueItemsMsg{pool: pool, items: items}, reads)
 	}
 }
 
@@ -270,6 +272,8 @@ func fetchAllQueues(client Client) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
+		ctx, reads := nomad.WithReads(ctx)
+
 		pools, err := client.NodePools(ctx)
 		if err != nil {
 			if errors.Is(err, nomad.ErrQueueUnsupported) {
@@ -280,7 +284,7 @@ func fetchAllQueues(client Client) tea.Cmd {
 		}
 
 		var all []nomad.QueueWorkload
-		hasQueue := false
+		hasQueue, failed := false, false
 
 		for _, p := range pools {
 			if p.Queue == "" {
@@ -293,6 +297,8 @@ func fetchAllQueues(client Client) tea.Cmd {
 				if errors.Is(err, nomad.ErrQueueUnsupported) {
 					return queueUnsupportedMsg{}
 				}
+
+				failed = true
 
 				continue
 			}
@@ -308,7 +314,13 @@ func fetchAllQueues(client Client) tea.Cmd {
 
 		sortQueueWorkloads(all)
 
-		return queueItemsMsg{items: all}
+		// The page shows nothing of a pool that failed, so it has no read
+		// index of the jobs.
+		if failed {
+			return queueItemsMsg{items: all}
+		}
+
+		return withReads(queueItemsMsg{items: all}, reads)
 	}
 }
 

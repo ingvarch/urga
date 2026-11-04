@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -647,4 +648,105 @@ func TestWatch_AStreamThatOpensAfterTheAnswerSlowsThePoll(t *testing.T) {
 	m, cmd = m.update(pollMsg{tick: fast})
 	r.Nil(cmd)
 	r.Equal(calls, client.calls)
+}
+
+func TestWatch_AnAnswerKeepsTheReadIndexOfWhatItRead(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), readIndex: map[string]uint64{nomad.TopicJob: 40}}
+
+	m := newTestModel(client)
+	m = drain(m, m.fetch())
+
+	r.Equal(map[string]uint64{nomad.TopicJob: 40}, m.watch.read)
+	r.Contains(plain(m.render()), "web")
+}
+
+func TestWatch_ALaterReadMovesTheReadIndexOn(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), readIndex: map[string]uint64{nomad.TopicJob: 40}}
+
+	m := newTestModel(client)
+	m = drain(m, m.fetch())
+
+	client.readIndex[nomad.TopicJob] = 55
+	m = drain(m, m.fetch())
+
+	r.Equal(map[string]uint64{nomad.TopicJob: 55}, m.watch.read)
+}
+
+func TestWatch_TheAnswerThatArrivesLastSetsTheReadIndex(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), readIndex: map[string]uint64{nomad.TopicJob: 40}}
+
+	m := newTestModel(client)
+	older := m.fetch()()
+
+	client.readIndex[nomad.TopicJob] = 55
+	m = drain(m, m.fetch())
+
+	// The page shows the answer that came last, though it was read first.
+	m, _ = m.update(older)
+
+	r.Equal(map[string]uint64{nomad.TopicJob: 40}, m.watch.read)
+}
+
+func TestWatch_AReadWithoutAnIndexKeepsNone(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs()}
+
+	m := newTestModel(client)
+	m = drain(m, m.fetch())
+
+	r.Empty(m.watch.read)
+}
+
+func TestWatch_OnlyTheReadOfTheScreenKeepsItsReadIndex(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), readIndex: map[string]uint64{nomad.TopicJob: 40}}
+	m := newTestModel(client)
+
+	jobs := func() tea.Cmd {
+		return fetchList(func(ctx context.Context) ([]nomad.Job, error) {
+			return client.Jobs(ctx, "production")
+		}, func(items []nomad.Job) tea.Msg { return jobsMsg(items) })
+	}
+
+	for name, labelled := range map[string]tea.Cmd{
+		"asked": askedFor(m.asked, jobs()),
+		"wrote": wroteFor(m.asked, jobs()),
+	} {
+		answer, ok := labelled().(answerMsg)
+		r.True(ok, name)
+		r.Nil(answer.read, name)
+		r.Equal(jobsMsg(twoJobs()), answer.msg, name)
+	}
+
+	answer, ok := m.fetch()().(answerMsg)
+	r.True(ok)
+	r.Equal(map[string]uint64{nomad.TopicJob: 40}, answer.read)
+	r.Equal(jobsMsg(twoJobs()), answer.msg)
+}
+
+func TestWatch_AnAnswerOfAScreenThatWasLeftKeepsNothing(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs: twoJobs(), allocs: twoAllocs(),
+		readIndex: map[string]uint64{nomad.TopicJob: 40, nomad.TopicAllocation: 90},
+	}
+
+	// The screen that is left was read at an index of its own.
+	m := newTestModel(client)
+	m = drain(m, m.fetch())
+	old := m.fetch()
+
+	m, _ = m.update(enter())
+	m, _ = m.update(old())
+
+	r.NotContains(m.watch.read, nomad.TopicJob)
 }

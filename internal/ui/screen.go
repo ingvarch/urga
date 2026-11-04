@@ -254,7 +254,13 @@ func (m Model) rows() []tableRow {
 // content arrives another way, like a description or a log stream, asks for
 // nothing.
 func (m Model) fetch() tea.Cmd {
-	return askedFor(m.asked, m.screen.page.fetch(m.env()))
+	asked := m.asked
+
+	return labelled(m.screen.page.fetch(m.env()), func(msg tea.Msg) tea.Msg {
+		msg, read := readOf(msg)
+
+		return answerMsg{asked: asked, msg: msg, read: read}
+	})
 }
 
 // answerMsg is an answer with the ask it belongs to. The session can move
@@ -267,18 +273,58 @@ type answerMsg struct {
 	// after its screen is left.
 	wrote bool
 	msg   tea.Msg
+
+	// read is the read index of each topic the answer read, kept only for the
+	// read of the screen itself.
+	read map[string]uint64
+}
+
+// readMsg is an answer with the read index of the topics it read. The labels
+// of a command take the index off: a key or a write must not move the read
+// index of a screen past what its list shows.
+type readMsg struct {
+	msg  tea.Msg
+	read map[string]uint64
+}
+
+// withReads is the answer with the indexes noted while it was read, or the
+// answer itself when none was.
+func withReads(msg tea.Msg, reads *nomad.Reads) tea.Msg {
+	read := reads.Indexes()
+	if msg == nil || read == nil {
+		return msg
+	}
+
+	return readMsg{msg: msg, read: read}
+}
+
+// readOf takes the read index off an answer.
+func readOf(msg tea.Msg) (tea.Msg, map[string]uint64) {
+	if answer, ok := msg.(readMsg); ok {
+		return answer.msg, answer.read
+	}
+
+	return msg, nil
 }
 
 // askedFor labels every message a command returns, the commands of a batch
 // included.
 func askedFor(asked int, cmd tea.Cmd) tea.Cmd {
-	return labelled(cmd, func(msg tea.Msg) tea.Msg { return answerMsg{asked: asked, msg: msg} })
+	return labelled(cmd, func(msg tea.Msg) tea.Msg {
+		msg, _ = readOf(msg)
+
+		return answerMsg{asked: asked, msg: msg}
+	})
 }
 
 // wroteFor labels the messages of work that changes the cluster. Once the
 // screen is left they only report what was done.
 func wroteFor(asked int, cmd tea.Cmd) tea.Cmd {
-	return labelled(cmd, func(msg tea.Msg) tea.Msg { return answerMsg{asked: asked, wrote: true, msg: msg} })
+	return labelled(cmd, func(msg tea.Msg) tea.Msg {
+		msg, _ = readOf(msg)
+
+		return answerMsg{asked: asked, wrote: true, msg: msg}
+	})
 }
 
 // labelled wraps every message a command returns, the commands of a batch
@@ -316,12 +362,14 @@ func request[T any](load func(ctx context.Context) (T, error), wrap func(T) tea.
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
+		ctx, reads := nomad.WithReads(ctx)
+
 		answer, err := load(ctx)
 		if err != nil {
 			return errMsg{err: err}
 		}
 
-		return wrap(answer)
+		return withReads(wrap(answer), reads)
 	}
 }
 
@@ -485,7 +533,7 @@ func (m Model) enter() (Model, tea.Cmd) {
 
 	// The watch of the screen that was left is stopped: the new one watches
 	// what it shows, if the cluster can stream.
-	m.watch = m.watch.end()
+	m.watch = m.watch.entered()
 
 	// The timer of the screen that was left may be a slow one.
 	m = m.restartPoll()
@@ -528,6 +576,8 @@ func (m Model) takeAnswer(msg answerMsg) (Model, tea.Cmd) {
 
 		return m, nil
 	}
+
+	m.watch = m.watch.keepRead(msg.read)
 
 	return m.update(msg.msg)
 }
