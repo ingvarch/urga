@@ -124,7 +124,13 @@ func TestText_KeptRowsEqualRowsDrawnInFull(t *testing.T) {
 
 // costOfALine is the allocations of a line arriving at a text of the given
 // length: it is added, and the window is sized, followed to the end and drawn.
-func costOfALine(lines int) float64 {
+func costOfALine(t *testing.T, lines int) float64 {
+	t.Helper()
+
+	if raceOn {
+		t.Skip("the race detector makes a count of allocations vary; the run without it counts them")
+	}
+
 	label := &tag{text: "9a1b2c3d │ ", style: lipgloss.NewStyle().Foreground(colorTitle)}
 
 	text := textModel{times: true, wrap: true, filter: "7"}
@@ -150,13 +156,13 @@ func costOfALine(lines int) float64 {
 }
 
 func TestText_ANewLineCostsTheSameHoweverLongTheText(t *testing.T) {
-	short, long := costOfALine(1_000), costOfALine(40_000)
+	short, long := costOfALine(t, 1_000), costOfALine(t, 40_000)
 
 	require.LessOrEqual(t, long, short+10, "allocations of a line at 40,000 lines and at 1,000")
 }
 
 func TestText_ANewLineCostsTheSameAtTheCap(t *testing.T) {
-	short, capped := costOfALine(1_000), costOfALine(maxTextLines)
+	short, capped := costOfALine(t, 1_000), costOfALine(t, maxTextLines)
 
 	require.LessOrEqual(t, capped, short+10, "allocations of a line at the cap and at 1,000")
 }
