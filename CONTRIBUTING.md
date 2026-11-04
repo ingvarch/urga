@@ -22,11 +22,14 @@ make run
 ```sh
 make check   # fmt, vet, lint, licenses, test, build
 make dist    # the whole release, published nowhere
+make screens # the pictures in the README, from a cluster of their own
 ```
 
 `make lint` needs golangci-lint, the latest release, which CI lints with; it
 fails when golangci-lint is not installed.
 `make dist` needs goreleaser, the version named in `.tool-versions`.
+`make screens` needs nomad, tmux, curl and freeze, and takes about seven
+minutes: the charts of the client fill for six.
 `make licenses` fails when a module urga links has a license outside the
 list in `internal/licenses`; `make notices` also writes `THIRD_PARTY_NOTICES`,
 which the release ships.
