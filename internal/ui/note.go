@@ -16,10 +16,6 @@ const noteKept = 1000
 // dropped.
 const noteAgain = 30 * time.Second
 
-// noteRefusedWithin is how soon a stream the cluster refuses ends: Nomad 2.0
-// answers 200 and ends the stream at once, with no event.
-const noteRefusedWithin = 5 * time.Second
-
 // noteAgainMsg asks to follow the failures again, for the connection with
 // that id.
 type noteAgainMsg struct{ id int }
@@ -48,10 +44,9 @@ type noteState struct {
 	// failing is what the note knows failed and has not left that state.
 	failing map[string]bool
 
-	// heard says the open stream sent an event, and opened is when it
-	// opened.
-	heard  bool
-	opened time.Time
+	// streamStart is when the open stream opened and whether it sent an
+	// event.
+	streamStart
 
 	// from is where the next stream starts: past the newest event read, or
 	// where the last stream started. 0 is past the newest event the cluster
@@ -207,7 +202,7 @@ func (m Model) takeNoteEvents(msg feedEventsMsg) (Model, tea.Cmd) {
 func (m Model) takeNoteEnded(feedEndedMsg) (Model, tea.Cmd) {
 	m.note.stop()
 
-	if !m.note.heard && m.now.Sub(m.note.opened) < noteRefusedWithin {
+	if m.note.endedAtOnce(m.now) {
 		return m, nil
 	}
 
