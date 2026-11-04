@@ -4,24 +4,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
-
-// ciLintVersion is the version of golangci-lint the CI workflow lints with.
-func ciLintVersion(t *testing.T) string {
-	t.Helper()
-
-	pinned := regexp.MustCompile(`golangci/golangci-lint-action@\S+\s+with:\s+version:\s*v(\S+)`)
-
-	match := pinned.FindStringSubmatch(workflows(t)["ci.yml"])
-	require.NotNil(t, match, "ci.yml pins no golangci-lint version")
-
-	return match[1]
-}
 
 // lintWith runs `make lint` with nothing on the PATH but the golangci-lint
 // the test put there, if any: one that prints version for `version --short`.
@@ -52,6 +39,12 @@ func lintWith(t *testing.T, version string) (string, error) {
 	return string(out), err
 }
 
+func TestCI_LintsWithTheLatestLinter(t *testing.T) {
+	// A pinned version falls behind, and then the linter on the machine of
+	// whoever runs make check finds what CI does not.
+	require.Regexp(t, `golangci/golangci-lint-action@\S+\s+with:\s+version:\s*latest\s`, workflows(t)["ci.yml"])
+}
+
 func TestMakefile_LintFailsWithoutTheLinter(t *testing.T) {
 	r := require.New(t)
 
@@ -59,23 +52,13 @@ func TestMakefile_LintFailsWithoutTheLinter(t *testing.T) {
 	out, err := lintWith(t, "")
 	r.Error(err)
 	r.Contains(out, "golangci-lint is not installed")
-	r.Contains(out, "v"+ciLintVersion(t))
+	r.Contains(out, "latest")
 }
 
-func TestMakefile_LintFailsWithAnotherVersion(t *testing.T) {
+func TestMakefile_LintsWithTheInstalledVersion(t *testing.T) {
 	r := require.New(t)
 
-	// Another version finds other problems, and CI fails on what passed here.
 	out, err := lintWith(t, "2.0.0")
-	r.Error(err)
-	r.Contains(out, "2.0.0")
-	r.Contains(out, "v"+ciLintVersion(t))
-}
-
-func TestMakefile_LintsWithTheVersionCIUses(t *testing.T) {
-	r := require.New(t)
-
-	out, err := lintWith(t, ciLintVersion(t))
 	r.NoError(err, out)
 	r.Contains(out, "linted run ./...")
 }

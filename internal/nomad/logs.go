@@ -180,7 +180,11 @@ func (c *Client) logEnd(ctx context.Context, namespace string, alloc *api.Alloca
 				end, known = LogMark{File: frame.File, Offset: frame.Offset}, true
 			}
 
-		case <-errs:
+		case err := <-errs:
+			// The stream opened next reads the same log and shows why it
+			// failed.
+			_ = err
+
 			go drain(frames)
 
 			return LogMark{}, false
