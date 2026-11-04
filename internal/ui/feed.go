@@ -200,19 +200,15 @@ func nextEvent(feed *nomad.Feed) tea.Cmd {
 		return nil
 	}
 
-	return func() tea.Msg {
-		select {
-		case event, ok := <-feed.C:
-			if !ok {
-				return feedEndedMsg{feed: feed, err: reasonOf(feed)}
-			}
-
-			return feedEventsMsg{feed: feed, events: withWaiting(feed, event)}
-
-		case err := <-feed.Err:
-			return feedEndedMsg{feed: feed, err: err}
+	return waitOn(feed.C, feed.Err, func(event nomad.Event, ok bool) tea.Msg {
+		if !ok {
+			return feedEndedMsg{feed: feed, err: reasonOf(feed)}
 		}
-	}
+
+		return feedEventsMsg{feed: feed, events: withWaiting(feed, event)}
+	}, func(err error) tea.Msg {
+		return feedEndedMsg{feed: feed, err: err}
+	})
 }
 
 // withWaiting is the first event and every one waiting behind it, oldest

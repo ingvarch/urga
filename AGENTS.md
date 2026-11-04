@@ -33,7 +33,8 @@ the opposite caused a bug that took hours to find.
 3. **Polling lives in `tea.Cmd`.** A poll returns a message. A goroutine never
    writes to the model, never draws, and never blocks sending on a channel
    the UI also reads. A timer starts only through `startTimer`
-   (`internal/ui/timer.go`).
+   (`internal/ui/timer.go`). A command waits on a stream only through `waitOn`
+   (`internal/ui/stream.go`).
 4. **Events say when, reads say what.** The event stream marks a screen
    stale, and the screen is read again the usual way. A cluster that does not
    stream is polled as before. Event payloads are read in two places only:
