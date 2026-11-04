@@ -2,7 +2,12 @@ package ui
 
 import (
 	"errors"
+	"io"
+	"slices"
 	"testing"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/stretchr/testify/require"
 
@@ -50,12 +55,193 @@ func TestClients_TheList(t *testing.T) {
 
 	r.Contains(plain(m.render()), "Clients [1]")
 	r.Equal([]string{"ID", "Name", "Datacenter", "Pool", "Version", "Status", "Eligibility", "Drain", "CPU", "MEM", "Address"}, m.screen.page.titles())
-	r.Equal([]string{nomad.TopicNode}, m.screen.page.topics())
+	r.Equal([]string{nomad.TopicNode, nomad.TopicAllocation}, m.screen.page.topics())
 
 	// The CPU and memory use of the machine is unknown until it is read.
 	r.Regexp(`^\s*node-1\s+nomad-server-01\s+dc1\s+default\s+1\.11\.1\s+ready\s+eligible\s+false\s+-\s+-\s+10\.0\.0\.2`, fileRow(t, m, 0))
 
 	r.Equal([]string{"enter Allocations", "ctrl+l Agent Logs", "ctrl+d Drain", "i Toggle Eligibility", "ctrl+g GC", "space Mark", "ctrl+a Mark All"}, keyNames(m))
+}
+
+func TestClients_FollowTheWorkOfEveryNamespace(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{nodes: busyClient(), changes: newChanges()}
+
+	m, _ := nodeModelOf(client)
+	r.Equal("production", m.namespace)
+
+	m.update(m.watchScreen()())
+
+	r.Equal(nomad.AllNamespaces, client.watchedNamespace)
+	r.Equal([]string{nomad.TopicNode, nomad.TopicAllocation}, client.watchedTopics)
+}
+
+// endedAtOnce is a stream that ends as soon as it opens, with no event: how
+// Nomad 2.0 refuses one.
+func endedAtOnce() *nomad.Changes {
+	ended := newChanges()
+	ended.errs <- io.EOF
+	close(ended.c)
+
+	return ended.stream()
+}
+
+// refusals are the two ways a cluster refuses a stream: a 403, or a stream
+// that ends at once.
+func refusals(t *testing.T) map[string]func() (*nomad.Changes, error) {
+	t.Helper()
+
+	return map[string]func() (*nomad.Changes, error){
+		"refused":       func() (*nomad.Changes, error) { return nil, forbidden(t) },
+		"ended at once": func() (*nomad.Changes, error) { return endedAtOnce(), nil },
+	}
+}
+
+// throughRefusal runs the answer to an ask for a stream through the model. A
+// stream that opened is read first, to its end.
+func throughRefusal(m Model, msg tea.Msg) (Model, tea.Cmd) {
+	if opened, ok := msg.(watchingMsg); ok {
+		var read tea.Cmd
+		m, read = m.update(opened)
+		msg = read()
+	}
+
+	return m.update(msg)
+}
+
+func TestClients_ARefusedStreamOfTheWorkFollowsTheClientsAlone(t *testing.T) {
+	for name, refuse := range refusals(t) {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			var asked [][]string
+
+			client := &fakeClient{jobs: twoJobs(), nodes: busyClient(), changes: newChanges()}
+
+			// The jobs screen streams, so a refusal shown on the client list
+			// would be a warning. It hears a change, which the stream of the
+			// list does not inherit.
+			m := watching(t, client)
+			m, _ = m.update(changeMsg{id: m.watch.id})
+
+			client.streamOf = func(_ string, topics []string) (*nomad.Changes, error) {
+				asked = append(asked, topics)
+				if slices.Contains(topics, nomad.TopicAllocation) {
+					return refuse()
+				}
+
+				return newChanges().stream(), nil
+			}
+
+			m, _ = m.update(key(':'))
+			m = typeIn(m, "nodes")
+			m, _ = m.update(enter())
+			m, _ = m.update(nodesMsg(busyClient()))
+			tick := m.pollTick
+
+			msg := m.watchScreen()()
+			r.Equal([]string{nomad.TopicNode, nomad.TopicAllocation}, client.watchedTopics)
+
+			m, cmd := throughRefusal(m, msg)
+			r.NotNil(cmd)
+			m, _ = m.update(cmd())
+
+			// The list follows what the token may read: the clients, with no
+			// warning and no faster poll.
+			r.Equal([][]string{{nomad.TopicNode, nomad.TopicAllocation}, {nomad.TopicNode}}, asked)
+			r.Equal(nomad.AllNamespaces, client.watchedNamespace)
+			r.True(m.watch.live())
+			r.Empty(m.flash.text)
+			r.Equal(slowPoll, m.pollEvery())
+			r.Equal(tick, m.pollTick)
+		})
+	}
+}
+
+func TestClients_ARefusalOfTheClientsAloneSaysSo(t *testing.T) {
+	for name, refuse := range refusals(t) {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			client := &fakeClient{nodes: busyClient()}
+			client.streamOf = func(string, []string) (*nomad.Changes, error) { return refuse() }
+
+			m, _ := nodeModelOf(client)
+
+			m, cmd := throughRefusal(m, m.watchScreen()())
+			r.NotNil(cmd)
+			m, _ = throughRefusal(m, cmd())
+
+			// Refused the clients too, the list is polled the way it was.
+			r.Equal([]string{nomad.TopicNode}, client.watchedTopics)
+			r.False(m.watch.live())
+			r.Contains(m.flash.text, "asking every")
+			r.Equal(time.Millisecond, m.pollEvery())
+		})
+	}
+}
+
+func TestClients_AStreamOfTheWorkThatDropsLaterSaysSo(t *testing.T) {
+	for name, before := range map[string]func(Model) Model{
+		"after a change": func(m Model) Model {
+			m, _ = m.update(changeMsg{id: m.watch.id})
+
+			return m
+		},
+		"after a while": func(m Model) Model {
+			m.watch.opened = m.watch.opened.Add(-refusedWithin)
+
+			return m
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			client := &fakeClient{nodes: busyClient(), changes: newChanges()}
+
+			m, _ := nodeModelOf(client)
+			m, _ = m.update(m.watchScreen()())
+			r.True(m.watch.live())
+
+			m = before(m)
+			m, _ = m.update(watchEndedMsg{id: m.watch.id, err: io.EOF})
+
+			// A stream that worked and dropped is not a refusal: the list does
+			// not ask for the clients alone.
+			r.Equal([]string{nomad.TopicNode, nomad.TopicAllocation}, client.watchedTopics)
+			r.False(m.watch.live())
+			r.Contains(m.flash.text, "EOF")
+			r.Equal(time.Millisecond, m.pollEvery())
+		})
+	}
+}
+
+func TestClients_OpenedAgainAsksForTheWorkAgain(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), nodes: busyClient()}
+	client.streamOf = func(_ string, topics []string) (*nomad.Changes, error) {
+		if slices.Contains(topics, nomad.TopicAllocation) {
+			return nil, forbidden(t)
+		}
+
+		return newChanges().stream(), nil
+	}
+
+	m, _ := nodeModelOf(client)
+	m, cmd := throughRefusal(m, m.watchScreen()())
+	m, _ = m.update(cmd())
+	r.Equal([]string{nomad.TopicNode}, client.watchedTopics)
+
+	// The token may be another by the time the list opens again.
+	m, _ = m.update(escape())
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "nodes")
+	m, _ = m.update(enter())
+
+	m.update(m.watchScreen()())
+	r.Equal([]string{nomad.TopicNode, nomad.TopicAllocation}, client.watchedTopics)
 }
 
 func TestClients_OnlyThoseThatTakeNoWork(t *testing.T) {

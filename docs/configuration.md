@@ -166,6 +166,12 @@ on Nomad 2.0 and later and on Nomad Enterprise 1.11.4 and later. On an older
 cluster, or when urga cannot read the version of the cluster, they are read
 every 2 seconds.
 
+The client list also follows the allocations of every namespace, so a client
+that fills up shows as full at once. That needs a token that may read the jobs
+of every namespace. When the cluster refuses that stream, or ends it within 5
+seconds with no event, which is how Nomad 2.0 refuses it, the list follows the
+clients alone, with no warning.
+
 If the event stream is not available, which usually means the ACL token does
 not allow it, urga reloads every screen every 2 seconds instead. The status
 line says so.

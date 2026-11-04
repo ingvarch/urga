@@ -166,6 +166,10 @@ type fakeClient struct {
 	revertedTo       uint64
 	diffErr          error
 
+	// streamOf, when set, answers each ask for a stream in place of changes
+	// and watchErr, so a test can refuse some topics and not others.
+	streamOf func(namespace string, topics []string) (*nomad.Changes, error)
+
 	calls      int
 	allocCalls int
 
@@ -1293,6 +1297,10 @@ func (f *fakeClient) BatchQueueStatus(_ context.Context, pool string) ([]nomad.Q
 
 func (f *fakeClient) Events(_ context.Context, namespace string, topics []string) (*nomad.Changes, error) {
 	f.watchedNamespace, f.watchedTopics = namespace, topics
+
+	if f.streamOf != nil {
+		return f.streamOf(namespace, topics)
+	}
 
 	if f.watchErr != nil {
 		return nil, f.watchErr

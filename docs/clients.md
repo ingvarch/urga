@@ -15,8 +15,11 @@ A client that holds as many allocations as its limit allows (`node_max_allocs`,
 Nomad 1.10.2 and later) is full: the scheduler places nothing more on it, and
 its row has the attention color, like a client that is draining or
 ineligible. With the event stream on, the list shows a client that fills up
-or frees a place within 30 seconds: Nomad streams a change of the client,
-not of the allocations placed on it.
+or frees a place as soon as an allocation is placed on it or stops. For that
+it follows the allocations of every namespace, which needs a token that may
+read the jobs of every namespace, such as a management token. With any other
+token the list follows the clients alone, says nothing about it, and shows a
+full client within 30 seconds.
 
 - `ctrl-d` drains a client, or stops draining it, after you confirm.
 - `i` marks a client as eligible or ineligible for new work.
