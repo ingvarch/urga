@@ -503,7 +503,7 @@ func TestNote_FollowsAgainAQuietStreamThatDrops(t *testing.T) {
 
 	// The cluster sent nothing, and the stream was open too long to be a
 	// refusal: a server restarted, or the network dropped.
-	m.note.opened = m.note.opened.Add(-noteRefusedWithin)
+	m.note.opened = m.note.opened.Add(-refusedWithin)
 
 	m, cmd := m.update(feedEndedMsg{feed: feed, err: io.ErrUnexpectedEOF})
 	requireTriesLater(t, m, cmd)

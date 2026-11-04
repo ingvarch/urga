@@ -19,7 +19,23 @@ const (
 	// slowPoll is how often a watched screen polls anyway. The stream
 	// reports changes; this poll only catches one the stream missed.
 	slowPoll = 30 * time.Second
+
+	// refusedWithin is how soon a stream the cluster refuses ends: Nomad 2.0
+	// answers 200 and ends the stream at once, with no event.
+	refusedWithin = 5 * time.Second
 )
+
+// streamStart is when a stream opened, and whether it sent an event since.
+type streamStart struct {
+	opened time.Time
+	heard  bool
+}
+
+// endedAtOnce says a stream that ends at now was refused: it sent nothing
+// and ends within refusedWithin of opening.
+func (s streamStart) endedAtOnce(now time.Time) bool {
+	return !s.heard && now.Sub(s.opened) < refusedWithin
+}
 
 // Messages of the stream. Each carries the id of its stream: a screen that
 // was left closes its stream, and messages still in flight from it must
