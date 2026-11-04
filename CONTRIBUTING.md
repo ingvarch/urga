@@ -37,7 +37,7 @@ which the release ships.
   fail, then write the smallest code that passes it. This holds for small
   functions too.
 - `make check` is green before every commit.
-- The [architecture rules](CLAUDE.md#architecture-rules) are settled. A change
+- The [architecture rules](AGENTS.md#architecture-rules) are settled. A change
   that needs to break one starts as an issue.
 - The interface is English only. There is no translation layer.
 - Comments are short and say why, not what the line does.
