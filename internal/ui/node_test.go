@@ -98,13 +98,34 @@ func refusals(t *testing.T) map[string]func() (*nomad.Changes, error) {
 	}
 }
 
+// streamMsgOf is what the wait on the stream answers among what a command
+// asks for, with its timers held.
+func streamMsgOf(cmd tea.Cmd) tea.Msg {
+	msg := cmd()
+
+	batch, ok := msg.(tea.BatchMsg)
+	if !ok {
+		return msg
+	}
+
+	for _, next := range batch {
+		if got := streamMsgOf(next); got != nil {
+			if _, timer := got.(heldTimer); !timer {
+				return got
+			}
+		}
+	}
+
+	return nil
+}
+
 // throughRefusal runs the answer to an ask for a stream through the model. A
-// stream that opened is read first, to its end.
+// stream that opened is read first, to its end. The test holds its timers.
 func throughRefusal(m Model, msg tea.Msg) (Model, tea.Cmd) {
 	if opened, ok := msg.(watchingMsg); ok {
 		var read tea.Cmd
 		m, read = m.update(opened)
-		msg = read()
+		msg = streamMsgOf(read)
 	}
 
 	return m.update(msg)
@@ -114,6 +135,7 @@ func TestClients_ARefusedStreamOfTheWorkFollowsTheClientsAlone(t *testing.T) {
 	for name, refuse := range refusals(t) {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
+			holdTimers(t)
 
 			var asked [][]string
 
@@ -147,6 +169,10 @@ func TestClients_ARefusedStreamOfTheWorkFollowsTheClientsAlone(t *testing.T) {
 			r.NotNil(cmd)
 			m, _ = m.update(cmd())
 
+			// The fast timer set before the stream opened asks for nothing.
+			_, asks := m.update(pollMsg{tick: tick})
+			r.Nil(asks)
+
 			// The list follows what the token may read: the clients, with no
 			// warning and no faster poll.
 			r.Equal([][]string{{nomad.TopicNode, nomad.TopicAllocation}, {nomad.TopicNode}}, asked)
@@ -154,7 +180,6 @@ func TestClients_ARefusedStreamOfTheWorkFollowsTheClientsAlone(t *testing.T) {
 			r.True(m.watch.live())
 			r.Empty(m.flash.text)
 			r.Equal(slowPoll, m.pollEvery())
-			r.Equal(tick, m.pollTick)
 		})
 	}
 }
@@ -163,6 +188,7 @@ func TestClients_ARefusalOfTheClientsAloneSaysSo(t *testing.T) {
 	for name, refuse := range refusals(t) {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
+			holdTimers(t)
 
 			client := &fakeClient{nodes: busyClient()}
 			client.streamOf = func(string, []string) (*nomad.Changes, error) { return refuse() }

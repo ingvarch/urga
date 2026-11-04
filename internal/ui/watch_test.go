@@ -522,6 +522,48 @@ func TestWatch_ASecondStreamForTheSameScreenClosesTheFirst(t *testing.T) {
 	r.True(m.watch.live())
 }
 
+func TestWatch_ASecondStreamKeepsTheSlowTimerThatRuns(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges()}
+
+	m := watching(t, client)
+	slow := m.pollTick
+
+	m, cmd := m.update(watchingMsg{id: m.watch.id, changes: newChanges().stream()})
+	r.Empty(timersOf(cmd))
+
+	// The next poll comes when it was due.
+	_, cmd = m.update(pollMsg{tick: slow})
+	r.NotNil(cmd)
+}
+
+func TestWatch_AStreamThatOpensWhileThePollReadsLeavesTheTimerToTheAnswer(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges()}
+
+	m := newTestModel(client)
+	m = drain(m, m.fetch())
+
+	// The fast timer fires, and its read is out when the stream opens.
+	m, read := m.update(pollMsg{tick: m.pollTick})
+	r.NotNil(read)
+
+	m, cmd := m.update(m.watchScreen()())
+	r.Empty(timersOf(cmd))
+
+	// The answer sets the next timer, at the pace of a live screen.
+	m, cmd = m.update(read())
+	r.Contains(timersOf(cmd), heldTimer{wait: slowPoll, msg: pollMsg{tick: m.pollTick}})
+}
+
 func TestWatch_AChangeOfAStreamThatWasLeftAsksNothing(t *testing.T) {
 	r := require.New(t)
 
@@ -557,4 +599,52 @@ func TestWatch_AClusterThatStreamsAgainIsNewsWhenItStops(t *testing.T) {
 	m, _ = m.update(watchEndedMsg{id: m.watch.id, err: errors.New("EOF")})
 
 	r.Contains(m.flash.text, "EOF")
+}
+
+// timersOf are the timers among what a command asks for, with the stream
+// waits and the other work held.
+func timersOf(cmd tea.Cmd) []heldTimer {
+	if cmd == nil {
+		return nil
+	}
+
+	switch msg := cmd().(type) {
+	case tea.BatchMsg:
+		var timers []heldTimer
+		for _, next := range msg {
+			timers = append(timers, timersOf(next)...)
+		}
+
+		return timers
+	case heldTimer:
+		return []heldTimer{msg}
+	}
+
+	return nil
+}
+
+func TestWatch_AStreamThatOpensAfterTheAnswerSlowsThePoll(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges()}
+
+	m := newTestModel(client)
+	m = drain(m, m.fetch())
+
+	// The answer came first, so the timer it set is the fast one.
+	fast := m.pollTick
+	r.True(m.polling)
+
+	calls := client.calls
+
+	m, cmd := m.update(m.watchScreen()())
+	r.Equal([]heldTimer{{wait: slowPoll, msg: pollMsg{tick: fast + 1}}}, timersOf(cmd))
+
+	// The fast timer fires and asks for nothing.
+	m, cmd = m.update(pollMsg{tick: fast})
+	r.Nil(cmd)
+	r.Equal(calls, client.calls)
 }
