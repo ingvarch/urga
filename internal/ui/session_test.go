@@ -134,7 +134,7 @@ func TestSession_ANamespaceGivenOnTheCommandLineWins(t *testing.T) {
 	cfg := sessionConfig(t, filepath.Join(t.TempDir(), "config.json"))
 
 	cfg.UseNamespace("staging")
-	cfg.Screen = "nodes"
+	cfg.Screen = "deployments"
 
 	client := &fakeClient{changes: newChanges()}
 	m := New(client, Options{
@@ -149,7 +149,7 @@ func TestSession_ANamespaceGivenOnTheCommandLineWins(t *testing.T) {
 	// Typing a namespace on the command line is asking for it now. The
 	// rest of the session still comes back.
 	r.Equal("production", m.namespace)
-	r.IsType(nodesPage{}, m.screen.page)
+	r.IsType(deploymentsPage{}, m.screen.page)
 
 	fire(t, m.watchScreen())
 	r.Equal("production", client.watchedNamespace)

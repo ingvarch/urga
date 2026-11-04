@@ -318,7 +318,7 @@ func TestWatch_EveryListTheClusterTalksAboutIsWatched(t *testing.T) {
 		allocationsView: {nomad.TopicAllocation},
 		deploymentsView: {nomad.TopicDeployment},
 		evaluationsView: {nomad.TopicEvaluation},
-		nodesView:       {nomad.TopicNode},
+		nodesView:       {nomad.TopicNode, nomad.TopicAllocation},
 		servicesView:    {nomad.TopicService},
 		nodePoolsView:   {nomad.TopicNodePool},
 		volumesView:     {nomad.TopicCSIVolume, nomad.TopicHostVolume, nomad.TopicCSIPlugin},

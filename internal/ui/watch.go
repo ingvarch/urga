@@ -79,13 +79,23 @@ type watchState struct {
 	// refused says the cluster has already refused the stream and the warning
 	// was shown: every screen asks again, and every screen is refused.
 	refused bool
+
+	// fewer says the screen follows its fewer topics: the cluster refused the
+	// stream of all of them.
+	fewer bool
+
+	// streamStart is when the open stream opened and whether it sent an event.
+	streamStart
 }
 
 // watchScreen opens an event stream for what the screen shows. A screen
 // that watches nothing, or a cluster that does not stream, is polled the
-// way it always was.
+// way it always was. A screen whose topics were all refused may follow fewer.
 func (m Model) watchScreen() tea.Cmd {
 	topics := m.screen.page.topics()
+	if f, ok := m.screen.page.(fallback); ok && m.watch.fewer {
+		topics = f.fewerTopics()
+	}
 	if len(topics) == 0 || !nomad.Streams(m.nomadVersion, topics) {
 		return nil
 	}
@@ -150,7 +160,7 @@ func reasonOf[T any](stream *nomad.Stream[T]) error {
 // start keeps the stream and starts reading it. A stream that opens after
 // the screen that asked for it is gone is closed instead. Once a stream
 // opens, a later refusal is worth a warning again.
-func (w watchState) start(msg watchingMsg) (watchState, tea.Cmd) {
+func (w watchState) start(msg watchingMsg, now time.Time) (watchState, tea.Cmd) {
 	if msg.id != w.id {
 		msg.changes.Close()
 
@@ -161,6 +171,7 @@ func (w watchState) start(msg watchingMsg) (watchState, tea.Cmd) {
 
 	w.changes = msg.changes
 	w.refused = false
+	w.streamStart = streamStart{opened: now}
 
 	return w, w.waitForChange()
 }
@@ -173,6 +184,7 @@ func (w watchState) keepChange(msg changeMsg) (watchState, tea.Cmd) {
 		return w, nil
 	}
 
+	w.heard = true
 	next := w.waitForChange()
 
 	if w.settling {
@@ -199,11 +211,29 @@ func (m Model) watchEnded(msg watchEndedMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	refused := m.refusedAll()
+
 	m.watch = m.watch.end()
+
+	// A screen that can follow fewer topics does, with no warning, and its
+	// poll timer stays as it was.
+	if refused {
+		m.watch.fewer = true
+
+		return m, m.watchScreen()
+	}
 
 	// The timer set while the stream was up is slow: the screen polls at
 	// its own pace from now on.
 	return m.noteWatchEnded(msg.err).restartPoll().schedulePoll()
+}
+
+// refusedAll says the cluster refused the stream of all the topics of a
+// screen that can follow fewer: it did not open it, or ended it at once.
+func (m Model) refusedAll() bool {
+	_, ok := m.screen.page.(fallback)
+
+	return ok && !m.watch.fewer && (!m.watch.live() || m.watch.endedAtOnce(m.now))
 }
 
 // noteWatchEnded warns that the screen is no longer live, when urga did not
@@ -231,6 +261,7 @@ func (m Model) noteWatchEnded(err error) Model {
 func (w watchState) end() watchState {
 	w.stop()
 	w.id++
+	w.fewer = false
 
 	return w
 }
@@ -266,7 +297,7 @@ func (m Model) pollEvery() time.Duration {
 // startWatch keeps the stream the cluster opened.
 func (m Model) startWatch(msg watchingMsg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
-	m.watch, cmd = m.watch.start(msg)
+	m.watch, cmd = m.watch.start(msg, m.now)
 
 	return m, cmd
 }

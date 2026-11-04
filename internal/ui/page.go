@@ -508,6 +508,12 @@ func namespaceOf(p page, e env) string {
 	return e.namespace
 }
 
+// fallback is a page that still follows part of what it shows when the
+// cluster refuses the stream of all its topics.
+type fallback interface {
+	fewerTopics() []string
+}
+
 // ofTheSession is a list the session opens by name, of what it looks at.
 type ofTheSession struct{}
 
