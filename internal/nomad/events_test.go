@@ -49,11 +49,11 @@ func TestEvents_SayWhatChanged(t *testing.T) {
 	r := require.New(t)
 
 	client, asked := eventServer(t,
-		`{"Index": 7, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "web", "Namespace": "production"}]}`,
-		`{"Index": 8, "Events": [{"Topic": "Allocation", "Type": "AllocationUpdated", "Key": "af1f37df", "Namespace": "production"}]}`,
+		`{"Index": 7, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "web", "Namespace": "production", "Index": 7}]}`,
+		`{"Index": 8, "Events": [{"Topic": "Allocation", "Type": "AllocationUpdated", "Key": "af1f37df", "Namespace": "production", "Index": 8}]}`,
 	)
 
-	changes, err := client.Events(context.Background(), "production", []string{"Job", "Allocation"})
+	changes, err := client.Events(context.Background(), "production", []string{"Job", "Allocation"}, 0)
 	r.NoError(err)
 
 	defer changes.Close()
@@ -67,9 +67,44 @@ func TestEvents_SayWhatChanged(t *testing.T) {
 	first := waitForChange(t, changes)
 	r.Equal("Job", first.Topic)
 	r.Equal("web", first.Key)
+	r.Equal(uint64(7), first.Index)
 
 	second := waitForChange(t, changes)
 	r.Equal("Allocation", second.Topic)
+	r.Equal(uint64(8), second.Index)
+}
+
+func TestEvents_GoesOnFromAnIndex(t *testing.T) {
+	r := require.New(t)
+
+	client, asked := eventServer(t, `{"Index": 58, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "web", "Index": 58}]}`)
+
+	changes, err := client.Events(context.Background(), "production", []string{"Job"}, 58)
+	r.NoError(err)
+
+	defer changes.Close()
+
+	waitForChange(t, changes)
+	r.Equal("58", asked.URL.Query().Get("index"))
+}
+
+// The cluster sends its newest event again when asked past it. The screen
+// drops what it read; the stream passes on what it gets.
+func TestEvents_PassOnWhatTheClusterSendsFromTheIndex(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := eventServer(t,
+		`{"Index": 18, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "web", "Index": 18}]}`,
+		`{"Index": 19, "Events": [{"Topic": "Job", "Type": "JobRegistered", "Key": "web", "Index": 19}]}`,
+	)
+
+	changes, err := client.Events(context.Background(), "", []string{"Job"}, 19)
+	r.NoError(err)
+
+	defer changes.Close()
+
+	r.Equal(uint64(18), waitForChange(t, changes).Index)
+	r.Equal(uint64(19), waitForChange(t, changes).Index)
 }
 
 func TestEvents_CloseLetsTheRequestGo(t *testing.T) {
@@ -77,7 +112,7 @@ func TestEvents_CloseLetsTheRequestGo(t *testing.T) {
 
 	client, _ := eventServer(t, `{"Index": 7, "Events": [{"Topic": "Job", "Type": "JobRegistered"}]}`)
 
-	changes, err := client.Events(context.Background(), "", []string{"Job"})
+	changes, err := client.Events(context.Background(), "", []string{"Job"}, 0)
 	r.NoError(err)
 
 	waitForChange(t, changes)
@@ -106,7 +141,7 @@ func TestEvents_WhenTheClusterWillNotStream(t *testing.T) {
 
 	// An ACL that does not allow the stream returns an error at once, so
 	// that the caller can keep polling the way it did before.
-	_, err = client.Events(context.Background(), "", []string{"Job"})
+	_, err = client.Events(context.Background(), "", []string{"Job"}, 0)
 	r.Error(err)
 }
 
