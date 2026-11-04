@@ -16,6 +16,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/cancelreader"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ingvarch/urga/internal/nomad"
@@ -330,7 +331,8 @@ func TestShell_LeavesTheNextKeyToUrga(t *testing.T) {
 	// The shell is closed, and nothing waits for a key on its behalf: left
 	// waiting, it would take the first key typed afterwards.
 	select {
-	case <-task.stopped:
+	case err := <-task.stopped:
+		r.ErrorIs(err, cancelreader.ErrCanceled)
 	case <-time.After(time.Second):
 		r.Fail("the closed shell still waits for a key")
 	}
