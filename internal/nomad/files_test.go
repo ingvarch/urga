@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -258,4 +259,56 @@ func TestFile_WhatIsNotText(t *testing.T) {
 	for _, req := range *asked {
 		r.NotEqual("/v1/client/fs/stream/af1f37df", req.path)
 	}
+}
+
+func TestFile_ABreakIsItsErrorAfterItsLines(t *testing.T) {
+	r := require.New(t)
+
+	// The body ends inside a frame: the decoder fails after the last line.
+	client, _ := clusterServer(t, map[string]string{
+		"/v1/allocation/af1f37df":       allocInfo,
+		"/v1/client/fs/stat/af1f37df":   `{"Name": "app.env", "Size": 4, "FileMode": "-rw-r--r--", "ContentType": "text/plain"}`,
+		"/v1/client/fs/stream/af1f37df": streamed(t, 4, "a=1\n") + `{"Data":"`,
+	})
+
+	stream, err := client.File(context.Background(), "production", "af1f37df", "/t/local/app.env")
+	r.NoError(err)
+	t.Cleanup(stream.Close)
+
+	select {
+	case err := <-stream.Err:
+		t.Fatalf("the error came before the last line: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	r.Equal("a=1\n", readAll(t, stream))
+
+	select {
+	case err := <-stream.Err:
+		r.ErrorIs(err, io.ErrUnexpectedEOF)
+	default:
+		t.Fatal("the lines ended before the error")
+	}
+}
+
+func TestFile_ARefusedStreamIsItsError(t *testing.T) {
+	r := require.New(t)
+
+	client, _ := clusterServer(t, map[string]string{
+		"/v1/allocation/af1f37df":     allocInfo,
+		"/v1/client/fs/stat/af1f37df": `{"Name": "app.env", "Size": 4, "FileMode": "-rw-r--r--", "ContentType": "text/plain"}`,
+	})
+
+	stream, err := client.File(context.Background(), "production", "af1f37df", "/t/local/app.env")
+	r.NoError(err)
+	t.Cleanup(stream.Close)
+
+	select {
+	case err := <-stream.Err:
+		r.ErrorContains(err, "404")
+	case <-time.After(2 * time.Second):
+		t.Fatal("no error was sent")
+	}
+
+	r.Empty(readAll(t, stream))
 }

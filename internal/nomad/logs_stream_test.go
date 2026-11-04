@@ -1,6 +1,7 @@
 package nomad
 
 import (
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -290,4 +291,50 @@ func TestStreamLines_HoldALogLineUntilItsBreakWhileFramesStayOpen(t *testing.T) 
 	frames <- &api.StreamFrame{Data: []byte(" done\n")}
 
 	require.Equal(t, []string{"waiting done\n"}, collect(t, lines, 1))
+}
+
+func TestFollowFrames_TheLinesWaitForAnErrorThatComesAfterTheFrames(t *testing.T) {
+	r := require.New(t)
+
+	frames := make(chan *api.StreamFrame, 1)
+	failed := make(chan error, 1)
+	lines := make(chan string)
+	errs := make(chan error, 1)
+	cancel := make(chan struct{})
+
+	t.Cleanup(func() { close(cancel) })
+
+	go func() {
+		defer close(lines)
+
+		followFrames(frames, failed, neverCut, nil, lines, errs, cancel)
+	}()
+
+	frames <- &api.StreamFrame{Data: []byte("a=1\n")}
+	close(frames)
+
+	select {
+	case line := <-lines:
+		r.Equal("a=1\n", line)
+	case <-time.After(2 * time.Second):
+		t.Fatal("no line was sent")
+	}
+
+	// The frames are closed and the error is not here yet: the lines stay open.
+	select {
+	case line, ok := <-lines:
+		t.Fatalf("the lines sent %q (open %v) before the error", line, ok)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	failed <- io.ErrUnexpectedEOF
+
+	r.True(ended(lines))
+
+	select {
+	case err := <-errs:
+		r.ErrorIs(err, io.ErrUnexpectedEOF)
+	default:
+		t.Fatal("the lines ended before the error")
+	}
 }

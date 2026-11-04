@@ -51,17 +51,7 @@ func (c *Client) followAgent(target AgentTarget, level string, lines chan<- stri
 
 	frames, failed := c.api.Agent().Monitor(cancel, c.agentQuery(target, map[string]string{"log_level": level}))
 
-	if frames != nil {
-		for chunk := range streamLines(frames, notCut, nil, nil, cancel) {
-			if !sendText(lines, chunk, cancel) {
-				return
-			}
-		}
-	}
-
-	// The error goes out after the lines and before they close, so a reader
-	// that sees the end finds it.
-	passFailures(failed, errs, cancel)
+	followFrames(frames, failed, notCut, nil, lines, errs, cancel)
 }
 
 // agentPast reads the log file of the agent and keeps its last MiB at the
