@@ -158,9 +158,15 @@ file holds its values: delete it once you have used it.
 ## How urga stays up to date
 
 Most screens, such as jobs, allocations and clients, follow the Nomad event
-stream: urga reloads the screen when something on it changes. It also reloads
-every 30 seconds in case an event is missed. Screens that the event stream
-does not cover, such as namespaces and servers, reload every 2 seconds.
+stream: urga reloads the screen when something on it changes. Most lists are
+read once when they open: the stream starts after that read, and a change the
+list already shows does not reload it. A few lists, such as scaling policies
+and volumes, can reload once more when they open. So can the overview, when
+one of its lists is slow to answer, and a screen of one object, such as a job
+or a client, when something else it follows changed after that object did. A
+screen that follows the stream also reloads every 30 seconds in case an event
+is missed. Screens that the event stream does not cover, such as namespaces
+and servers, reload every 2 seconds.
 Volumes and CSI plugins follow the stream on Nomad 1.10 and later, variables
 on Nomad 2.0 and later and on Nomad Enterprise 1.11.4 and later. On an older
 cluster, or when urga cannot read the version of the cluster, they are read

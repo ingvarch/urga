@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -573,8 +574,17 @@ func (f *fakeClient) RenewNodeIdentity(_ context.Context, nodeID string) error {
 	return f.actionErr
 }
 
-func (f *fakeClient) WithAllocLimits(_ context.Context, nodes []nomad.Node) ([]nomad.Node, error) {
+// WithAllocLimits answers as the cluster does. When no client has a limit, no
+// allocation reaches the list, so no change of one is newer than it; when one
+// has, the list counts the allocations at their read index.
+func (f *fakeClient) WithAllocLimits(ctx context.Context, nodes []nomad.Node) ([]nomad.Node, error) {
 	f.listed("limits", "")
+
+	if slices.ContainsFunc(nodes, func(node nomad.Node) bool { return node.MaxAllocs != 0 }) {
+		f.noteRead(ctx, nomad.TopicAllocation)
+	} else {
+		nomad.NoteRead(ctx, nomad.EveryIndex, nomad.TopicAllocation)
+	}
 
 	return nodes, nil
 }

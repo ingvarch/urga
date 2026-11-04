@@ -3,6 +3,9 @@ package ui
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -866,4 +869,488 @@ func TestWatch_AnAnswerOfAScreenThatWasLeftKeepsNothing(t *testing.T) {
 	m, _ = m.update(old())
 
 	r.NotContains(m.watch.read, nomad.TopicJob)
+}
+
+// readOnce is a model whose screen was read once, at the read index of its
+// topics, and whose stream is open. The test holds its timers and streams.
+func readOnce(t *testing.T, client *fakeClient) Model {
+	t.Helper()
+
+	m := newTestModel(client)
+	m, _ = m.update(m.fetch()())
+	m, _ = m.update(m.watchScreen()())
+
+	return m
+}
+
+func jobChange(m Model, index uint64) changeMsg {
+	return changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicJob, Index: index}}
+}
+
+func TestWatch_AScreenIsReadOnceWhenItOpens(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges(), readIndex: map[string]uint64{nomad.TopicJob: 40}}
+
+	m := readOnce(t, client)
+
+	r.Equal(1, client.calls)
+	r.Equal(uint64(41), client.watchedFrom)
+
+	// The cluster sends its newest event again: the screen read it already.
+	m, cmd := m.update(jobChange(m, 40))
+	r.Empty(timersOf(cmd))
+	r.False(m.watch.settling)
+
+	m, cmd = m.update(settleMsg{})
+	r.Nil(cmd)
+	r.Equal(1, client.calls)
+}
+
+func TestWatch_TheJobsListIsReadOnceWhenTheCountsAnswerAtALowerIndex(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	var lists atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch req.URL.Path {
+		case "/v1/jobs":
+			lists.Add(1)
+			w.Header().Set("X-Nomad-Index", "50")
+			_, _ = w.Write([]byte(`[{"ID": "web", "Name": "web", "Namespace": "production", "Type": "service"}]`))
+		case "/v1/jobs/statuses":
+			// The newest change of the services on the page, which is
+			// older than a change of another job.
+			w.Header().Set("X-Nomad-Index", "45")
+			_, _ = w.Write([]byte(`[]`))
+		default:
+			http.NotFound(w, req)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client, err := nomad.New(nomad.Config{Address: server.URL})
+	r.NoError(err)
+
+	m := newTestModel(client)
+	m, _ = m.update(m.fetch()())
+
+	// A change the list shows does not read it again.
+	m, cmd := m.update(jobChange(m, 48))
+	r.Empty(timersOf(cmd))
+	r.False(m.watch.settling)
+	r.Equal(int32(1), lists.Load())
+}
+
+func TestWatch_TheClientListIsReadOnceWhenItOpens(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{nodes: readyNode(), changes: newChanges(), readIndex: map[string]uint64{nomad.TopicNode: 12}}
+
+	m := newTestModel(client)
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "nodes")
+	m, _ = m.update(enter())
+	m, cmd := m.update(m.fetch()())
+	fire(t, cmd)
+
+	r.Equal([]string{nomad.TopicNode, nomad.TopicAllocation}, client.watchedTopics)
+	r.Equal(uint64(13), client.watchedFrom)
+
+	// No client has a limit, so no allocation shows on the list: one far
+	// newer than the clients reads nothing.
+	m, cmd = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicAllocation, Index: 900}})
+	r.Empty(timersOf(cmd))
+	r.False(m.watch.settling)
+
+	// The cluster sends the client it had at the time of the read again.
+	m, cmd = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicNode, Index: 12}})
+	r.Empty(timersOf(cmd))
+	r.False(m.watch.settling)
+
+	// A newer one reads the list again.
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicNode, Index: 13}})
+	r.True(m.watch.settling)
+}
+
+func TestWatch_AnAllocationChangeReadsAgainAListWithALimitedClient(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := limitedCluster(3, clientAllocs())
+	client.changes = newChanges()
+	client.readIndex = map[string]uint64{nomad.TopicNode: 12, nomad.TopicAllocation: 30}
+
+	m := newTestModel(client)
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "nodes")
+	m, _ = m.update(enter())
+	m, _ = m.update(m.fetch()())
+
+	// The list counts the allocations of the client with a limit.
+	r.Equal(map[string]uint64{nomad.TopicNode: 12, nomad.TopicAllocation: 30}, m.watch.read)
+
+	m, cmd := m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicAllocation, Index: 31}})
+	r.Equal([]heldTimer{{wait: settle, msg: settleMsg{}}}, timersOf(cmd))
+	r.True(m.watch.settling)
+
+	asked := len(client.lists["nodes"])
+
+	m, cmd = m.update(settleMsg{})
+	drain(m, cmd)
+
+	r.Len(client.lists["nodes"], asked+1)
+}
+
+func TestWatch_AClientThatGetsALimitReadsTheListOnce(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{
+		nodes: readyNode(), changes: newChanges(),
+		readIndex: map[string]uint64{nomad.TopicNode: 12, nomad.TopicAllocation: 30},
+	}
+
+	m := newTestModel(client)
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "nodes")
+	m, _ = m.update(enter())
+	m, _ = m.update(m.fetch()())
+	r.Equal(map[string]uint64{nomad.TopicNode: 12, nomad.TopicAllocation: nomad.EveryIndex}, m.watch.read)
+
+	// The limit is a change of the client.
+	client.nodes[0].MaxAllocs = 3
+	client.readIndex[nomad.TopicNode] = 13
+
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicNode, Index: 13}})
+	m, read := m.update(settleMsg{})
+	r.NotNil(read)
+
+	// That read counts the allocations. The list before showed none of
+	// them, so it is not newer than this one.
+	m, cmd := m.update(read())
+	r.Equal(map[string]uint64{nomad.TopicNode: 13, nomad.TopicAllocation: 30}, m.watch.read)
+	r.NotContains(timersOf(cmd), heldTimer{wait: settle, msg: settleMsg{}})
+	r.False(m.watch.settling)
+	r.Len(client.lists["nodes"], 2)
+}
+
+func TestWatch_AChangeBetweenAReadAndItsAnswerReadsAgain(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{
+		nodes: readyNode(), changes: newChanges(),
+		readIndex: map[string]uint64{nomad.TopicNode: 12, nomad.TopicAllocation: 30},
+	}
+
+	m := newTestModel(client)
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "nodes")
+	m, _ = m.update(enter())
+	m, _ = m.update(m.fetch()())
+
+	client.nodes[0].MaxAllocs = 3
+	client.readIndex[nomad.TopicNode] = 13
+
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicNode, Index: 13}})
+	m, read := m.update(settleMsg{})
+	answer := read()
+
+	// An allocation changes after the read counted them, and the stream
+	// reports it before the answer comes. The list still shows none.
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicAllocation, Index: 31}})
+
+	m, cmd := m.update(answer)
+	r.Contains(timersOf(cmd), heldTimer{wait: settle, msg: settleMsg{}})
+	r.True(m.watch.settling)
+
+	m, cmd = m.update(settleMsg{})
+	drain(m, cmd)
+
+	r.Len(client.lists["nodes"], 3)
+}
+
+func TestWatch_AStreamThatSentOnlyWhatTheScreenReadWasNotRefused(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{nodes: readyNode(), changes: newChanges(), readIndex: map[string]uint64{nomad.TopicNode: 12}}
+
+	m := newTestModel(client)
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "nodes")
+	m, _ = m.update(enter())
+	m, _ = m.update(m.fetch()())
+	m, _ = m.update(m.watchScreen()())
+	r.True(m.watch.live())
+
+	// The stream sends the client the list read already, and ends at once.
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicNode, Index: 12}})
+	m, _ = m.update(watchEndedMsg{id: m.watch.id, err: errors.New("stream dropped")})
+
+	// It sent an event, so the cluster did not refuse it: the list warns
+	// and does not fall back to the clients alone.
+	r.False(m.watch.fewer)
+	r.Contains(m.flash.text, "stream dropped")
+}
+
+func TestWatch_AChangeNewerThanTheReadReadsAgain(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges(), readIndex: map[string]uint64{nomad.TopicJob: 40}}
+
+	m := readOnce(t, client)
+
+	m, cmd := m.update(jobChange(m, 41))
+	r.Equal([]heldTimer{{wait: settle, msg: settleMsg{}}}, timersOf(cmd))
+	r.True(m.watch.settling)
+
+	m, cmd = m.update(settleMsg{})
+	r.NotNil(cmd)
+
+	drain(m, cmd)
+	r.Equal(2, client.calls)
+}
+
+func TestWatch_ABurstTheNextAnswerAlreadyShowsReadsNothing(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges(), readIndex: map[string]uint64{nomad.TopicJob: 40}}
+
+	m := readOnce(t, client)
+
+	m, _ = m.update(jobChange(m, 41))
+
+	m, read := m.update(settleMsg{})
+	r.NotNil(read)
+
+	// A change comes while the read is out, and the read already shows it.
+	m, cmd := m.update(jobChange(m, 44))
+	r.NotEmpty(timersOf(cmd))
+
+	client.readIndex[nomad.TopicJob] = 45
+	m = drain(m, read)
+	r.Equal(map[string]uint64{nomad.TopicJob: 45}, m.watch.read)
+
+	calls := client.calls
+
+	m, cmd = m.update(settleMsg{})
+	r.Nil(cmd)
+	r.Equal(calls, client.calls)
+}
+
+func TestWatch_AChangeOfATopicNotReadYetReadsAgain(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{
+		nodes: readyNode(), changes: newChanges(),
+		readIndex: map[string]uint64{nomad.TopicAllocation: 10},
+	}
+
+	m, _ := nodeModelOf(client)
+	m, _ = m.update(enter())
+	m = drain(m, m.fetch())
+
+	r.IsType(clientPage{}, m.screen.page)
+	r.Equal(map[string]uint64{nomad.TopicAllocation: 10}, m.watch.read)
+
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicNode, Index: 5}})
+	r.True(m.watch.settling)
+
+	_, cmd := m.update(settleMsg{})
+	r.NotNil(cmd)
+}
+
+func TestWatch_ASettleLeftFromTheScreenBeforeReadsNothing(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{
+		jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges(),
+		readIndex: map[string]uint64{nomad.TopicJob: 40},
+	}
+
+	m := readOnce(t, client)
+	m, _ = m.update(jobChange(m, 41))
+	r.True(m.watch.settling)
+
+	m, _ = m.update(enter())
+
+	m, cmd := m.update(settleMsg{})
+	r.Nil(cmd)
+}
+
+func TestWatch_ABurstOfTheNextScreenStartsATimerOfItsOwn(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{
+		jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges(),
+		readIndex: map[string]uint64{nomad.TopicJob: 40, nomad.TopicAllocation: 90},
+	}
+
+	m := readOnce(t, client)
+	m, _ = m.update(jobChange(m, 41))
+	r.True(m.watch.settling)
+
+	// The settle of the jobs is still to come when the allocations open.
+	m, _ = m.update(enter())
+	m, _ = m.update(m.fetch()())
+	m, _ = m.update(m.watchScreen()())
+
+	m, cmd := m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicAllocation, Index: 91}})
+	r.Contains(timersOf(cmd), heldTimer{wait: settle, msg: settleMsg{}})
+	r.True(m.watch.settling)
+}
+
+func TestWatch_AChangeAnOlderAnswerLeftOutReadsAgain(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges(), readIndex: map[string]uint64{nomad.TopicJob: 55}}
+
+	m := readOnce(t, client)
+
+	// The page shows the change already.
+	m, cmd := m.update(jobChange(m, 50))
+	r.Empty(timersOf(cmd))
+
+	// An answer read before the change arrives last.
+	client.readIndex[nomad.TopicJob] = 45
+	m, cmd = m.update(m.fetch()())
+	r.Contains(timersOf(cmd), heldTimer{wait: settle, msg: settleMsg{}})
+	r.True(m.watch.settling)
+
+	calls := client.calls
+
+	client.readIndex[nomad.TopicJob] = 55
+	m, cmd = m.update(settleMsg{})
+	m = drain(m, cmd)
+
+	r.Equal(calls+1, client.calls)
+	r.Equal(map[string]uint64{nomad.TopicJob: 55}, m.watch.read)
+}
+
+func TestWatch_AnAnswerOlderThanThePageReadsAgain(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges(), readIndex: map[string]uint64{nomad.TopicJob: 60}}
+
+	m := readOnce(t, client)
+	r.Equal(uint64(61), client.watchedFrom)
+
+	// The stream never sends what changed up to 60, and the page goes back
+	// to 45.
+	client.readIndex[nomad.TopicJob] = 45
+	m, cmd := m.update(m.fetch()())
+	r.Contains(timersOf(cmd), heldTimer{wait: settle, msg: settleMsg{}})
+
+	calls := client.calls
+
+	client.readIndex[nomad.TopicJob] = 60
+	m, cmd = m.update(settleMsg{})
+	m = drain(m, cmd)
+
+	r.Equal(calls+1, client.calls)
+	r.Equal(map[string]uint64{nomad.TopicJob: 60}, m.watch.read)
+	r.False(m.watch.settling)
+}
+
+func TestWatch_AScreenOfOneObjectReadsOnceForAChangeOfAnother(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	// A read of one client is at the index it last changed at.
+	client := &fakeClient{
+		nodes: readyNode(), changes: newChanges(),
+		readIndex: map[string]uint64{nomad.TopicNode: 30, nomad.TopicAllocation: 40},
+	}
+
+	m, _ := nodeModelOf(client)
+	m, _ = m.update(enter())
+	m = drain(m, m.fetch())
+	r.IsType(clientPage{}, m.screen.page)
+
+	// Another client changes: the screen reads its own again, still at 30,
+	// and stops there.
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicNode, Index: 50}})
+	m, cmd := m.update(settleMsg{})
+	r.NotNil(cmd)
+
+	m = drain(m, cmd)
+
+	r.Equal(map[string]uint64{nomad.TopicNode: 30, nomad.TopicAllocation: 40}, m.watch.read)
+	r.False(m.watch.settling)
+}
+
+func TestWatch_TheNextBurstReadsOnlyForItsOwnChanges(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{
+		nodes: readyNode(), changes: newChanges(),
+		readIndex: map[string]uint64{nomad.TopicNode: 30, nomad.TopicAllocation: 40},
+	}
+
+	m, _ := nodeModelOf(client)
+	m, _ = m.update(enter())
+	m = drain(m, m.fetch())
+	r.IsType(clientPage{}, m.screen.page)
+
+	// Another client changes: the screen reads its own again, still at 30.
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicNode, Index: 50}})
+	m, cmd := m.update(settleMsg{})
+	m = drain(m, cmd)
+
+	// An allocation changes, and an answer shows it before the burst settles.
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicAllocation, Index: 41}})
+	r.True(m.watch.settling)
+
+	client.readIndex[nomad.TopicAllocation] = 45
+	m = drain(m, m.fetch())
+
+	_, cmd = m.update(settleMsg{})
+	r.Nil(cmd)
 }

@@ -208,6 +208,7 @@ func TestQueue_APoolThatFailedLeavesNoReadIndexOfTheJobs(t *testing.T) {
 	r := require.New(t)
 
 	client := &fakeClient{
+		changes:   newChanges(),
 		nodePools: []nomad.NodePool{{Name: "batch-1", Queue: "fifo"}, {Name: "batch-2", Queue: "fifo"}},
 		queueWorkloads: map[string][]nomad.QueueWorkload{
 			"batch-1": {{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: "fifo", Status: "queued"}},
@@ -221,6 +222,10 @@ func TestQueue_APoolThatFailedLeavesNoReadIndexOfTheJobs(t *testing.T) {
 
 	r.Contains(plain(m.render()), "job-b")
 	r.NotContains(m.watch.read, nomad.TopicJob)
+
+	// The queue of batch-2 is not shown: a change of a job reads it again.
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicJob, Index: 4}})
+	r.True(m.watch.settling)
 }
 
 func TestQueue_KeepsTheReadIndexOfTheQueueOfAPool(t *testing.T) {

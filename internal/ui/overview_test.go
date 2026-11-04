@@ -541,12 +541,65 @@ func TestOverview_KeepsTheReadIndexOfEachList(t *testing.T) {
 }
 
 func TestOverview_AListThatFailedAfterItWasReadKeepsNoReadIndex(t *testing.T) {
-	client := &fakeClient{jobCountsErr: errors.New("timeout"), readIndex: map[string]uint64{
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{changes: newChanges(), jobCountsErr: errors.New("timeout"), readIndex: map[string]uint64{
 		nomad.TopicJob: 50, nomad.TopicAllocation: 12, nomad.TopicNode: 13,
 		nomad.TopicEvaluation: 14, nomad.TopicDeployment: 15,
 	}}
 
 	m := overviewAnswered(client)
+	r.NotContains(m.watch.read, nomad.TopicJob)
+	r.False(m.watch.settling)
 
-	require.NotContains(t, m.watch.read, nomad.TopicJob)
+	// The line of the jobs shows the error: a change of a job reads it again.
+	m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: nomad.TopicJob, Index: 50}})
+	r.True(m.watch.settling)
+}
+
+func TestOverview_IsReadOnceWhenItOpens(t *testing.T) {
+	r := require.New(t)
+
+	holdTimers(t)
+	holdStreams(t)
+
+	client := &fakeClient{changes: newChanges(), readIndex: map[string]uint64{
+		nomad.TopicJob: 11, nomad.TopicAllocation: 12, nomad.TopicNode: 13,
+		nomad.TopicEvaluation: 14, nomad.TopicDeployment: 15,
+	}}
+
+	m := overviewOpen(client)
+
+	// The first part to answer opens the stream, from the start: the others
+	// are not read yet.
+	parts, ok := m.fetch()().(tea.BatchMsg)
+	r.True(ok)
+
+	for i, part := range parts {
+		var cmd tea.Cmd
+
+		m, cmd = m.update(part())
+
+		if i == 0 {
+			fire(t, cmd)
+			r.Equal(uint64(0), client.watchedFrom)
+		}
+	}
+
+	// One event of each topic, none newer than its list.
+	for topic, index := range client.readIndex {
+		m, _ = m.update(changeMsg{id: m.watch.id, change: nomad.Change{Topic: topic, Index: index}})
+	}
+
+	r.False(m.watch.settling)
+
+	_, cmd := m.update(settleMsg{})
+	r.Nil(cmd)
+
+	for list, asked := range client.lists {
+		r.Len(asked, 1, list)
+	}
 }

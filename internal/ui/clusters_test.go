@@ -529,3 +529,20 @@ func TestClusters_AnAnswerOfTheClusterLeftOpensNoStream(t *testing.T) {
 	r.Equal(uint64(8), clusters.prod.watchedFrom)
 	r.Equal(map[string]uint64{nomad.TopicJob: 7}, m.watch.read)
 }
+
+func TestClusters_TheClusterSwitchedToIsReadOnceAtAnIndexBelowTheOneLeft(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+	clusters.dev.readIndex = map[string]uint64{nomad.TopicJob: 40}
+	clusters.prod.readIndex = map[string]uint64{nomad.TopicJob: 7}
+	m = drain(m, m.fetch())
+
+	m = typeCommand(m, "ctx prod")
+
+	// The index dev was read at says nothing of prod: no settle waits to
+	// read prod again.
+	r.Equal(map[string]uint64{nomad.TopicJob: 7}, m.watch.read)
+	r.False(m.watch.settling)
+	r.Equal(1, clusters.prod.calls)
+}

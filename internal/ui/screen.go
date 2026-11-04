@@ -578,16 +578,16 @@ func (m Model) takeAnswer(msg answerMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	var watch tea.Cmd
+	var settles, watch tea.Cmd
 
 	if msg.fetched {
-		m.watch = m.watch.keepRead(msg.read)
+		m.watch, settles = m.watch.keepRead(msg.read)
 		m, watch = m.watchOnAnswer()
 	}
 
 	m, cmd := m.update(msg.msg)
 
-	return m, tea.Batch(watch, cmd)
+	return m, tea.Batch(settles, watch, cmd)
 }
 
 // reportLate shows what a write did after its screen was left: on the status
