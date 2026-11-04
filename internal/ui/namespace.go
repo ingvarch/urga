@@ -155,3 +155,16 @@ func (m Model) keepNamespaces(msg namespacesMsg) (Model, tea.Cmd) {
 
 	return next, tea.Batch(cmd, next.remember())
 }
+
+// namespaceDeleted says the cluster deleted a namespace, and takes a session
+// that is still in it to default.
+func (m Model) namespaceDeleted(msg namespaceDeletedMsg) (Model, tea.Cmd) {
+	said := sprintf("Namespace %s deleted.", msg.name)
+	if msg.connection != m.connection || m.namespace != msg.name {
+		return m.say(said), nil
+	}
+
+	next, cmd := m.switchNamespace(nomad.DefaultNamespace)
+
+	return next.say(said + sprintf(" The session is in %s now.", nomad.DefaultNamespace)), cmd
+}

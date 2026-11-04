@@ -367,12 +367,12 @@ func TestAction_ALateAnswerOfAWriteChangesNothingElse(t *testing.T) {
 	require.NoError(t, os.WriteFile(edited, []byte("job \"web\" {}"), 0o600))
 
 	for name, msg := range map[string]tea.Msg{
-		"open":                         openMsg{page: describePage{}},
-		"describe":                     describeMsg{label: "x", content: "y"},
-		"ask":                          askMsg{question: "Really?", apply: func() tea.Msg { return nil }},
-		"namespace":                    switchNamespaceMsg("other"),
-		"namespace of another cluster": connectionMsg{connection: 7, msg: switchNamespaceMsg("other")},
-		"edit file":                    editFileMsg{path: edited},
+		"open":                                 openMsg{page: describePage{}},
+		"describe":                             describeMsg{label: "x", content: "y"},
+		"ask":                                  askMsg{question: "Really?", apply: func() tea.Msg { return nil }},
+		"namespace":                            switchNamespaceMsg("other"),
+		"namespace deleted on another cluster": namespaceDeletedMsg{name: "production", connection: 7},
+		"edit file":                            editFileMsg{path: edited},
 	} {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)

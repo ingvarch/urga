@@ -13,6 +13,8 @@ import (
 
 // doneMsg is the result of an action.
 type doneMsg struct {
+	// said is the text for the status line. Empty leaves the status line to
+	// another message of the same answer.
 	said string
 	err  error
 
@@ -347,7 +349,7 @@ func (m Model) done(msg doneMsg) (Model, tea.Cmd) {
 	if msg.err != nil {
 		m = m.fail(msg.err)
 		m.flash.ofAction = true
-	} else {
+	} else if msg.said != "" {
 		m = m.say(msg.said)
 	}
 

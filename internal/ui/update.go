@@ -184,6 +184,9 @@ func (m Model) fromSession(msg tea.Msg) (Model, tea.Cmd, bool) {
 	case switchNamespaceMsg:
 		return taken(m.switchNamespace(string(msg)))
 
+	case namespaceDeletedMsg:
+		return taken(m.namespaceDeleted(msg))
+
 	case connectedMsg:
 		return taken(m.takeConnected(msg))
 
