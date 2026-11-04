@@ -107,22 +107,18 @@ func (w watchState) waitForChange() tea.Cmd {
 
 	id := w.id
 
-	return func() tea.Msg {
-		select {
-		case _, ok := <-changes.C:
-			if !ok {
-				// A stream that dropped sends its error before it
-				// closes, and both are then ready at once: reading the
-				// close first must not lose the error.
-				return watchEndedMsg{id: id, err: reasonOf(changes)}
-			}
-
-			return changeMsg{id: id}
-
-		case err := <-changes.Err:
-			return watchEndedMsg{id: id, err: err}
+	return waitOn(changes.C, changes.Err, func(_ nomad.Change, ok bool) tea.Msg {
+		if !ok {
+			// A stream that dropped sends its error before it
+			// closes, and both are then ready at once: reading the
+			// close first must not lose the error.
+			return watchEndedMsg{id: id, err: reasonOf(changes)}
 		}
-	}
+
+		return changeMsg{id: id}
+	}, func(err error) tea.Msg {
+		return watchEndedMsg{id: id, err: err}
+	})
 }
 
 // reasonOf is the error a stream ended with, if it sent one.

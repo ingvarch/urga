@@ -256,23 +256,19 @@ func waitForStream(stream *nomad.LogStream) tea.Cmd {
 		return nil
 	}
 
-	return func() tea.Msg {
-		select {
-		case line, ok := <-stream.Lines:
-			if !ok {
-				return endOf(stream)
-			}
-
-			return logLineMsg{stream: stream, text: line, start: stream.Start(), old: stream.Old(line)}
-
-		case err := <-stream.Err:
-			if err != nil {
-				return errMsg{err: err}
-			}
-
-			return logEndMsg{stream: stream}
+	return waitOn(stream.Lines, stream.Err, func(line string, ok bool) tea.Msg {
+		if !ok {
+			return endOf(stream)
 		}
-	}
+
+		return logLineMsg{stream: stream, text: line, start: stream.Start(), old: stream.Old(line)}
+	}, func(err error) tea.Msg {
+		if err != nil {
+			return errMsg{err: err}
+		}
+
+		return logEndMsg{stream: stream}
+	})
 }
 
 // endOf is the end of a stream whose lines closed: its error, when it sent
