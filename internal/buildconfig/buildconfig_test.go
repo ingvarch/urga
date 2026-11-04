@@ -177,3 +177,9 @@ func TestMakefile_DistBuildsWhatTheReleaseBuilds(t *testing.T) {
 	// same config the release does.
 	require.Regexp(t, `(?m)^dist:\n\tgoreleaser release --snapshot --clean$`, string(data))
 }
+
+func TestCI_RunsTheTestsWithoutTheRaceDetectorToo(t *testing.T) {
+	// The race detector drops what sync.Pool is given at random, so a count
+	// of allocations is exact only in a run without it.
+	require.Regexp(t, `(?m)run: go test \./\.\.\.$`, workflows(t)["ci.yml"])
+}

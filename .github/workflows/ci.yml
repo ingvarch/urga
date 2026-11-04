@@ -43,6 +43,12 @@ jobs:
         if: success() || failure()
         run: go run ./internal/licenses/cmd/licenses ./cmd/urga
 
+      # The tests on every platform run with the race detector, which makes a
+      # count of allocations vary. Here they run without it and count exactly.
+      - name: test
+        if: success() || failure()
+        run: go test ./...
+
   test:
     name: test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
