@@ -68,7 +68,8 @@ var ErrNotText = errors.New("not text")
 
 // File follows a file of an allocation as it grows: from its start, or when
 // it is big, from its last MiB. The caller closes the stream when it stops
-// reading, otherwise the request stays open. Do not call it for a pipe: the
+// reading, otherwise the request stays open. A failure arrives on its Err after
+// the lines before it and before Lines closes. Do not call it for a pipe: the
 // client reads its first bytes to detect the content type, and waits.
 func (c *Client) File(ctx context.Context, namespace, allocID, name string) (*LogStream, error) {
 	// The stream is requested from the node that runs the allocation when it
@@ -98,22 +99,35 @@ func (c *Client) File(ctx context.Context, namespace, allocID, name string) (*Lo
 		atEnd = func(frame *api.StreamFrame) bool { return frame.Offset >= info.Size }
 	}
 
-	lines := streamLines(frames, func(*api.StreamFrame) bool { return from > 0 }, atEnd, nil, cancel)
-
-	return &LogStream{Lines: lines, Err: failures(errs, cancel), Size: info.Size, From: from, cancel: cancel}, nil
-}
-
-// failures passes on the errors of a stream. Its end is not a failure: the
-// stream of a file reports it as an error, the stream of a log does not.
-func failures(errs <-chan error, cancel <-chan struct{}) <-chan error {
+	lines := make(chan string)
 	out := make(chan error, 1)
 
-	go passFailures(errs, out, cancel)
+	go func() {
+		defer close(lines)
 
-	return out
+		followFrames(frames, errs, func(*api.StreamFrame) bool { return from > 0 }, atEnd, lines, out, cancel)
+	}()
+
+	return &LogStream{Lines: lines, Err: out, Size: info.Size, From: from, cancel: cancel}, nil
 }
 
-// passFailures sends the first error of errs to out, unless it is an end.
+// followFrames sends the lines of the frames, then the first failure. The
+// failure goes out after the lines and before they close (the caller closes
+// them when this returns), so a reader that sees the end finds it.
+func followFrames(frames <-chan *api.StreamFrame, failed <-chan error, startsCut, atEnd func(*api.StreamFrame) bool, lines chan<- string, errs chan<- error, cancel <-chan struct{}) {
+	if frames != nil {
+		for chunk := range streamLines(frames, startsCut, atEnd, nil, cancel) {
+			if !sendText(lines, chunk, cancel) {
+				return
+			}
+		}
+	}
+
+	passFailures(failed, errs, cancel)
+}
+
+// passFailures sends the first error of errs to out, unless it is an end. The
+// stream of a file reports its end as an error, the stream of a log does not.
 func passFailures(errs <-chan error, out chan<- error, cancel <-chan struct{}) {
 	select {
 	case err := <-errs:
