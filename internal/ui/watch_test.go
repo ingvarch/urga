@@ -36,25 +36,142 @@ func fire(t *testing.T, cmd tea.Cmd) {
 	}
 }
 
-func TestWatch_ArrivingAtAScreenOpensItsStream(t *testing.T) {
+func TestWatch_AScreenOpensItsStreamOnItsFirstAnswer(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges()}
+	client := &fakeClient{
+		jobs: twoJobs(), allocs: twoAllocs(), changes: newChanges(),
+		readIndex: map[string]uint64{nomad.TopicJob: 40, nomad.TopicAllocation: 90},
+	}
 
 	m := newTestModel(client)
 
-	// Opening urga watches what the first screen shows, without anything
-	// asking for it by hand.
+	// Opening urga asks for the rows, and for no stream: the stream starts
+	// after what the rows read.
 	fire(t, m.Init())
-	r.Equal([]string{nomad.TopicJob}, client.watchedTopics)
+	r.Zero(client.watches)
 
-	m, _ = m.update(jobsMsg(twoJobs()))
-
-	_, cmd := m.update(enter())
+	m, cmd := m.update(m.fetch()())
 	fire(t, cmd)
 
-	// And walking into the allocations watches allocations.
+	r.Equal([]string{nomad.TopicJob}, client.watchedTopics)
+	r.Equal(uint64(41), client.watchedFrom)
+
+	m, cmd = m.update(enter())
+	fire(t, cmd)
+	r.Equal(1, client.watches)
+
+	// Walking into the allocations watches allocations, from their own
+	// read.
+	_, cmd = m.update(m.fetch()())
+	fire(t, cmd)
+
+	r.Equal(2, client.watches)
 	r.Equal([]string{nomad.TopicAllocation}, client.watchedTopics)
+	r.Equal(uint64(91), client.watchedFrom)
+}
+
+func TestWatch_TheStreamStartsAfterTheLowestReadIndexOfItsTopics(t *testing.T) {
+	r := require.New(t)
+
+	w := watchState{read: map[string]uint64{nomad.TopicNode: 12, nomad.TopicAllocation: 900}}
+
+	r.Equal(uint64(13), w.from([]string{nomad.TopicNode, nomad.TopicAllocation}))
+
+	// A topic nothing read has no index to start after.
+	w = watchState{read: map[string]uint64{nomad.TopicAllocation: 900}}
+
+	r.Equal(uint64(0), w.from([]string{nomad.TopicAllocation, nomad.TopicNode}))
+}
+
+func TestWatch_AReadWithoutAnIndexStartsTheStreamWhereItAlwaysDid(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges()}
+
+	m := newTestModel(client)
+
+	_, cmd := m.update(m.fetch()())
+	fire(t, cmd)
+
+	r.Equal(1, client.watches)
+	r.Equal(uint64(0), client.watchedFrom)
+}
+
+func TestWatch_AFailedFirstReadStillOpensTheStream(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{err: errors.New("boom"), changes: newChanges()}
+
+	m := newTestModel(client)
+
+	_, cmd := m.update(m.fetch()())
+	fire(t, cmd)
+
+	r.Equal(1, client.watches)
+	r.Equal(uint64(0), client.watchedFrom)
+}
+
+func TestWatch_ANamespaceSwitchBeforeTheAnswerOpensNoStreamInTheOldOne(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges(), readIndex: map[string]uint64{nomad.TopicJob: 40}}
+
+	m := newTestModel(client)
+	m, _ = m.update(namespacesMsg(twoNamespaces()))
+
+	read := m.fetch()
+
+	m, cmd := m.update(key('2'))
+	client.readIndex[nomad.TopicJob] = 60
+
+	m, late := m.update(read())
+	r.Nil(late)
+	r.Zero(client.watches)
+
+	playOut(m, cmd)
+
+	r.Equal(1, client.watches)
+	r.Equal("staging", client.watchedNamespace)
+	r.Equal(uint64(61), client.watchedFrom)
+}
+
+func TestWatch_TheVersionArrivingAfterTheAnswerStartsAfterTheRead(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{variables: []nomad.Variable{{Path: "a/b"}}, changes: newChanges(), readIndex: map[string]uint64{nomad.TopicVariable: 30}}
+
+	m, _ := sessionModel(t, client)
+	m = typeCommand(m, "variables")
+	r.Zero(client.watches)
+
+	_, cmd := m.update(agentMsg{Version: "2.0.7"})
+	fire(t, cmd)
+
+	r.Equal(1, client.watches)
+	r.Equal(uint64(31), client.watchedFrom)
+}
+
+func TestWatch_TheVersionArrivingBeforeTheAnswerOpensNoStreamYet(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{variables: []nomad.Variable{{Path: "a/b"}}, changes: newChanges(), readIndex: map[string]uint64{nomad.TopicVariable: 30}}
+
+	m, _ := sessionModel(t, client)
+	m, _ = m.update(key(':'))
+	m = typeIn(m, "variables")
+	m, _ = m.update(enter())
+
+	// The version comes first: the stream waits for the read.
+	m, cmd := m.update(agentMsg{Version: "2.0.7"})
+	fire(t, cmd)
+	r.Zero(client.watches)
+
+	_, cmd = m.update(m.fetch()())
+	fire(t, cmd)
+
+	r.Equal(1, client.watches)
+	r.Equal(uint64(31), client.watchedFrom)
 }
 
 // watching is a model whose screen watches the event stream. The stream

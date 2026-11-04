@@ -271,8 +271,10 @@ func New(client Client, opts Options) Model {
 	m = m.restore()
 
 	// The first screen reads its stream the way any screen does once it is
-	// entered: opened with the model, started by Init.
+	// entered: opened with the model, started by Init. Its event stream
+	// opens on its first answer.
 	m, m.opening = m.openStream()
+	m.watch.due = true
 
 	return m
 }
@@ -283,7 +285,6 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.fetch(),
 		m.opening,
-		m.watchScreen(),
 		m.askAboutTheCluster(),
 		m.checkRelease(),
 		m.note.open(m.client),

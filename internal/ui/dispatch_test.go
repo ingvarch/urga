@@ -144,7 +144,7 @@ func TestDispatch_TheKey(t *testing.T) {
 func TestDispatch_AJobThatTakesNothingIsAsked(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: periodicJobs(), dispatchForm: nomad.DispatchForm{Payload: nomad.PayloadForbidden}}
+	client := &fakeClient{jobs: periodicJobs(), changes: newChanges(), dispatchForm: nomad.DispatchForm{Payload: nomad.PayloadForbidden}}
 	editor := &fakeEditor{}
 	m := onReport(t, client, editor)
 
@@ -168,7 +168,7 @@ func TestDispatch_AJobThatTakesNothingIsAsked(t *testing.T) {
 func TestDispatch_ThroughTheEditor(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: periodicJobs(), dispatchForm: nomad.DispatchForm{
+	client := &fakeClient{jobs: periodicJobs(), changes: newChanges(), dispatchForm: nomad.DispatchForm{
 		Required: []string{"day"}, Optional: []string{"region"}, Payload: nomad.PayloadOptional,
 	}}
 	editor := &fakeEditor{edits: []string{"day = monday\nregion =\n--- payload ---\nhello\n"}}
@@ -299,7 +299,7 @@ func TestDispatch_AFileThatDoesNotReadIsNotSent(t *testing.T) {
 func TestDispatch_AFormAnsweredAfterLeavingAsksNothing(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: periodicJobs(), dispatchForm: nomad.DispatchForm{Payload: nomad.PayloadForbidden}}
+	client := &fakeClient{jobs: periodicJobs(), changes: newChanges(), dispatchForm: nomad.DispatchForm{Payload: nomad.PayloadForbidden}}
 	m := onReport(t, client, &fakeEditor{})
 
 	m, form := m.update(key('r'))

@@ -259,7 +259,7 @@ func (m Model) fetch() tea.Cmd {
 	return labelled(m.screen.page.fetch(m.env()), func(msg tea.Msg) tea.Msg {
 		msg, read := readOf(msg)
 
-		return answerMsg{asked: asked, msg: msg, read: read}
+		return answerMsg{asked: asked, msg: msg, read: read, fetched: true}
 	})
 }
 
@@ -274,9 +274,10 @@ type answerMsg struct {
 	wrote bool
 	msg   tea.Msg
 
-	// read is the read index of each topic the answer read, kept only for the
-	// read of the screen itself.
-	read map[string]uint64
+	// fetched says the answer is to the read of the screen itself. Only that
+	// read keeps its read index and opens the stream of the screen.
+	fetched bool
+	read    map[string]uint64
 }
 
 // readMsg is an answer with the read index of the topics it read. The labels
@@ -538,7 +539,7 @@ func (m Model) enter() (Model, tea.Cmd) {
 	// The timer of the screen that was left may be a slow one.
 	m = m.restartPoll()
 
-	return m, tea.Batch(m.fetch(), stream, m.watchScreen())
+	return m, tea.Batch(m.fetch(), stream)
 }
 
 // closeQuestion takes a question off the screen when the screen under it
@@ -577,9 +578,16 @@ func (m Model) takeAnswer(msg answerMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.watch = m.watch.keepRead(msg.read)
+	var watch tea.Cmd
 
-	return m.update(msg.msg)
+	if msg.fetched {
+		m.watch = m.watch.keepRead(msg.read)
+		m, watch = m.watchOnAnswer()
+	}
+
+	m, cmd := m.update(msg.msg)
+
+	return m, tea.Batch(watch, cmd)
 }
 
 // reportLate shows what a write did after its screen was left: on the status

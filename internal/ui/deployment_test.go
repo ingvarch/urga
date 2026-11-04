@@ -336,6 +336,8 @@ func TestDeployment_StaysInItsNamespace(t *testing.T) {
 	r.Equal("staging", m.namespace)
 	r.Contains(plain(m.render()), "Deployment 5d1a2b3c (Job: web) [2]")
 	r.Equal("production", client.deploymentNamespace)
+
+	fire(t, m.watchScreen())
 	r.Equal("production", client.watchedNamespace)
 }
 

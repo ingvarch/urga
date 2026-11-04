@@ -11,7 +11,7 @@ import (
 func TestJobs_EvaluateAJob(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs()}
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges()}
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
 
@@ -57,7 +57,7 @@ func TestJobs_AJobThatLaunchesIsNotEvaluated(t *testing.T) {
 func TestJobs_RescheduleTheFailedAllocationsOfAJob(t *testing.T) {
 	r := require.New(t)
 
-	client := &fakeClient{jobs: twoJobs()}
+	client := &fakeClient{jobs: twoJobs(), changes: newChanges()}
 	m := newTestModel(client)
 	m, _ = m.update(jobsMsg(twoJobs()))
 

@@ -166,6 +166,8 @@ type fakeClient struct {
 	metaNodeID       string
 	askedVersion     uint64
 	watchedTopics    []string
+	watchedFrom      uint64
+	watches          int
 	watchedNamespace string
 	watchErr         error
 	revertedTo       uint64
@@ -1254,8 +1256,9 @@ func (f *fakeClient) Nodes(ctx context.Context) ([]nomad.Node, error) {
 	return f.nodes, f.err
 }
 
-func (f *fakeClient) Variables(_ context.Context, namespace string) ([]nomad.Variable, error) {
+func (f *fakeClient) Variables(ctx context.Context, namespace string) ([]nomad.Variable, error) {
 	f.askedNamespace = namespace
+	f.noteRead(ctx, nomad.TopicVariable)
 
 	return f.variables, f.err
 }
@@ -1338,8 +1341,9 @@ func (f *fakeClient) BatchQueueStatus(_ context.Context, pool string) ([]nomad.Q
 	return nil, f.err
 }
 
-func (f *fakeClient) Events(_ context.Context, namespace string, topics []string, _ uint64) (*nomad.Changes, error) {
-	f.watchedNamespace, f.watchedTopics = namespace, topics
+func (f *fakeClient) Events(_ context.Context, namespace string, topics []string, from uint64) (*nomad.Changes, error) {
+	f.watchedNamespace, f.watchedTopics, f.watchedFrom = namespace, topics, from
+	f.watches++
 
 	if f.streamOf != nil {
 		return f.streamOf(namespace, topics)
