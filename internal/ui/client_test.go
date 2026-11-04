@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"io"
 	"slices"
 	"strings"
 	"testing"
@@ -903,6 +904,115 @@ func TestClient_WatchesItsAllocationsAndItselfInEveryNamespace(t *testing.T) {
 
 	r.Equal(nomad.AllNamespaces, client.watchedNamespace)
 	r.Equal([]string{nomad.TopicAllocation, nomad.TopicNode}, client.watchedTopics)
+}
+
+func TestClient_ARefusedStreamOfItsAllocationsFollowsTheClientAlone(t *testing.T) {
+	for name, refuse := range refusals(t) {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			var asked [][]string
+
+			client := &fakeClient{nodes: busyClient(), nodeAllocs: clientAllocs()}
+			client.streamOf = func(_ string, topics []string) (*nomad.Changes, error) {
+				asked = append(asked, topics)
+				if slices.Contains(topics, nomad.TopicAllocation) {
+					return refuse()
+				}
+
+				return newChanges().stream(), nil
+			}
+
+			// The client list already follows the clients alone: the path of
+			// a token that may not read the jobs.
+			m, _ := nodeModelOf(client)
+			m, cmd := throughRefusal(m, m.watchScreen()())
+			m, _ = m.update(cmd())
+
+			m, _ = m.update(enter())
+			m, _ = m.update(allocsMsg(clientAllocs()))
+			tick := m.pollTick
+
+			msg := m.watchScreen()()
+			r.Equal([]string{nomad.TopicAllocation, nomad.TopicNode}, client.watchedTopics)
+
+			m, cmd = throughRefusal(m, msg)
+			r.NotNil(cmd)
+			m, _ = m.update(cmd())
+
+			r.Equal([][]string{
+				{nomad.TopicNode, nomad.TopicAllocation},
+				{nomad.TopicNode},
+				{nomad.TopicAllocation, nomad.TopicNode},
+				{nomad.TopicNode},
+			}, asked)
+			r.Equal(nomad.AllNamespaces, client.watchedNamespace)
+			r.True(m.watch.live())
+			r.Empty(m.flash.text)
+			r.Equal(slowPoll, m.pollEvery())
+			r.Equal(tick, m.pollTick)
+		})
+	}
+}
+
+func TestClient_ARefusalOfTheClientAloneSaysSo(t *testing.T) {
+	for name, refuse := range refusals(t) {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			client := &fakeClient{nodes: busyClient(), nodeAllocs: clientAllocs()}
+			client.streamOf = func(string, []string) (*nomad.Changes, error) { return refuse() }
+
+			m, _ := nodeModelOf(client)
+			m, _ = m.update(enter())
+
+			m, cmd := throughRefusal(m, m.watchScreen()())
+			r.NotNil(cmd)
+			m, _ = throughRefusal(m, cmd())
+
+			// Refused the clients too, the screen is polled the way it was.
+			r.Equal([]string{nomad.TopicNode}, client.watchedTopics)
+			r.False(m.watch.live())
+			r.Contains(m.flash.text, "asking every")
+			r.Equal(time.Millisecond, m.pollEvery())
+		})
+	}
+}
+
+func TestClient_AStreamOfItsAllocationsThatDropsLaterSaysSo(t *testing.T) {
+	for name, before := range map[string]func(Model) Model{
+		"after a change": func(m Model) Model {
+			m, _ = m.update(changeMsg{id: m.watch.id})
+
+			return m
+		},
+		"after a while": func(m Model) Model {
+			m.watch.opened = m.watch.opened.Add(-refusedWithin)
+
+			return m
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			client := &fakeClient{nodes: busyClient(), nodeAllocs: clientAllocs(), changes: newChanges()}
+
+			m, _ := nodeModelOf(client)
+			m, _ = m.update(enter())
+			m, _ = m.update(m.watchScreen()())
+			r.True(m.watch.live())
+
+			m = before(m)
+			m, _ = m.update(watchEndedMsg{id: m.watch.id, err: io.EOF})
+
+			// A stream that worked and dropped is not a refusal: the screen
+			// does not ask for the clients alone.
+			r.Equal([]string{nomad.TopicAllocation, nomad.TopicNode}, client.watchedTopics)
+			r.False(m.watch.live())
+			r.Contains(m.flash.text, "EOF")
+			r.Equal(time.Millisecond, m.pollEvery())
+		})
+	}
 }
 
 func TestClient_ComingBackShowsItsOwnAllocations(t *testing.T) {
