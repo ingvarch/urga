@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"math"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -88,6 +89,10 @@ type watchState struct {
 	// read is the read index of what the screen shows, by topic.
 	read map[string]uint64
 
+	// due says the screen wants its stream and has had no answer yet: the
+	// stream opens after the first answer, from what that answer read.
+	due bool
+
 	// streamStart is when the open stream opened and whether it sent an event.
 	streamStart
 }
@@ -112,9 +117,31 @@ func (w watchState) keepRead(read map[string]uint64) watchState {
 // entered is the state of a screen just opened: no stream, nothing read.
 func (w watchState) entered() watchState {
 	w = w.end()
-	w.read = nil
+	w.read, w.due = nil, true
 
 	return w
+}
+
+// from is where the stream of the topics starts: after the lowest index the
+// screen read them at, or 0, the oldest event the cluster keeps, when a topic
+// was not read at an index.
+func (w watchState) from(topics []string) uint64 {
+	lowest := uint64(math.MaxUint64)
+
+	for _, topic := range topics {
+		index, ok := w.read[topic]
+		if !ok {
+			return 0
+		}
+
+		lowest = min(lowest, index)
+	}
+
+	if lowest == math.MaxUint64 {
+		return 0
+	}
+
+	return lowest + 1
 }
 
 // watchScreen opens an event stream for what the screen shows. A screen
@@ -129,10 +156,10 @@ func (m Model) watchScreen() tea.Cmd {
 		return nil
 	}
 
-	client, namespace, id := m.client, namespaceOf(m.screen.page, m.env()), m.watch.id
+	client, namespace, id, from := m.client, namespaceOf(m.screen.page, m.env()), m.watch.id, m.watch.from(topics)
 
 	return func() tea.Msg {
-		changes, err := client.Events(context.Background(), namespace, topics, 0)
+		changes, err := client.Events(context.Background(), namespace, topics, from)
 		if err != nil {
 			return watchEndedMsg{id: id, err: err}
 		}
@@ -141,16 +168,28 @@ func (m Model) watchScreen() tea.Cmd {
 	}
 }
 
-// watchOnVersion opens the stream of a screen whose topics need to know the
-// version of the cluster, which arrives after the screen asked. A screen of
-// older topics has its stream on the way already.
+// watchOnVersion opens the stream of a screen that has answered, once the
+// version its topics need arrives. Before the first answer, the answer opens
+// it; a screen whose topics need no version opened it on its answer.
 func (m Model) watchOnVersion() tea.Cmd {
 	topics := m.screen.page.topics()
-	if m.watch.live() || nomad.Streams("", topics) {
+	if m.watch.due || m.watch.live() || nomad.Streams("", topics) {
 		return nil
 	}
 
 	return m.watchScreen()
+}
+
+// watchOnAnswer opens the stream of a screen on its first answer, from what
+// the answer read.
+func (m Model) watchOnAnswer() (Model, tea.Cmd) {
+	if !m.watch.due {
+		return m, nil
+	}
+
+	m.watch.due = false
+
+	return m, m.watchScreen()
 }
 
 // waitForChange waits for the next message on the stream.

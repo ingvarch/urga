@@ -59,6 +59,7 @@ func TestServices_EnterOpensTheInstances(t *testing.T) {
 	r.Contains(plain(m.render()), "Service served (default) [3]")
 
 	// The stream watches the services in the namespace of this one.
+	fire(t, m.watchScreen())
 	r.Equal("default", client.watchedNamespace)
 	r.Equal([]string{nomad.TopicService}, client.watchedTopics)
 

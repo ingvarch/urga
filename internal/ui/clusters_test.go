@@ -512,3 +512,20 @@ func TestClusters_AJSONEditPlannedAfterTheSwitchIsKeptAsJSON(t *testing.T) {
 	r.Equal(".json", extension)
 	r.Equal(edited, text)
 }
+
+func TestClusters_AnAnswerOfTheClusterLeftOpensNoStream(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+	clusters.dev.readIndex = map[string]uint64{nomad.TopicJob: 40}
+	clusters.prod.readIndex = map[string]uint64{nomad.TopicJob: 7}
+
+	read := m.fetch()
+
+	m = typeCommand(m, "ctx prod")
+	m, _ = m.update(read())
+
+	r.Zero(clusters.dev.watches)
+	r.Equal(uint64(8), clusters.prod.watchedFrom)
+	r.Equal(map[string]uint64{nomad.TopicJob: 7}, m.watch.read)
+}

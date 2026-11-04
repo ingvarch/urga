@@ -41,6 +41,8 @@ func TestJobMeta_ShowsTheKeysAndValuesOfTheJob(t *testing.T) {
 	// The job's own namespace, not the one the session has open.
 	r.Equal("staging", client.askedNamespace)
 	r.Equal("web", client.askedID)
+
+	fire(t, m.watchScreen())
 	r.Equal("staging", client.watchedNamespace)
 	r.Equal([]string{nomad.TopicJob}, client.watchedTopics)
 }

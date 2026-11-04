@@ -187,7 +187,7 @@ func TestJobs_BatchQueuePositionEndToEnd(t *testing.T) {
 	}
 
 	m := newTestModel(client)
-	m = follow(m, m.fetch(), 3)
+	m = playOut(m, m.fetch())
 
 	out := plain(m.render())
 	r.Contains(out, "batch-1")
@@ -212,7 +212,7 @@ func TestJobs_BatchQueuePositionInPoolPage(t *testing.T) {
 
 	m := newTestModel(client)
 	m, _ = m.update(openMsg{jobsPage{pool: "gpu"}})
-	m = follow(m, m.fetch(), 3)
+	m = playOut(m, m.fetch())
 
 	out := plain(m.render())
 	r.Contains(out, "gpu-batch")
