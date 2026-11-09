@@ -2,8 +2,13 @@ package nomad_test
 
 import (
 	"context"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -130,4 +135,42 @@ func TestFind_TheReasonOfTheCluster(t *testing.T) {
 
 	_, err = client.Find(context.Background(), "w")
 	r.ErrorContains(err, "at least 2 characters")
+}
+
+// A kind left out of MatchKinds compiles, and the screens that go over the
+// list miss it.
+func TestMatchKinds_NameEveryKind(t *testing.T) {
+	r := require.New(t)
+
+	file, err := parser.ParseFile(token.NewFileSet(), "search.go", nil, 0)
+	r.NoError(err)
+
+	var declared []string
+
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+
+		for _, spec := range gen.Specs {
+			value := spec.(*ast.ValueSpec)
+			for i, name := range value.Names {
+				if !strings.HasPrefix(name.Name, "Match") || i >= len(value.Values) {
+					continue
+				}
+
+				lit, ok := value.Values[i].(*ast.BasicLit)
+				r.True(ok, "%s is not a literal", name.Name)
+
+				kind, err := strconv.Unquote(lit.Value)
+				r.NoError(err)
+
+				declared = append(declared, kind)
+			}
+		}
+	}
+
+	r.NotEmpty(declared)
+	r.ElementsMatch(declared, nomad.MatchKinds)
 }

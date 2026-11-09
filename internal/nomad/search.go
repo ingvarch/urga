@@ -31,6 +31,13 @@ const (
 	MatchDeployment = "deployment"
 )
 
+// MatchKinds are all the kinds a search finds.
+var MatchKinds = []string{
+	MatchJob, MatchGroup, MatchTask, MatchService, MatchImage, MatchCommand, MatchClass,
+	MatchAlloc, MatchNode, MatchPool, MatchNamespace, MatchVariable, MatchVolume,
+	MatchHostVolume, MatchPlugin, MatchEval, MatchDeployment,
+}
+
 // Match is one thing a search found: what it is called, and what opens it.
 type Match struct {
 	Kind, Name string
