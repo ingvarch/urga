@@ -166,15 +166,17 @@ func TestChart_KeepsWhatFits(t *testing.T) {
 	r.NotEmpty(lineOn(rows[7]), plain(rows[7]))
 }
 
-func TestChart_ThePlotIsRuledBehindTheLine(t *testing.T) {
+func TestChart_TheGridRulesTheRowsOfTheScale(t *testing.T) {
 	r := require.New(t)
 
-	// A reading near the floor leaves the rows above it to the grid, which
-	// rules every one of them and is no part of the line.
+	// A reading near the floor leaves the rows above it to the grid. It
+	// rules the rows the scale names, leaves the rows between them bare,
+	// and is no part of the line.
 	rows := aChart(1).render(30, 13)
 
 	for _, row := range rows[1:13] {
-		r.Contains(plain(row), "─")
+		named := strings.Contains(plain(row), "%")
+		r.Equal(named, strings.Contains(plain(row), "─"), plain(row))
 		r.Empty(lineOn(row), plain(row))
 	}
 }
