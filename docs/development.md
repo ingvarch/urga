@@ -8,8 +8,8 @@ sent is in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 - Go, the version named in `go.mod`.
 - Nomad, for a local dev agent to point urga at.
-- golangci-lint, the version named in `.tool-versions`, which CI lints with.
-  `make lint` fails when it is not installed.
+- golangci-lint, the latest release, which CI lints with. `make lint` fails
+  when it is not installed.
 - goreleaser, the version named in `.tool-versions`, for `make dist` only.
 - nomad, tmux, curl and freeze, for `make screens` only.
 

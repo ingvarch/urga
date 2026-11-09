@@ -163,10 +163,50 @@ func TestWorkflows_UseActionsThatAreStillThere(t *testing.T) {
 	}
 
 	for name, content := range workflows(t) {
-		for _, action := range retired {
-			r.NotContains(content, action, name)
+		for _, used := range actionsUsed(content) {
+			r.NotContains(retired, used.name+"@"+used.major, name)
 		}
 	}
+}
+
+func TestWorkflows_PinActionsByCommit(t *testing.T) {
+	r := require.New(t)
+
+	commit := regexp.MustCompile(`^[0-9a-f]{40}$`)
+
+	for name, content := range workflows(t) {
+		uses := actionsUsed(content)
+		r.NotEmpty(uses, name)
+
+		// A tag can be moved to another commit, and the release job hands
+		// its secrets to what it runs. The comment names the version for
+		// Dependabot and for the reader.
+		for _, used := range uses {
+			r.Regexp(commit, used.ref, "%s: %s", name, used.name)
+			r.NotEmpty(used.major, "%s: %s has no version comment", name, used.name)
+		}
+	}
+}
+
+// action is a step's `uses:`: the action, the ref it is run at, and the
+// major version, read from the comment after a commit.
+type action struct{ name, ref, major string }
+
+var usesLine = regexp.MustCompile(`uses:\s*([^@\s]+)@(\S+)(?:\s+#\s*(v\d+))?`)
+
+func actionsUsed(content string) []action {
+	var out []action
+
+	for _, m := range usesLine.FindAllStringSubmatch(content, -1) {
+		major := m[3]
+		if major == "" && strings.HasPrefix(m[2], "v") {
+			major, _, _ = strings.Cut(m[2], ".")
+		}
+
+		out = append(out, action{name: m[1], ref: m[2], major: major})
+	}
+
+	return out
 }
 
 func TestMakefile_DistBuildsWhatTheReleaseBuilds(t *testing.T) {

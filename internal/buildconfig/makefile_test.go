@@ -42,7 +42,7 @@ func lintWith(t *testing.T, version string) (string, error) {
 func TestCI_LintsWithTheLatestLinter(t *testing.T) {
 	// A pinned version falls behind, and then the linter on the machine of
 	// whoever runs make check finds what CI does not.
-	require.Regexp(t, `golangci/golangci-lint-action@\S+\s+with:\s+version:\s*latest\s`, workflows(t)["ci.yml"])
+	require.Regexp(t, `golangci/golangci-lint-action@\S+(\s+#.*)?\s+with:\s+version:\s*latest\s`, workflows(t)["ci.yml"])
 }
 
 func TestMakefile_LintFailsWithoutTheLinter(t *testing.T) {
