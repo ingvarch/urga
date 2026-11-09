@@ -209,6 +209,97 @@ func TestText_AStreamKeepsItsLastLines(t *testing.T) {
 	r.Equal(maxTextLines, len(text.stamps))
 }
 
+// sizedLines are n lines of size bytes, each starting with its place, from
+// first on.
+func sizedLines(first, n, size int) []string {
+	lines := make([]string, 0, n)
+	for i := first; i < first+n; i++ {
+		place := fmt.Sprintf("%02d ", i)
+		lines = append(lines, place+strings.Repeat("x", size-len(place)))
+	}
+
+	return lines
+}
+
+// bytesOf is the bytes of the lines.
+func bytesOf(lines []string) int {
+	n := 0
+	for _, line := range lines {
+		n += len(line)
+	}
+
+	return n
+}
+
+func TestText_CountsTheBytesOfItsLines(t *testing.T) {
+	r := require.New(t)
+
+	// A tab is spaces up to the next stop: the text holds more bytes than
+	// it was given.
+	text := textModel{}
+	text.add([]string{"a\tb", "cd"}, arrivedAt, nil, nil)
+	r.Equal(7, text.size)
+
+	r.True(text.addBefore([]string{"\tx"}))
+	r.Equal(bytesOf(text.lines), text.size)
+
+	// Lines past maxTextLines leave with their bytes.
+	text.add(linesFrom(0, maxTextLines), arrivedAt, nil, nil)
+	r.Equal(bytesOf(text.lines), text.size)
+}
+
+func TestText_AStreamKeepsItsLastBytes(t *testing.T) {
+	r := require.New(t)
+
+	old := &tag{text: "old │ "}
+	own := &tag{text: "own │ "}
+	bold := lipgloss.NewStyle().Bold(true)
+	quarter := maxTextBytes / 4
+
+	text := textModel{}
+	text.add(sizedLines(0, 1, quarter), arrivedAt.Add(-time.Hour), old, nil)
+
+	// The second line is the first one kept, with what it came with.
+	text.add(sizedLines(1, 1, quarter), arrivedAt, own, &bold)
+	text.add(sizedLines(2, 3, quarter), arrivedAt.Add(time.Hour), old, nil)
+
+	r.Equal(4, len(text.lines))
+	r.True(strings.HasPrefix(text.lines[0], "01 "))
+	r.True(strings.HasPrefix(text.lines[3], "04 "))
+	r.Equal(1, text.dropped)
+	r.Equal(5, text.total())
+	r.Equal(bytesOf(text.lines), text.size)
+
+	r.Equal(arrivedAt, text.stampAt(0))
+	r.Same(own, text.tagAt(0))
+	r.Same(&bold, text.paintAt(0))
+	r.Same(old, text.tagAt(1))
+	r.Nil(text.paintAt(1))
+	r.Len(text.stamps, 4)
+	r.Len(text.tags, 4)
+	r.Len(text.paint, 4)
+}
+
+func TestText_KeepsItsNewestLineEvenOverTheByteLimit(t *testing.T) {
+	r := require.New(t)
+
+	text := textModel{}
+	text.add([]string{"first", strings.Repeat("x", maxTextBytes+1)}, arrivedAt, nil, nil)
+
+	r.Equal(1, len(text.lines))
+	r.Equal(maxTextBytes+1, len(text.lines[0]))
+	r.Equal(1, text.dropped)
+	r.Len(text.stamps, 1)
+
+	// The next line takes its place.
+	text.add([]string{"next"}, arrivedAt, nil, nil)
+
+	r.Equal(1, len(text.lines))
+	r.Equal("next", text.lines[0])
+	r.Equal(2, text.dropped)
+	r.Equal(4, text.size)
+}
+
 func TestText_ALongTextHasItsFrontDroppedWithoutMissingRows(t *testing.T) {
 	text := textModel{wrap: true, filter: "5"}
 	text.setSize(8, 6)

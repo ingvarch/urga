@@ -84,6 +84,11 @@ type rowCache struct {
 // or more.
 const maxTextLines = 50_000
 
+// maxTextBytes is how many bytes the lines of a text hold at most. A task can
+// write a line of 64 KiB, and 50,000 of them would take gigabytes. 50,000 lines
+// of up to 1.3 KiB still fit.
+const maxTextBytes = 64 << 20
+
 // textContent is what a text holds, apart from how it is shown: a text page
 // keeps it, and the root model keeps the window over it.
 type textContent struct {
@@ -92,6 +97,9 @@ type textContent struct {
 	id *textID
 
 	lines []string
+
+	// size is the bytes of lines.
+	size int
 
 	// dropped are the lines taken off the front so far.
 	dropped int
@@ -167,7 +175,9 @@ func (t *textContent) add(lines []string, arrived time.Time, label *tag, style *
 	}
 
 	for _, line := range lines {
-		t.lines = append(t.lines, cleanLine(line))
+		clean := cleanLine(line)
+		t.lines = append(t.lines, clean)
+		t.size += len(clean)
 		t.stamps = append(t.stamps, arrived)
 
 		if tagged {
@@ -191,23 +201,39 @@ func (t *textContent) addChunk(lines []string, old int, arrived time.Time, label
 	t.add(lines[old:], arrived, label, style)
 }
 
-// addBefore puts lines read from before the text in front of it. They have
-// no time, tag or style, and the text gets a new id so that its rows are drawn
-// afresh: the kept ones would take the new lines as added at the end. The
-// caller keeps the text under the limit, so none are dropped.
-func (t *textContent) addBefore(lines []string) {
-	n := len(lines)
+// addBefore puts lines read from before the text in front of it, and says
+// whether they fit under the limits of the text: lines that do not fit are
+// not added, since they would be the first ones dropped. They have no time,
+// tag or style, and the text gets a new id so that its rows are drawn afresh:
+// the kept ones would take the new lines as added at the end.
+func (t *textContent) addBefore(lines []string) bool {
+	n, size := len(lines), t.size
 	front := make([]string, 0, n+len(t.lines))
 
 	for _, line := range lines {
-		front = append(front, cleanLine(line))
+		clean := cleanLine(line)
+		front = append(front, clean)
+		size += len(clean)
 	}
 
-	t.lines = append(front, t.lines...)
+	if n+len(t.lines) > maxTextLines || size > maxTextBytes {
+		return false
+	}
+
+	t.lines, t.size = append(front, t.lines...), size
 	t.stamps = fronted(t.stamps, n, len(t.lines)-n)
 	t.tags = fronted(t.tags, n, len(t.lines)-n)
 	t.paint = fronted(t.paint, n, len(t.lines)-n)
 	t.id = &textID{}
+
+	return true
+}
+
+// full says no lines can be put in front of the text: it holds as many lines
+// or bytes as it keeps, or it dropped lines and no longer starts where the
+// lines before it end.
+func (t textContent) full() bool {
+	return t.dropped > 0 || len(t.lines) >= maxTextLines || t.size >= maxTextBytes
 }
 
 // fronted puts n unset items in front of s, after growing it to total items.
@@ -220,11 +246,21 @@ func fronted[T any](s []T, n, total int) []T {
 	return append(make([]T, n), grown(s, total)...)
 }
 
-// dropOld takes the lines past maxTextLines off the front. The slices are cut,
+// dropOld takes lines off the front while there are more than maxTextLines
+// or more than maxTextBytes, and keeps the newest line. The slices are cut,
 // not copied: the next append grows them anew and frees the old front.
 func (t *textContent) dropOld() {
-	n := len(t.lines) - maxTextLines
-	if n <= 0 {
+	n := max(0, len(t.lines)-maxTextLines)
+	for _, line := range t.lines[:n] {
+		t.size -= len(line)
+	}
+
+	for n < len(t.lines)-1 && t.size > maxTextBytes {
+		t.size -= len(t.lines[n])
+		n++
+	}
+
+	if n == 0 {
 		return
 	}
 
