@@ -124,6 +124,27 @@ func TestQueue_TenantsPanel(t *testing.T) {
 	r.Contains(out, "256 MB")
 }
 
+func TestQueue_FailedTenantsReadShowsTheError(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		queueWorkloads: map[string][]nomad.QueueWorkload{
+			"gpu": {
+				{JobID: "job-1", Namespace: "default", Pool: "gpu", QueueType: "dynamic priority", Status: "placing", Position: 0},
+			},
+		},
+		queueStatusErr: errors.New("tenants read failed"),
+		changes:        newChanges(),
+	}
+
+	m, _ := sessionModel(t, client)
+	m, _ = m.update(openMsg{queuePage{pool: "gpu", queueType: "dynamic priority"}})
+	m = playOut(m, m.fetch())
+
+	r.Contains(plain(m.render()), "job-1")
+	r.Contains(plain(statusLine(m)), "tenants read failed")
+}
+
 func TestQueue_TenantsPanelOmittedWithoutOperatorRead(t *testing.T) {
 	r := require.New(t)
 

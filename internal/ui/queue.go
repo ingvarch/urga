@@ -260,7 +260,7 @@ func fetchPoolStatus(client Client, pool string) tea.Cmd {
 
 		tenants, err := client.BatchQueueStatus(ctx, pool)
 		if err != nil {
-			return nil
+			return errMsg{err: err}
 		}
 
 		return queueTenantsMsg{pool: pool, tenants: tenants}
