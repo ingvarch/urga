@@ -266,6 +266,50 @@ func fetchPoolStatus(client Client, pool string) tea.Cmd {
 	}
 }
 
+// poolQueues is what the queues of the node pools hold.
+type poolQueues struct {
+	items []nomad.QueueWorkload
+
+	// none says no node pool has a queue.
+	none bool
+
+	// failed is the error of the first pool whose queue could not be read.
+	// Its workloads are left out of items.
+	failed error
+}
+
+// readPoolQueues reads the queue of every node pool that has one. A cluster
+// without queues ends the read with nomad.ErrQueueUnsupported.
+func readPoolQueues(ctx context.Context, client Client) (poolQueues, error) {
+	pools, err := client.NodePools(ctx)
+	if err != nil {
+		return poolQueues{}, err
+	}
+
+	q := poolQueues{none: true}
+
+	for _, p := range pools {
+		if p.Queue == "" {
+			continue
+		}
+		q.none = false
+
+		items, err := client.BatchQueueJobs(ctx, p.Name)
+		switch {
+		case errors.Is(err, nomad.ErrQueueUnsupported):
+			return poolQueues{}, err
+		case err != nil:
+			if q.failed == nil {
+				q.failed = err
+			}
+		default:
+			q.items = append(q.items, items...)
+		}
+	}
+
+	return q, nil
+}
+
 func fetchAllQueues(client Client) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -273,7 +317,7 @@ func fetchAllQueues(client Client) tea.Cmd {
 
 		ctx, reads := nomad.WithReads(ctx)
 
-		pools, err := client.NodePools(ctx)
+		q, err := readPoolQueues(ctx, client)
 		if err != nil {
 			if errors.Is(err, nomad.ErrQueueUnsupported) {
 				return queueUnsupportedMsg{}
@@ -282,44 +326,21 @@ func fetchAllQueues(client Client) tea.Cmd {
 			return errMsg{err: err}
 		}
 
-		var all []nomad.QueueWorkload
-		hasQueue, failed := false, false
-
-		for _, p := range pools {
-			if p.Queue == "" {
-				continue
-			}
-			hasQueue = true
-
-			items, err := client.BatchQueueJobs(ctx, p.Name)
-			if err != nil {
-				if errors.Is(err, nomad.ErrQueueUnsupported) {
-					return queueUnsupportedMsg{}
-				}
-
-				failed = true
-
-				continue
-			}
-
-			all = append(all, items...)
-		}
-
-		if !hasQueue {
+		if q.none {
 			if _, err := client.BatchQueueJobs(ctx, "default"); errors.Is(err, nomad.ErrQueueUnsupported) {
 				return queueUnsupportedMsg{}
 			}
 		}
 
-		sortQueueWorkloads(all)
+		sortQueueWorkloads(q.items)
 
 		// The page shows nothing of a pool that failed, so it has no read
 		// index of the jobs.
-		if failed {
-			return queueItemsMsg{items: all}
+		if q.failed != nil {
+			return queueItemsMsg{items: q.items}
 		}
 
-		return withReads(queueItemsMsg{items: all}, reads)
+		return withReads(queueItemsMsg{items: q.items}, reads)
 	}
 }
 
