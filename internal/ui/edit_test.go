@@ -582,3 +582,16 @@ func TestEdit_TheFileThatKeepsALateEditFitsOnTheStatusLine(t *testing.T) {
 		})
 	}
 }
+
+func TestFill_AFailedWriteLeavesNoFile(t *testing.T) {
+	r := require.New(t)
+
+	file, err := os.CreateTemp(tempDir(t), "urga-*.hcl")
+	r.NoError(err)
+	r.NoError(file.Close())
+
+	r.Error(fill(file, "secret"))
+
+	_, err = os.Stat(file.Name())
+	r.ErrorIs(err, os.ErrNotExist)
+}
