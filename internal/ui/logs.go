@@ -448,9 +448,9 @@ func (m Model) logToggles(width int) string {
 		press, name string
 		on          bool
 	}{
-		{"s", "Autoscroll", m.text.following},
-		{"t", "Timestamps", m.text.times},
-		{"w", "Wrap", m.text.wrap},
+		{followPress, "Autoscroll", m.text.following},
+		{timesPress, "Timestamps", m.text.times},
+		{wrapPress, "Wrap", m.text.wrap},
 	}
 
 	cells := make([]string, 0, len(toggles))

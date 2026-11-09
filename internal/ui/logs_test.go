@@ -739,3 +739,13 @@ func TestLogs_ASwitchOfTheSessionLeavesTheLogAsItIs(t *testing.T) {
 	r.True(m.text.wrap)
 	r.False(client.logsClosed, "the log was closed to be read again")
 }
+
+// The toggle line asks for the keys by their letters: a key that took another
+// letter would leave its toggle off the line.
+func TestLogToggles_AskForTheKeysOfTheToggles(t *testing.T) {
+	r := require.New(t)
+
+	r.Equal(followPress, followKey[logsPage]().press)
+	r.Equal(timesPress, timesKey[logsPage]().press)
+	r.Equal(wrapPress, wrapKey[logsPage]().press)
+}

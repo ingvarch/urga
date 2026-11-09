@@ -424,7 +424,14 @@ func findWordKeys[P page]() []pageKey[P] {
 	}
 }
 
-func wrapKey[P page]() pageKey[P] { return windowKey[P]("w", "Toggle Wrap", wrapMsg{}) }
+// The keys of the toggles of the window, which its toggle line names too.
+const (
+	followPress = "s"
+	timesPress  = "t"
+	wrapPress   = "w"
+)
+
+func wrapKey[P page]() pageKey[P] { return windowKey[P](wrapPress, "Toggle Wrap", wrapMsg{}) }
 
 func saveKey[P page]() pageKey[P] { return windowKey[P]("ctrl+s", "Save", saveMsg{}) }
 
@@ -433,9 +440,11 @@ func copyTextKey[P page]() pageKey[P] { return windowKey[P]("c", "Copy", copyTex
 // followKey follows the end of what a stream writes, or stops following it
 // where the view is; timesKey shows or hides the time each line of it
 // arrived in front of the line.
-func followKey[P page]() pageKey[P] { return windowKey[P]("s", "Toggle Autoscroll", followMsg{}) }
+func followKey[P page]() pageKey[P] {
+	return windowKey[P](followPress, "Toggle Autoscroll", followMsg{})
+}
 
-func timesKey[P page]() pageKey[P] { return windowKey[P]("t", "Toggle Timestamps", timesMsg{}) }
+func timesKey[P page]() pageKey[P] { return windowKey[P](timesPress, "Toggle Timestamps", timesMsg{}) }
 
 // windowKey is a key of the window over a text, which the root holds.
 func windowKey[P page](press, label string, msg tea.Msg) pageKey[P] {
