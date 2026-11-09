@@ -326,8 +326,6 @@ func newJob(stub *api.JobListStub) Job {
 	return job
 }
 
-// unixTime reads a Nomad timestamp. Nomad says "never" with a zero, which is
-// not 1970: a job with no submit time would read as twenty thousand days old.
 // valueOf is what a field the cluster may leave out holds: the zero value
 // when it is left out.
 func valueOf[T any](value *T) T {
@@ -340,6 +338,8 @@ func valueOf[T any](value *T) T {
 	return *value
 }
 
+// unixTime reads a Nomad timestamp. Nomad says "never" with a zero, which is
+// not 1970: a job with no submit time would read as twenty thousand days old.
 func unixTime(nanos int64) time.Time {
 	if nanos == 0 {
 		return time.Time{}
