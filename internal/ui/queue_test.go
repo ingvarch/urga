@@ -15,16 +15,16 @@ func TestQueue_ListsQueuedJobsOfEveryPool(t *testing.T) {
 
 	client := &fakeClient{
 		nodePools: []nomad.NodePool{
-			{Name: "batch-1", Queue: "fifo"},
-			{Name: "batch-2", Queue: "fifo"},
+			{Name: "batch-1", Queue: nomad.QueueFifo},
+			{Name: "batch-2", Queue: nomad.QueueFifo},
 			{Name: "default", Queue: ""},
 		},
 		queueWorkloads: map[string][]nomad.QueueWorkload{
 			"batch-1": {
-				{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: "fifo", Status: "queued", Position: 1, CreatedAt: time.Now().Add(-10 * time.Minute)},
+				{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: nomad.QueueFifo, Status: "queued", Position: 1, CreatedAt: time.Now().Add(-10 * time.Minute)},
 			},
 			"batch-2": {
-				{JobID: "job-a", Namespace: "default", Pool: "batch-2", QueueType: "fifo", Status: "placing", Position: 0, CreatedAt: time.Now().Add(-20 * time.Minute)},
+				{JobID: "job-a", Namespace: "default", Pool: "batch-2", QueueType: nomad.QueueFifo, Status: "placing", Position: 0, CreatedAt: time.Now().Add(-20 * time.Minute)},
 			},
 		},
 	}
@@ -56,7 +56,7 @@ func TestQueue_DynamicPriorityColumns(t *testing.T) {
 					JobID:               "dyn-1",
 					Namespace:           "default",
 					Pool:                "gpu",
-					QueueType:           "dynamic priority",
+					QueueType:           nomad.QueueDynamic,
 					Status:              "queued",
 					Position:            0,
 					AdjustedPriority:    105,
@@ -72,7 +72,7 @@ func TestQueue_DynamicPriorityColumns(t *testing.T) {
 	}
 
 	m, _ := sessionModel(t, client)
-	m, _ = m.update(openMsg{queuePage{pool: "gpu", queueType: "dynamic priority"}})
+	m, _ = m.update(openMsg{queuePage{pool: "gpu", queueType: nomad.QueueDynamic}})
 	m = playOut(m, m.fetch())
 
 	out := plain(m.render())
@@ -92,13 +92,27 @@ func TestQueue_DynamicPriorityColumns(t *testing.T) {
 	r.Contains(out, "-5")
 }
 
+func TestQueue_DynamicFromThePoolOrItsWorkloads(t *testing.T) {
+	r := require.New(t)
+
+	opened := func(kind nomad.QueueKind) queuePage { return queuePage{pool: "gpu", queueType: kind} }
+	read := func(kind nomad.QueueKind) queuePage {
+		return queuePage{pool: "gpu", items: []nomad.QueueWorkload{{JobID: "job-1", QueueType: kind}}}
+	}
+
+	r.True(opened(nomad.QueueDynamic).dynamic())
+	r.True(read(nomad.QueueDynamic).dynamic())
+	r.False(opened(nomad.QueueFifo).dynamic())
+	r.False(read(nomad.QueueFifo).dynamic())
+}
+
 func TestQueue_TenantsPanel(t *testing.T) {
 	r := require.New(t)
 
 	client := &fakeClient{
 		queueWorkloads: map[string][]nomad.QueueWorkload{
 			"gpu": {
-				{JobID: "job-1", Namespace: "default", Pool: "gpu", QueueType: "dynamic priority", Status: "placing", Position: 0},
+				{JobID: "job-1", Namespace: "default", Pool: "gpu", QueueType: nomad.QueueDynamic, Status: "placing", Position: 0},
 			},
 		},
 		queueStatus: map[string][]nomad.QueueTenant{
@@ -113,7 +127,7 @@ func TestQueue_TenantsPanel(t *testing.T) {
 	}
 
 	m, _ := sessionModel(t, client)
-	m, _ = m.update(openMsg{queuePage{pool: "gpu", queueType: "dynamic priority"}})
+	m, _ = m.update(openMsg{queuePage{pool: "gpu", queueType: nomad.QueueDynamic}})
 	m = playOut(m, m.fetch())
 
 	out := plain(m.render())
@@ -130,7 +144,7 @@ func TestQueue_FailedTenantsReadShowsTheError(t *testing.T) {
 	client := &fakeClient{
 		queueWorkloads: map[string][]nomad.QueueWorkload{
 			"gpu": {
-				{JobID: "job-1", Namespace: "default", Pool: "gpu", QueueType: "dynamic priority", Status: "placing", Position: 0},
+				{JobID: "job-1", Namespace: "default", Pool: "gpu", QueueType: nomad.QueueDynamic, Status: "placing", Position: 0},
 			},
 		},
 		queueStatusErr: errors.New("tenants read failed"),
@@ -138,7 +152,7 @@ func TestQueue_FailedTenantsReadShowsTheError(t *testing.T) {
 	}
 
 	m, _ := sessionModel(t, client)
-	m, _ = m.update(openMsg{queuePage{pool: "gpu", queueType: "dynamic priority"}})
+	m, _ = m.update(openMsg{queuePage{pool: "gpu", queueType: nomad.QueueDynamic}})
 	m = playOut(m, m.fetch())
 
 	r.Contains(plain(m.render()), "job-1")
@@ -151,14 +165,14 @@ func TestQueue_TenantsPanelOmittedWithoutOperatorRead(t *testing.T) {
 	client := &fakeClient{
 		queueWorkloads: map[string][]nomad.QueueWorkload{
 			"gpu": {
-				{JobID: "job-1", Namespace: "default", Pool: "gpu", QueueType: "dynamic priority", Status: "placing", Position: 0},
+				{JobID: "job-1", Namespace: "default", Pool: "gpu", QueueType: nomad.QueueDynamic, Status: "placing", Position: 0},
 			},
 		},
 		// queueStatus is nil (no operator:read permission / 403)
 	}
 
 	m, _ := sessionModel(t, client)
-	m, _ = m.update(openMsg{queuePage{pool: "gpu", queueType: "dynamic priority"}})
+	m, _ = m.update(openMsg{queuePage{pool: "gpu", queueType: nomad.QueueDynamic}})
 	m = playOut(m, m.fetch())
 
 	out := plain(m.render())
@@ -186,7 +200,7 @@ func TestQueue_EnterOpensJobAllocations(t *testing.T) {
 	r := require.New(t)
 
 	client := &fakeClient{
-		nodePools: []nomad.NodePool{{Name: "batch", Queue: "fifo"}},
+		nodePools: []nomad.NodePool{{Name: "batch", Queue: nomad.QueueFifo}},
 		queueWorkloads: map[string][]nomad.QueueWorkload{
 			"batch": {
 				{JobID: "batch-run", Namespace: "production", Pool: "batch", Status: "queued", Position: 0},
@@ -211,9 +225,9 @@ func TestQueue_KeepsTheReadIndexOfThePoolsAndTheQueue(t *testing.T) {
 	r := require.New(t)
 
 	client := &fakeClient{
-		nodePools: []nomad.NodePool{{Name: "batch-1", Queue: "fifo"}},
+		nodePools: []nomad.NodePool{{Name: "batch-1", Queue: nomad.QueueFifo}},
 		queueWorkloads: map[string][]nomad.QueueWorkload{
-			"batch-1": {{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: "fifo", Status: "queued"}},
+			"batch-1": {{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: nomad.QueueFifo, Status: "queued"}},
 		},
 		readIndex: map[string]uint64{nomad.TopicNodePool: 9, nomad.TopicJob: 4},
 	}
@@ -230,9 +244,9 @@ func TestQueue_APoolThatFailedLeavesNoReadIndexOfTheJobs(t *testing.T) {
 
 	client := &fakeClient{
 		changes:   newChanges(),
-		nodePools: []nomad.NodePool{{Name: "batch-1", Queue: "fifo"}, {Name: "batch-2", Queue: "fifo"}},
+		nodePools: []nomad.NodePool{{Name: "batch-1", Queue: nomad.QueueFifo}, {Name: "batch-2", Queue: nomad.QueueFifo}},
 		queueWorkloads: map[string][]nomad.QueueWorkload{
-			"batch-1": {{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: "fifo", Status: "queued"}},
+			"batch-1": {{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: nomad.QueueFifo, Status: "queued"}},
 		},
 		queueErrs: map[string]error{"batch-2": errors.New("timeout")},
 		readIndex: map[string]uint64{nomad.TopicNodePool: 9, nomad.TopicJob: 4},
@@ -254,13 +268,13 @@ func TestQueue_KeepsTheReadIndexOfTheQueueOfAPool(t *testing.T) {
 
 	client := &fakeClient{
 		queueWorkloads: map[string][]nomad.QueueWorkload{
-			"batch-1": {{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: "fifo", Status: "queued"}},
+			"batch-1": {{JobID: "job-b", Namespace: "prod", Pool: "batch-1", QueueType: nomad.QueueFifo, Status: "queued"}},
 		},
 		readIndex: map[string]uint64{nomad.TopicJob: 4},
 	}
 
 	m, _ := sessionModel(t, client)
-	m, _ = m.update(openMsg{queuePage{pool: "batch-1", queueType: "fifo"}})
+	m, _ = m.update(openMsg{queuePage{pool: "batch-1", queueType: nomad.QueueFifo}})
 	m = playOut(m, m.fetch())
 
 	r.Contains(plain(m.render()), "job-b")

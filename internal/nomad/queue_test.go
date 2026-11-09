@@ -43,7 +43,7 @@ func TestBatchQueueJobs_Fifo(t *testing.T) {
 	r.Equal("job-1", workloads[0].JobID)
 	r.Equal("default", workloads[0].Namespace)
 	r.Equal("batch", workloads[0].Pool)
-	r.Equal("fifo", workloads[0].QueueType)
+	r.Equal(nomad.QueueFifo, workloads[0].QueueType)
 	r.Equal(0, workloads[0].Position)
 	r.Equal("placing", workloads[0].Status)
 	r.Equal(time.Unix(0, 1729500000000000000), workloads[0].CreatedAt)
@@ -53,6 +53,34 @@ func TestBatchQueueJobs_Fifo(t *testing.T) {
 	r.Equal("batch", workloads[1].Pool)
 	r.Equal(1, workloads[1].Position)
 	r.Equal("queued", workloads[1].Status)
+}
+
+// The kind of a queue reads the same from the pool and from its workloads:
+// the cluster spells it one way in the config and another in the answer.
+func TestQueueKind_OfAPoolIsTheKindOfItsWorkloads(t *testing.T) {
+	cases := map[nomad.QueueKind]struct{ config, answer string }{
+		nomad.QueueFifo:    {config: `{"Fifo": {}}`, answer: "fifo"},
+		nomad.QueueDynamic: {config: `{"DynamicPriority": {}}`, answer: "dynamic_priority"},
+	}
+
+	for kind, c := range cases {
+		t.Run(string(kind), func(t *testing.T) {
+			r := require.New(t)
+			ctx := context.Background()
+
+			pools, _ := recorder(t, `[{"Name": "batch", "BatchQueueConfig": `+c.config+`}]`)
+			pool, err := pools.NodePools(ctx)
+			r.NoError(err)
+
+			queue, _ := recorder(t, `{"Type": "`+c.answer+`", "Workloads": [{"JobID": "job-1", "Namespace": "default", "Status": "queued"}]}`)
+			workloads, err := queue.BatchQueueJobs(ctx, "batch")
+			r.NoError(err)
+			r.Len(workloads, 1)
+
+			r.Equal(kind, pool[0].Queue)
+			r.Equal(kind, workloads[0].QueueType)
+		})
+	}
 }
 
 func TestBatchQueueJobs_DynamicPriority(t *testing.T) {
@@ -93,7 +121,7 @@ func TestBatchQueueJobs_DynamicPriority(t *testing.T) {
 	r.Equal("dyn-job", w.JobID)
 	r.Equal("prod", w.Namespace)
 	r.Equal("gpu", w.Pool)
-	r.Equal("dynamic_priority", w.QueueType)
+	r.Equal(nomad.QueueDynamic, w.QueueType)
 	r.Equal("team-a", w.Tenant)
 	r.Equal(0, w.Position)
 	r.Equal("placing", w.Status)

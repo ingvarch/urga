@@ -43,7 +43,7 @@ func (p nodePoolsPage) rows(env) []tableRow {
 	rows := make([]tableRow, 0, len(p.pools))
 
 	for _, pool := range p.pools {
-		rows = append(rows, tableRow{cells: []string{pool.Name, pool.Scheduler, pool.Queue, pool.Description}})
+		rows = append(rows, tableRow{cells: []string{pool.Name, pool.Scheduler, string(pool.Queue), pool.Description}})
 	}
 
 	return rows
