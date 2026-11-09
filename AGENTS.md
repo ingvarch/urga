@@ -1,23 +1,58 @@
 # AGENTS.md
 
-How to work on urga, for any coding agent. CLAUDE.md imports this file.
+urga is a terminal UI for HashiCorp Nomad: one Go binary, `urga`, that lists
+the resources of a cluster and acts on them. `cmd/urga` starts it,
+`internal/ui` is the interface on Bubble Tea v2 and Lipgloss v2, and
+`internal/nomad` talks to the cluster through `github.com/hashicorp/nomad/api`.
+Every change starts with a failing test, keeps the architecture rules below
+and leaves `make check` green. The interface is English only, with no
+translation layer and no plan for one: user-visible strings are literals
+where they are used.
 
-## What urga is
+- [CONTRIBUTING.md](CONTRIBUTING.md): read before writing a change. It has
+  the test-first rule, the comment style, commit and PR titles, the checks a
+  PR needs and how releases are published.
+- [docs/development.md](docs/development.md): read before building, running
+  urga against a local cluster or running the checks. It has the
+  prerequisites, the dev agent, the make targets and the project structure.
+- [docs/keys.md](docs/keys.md): read before adding or changing a key or a
+  command. It has the command line, the overview, find, events, sort, the
+  filter and the keys of every screen.
+- [docs/configuration.md](docs/configuration.md): read before changing a
+  flag, an environment variable, read-only mode, the token, the update check,
+  the editor, how screens poll and follow the event stream, or the saved
+  session.
+- [docs/clusters.md](docs/clusters.md): read before changing the settings
+  file or switching clusters. It has where the file is, its settings, tokens,
+  certificates and its errors.
+- [docs/jobs.md](docs/jobs.md): read before changing a screen of jobs. It has
+  periodic and parameterized jobs, task groups and scaling, editing and plans,
+  versions, evaluations, deployments and watching a deploy.
+- [docs/allocations.md](docs/allocations.md): read before changing a screen
+  of allocations or tasks. It has checks, task actions, logs and files.
+- [docs/clients.md](docs/clients.md): read before changing a screen of
+  clients, servers, agent logs, the scheduler, namespaces, services,
+  variables or node pools.
+- [docs/storage.md](docs/storage.md): read before changing a screen of
+  volumes or CSI plugins.
+- [docs/acl.md](docs/acl.md): read before changing a screen of ACL tokens,
+  policies, roles, auth methods or binding rules.
+- [docs/install.md](docs/install.md): read before changing the release config
+  or the packages. It has each way to install urga and the platforms the
+  release builds for.
 
-A terminal UI for HashiCorp Nomad: one binary, `urga`, that lists the
-resources of a cluster and acts on them.
+## Commands
 
-The interface is English only, with no translation layer and no plan for one.
-User-visible strings are literals where they are used.
+`make check` runs the tests without the race detector. CI also runs them with
+it, on Linux, macOS and Windows:
 
-## Stack
+```sh
+go test -race ./...
+```
 
-Go, Bubble Tea v2 for the program loop, Lipgloss v2 for styles and
-`github.com/hashicorp/nomad/api` for the cluster. Charm's v2 modules are
-imported from `charm.land/bubbletea/v2` and `charm.land/lipgloss/v2`: their
-GitHub paths resolve to v1, which does not build against this code.
+## Rules
 
-## Architecture rules
+### Architecture rules
 
 These are settled, not open for redesign per change. A change that needs to
 break one starts as an issue. Each comes from a fork of hashicorp/damon, where
@@ -51,32 +86,23 @@ the opposite caused a bug that took hours to find.
    a cursor row that reads. A cell color nested inside a highlight leaves the
    row unreadable, so the cursor row is painted end to end.
 
-## Code from elsewhere
+### Code
 
-The code is written here. hashicorp/damon is MPL-2.0 with an IBM copyright
-header in every file: carry over its decisions and lessons, and write the
-code from scratch. The same holds for any project under a license other
-than MIT.
-
-## Process
-
-- TDD: a failing test that names the behaviour comes first, then the smallest
-  code that passes it. Small functions too.
-- `make check` (fmt, vet, lint, licenses, test, build) is green before every
-  commit. It needs `golangci-lint`, the latest release, which CI lints with.
+- Charm's v2 modules are imported from `charm.land/bubbletea/v2` and
+  `charm.land/lipgloss/v2`: their GitHub paths resolve to v1, which does not
+  build against this code.
+- The code is written here. hashicorp/damon is MPL-2.0 with an IBM copyright
+  header in every file: carry over its decisions and lessons, and write the
+  code from scratch. The same holds for any project under a license other
+  than MIT.
 - A test in `internal/ui` whose code writes a temporary file calls
   `tempDir(t)` (`internal/ui/edit_test.go`). It points TMPDIR, TMP and TEMP
   at the test's own directory, so the file goes away with the test.
-- Commit messages and PR titles are conventional commits, with the part of
-  urga as the scope: `feat(ui): ...`, `fix(nomad): ...`, `chore(ci): ...`.
-  A PR body fills `.github/pull_request_template.md`.
-- Commits and PRs carry no AI attribution: no `Co-Authored-By` for an
-  assistant, no "Generated with".
-- Releases are the maintainer's: only they push a `vX.Y.Z` tag.
+- A change a user can see updates, in the same commit, the guide in `docs/`
+  that describes it.
 
-## Comments
+### Comments
 
-- Short, and they say why. What the line does is left to the line.
 - Plain words that name what the code does ("closes the stream", "drops the
   answer", "shows the error"), not figures of speech ("lets go of it", "says
   so"). The terms of the code stay as they are: page, screen, stack, ask,
@@ -85,3 +111,8 @@ than MIT.
   other program it resembles: not "the way k9s does it".
 - Existing comments stay. A comment goes only together with the code it
   describes.
+
+### Commits and releases
+
+- A PR body fills `.github/pull_request_template.md`.
+- Releases are the maintainer's: only they push a `vX.Y.Z` tag.
