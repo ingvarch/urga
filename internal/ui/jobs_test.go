@@ -276,10 +276,32 @@ func TestJobs_NoQueueOnTheClusterShowsNothing(t *testing.T) {
 	r.Empty(m.flash.text)
 }
 
+func TestJobs_OnePollReadsTheQueueOnce(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		jobs:      pendingBatch(),
+		nodePools: []nomad.NodePool{{Name: "batch", Queue: "fifo"}},
+		queueWorkloads: map[string][]nomad.QueueWorkload{
+			"batch": {{JobID: "batch-1", Namespace: "default", Status: "queued", Position: 0}},
+		},
+		changes: newChanges(),
+	}
+
+	m := newTestModel(client)
+	m = playOut(m, m.fetch())
+
+	// The position comes with the first answer, without waiting for a poll.
+	r.Contains(plain(m.render()), "queued 1")
+	r.Equal(1, client.queueReads)
+
+	playOut(m, m.fetch())
+	r.Equal(2, client.queueReads)
+}
+
 func TestJobs_NoPendingBatchDoesNotFetchQueue(t *testing.T) {
 	r := require.New(t)
 
-	called := false
 	client := &fakeClient{
 		jobs: []nomad.Job{
 			{ID: "svc-1", Name: "svc-1", Namespace: "default", Type: "service", Status: "pending"},
@@ -290,7 +312,7 @@ func TestJobs_NoPendingBatchDoesNotFetchQueue(t *testing.T) {
 	m := newTestModel(client)
 	m = follow(m, m.fetch(), 3)
 
-	r.False(called)
+	r.Zero(client.queueReads)
 	out := plain(m.render())
 	r.Contains(out, "svc-1")
 	r.Contains(out, "pending")

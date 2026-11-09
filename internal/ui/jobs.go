@@ -84,8 +84,8 @@ func (p jobsPage) unread() page   { return jobsPage{fault: p.fault} }
 func (jobsPage) topics() []string { return []string{nomad.TopicJob} }
 
 // fetch reads the jobs, and when the page lists the launches of a periodic
-// job, when it launches next. It also polls the batch queue for any pending
-// batch jobs.
+// job, when it launches next. The batch queue is read once the jobs are in,
+// by take.
 func (p jobsPage) fetch(e env) tea.Cmd {
 	client, namespace, pool := e.client, p.where(e), p.pool
 
@@ -100,9 +100,6 @@ func (p jobsPage) fetch(e env) tea.Cmd {
 	cmds := []tea.Cmd{jobs}
 	if p.parent.Periodic {
 		cmds = append(cmds, fetchNextLaunch(client, p.parent))
-	}
-	if p.hasPendingBatch() {
-		cmds = append(cmds, fetchBatchQueue(client, pool))
 	}
 
 	return tea.Batch(cmds...)
