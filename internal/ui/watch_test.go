@@ -879,7 +879,7 @@ func TestWatch_OnlyTheReadOfTheScreenKeepsItsReadIndex(t *testing.T) {
 	m := newTestModel(client)
 
 	jobs := func() tea.Cmd {
-		return fetchList(func(ctx context.Context) ([]nomad.Job, error) {
+		return request(func(ctx context.Context) ([]nomad.Job, error) {
 			return client.Jobs(ctx, "production")
 		}, func(items []nomad.Job) tea.Msg { return jobsMsg(items) })
 	}

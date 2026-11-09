@@ -238,13 +238,13 @@ func keep[T any](items []T, pass func(T) bool) []T {
 }
 
 func fetchRegions(client clusterClient) tea.Cmd {
-	return fetchList(client.Regions, func(names []string) tea.Msg { return regionsMsg(names) })
+	return request(client.Regions, func(names []string) tea.Msg { return regionsMsg(names) })
 }
 
 func fetchDatacenters(client clusterClient) tea.Cmd {
 	region := client.Region()
 
-	return fetchList(client.Datacenters, func(names []string) tea.Msg {
+	return request(client.Datacenters, func(names []string) tea.Msg {
 		return datacentersMsg{region: region, names: names}
 	})
 }

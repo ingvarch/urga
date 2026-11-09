@@ -89,7 +89,7 @@ func (jobsPage) topics() []string { return []string{nomad.TopicJob} }
 func (p jobsPage) fetch(e env) tea.Cmd {
 	client, namespace, pool := e.client, p.where(e), p.pool
 
-	jobs := fetchList(func(ctx context.Context) ([]nomad.Job, error) {
+	jobs := request(func(ctx context.Context) ([]nomad.Job, error) {
 		if pool != "" {
 			return client.PoolJobs(ctx, pool)
 		}

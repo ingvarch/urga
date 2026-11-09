@@ -51,7 +51,7 @@ func (deploymentsPage) topics() []string { return []string{nomad.TopicDeployment
 func (deploymentsPage) fetch(e env) tea.Cmd {
 	client, namespace := e.client, e.namespace
 
-	return fetchList(func(ctx context.Context) ([]nomad.Deployment, error) {
+	return request(func(ctx context.Context) ([]nomad.Deployment, error) {
 		return client.Deployments(ctx, namespace)
 	}, func(items []nomad.Deployment) tea.Msg { return deploymentsMsg(items) })
 }
@@ -287,7 +287,7 @@ func (p deploymentPage) fetch(e env) tea.Cmd {
 	client, namespace, id := e.client, p.namespace, p.deploymentID
 
 	return tea.Batch(
-		fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
+		request(func(ctx context.Context) ([]nomad.Alloc, error) {
 			return client.DeploymentAllocations(ctx, namespace, id)
 		}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
 		fetchDeployment(client, namespace, id),

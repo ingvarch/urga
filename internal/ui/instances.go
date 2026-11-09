@@ -52,7 +52,7 @@ func (servicesPage) topics() []string { return []string{nomad.TopicService} }
 func (servicesPage) fetch(e env) tea.Cmd {
 	client, namespace := e.client, e.namespace
 
-	return fetchList(func(ctx context.Context) ([]nomad.Service, error) {
+	return request(func(ctx context.Context) ([]nomad.Service, error) {
 		return client.Services(ctx, namespace)
 	}, func(items []nomad.Service) tea.Msg { return servicesMsg(items) })
 }
@@ -142,7 +142,7 @@ func (p serviceInstancesPage) where(env) string { return p.namespace }
 func (p serviceInstancesPage) fetch(e env) tea.Cmd {
 	client, namespace, service := e.client, p.namespace, p.service
 
-	return fetchList(func(ctx context.Context) ([]nomad.ServiceInstance, error) {
+	return request(func(ctx context.Context) ([]nomad.ServiceInstance, error) {
 		return client.ServiceInstances(ctx, namespace, service)
 	}, func(items []nomad.ServiceInstance) tea.Msg { return instancesMsg(items) })
 }

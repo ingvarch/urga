@@ -36,7 +36,7 @@ func (pluginsPage) titles() []string { return pluginsTitles }
 func (pluginsPage) topics() []string { return []string{nomad.TopicCSIPlugin} }
 
 func (pluginsPage) fetch(e env) tea.Cmd {
-	return fetchList(e.client.Plugins, func(items []nomad.Plugin) tea.Msg { return pluginsMsg(items) })
+	return request(e.client.Plugins, func(items []nomad.Plugin) tea.Msg { return pluginsMsg(items) })
 }
 
 func (p pluginsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {

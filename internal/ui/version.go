@@ -35,7 +35,7 @@ func (versionsPage) topics() []string { return nil }
 func (p versionsPage) fetch(e env) tea.Cmd {
 	client, namespace, jobID := e.client, p.namespace, p.jobID
 
-	return fetchList(func(ctx context.Context) ([]nomad.JobVersion, error) {
+	return request(func(ctx context.Context) ([]nomad.JobVersion, error) {
 		return client.JobVersions(ctx, namespace, jobID)
 	}, func(items []nomad.JobVersion) tea.Msg {
 		return versionsMsg{jobID: jobID, versions: items}

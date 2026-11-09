@@ -84,7 +84,7 @@ func (aclPage) topics() []string { return nil }
 func (p aclPage) fetch(e env) tea.Cmd {
 	client, kind := e.client, p.kind
 
-	return fetchList(func(ctx context.Context) ([]nomad.ACLObject, error) {
+	return request(func(ctx context.Context) ([]nomad.ACLObject, error) {
 		return client.ACLObjects(ctx, kind)
 	}, func(items []nomad.ACLObject) tea.Msg { return aclMsg{kind: kind, objects: items} })
 }

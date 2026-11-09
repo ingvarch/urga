@@ -234,7 +234,7 @@ func (nodeMetaPage) topics() []string { return nil }
 func (p nodeMetaPage) fetch(e env) tea.Cmd {
 	client, nodeID := e.client, p.nodeID
 
-	return fetchList(func(ctx context.Context) ([]nomad.MetaEntry, error) {
+	return request(func(ctx context.Context) ([]nomad.MetaEntry, error) {
 		return client.NodeMeta(ctx, nodeID)
 	}, func(meta []nomad.MetaEntry) tea.Msg { return nodeMetaMsg{nodeID: nodeID, meta: meta} })
 }

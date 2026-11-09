@@ -34,7 +34,7 @@ func (namespaceTasksPage) topics() []string { return []string{nomad.TopicAllocat
 func (namespaceTasksPage) fetch(e env) tea.Cmd {
 	client, namespace := e.client, e.namespace
 
-	return fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
+	return request(func(ctx context.Context) ([]nomad.Alloc, error) {
 		return client.Allocations(ctx, namespace, "")
 	}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
 }

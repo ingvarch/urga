@@ -374,11 +374,6 @@ func request[T any](load func(ctx context.Context) (T, error), wrap func(T) tea.
 	}
 }
 
-// fetchList is a request for a list of resources.
-func fetchList[T any](load func(ctx context.Context) ([]T, error), wrap func([]T) tea.Msg) tea.Cmd {
-	return request(load, wrap)
-}
-
 // selectedIndex is the resource the cursor is on. The filter shifts the rows,
 // so the row number is not the number of the resource.
 func (m Model) selectedIndex() (int, bool) {

@@ -43,7 +43,7 @@ func (volumesPage) topics() []string {
 func (volumesPage) fetch(e env) tea.Cmd {
 	client, namespace := e.client, e.namespace
 
-	return fetchList(func(ctx context.Context) ([]nomad.Volume, error) {
+	return request(func(ctx context.Context) ([]nomad.Volume, error) {
 		return client.Volumes(ctx, namespace)
 	}, func(items []nomad.Volume) tea.Msg { return volumesMsg(items) })
 }
