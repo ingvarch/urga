@@ -127,7 +127,18 @@ func (t *tableModel) setSize(width, height int) {
 // window past the rows and the table looks empty.
 func (t *tableModel) show(rows []tableRow, order sortState) {
 	t.sort = order
-	t.rows = rows
+	t.rows = make([]tableRow, len(rows))
+
+	// A row built without add holds the cells as the cluster wrote them, and
+	// a line break in one would push the rows under it down.
+	for i, row := range rows {
+		row.cells = slices.Clone(row.cells)
+		for j, cell := range row.cells {
+			row.cells[j] = oneLine(cell)
+		}
+
+		t.rows[i] = row
+	}
 
 	if t.cursor != noRow {
 		t.cursor = max(0, min(t.cursor, len(rows)-1))
