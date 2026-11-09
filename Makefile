@@ -19,11 +19,11 @@ fmt:
 vet:
 	go vet ./...
 
-# CI lints with the latest release. An older linter here passes what CI
-# fails, so keep it updated.
+# CI lints with the version named in .tool-versions. Another version here
+# can pass what CI fails.
 lint:
 	@command -v golangci-lint >/dev/null 2>&1 || { \
-		echo "golangci-lint is not installed: CI lints with the latest release"; \
+		echo "golangci-lint is not installed: CI lints with the version in .tool-versions"; \
 		exit 1; \
 	}
 	golangci-lint run ./...
