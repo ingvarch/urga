@@ -287,15 +287,26 @@ func writeTemp(extension, content string) (string, error) {
 		return "", err
 	}
 
-	if _, err := file.WriteString(content); err != nil {
-		return "", err
-	}
-
-	if err := file.Close(); err != nil {
+	if err := fill(file, content); err != nil {
 		return "", err
 	}
 
 	return file.Name(), nil
+}
+
+// fill writes the content to the file and closes it. A file it could not
+// fill is removed: it can hold what the cluster keeps secret.
+func fill(file *os.File, content string) error {
+	_, err := file.WriteString(content)
+	if closeErr := file.Close(); err == nil {
+		err = closeErr
+	}
+
+	if err != nil {
+		_ = os.Remove(file.Name())
+	}
+
+	return err
 }
 
 // startEdit opens the file in the editor.
