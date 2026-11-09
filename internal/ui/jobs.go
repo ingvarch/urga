@@ -319,38 +319,32 @@ func fetchBatchQueue(client Client, pool string) tea.Cmd {
 }
 
 // batchQueue reads the queue of the pool, or of every pool that has one when
-// no pool is given. It stops at the first pool that fails.
+// no pool is given. A pool that fails fails the whole read.
 func batchQueue(ctx context.Context, client Client, pool string) (map[string]nomad.QueueWorkload, error) {
-	names := []string{pool}
-
-	if pool == "" {
-		pools, err := client.NodePools(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		names = nil
-		for _, p := range pools {
-			if p.Queue != "" {
-				names = append(names, p.Name)
-			}
-		}
+	items, err := queuedIn(ctx, client, pool)
+	if err != nil {
+		return nil, err
 	}
 
 	workloads := map[string]nomad.QueueWorkload{}
-
-	for _, name := range names {
-		list, err := client.BatchQueueJobs(ctx, name)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, w := range list {
-			markWorkload(workloads, w)
-		}
+	for _, w := range items {
+		markWorkload(workloads, w)
 	}
 
 	return workloads, nil
+}
+
+func queuedIn(ctx context.Context, client Client, pool string) ([]nomad.QueueWorkload, error) {
+	if pool != "" {
+		return client.BatchQueueJobs(ctx, pool)
+	}
+
+	q, err := readPoolQueues(ctx, client)
+	if err != nil {
+		return nil, err
+	}
+
+	return q.items, q.failed
 }
 
 func markWorkload(m map[string]nomad.QueueWorkload, w nomad.QueueWorkload) {

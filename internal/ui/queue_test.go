@@ -196,6 +196,26 @@ func TestQueue_UnsupportedOnOlderClusters(t *testing.T) {
 	r.Contains(out, "The batch job queue needs Nomad 2.1.")
 }
 
+// The pool "default" is asked only to tell a cluster without queues from one
+// where no pool has a queue.
+func TestQueue_AsksTheDefaultPoolOnlyWhenNoPoolHasAQueue(t *testing.T) {
+	for name, tc := range map[string]struct {
+		pools []nomad.NodePool
+		asked []string
+	}{
+		"a pool with a queue":  {[]nomad.NodePool{{Name: "batch", Queue: nomad.QueueFifo}, {Name: "default"}}, []string{"batch"}},
+		"no pool with a queue": {[]nomad.NodePool{{Name: "default"}}, []string{"default"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := &fakeClient{nodePools: tc.pools}
+
+			fetchAllQueues(client)()
+
+			require.Equal(t, tc.asked, client.queuePools)
+		})
+	}
+}
+
 func TestQueue_EnterOpensJobAllocations(t *testing.T) {
 	r := require.New(t)
 

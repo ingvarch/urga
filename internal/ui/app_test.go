@@ -52,6 +52,7 @@ type fakeClient struct {
 	queueStatus    map[string][]nomad.QueueTenant
 	queueErr       error
 	queueReads     int
+	queuePools     []string
 	queueStatusErr error
 	poolsErr       error
 	servers        []nomad.Server
@@ -1342,6 +1343,7 @@ func (f *fakeClient) PoolNodes(_ context.Context, pool string) ([]nomad.Node, er
 
 func (f *fakeClient) BatchQueueJobs(ctx context.Context, pool string) ([]nomad.QueueWorkload, error) {
 	f.queueReads++
+	f.queuePools = append(f.queuePools, pool)
 
 	err := f.err
 	if f.queueErr != nil {
