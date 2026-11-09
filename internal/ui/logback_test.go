@@ -290,10 +290,41 @@ func TestLogEarlier_AnAnswerIsDroppedWhenItNoLongerFits(t *testing.T) {
 	r.Equal(flashWarn, m.flash.level)
 }
 
+func TestLogEarlier_AnAnswerIsDroppedWhenItsBytesDoNotFit(t *testing.T) {
+	r := require.New(t)
+
+	eighth := maxTextBytes / 8
+	read := logState{before: midLog, more: true}
+	read.content.add(sizedLines(0, 7, eighth), arrivedAt, nil, nil)
+
+	part := nomad.LogPart{Lines: sizedLines(10, 2, eighth), From: nomad.LogMark{File: midLog.File, Offset: 60_000}, Before: 60_000, Size: 130_000}
+	read, out, ok := read.earlier(logPartMsg{at: midLog, part: part})
+
+	r.True(ok)
+	r.Equal(7, len(read.content.lines))
+	r.Equal(midLog, read.before)
+	r.Len(out.now, 1)
+	r.Equal(warnMsg("The lines read back no longer fit on the screen."), out.now[0])
+}
+
 func TestLogEarlier_AFullTextOffersNoKey(t *testing.T) {
 	m, _ := sentLog(t, &fakeClient{jobs: twoJobs(), allocs: twoAllocs()}, midLog, numberedLines("late", 0, maxTextLines))
 
 	require.False(t, offersLabel(m, "e", "Read Earlier"))
+}
+
+func TestLogEarlier_ATextFullOfBytesOffersNoKey(t *testing.T) {
+	for name, lines := range map[string][]string{
+		"as many bytes as it keeps":     sizedLines(0, 8, maxTextBytes/8),
+		"lines dropped for their bytes": sizedLines(0, 3, maxTextBytes*2/5),
+	} {
+		t.Run(name, func(t *testing.T) {
+			p := logsPage{read: logState{before: midLog, more: true}}
+			p.read.content.add(lines, arrivedAt, nil, nil)
+
+			require.False(t, hasEarlier(p, env{}))
+		})
+	}
 }
 
 func TestLogEarlier_TheLinesReadBackAreCleaned(t *testing.T) {

@@ -215,10 +215,9 @@ func openPrevious(p logsPage, _ env) (logsPage, outcome) {
 }
 
 // hasEarlier says the cluster keeps more of the log before what is shown,
-// no read of it is out, and the screen has room for it: a text that dropped
-// lines is full.
+// no read of it is out, and the screen has room for it.
 func hasEarlier(p logsPage, _ env) bool {
-	return p.read.more && !p.read.asking && len(p.read.content.lines) < maxTextLines
+	return p.read.more && !p.read.asking && !p.read.content.full()
 }
 
 // readEarlier reads the step of the log before what is shown, to put above
@@ -343,9 +342,8 @@ func (l logState) take(msg tea.Msg) (logState, outcome, bool) {
 // earlier puts a part read from before the text in front of it, when it was
 // read for the place the text starts at now. A failed read shows its error.
 // The answer is dropped if the stream took lines off the front meanwhile: the
-// text no longer starts there. It is also dropped if the stream added so many
-// lines meanwhile that it no longer fits under the limit, with a warning: the
-// press shows nothing else.
+// text no longer starts there. It is also dropped if it does not fit under
+// the limits of the text, with a warning: the press shows nothing else.
 func (l logState) earlier(msg logPartMsg) (logState, outcome, bool) {
 	l.asking = false
 
@@ -357,11 +355,10 @@ func (l logState) earlier(msg logPartMsg) (logState, outcome, bool) {
 		return l, outcome{reading: true}, true
 	}
 
-	if len(l.content.lines)+len(msg.part.Lines) > maxTextLines {
+	if !l.content.addBefore(msg.part.Lines) {
 		return l, outcome{now: []tea.Msg{warnMsg("The lines read back no longer fit on the screen.")}, reading: true}, true
 	}
 
-	l.content.addBefore(msg.part.Lines)
 	l.before = msg.part.From
 	l.size, l.from = msg.part.Size, msg.part.Before
 	l.more = msg.part.Before > 0
