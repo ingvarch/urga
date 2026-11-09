@@ -4,7 +4,9 @@ package nomad
 
 import (
 	"context"
+	"net"
 	"net/http"
+	"net/url"
 	"slices"
 	"time"
 
@@ -61,6 +63,8 @@ type TLS struct {
 type Client struct {
 	api    *api.Client
 	region string
+
+	tokenInClear bool
 }
 
 // New builds a client for the cluster the config points at.
@@ -93,19 +97,44 @@ func New(cfg Config) (*Client, error) {
 		return nil, err
 	}
 
-	return &Client{api: client, region: c.Region}, nil
+	return &Client{api: client, region: c.Region, tokenInClear: inClear(c.Address, c.SecretID)}, nil
+}
+
+// inClear is SendsTokenInClear for a token sent to address.
+func inClear(address, token string) bool {
+	u, err := url.Parse(address)
+	if err != nil || token == "" || u.Scheme != "http" {
+		return false
+	}
+
+	if u.Hostname() == "localhost" {
+		return false
+	}
+
+	ip := net.ParseIP(u.Hostname())
+
+	return ip == nil || !ip.IsLoopback()
 }
 
 // InRegion is a client for the same cluster in another region. The original
 // client does not change: a request in flight keeps the region it was
 // sent to.
 func (c *Client) InRegion(region string) *Client {
-	return &Client{api: c.api, region: region}
+	in := *c
+	in.region = region
+
+	return &in
 }
 
 // Address is the cluster the client talks to.
 func (c *Client) Address() string {
 	return c.api.Address()
+}
+
+// SendsTokenInClear says anyone on the way to the cluster can read the token:
+// it goes over plain HTTP to another machine.
+func (c *Client) SendsTokenInClear() bool {
+	return c.tokenInClear
 }
 
 // Region is the region the client asks in, empty for the one of the agent.

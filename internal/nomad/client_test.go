@@ -320,6 +320,36 @@ func TestNew_TheCertificatesOfANamedCluster(t *testing.T) {
 	require.ErrorContains(t, err, "missing-ca.pem")
 }
 
+func TestNew_SendsTheTokenInClearOverHTTPToAnotherMachine(t *testing.T) {
+	for _, c := range []struct {
+		address, token string
+		want           bool
+	}{
+		{"http://nomad.example:4646", "secret", true},
+		{"HTTP://10.0.0.5:4646", "secret", true},
+		{"https://nomad.example:4646", "secret", false},
+		{"http://nomad.example:4646", "", false},
+		{"http://127.0.0.1:4646", "secret", false},
+		{"http://127.0.0.2:4646", "secret", false},
+		{"http://localhost:4646", "secret", false},
+		{"http://[::1]:4646", "secret", false},
+		{"unix:///var/run/nomad.sock", "secret", false},
+	} {
+		client, err := nomad.New(nomad.Config{Named: true, Address: c.address, Token: c.token})
+		require.NoError(t, err)
+		require.Equal(t, c.want, client.SendsTokenInClear(), "%s with token %q", c.address, c.token)
+		require.Equal(t, c.want, client.InRegion("eu").SendsTokenInClear(), "%s in another region", c.address)
+	}
+}
+
+func TestNew_TheTokenOfTheEnvironmentIsSentInClearToo(t *testing.T) {
+	t.Setenv("NOMAD_TOKEN", "the-token-of-dev")
+
+	client, err := nomad.New(nomad.Config{Address: "http://nomad.example:4646"})
+	require.NoError(t, err)
+	require.True(t, client.SendsTokenInClear())
+}
+
 func TestEveryNamespace(t *testing.T) {
 	for namespace, want := range map[string]bool{"": true, "*": true, "default": false, "web": false} {
 		require.Equal(t, want, nomad.EveryNamespace(namespace), "namespace %q", namespace)

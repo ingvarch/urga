@@ -253,6 +253,10 @@ type Model struct {
 	// token the session sends.
 	refused error
 
+	// inClearDue says the warning that the token goes over plain HTTP is
+	// still to show for this connection.
+	inClearDue bool
+
 	// now is the time of the message being handled. What a screen shows of
 	// time counts from it, so a render gives the same string for the same
 	// state.
@@ -270,6 +274,8 @@ func New(client Client, opts Options) Model {
 		opts:      opts,
 		namespace: opts.Namespace,
 		list:      newList(jobTitles),
+
+		inClearDue: client.SendsTokenInClear(),
 	}
 	m.screen = jobsView.opened()
 	m = m.restore()
@@ -340,7 +346,7 @@ func (m Model) takeError(err error) (Model, tea.Cmd) {
 // markAnswered marks what is open as answered, and schedules the next poll.
 func (m Model) markAnswered() (Model, tea.Cmd) {
 	m.answered = true
-	m = m.forget()
+	m = m.forget().warnInClear()
 	m.layout()
 
 	return m.schedulePoll()

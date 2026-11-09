@@ -186,3 +186,17 @@ func (m Model) refusedBecause(err error) (string, bool) {
 
 	return fmt.Sprintf("Permission denied: %s may not do this", tokenName(token)), true
 }
+
+// warnInClear says, once for the connection, that the token goes over plain
+// HTTP. An error, a warning or a command still running on the status line
+// stays: the warning waits for the next answer.
+func (m Model) warnInClear() Model {
+	f := m.flash
+	if !m.inClearDue || f.fresh(m.now) && (f.level != flashInfo || f.held) {
+		return m
+	}
+
+	m.inClearDue = false
+
+	return m.warn(sprintf("the token goes to %s without TLS", m.client.Address()))
+}
