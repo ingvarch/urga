@@ -61,6 +61,10 @@ func allocLabel(allocs []nomad.Alloc) string {
 // the thing it was put on is gone.
 func jobMark(job nomad.Job) string { return job.Namespace + "/" + job.ID }
 
+func workloadMark(w nomad.QueueWorkload) string {
+	return jobMark(nomad.Job{Namespace: w.Namespace, ID: w.JobID})
+}
+
 func allocMark(alloc nomad.Alloc) string { return alloc.ID }
 
 func nodeMark(node nomad.Node) string { return node.ID }
