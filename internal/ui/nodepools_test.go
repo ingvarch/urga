@@ -12,7 +12,7 @@ import (
 
 func twoPools() []nomad.NodePool {
 	return []nomad.NodePool{
-		{Name: "default", Scheduler: "binpack", Queue: "fifo", Description: "every client"},
+		{Name: "default", Scheduler: "binpack", Queue: nomad.QueueFifo, Description: "every client"},
 		{Name: "gpu", Scheduler: "spread", Description: "the ones with cards"},
 	}
 }
@@ -137,7 +137,7 @@ func TestNodePools_BShowsTheQueueOfThePool(t *testing.T) {
 
 	client := &fakeClient{
 		nodePools: []nomad.NodePool{
-			{Name: "batch", Queue: "fifo", Description: "batch pool"},
+			{Name: "batch", Queue: nomad.QueueFifo, Description: "batch pool"},
 			{Name: "gpu", Description: "no queue"},
 		},
 		queueWorkloads: map[string][]nomad.QueueWorkload{

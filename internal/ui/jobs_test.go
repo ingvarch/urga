@@ -174,7 +174,7 @@ func TestJobs_BatchQueuePositionEndToEnd(t *testing.T) {
 	r := require.New(t)
 
 	client := &fakeClient{
-		nodePools: []nomad.NodePool{{Name: "batch", Queue: "fifo"}},
+		nodePools: []nomad.NodePool{{Name: "batch", Queue: nomad.QueueFifo}},
 		queueWorkloads: map[string][]nomad.QueueWorkload{
 			"batch": {
 				{JobID: "batch-1", Namespace: "default", Status: "placing", Position: 0},
@@ -237,7 +237,7 @@ func TestJobs_FailedQueueReadShowsTheError(t *testing.T) {
 		},
 		"the queue of one pool of two": {
 			jobs:      pendingBatch(),
-			nodePools: []nomad.NodePool{{Name: "a", Queue: "fifo"}, {Name: "b", Queue: "fifo"}},
+			nodePools: []nomad.NodePool{{Name: "a", Queue: nomad.QueueFifo}, {Name: "b", Queue: nomad.QueueFifo}},
 			queueErrs: map[string]error{"b": errors.New("queue read failed")},
 		},
 	}
@@ -281,7 +281,7 @@ func TestJobs_OnePollReadsTheQueueOnce(t *testing.T) {
 
 	client := &fakeClient{
 		jobs:      pendingBatch(),
-		nodePools: []nomad.NodePool{{Name: "batch", Queue: "fifo"}},
+		nodePools: []nomad.NodePool{{Name: "batch", Queue: nomad.QueueFifo}},
 		queueWorkloads: map[string][]nomad.QueueWorkload{
 			"batch": {{JobID: "batch-1", Namespace: "default", Status: "queued", Position: 0}},
 		},

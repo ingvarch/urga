@@ -10,7 +10,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/hashicorp/nomad/api"
 
 	"github.com/ingvarch/urga/internal/nomad"
 )
@@ -19,7 +18,7 @@ import (
 // job queues of the cluster or of one node pool.
 type queuePage struct {
 	pool        string
-	queueType   string
+	queueType   nomad.QueueKind
 	items       []nomad.QueueWorkload
 	tenants     []nomad.QueueTenant
 	unsupported bool
@@ -48,12 +47,12 @@ var (
 )
 
 func (p queuePage) dynamic() bool {
-	if p.queueType == "dynamic priority" || p.queueType == "dynamic_priority" {
+	if p.queueType == nomad.QueueDynamic {
 		return true
 	}
 
 	for _, it := range p.items {
-		if it.QueueType == string(api.BatchQueueTypeDynamic) || it.QueueType == "dynamic priority" {
+		if it.QueueType == nomad.QueueDynamic {
 			return true
 		}
 	}

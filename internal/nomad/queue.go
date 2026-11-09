@@ -14,12 +14,22 @@ import (
 // (Nomad < 2.1).
 var ErrQueueUnsupported = errors.New("the batch job queue needs Nomad 2.1")
 
+// QueueKind is the kind of batch job queue of a node pool, empty when the pool
+// has none.
+type QueueKind string
+
+// The kinds of queue, as the screens name them.
+const (
+	QueueFifo    QueueKind = "fifo"
+	QueueDynamic QueueKind = "dynamic priority"
+)
+
 // QueueWorkload is one job waiting in or being placed from a node pool's batch job queue.
 type QueueWorkload struct {
 	JobID               string
 	Namespace           string
 	Pool                string
-	QueueType           string
+	QueueType           QueueKind
 	Position            int
 	Status              string // "placing", "queued"
 	AdjustedPriority    int
@@ -84,7 +94,7 @@ func (c *Client) BatchQueueJobs(ctx context.Context, pool string) ([]QueueWorklo
 
 		for i := range workloads {
 			workloads[i].Pool = pool
-			workloads[i].QueueType = string(resp.Type)
+			workloads[i].QueueType = kindOf(resp.Type)
 		}
 
 		allWorkloads = append(allWorkloads, workloads...)

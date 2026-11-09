@@ -310,7 +310,7 @@ type NodePool struct {
 	Name        string
 	Description string
 	Scheduler   string
-	Queue       string
+	Queue       QueueKind
 }
 
 // NodePools lists the pools nodes are grouped into.
@@ -341,16 +341,29 @@ func newNodePool(p *api.NodePool) NodePool {
 
 // queueOf names the kind of batch job queue configured on a node pool, empty
 // when none is.
-func queueOf(cfg *api.BatchQueueConfig) string {
+func queueOf(cfg *api.BatchQueueConfig) QueueKind {
 	if cfg == nil {
 		return ""
 	}
 
 	switch {
 	case cfg.Fifo != nil:
-		return "fifo"
+		return QueueFifo
 	case cfg.DynamicPriority != nil:
-		return "dynamic priority"
+		return QueueDynamic
+	default:
+		return ""
+	}
+}
+
+// kindOf is the kind of queue the cluster names in an answer, empty for a
+// pool without one.
+func kindOf(t api.BatchQueueType) QueueKind {
+	switch t {
+	case api.BatchQueueTypeFifo:
+		return QueueFifo
+	case api.BatchQueueTypeDynamic:
+		return QueueDynamic
 	default:
 		return ""
 	}
