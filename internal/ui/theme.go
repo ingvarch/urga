@@ -29,9 +29,9 @@ var (
 	colorMark = lipgloss.Color("#d7a13b")
 )
 
-// Row colors say what state a resource is in, at a glance down the list.
-// They follow k9s: what waits to start is orange, what started and is not
-// ready yet or broke is red, what is on its way out is purple.
+// Row colors say what state a resource is in, at a glance down the list:
+// what waits to start is orange, what started and is not ready yet or broke
+// is red, what is on its way out is purple.
 var (
 	colorAttention = lipgloss.Color("#e5c07b")
 	colorPending   = lipgloss.Color("#f0883e")

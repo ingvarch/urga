@@ -41,11 +41,11 @@ func hue(c color.Color) float64 {
 	return h
 }
 
-func TestStateColours_ReadLikeK9s(t *testing.T) {
+func TestStateColours_HaveTheHueOfTheirState(t *testing.T) {
 	r := require.New(t)
 
 	// What waits to start is orange, what needs a look is yellow, what goes
-	// away is purple: the colours k9s gives a pod in the same state.
+	// away is purple.
 	r.InDelta(25, hue(colorPending), 15, "pending is orange")
 	r.InDelta(45, hue(colorAttention), 10, "attention is yellow")
 	r.InDelta(260, hue(colorStopping), 20, "stopping is purple")

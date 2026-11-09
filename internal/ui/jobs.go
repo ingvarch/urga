@@ -360,10 +360,10 @@ func markWorkload(m map[string]nomad.QueueWorkload, w nomad.QueueWorkload) {
 	m[w.JobID] = w
 }
 
-// jobColor shows the state of a job without reading the row, as k9s shows a
-// pod: what waits for room is orange, a service not all up yet is red, what
-// was stopped and still runs is purple, a dead one is red, a batch job that
-// ended gets the spent color, not the dead one, unless a group of it failed.
+// jobColor shows the state of a job without reading the row: what waits for
+// room is orange, a service not all up yet is red, what was stopped and still
+// runs is purple, a dead one is red, a batch job that ended gets the spent
+// color, not the dead one, unless a group of it failed.
 func jobColor(job nomad.Job) color.Color {
 	switch job.Status {
 	case statusRunning:
