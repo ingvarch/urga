@@ -54,6 +54,10 @@ type Options struct {
 	// then shows an error.
 	Editor Editor
 
+	// EditDir is where the file of an edit is written; empty is the
+	// temporary directory of the system.
+	EditDir string
+
 	// Shell runs a shell inside a task. It may be nil.
 	Shell Shell
 
