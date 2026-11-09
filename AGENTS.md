@@ -10,8 +10,9 @@ translation layer and no plan for one: user-visible strings are literals
 where they are used.
 
 - [CONTRIBUTING.md](CONTRIBUTING.md): read before writing a change. It has
-  the test-first rule, the comment style, commit and PR titles, the checks a
-  PR needs and how releases are published.
+  the branch name, the test-first rule, the guide in `docs/` a change
+  updates, the comment style, commit scopes, the checks a PR needs and how
+  releases are published.
 - [docs/development.md](docs/development.md): read before building, running
   urga against a local cluster or running the checks. It has the
   prerequisites, the dev agent, the make targets and the project structure.
@@ -98,8 +99,6 @@ the opposite caused a bug that took hours to find.
 - A test in `internal/ui` whose code writes a temporary file calls
   `tempDir(t)` (`internal/ui/edit_test.go`). It points TMPDIR, TMP and TEMP
   at the test's own directory, so the file goes away with the test.
-- A change a user can see updates, in the same commit, the guide in `docs/`
-  that describes it.
 
 ### Comments
 
