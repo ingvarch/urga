@@ -50,6 +50,8 @@ type fakeClient struct {
 	queueWorkloads map[string][]nomad.QueueWorkload
 	queueStatus    map[string][]nomad.QueueTenant
 	queueErr       error
+	queueStatusErr error
+	poolsErr       error
 	servers        []nomad.Server
 	changes        *fakeChanges
 	server         nomad.Server
@@ -1310,6 +1312,10 @@ func (f *fakeClient) refused(otherwise error) error {
 func (f *fakeClient) NodePools(ctx context.Context) ([]nomad.NodePool, error) {
 	f.noteRead(ctx, nomad.TopicNodePool)
 
+	if f.poolsErr != nil {
+		return nil, f.poolsErr
+	}
+
 	return f.nodePools, f.err
 }
 
@@ -1345,6 +1351,10 @@ func (f *fakeClient) BatchQueueJobs(ctx context.Context, pool string) ([]nomad.Q
 }
 
 func (f *fakeClient) BatchQueueStatus(_ context.Context, pool string) ([]nomad.QueueTenant, error) {
+	if f.queueStatusErr != nil {
+		return nil, f.queueStatusErr
+	}
+
 	if f.queueStatus != nil {
 		return f.queueStatus[pool], f.err
 	}

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -217,6 +218,62 @@ func TestJobs_BatchQueuePositionInPoolPage(t *testing.T) {
 	out := plain(m.render())
 	r.Contains(out, "gpu-batch")
 	r.Contains(out, "queued 1")
+}
+
+// pendingBatch is a list with one batch job that waits in the queue.
+func pendingBatch() []nomad.Job {
+	return []nomad.Job{{ID: "batch-1", Name: "batch-1", Namespace: "default", Type: "batch", Status: "pending"}}
+}
+
+func TestJobs_FailedQueueReadShowsTheError(t *testing.T) {
+	cases := map[string]*fakeClient{
+		"the queue of the pool": {
+			poolJobs: pendingBatch(),
+			queueErr: errors.New("queue read failed"),
+		},
+		"the node pools": {
+			jobs:     pendingBatch(),
+			poolsErr: errors.New("queue read failed"),
+		},
+		"the queue of one pool of two": {
+			jobs:      pendingBatch(),
+			nodePools: []nomad.NodePool{{Name: "a", Queue: "fifo"}, {Name: "b", Queue: "fifo"}},
+			queueErrs: map[string]error{"b": errors.New("queue read failed")},
+		},
+	}
+
+	for name, client := range cases {
+		t.Run(name, func(t *testing.T) {
+			client.changes = newChanges()
+
+			m := newTestModel(client)
+			if client.poolJobs != nil {
+				m, _ = m.update(openMsg{jobsPage{pool: "gpu"}})
+			}
+			m = playOut(m, m.fetch())
+
+			require.Contains(t, plain(statusLine(m)), "queue read failed")
+		})
+	}
+}
+
+// A cluster without a batch queue answers every poll the same way: that is
+// no error to show.
+func TestJobs_NoQueueOnTheClusterShowsNothing(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{
+		poolJobs: pendingBatch(),
+		queueErr: fmt.Errorf("pool gpu: %w", nomad.ErrQueueUnsupported),
+		changes:  newChanges(),
+	}
+
+	m := newTestModel(client)
+	m, _ = m.update(openMsg{jobsPage{pool: "gpu"}})
+	m = playOut(m, m.fetch())
+
+	r.Contains(plain(m.render()), "batch-1")
+	r.Empty(m.flash.text)
 }
 
 func TestJobs_NoPendingBatchDoesNotFetchQueue(t *testing.T) {

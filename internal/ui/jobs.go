@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image/color"
 	"time"
@@ -302,45 +303,57 @@ func queueStatus(w nomad.QueueWorkload) string {
 type queueWorkloadsMsg map[string]nomad.QueueWorkload
 
 // fetchBatchQueue polls the batch job queue for node pools that have a queue.
+// A cluster without a queue shows no error: the list polls it all the time.
 func fetchBatchQueue(client Client, pool string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 		defer cancel()
 
-		workloads := map[string]nomad.QueueWorkload{}
-
-		if pool != "" {
-			list, err := client.BatchQueueJobs(ctx, pool)
-			if err != nil {
-				return nil
-			}
-			for _, w := range list {
-				markWorkload(workloads, w)
-			}
-
-			return queueWorkloadsMsg(workloads)
-		}
-
-		pools, err := client.NodePools(ctx)
-		if err != nil {
+		workloads, err := batchQueue(ctx, client, pool)
+		switch {
+		case errors.Is(err, nomad.ErrQueueUnsupported):
 			return nil
-		}
-
-		for _, p := range pools {
-			if p.Queue == "" {
-				continue
-			}
-			list, err := client.BatchQueueJobs(ctx, p.Name)
-			if err != nil {
-				continue
-			}
-			for _, w := range list {
-				markWorkload(workloads, w)
-			}
+		case err != nil:
+			return errMsg{err: err}
 		}
 
 		return queueWorkloadsMsg(workloads)
 	}
+}
+
+// batchQueue reads the queue of the pool, or of every pool that has one when
+// no pool is given. It stops at the first pool that fails.
+func batchQueue(ctx context.Context, client Client, pool string) (map[string]nomad.QueueWorkload, error) {
+	names := []string{pool}
+
+	if pool == "" {
+		pools, err := client.NodePools(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		names = nil
+		for _, p := range pools {
+			if p.Queue != "" {
+				names = append(names, p.Name)
+			}
+		}
+	}
+
+	workloads := map[string]nomad.QueueWorkload{}
+
+	for _, name := range names {
+		list, err := client.BatchQueueJobs(ctx, name)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, w := range list {
+			markWorkload(workloads, w)
+		}
+	}
+
+	return workloads, nil
 }
 
 func markWorkload(m map[string]nomad.QueueWorkload, w nomad.QueueWorkload) {
