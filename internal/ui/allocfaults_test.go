@@ -56,6 +56,18 @@ func TestAllocFaults_RestartingWithinTheHour(t *testing.T) {
 	r.Equal([]string{"recent"}, page.ids(env{}))
 }
 
+func TestAllocFaults_JudgedAtTheTimeOfTheModelWhenRead(t *testing.T) {
+	r := require.New(t)
+
+	then := fixedTime()
+	restarted := nomad.Task{Name: "server", Restarts: 1, LastRestart: then.Add(-10 * time.Minute)}
+	allocs := allocsMsg{allocFaultsAlloc("recent", statusRunning, restarted)}
+
+	page, _, ok := allocationsPage{fault: faultRestarting}.take(allocs, env{now: then})
+	r.True(ok)
+	r.Equal([]string{"recent"}, page.(allocationsPage).ids(env{}))
+}
+
 func TestAllocFaults_KilledForMemoryWithinTheHour(t *testing.T) {
 	r := require.New(t)
 
