@@ -75,6 +75,13 @@ func (deployWatchPage) topics() []string {
 	return []string{nomad.TopicJob, nomad.TopicEvaluation, nomad.TopicDeployment, nomad.TopicAllocation}
 }
 
+// objectKeys: an event of each topic carries the job it belongs to.
+func (p deployWatchPage) objectKeys() map[string]string {
+	return map[string]string{
+		nomad.TopicJob: p.jobID, nomad.TopicEvaluation: p.jobID, nomad.TopicDeployment: p.jobID, nomad.TopicAllocation: p.jobID,
+	}
+}
+
 func (p deployWatchPage) fetch(e env) tea.Cmd {
 	client := e.client
 

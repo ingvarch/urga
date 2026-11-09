@@ -514,6 +514,12 @@ type fallback interface {
 	fewerTopics() []string
 }
 
+// oneObject is a page of one object: its stream follows only that object,
+// by the key of each topic. A topic without a key follows every object.
+type oneObject interface {
+	objectKeys() map[string]string
+}
+
 // ofTheSession is a list the session opens by name, of what it looks at.
 type ofTheSession struct{}
 

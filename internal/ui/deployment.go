@@ -269,11 +269,16 @@ func (p deploymentPage) title(_ env, count int) string {
 
 func (deploymentPage) titles() []string { return deploymentAllocTitles }
 
-// topics: the allocations it placed change, and so does the deployment.
 func (p deploymentPage) where(env) string { return p.namespace }
 
+// topics: the allocations it placed change, and so does the deployment.
 func (deploymentPage) topics() []string {
 	return []string{nomad.TopicAllocation, nomad.TopicDeployment}
+}
+
+// objectKeys: an allocation event carries the deployment that placed it.
+func (p deploymentPage) objectKeys() map[string]string {
+	return map[string]string{nomad.TopicAllocation: p.deploymentID, nomad.TopicDeployment: p.deploymentID}
 }
 
 // fetch reads the allocations the deployment placed, and the deployment on

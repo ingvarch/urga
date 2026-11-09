@@ -153,6 +153,10 @@ func (scalingPage) titles() []string { return scalingTitles }
 // shows on the next poll.
 func (scalingPage) topics() []string { return []string{nomad.TopicJob} }
 
+func (p scalingPage) objectKeys() map[string]string {
+	return map[string]string{nomad.TopicJob: p.jobID}
+}
+
 // where is the namespace of the job, whatever the session looks at.
 func (p scalingPage) where(env) string { return p.namespace }
 

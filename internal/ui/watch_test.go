@@ -485,6 +485,54 @@ func TestWatch_ThePagesOfStorageAndVariablesWatchTheirOwn(t *testing.T) {
 	}
 }
 
+func TestWatch_AScreenOfOneObjectFollowsOnlyThatObject(t *testing.T) {
+	r := require.New(t)
+
+	const alloc, deployment, host = "af1f37df-7b19-6b1c-da67-5e8f482b5a15", "5d1a2b3c-0000-0000-0000-000000000000", "7f3c1a2b-0000-0000-0000-000000000000"
+
+	watched := func(p page) map[string]string {
+		client := &fakeClient{changes: newChanges()}
+		m := newTestModel(client)
+		m.nomadVersion = "2.0.7"
+		m.screen.page = p
+
+		if w, ok := m.watchScreen()().(watchingMsg); ok {
+			w.changes.Close()
+		}
+
+		return client.watchedKeys
+	}
+
+	for _, c := range []struct {
+		page page
+		keys map[string]string
+	}{
+		{jobMetaPage{namespace: "staging", jobID: "web"}, map[string]string{nomad.TopicJob: "web"}},
+		{scalingPage{namespace: "staging", jobID: "web", group: "api"}, map[string]string{nomad.TopicJob: "web"}},
+		{tasksPage{namespace: "production", jobID: "web", allocID: alloc}, map[string]string{nomad.TopicAllocation: alloc}},
+		{taskEventsPage{namespace: "production", allocID: alloc, task: "server"}, map[string]string{nomad.TopicAllocation: alloc}},
+		{deploymentPage{namespace: "production", jobID: "web", deploymentID: deployment},
+			map[string]string{nomad.TopicDeployment: deployment, nomad.TopicAllocation: deployment}},
+		{deployWatchPage{namespace: "production", jobID: "web"}, map[string]string{
+			nomad.TopicJob: "web", nomad.TopicEvaluation: "web", nomad.TopicDeployment: "web", nomad.TopicAllocation: "web",
+		}},
+		{variablePage{namespace: "staging", path: "app/db"}, map[string]string{nomad.TopicVariable: "app/db"}},
+		{pluginPage{id: "ebs"}, map[string]string{nomad.TopicCSIPlugin: "ebs"}},
+		// Nomad keys no allocation by its client or its volume, so these
+		// follow every allocation.
+		{clientPage{nodeID: "node-1"}, map[string]string{nomad.TopicNode: "node-1"}},
+		{volumePage{namespace: "default", kind: nomad.VolumeCSI, id: "pg-data"}, map[string]string{nomad.TopicCSIVolume: "pg-data"}},
+		{volumePage{namespace: "default", kind: nomad.VolumeHost, id: host}, map[string]string{nomad.TopicHostVolume: host}},
+	} {
+		r.Equal(c.keys, watched(c.page), "%T", c.page)
+	}
+
+	// A list follows every object of its topics.
+	for _, v := range []*view{jobsView, allocationsView, nodesView, deploymentsView, variablesView, volumesView, pluginsView} {
+		r.Nil(watched(v.open()), nameOf(v))
+	}
+}
+
 func TestWatch_AClusterOlderThanTheTopicIsPolled(t *testing.T) {
 	r := require.New(t)
 
