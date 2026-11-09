@@ -59,6 +59,39 @@ go install github.com/ingvarch/urga/cmd/urga@latest
 A copy built with `go install` shows its version as `dev` and does not check
 for [newer releases](configuration.md#newer-releases).
 
+## Check a download
+
+Each release page has a file of checksums, `urga_<version>_checksums.txt`,
+for every archive and package. Download it into the folder with your
+download, and run there:
+
+```sh
+# Linux
+sha256sum --check --ignore-missing urga_*_checksums.txt
+# macOS
+shasum -a 256 --check --ignore-missing urga_*_checksums.txt
+```
+
+Each file you downloaded should read `OK`. On Windows, in PowerShell, print
+the hash of the archive and its line in the file, and compare the two:
+
+```powershell
+Get-FileHash urga_*_windows_amd64.zip
+Select-String windows_amd64.zip urga_*_checksums.txt
+```
+
+The check shows that the file is the one the release published, not damaged
+or cut short on the way.
+
+The macOS binary is also signed and notarized by Apple. To see it, run in the
+folder of the unpacked archive:
+
+```sh
+spctl --assess --type open --context context:primary-signature -v ./urga
+```
+
+It prints `accepted` and `source=Notarized Developer ID`.
+
 ## From source
 
 ```sh
