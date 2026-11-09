@@ -132,6 +132,13 @@ check-and-set, see [Editing a variable](clients.md#editing-a-variable).
 
 If you close the editor without a change, nothing is sent.
 
+The editor opens a file in a directory urga makes for its run, `urga-<number>`
+in the system temp directory (`$TMPDIR`, or `%TMP%` on Windows). The file is
+deleted when the editor closes. The directory is deleted when urga exits, with
+what is left in it, also when the terminal is closed with the editor open: the
+file can hold a variable's values or other secrets. If urga is killed with
+`SIGKILL`, the directory stays.
+
 If the cluster refuses the change, for example because of a syntax error or
 because the token may not make it, urga opens the editor again with your
 edit and the reason at the top, as comment lines:

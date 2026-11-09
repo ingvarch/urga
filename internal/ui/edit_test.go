@@ -70,7 +70,7 @@ func editModel(t *testing.T, client *fakeClient) (Model, *fakeEditor) {
 
 	editor := &fakeEditor{}
 
-	m := New(client, Options{Namespace: "production", Version: "v-test", Editor: editor, PollEvery: time.Millisecond})
+	m := New(client, Options{Namespace: "production", Version: "v-test", Editor: editor, EditDir: t.TempDir(), PollEvery: time.Millisecond})
 	m, _ = m.update(sizeMsg())
 	m, _ = m.update(jobsMsg(twoJobs()))
 
@@ -238,7 +238,7 @@ func onNamespaces(t *testing.T, client *fakeClient, editor *fakeEditor) Model {
 
 	client.namespaces, client.namespaceSpec = twoNamespaces(), `{"Name": "production"}`
 
-	m := New(client, Options{Namespace: "production", Version: "v-test", Editor: editor, PollEvery: time.Millisecond})
+	m := New(client, Options{Namespace: "production", Version: "v-test", Editor: editor, EditDir: t.TempDir(), PollEvery: time.Millisecond})
 	m, _ = m.update(sizeMsg())
 
 	m, _ = m.update(key(':'))
@@ -384,10 +384,57 @@ func TestEdit_AFileThatFailsToReadAfterLeavingShowsNoError(t *testing.T) {
 	r.Empty(editor.seen)
 }
 
-func TestEdit_TheFileOfAnEditThatArrivesAfterLeavingIsRemoved(t *testing.T) {
+func TestEdit_TheFilesAreInTheEditDirectory(t *testing.T) {
+	r := require.New(t)
+
+	temp := tempDir(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}}
+	m, editor := editModel(t, client)
+
+	opened := []string{}
+
+	for range 2 {
+		var cmd tea.Cmd
+
+		m, cmd = m.update(key('e'))
+		m = follow(m, cmd, 5)
+
+		opened = append(opened, editor.opened)
+	}
+
+	for _, path := range opened {
+		r.Equal(m.opts.EditDir, filepath.Dir(path))
+	}
+
+	// Each file goes once its edit ends: a long session collects none.
+	r.Empty(keptTexts(t, m.opts.EditDir))
+	r.Empty(keptTexts(t, temp))
+}
+
+func TestEdit_AFileThatCannotBeWrittenShowsWhy(t *testing.T) {
 	r := require.New(t)
 
 	tempDir(t)
+
+	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}}
+	m, editor := editModel(t, client)
+	m.opts.EditDir = filepath.Join(t.TempDir(), "missing")
+
+	m, cmd := m.update(key('e'))
+	m = follow(m, cmd, 5)
+
+	r.Empty(editor.opened)
+	r.Contains(m.flash.text, filepath.Join(m.opts.EditDir, "urga-"))
+	r.Equal(flashErr, m.flash.level)
+}
+
+// An edit writes its file once it opens: one that is dropped on the way
+// leaves nothing behind, also when urga exits before it arrives.
+func TestEdit_AnEditThatArrivesAfterLeavingWritesNoFile(t *testing.T) {
+	r := require.New(t)
+
+	temp := tempDir(t)
 
 	client := &fakeClient{jobs: twoJobs(), spec: nomad.JobSource{Source: "job \"web\" {}"}}
 	m, editor := editModel(t, client)
@@ -395,15 +442,15 @@ func TestEdit_TheFileOfAnEditThatArrivesAfterLeavingIsRemoved(t *testing.T) {
 	m, read := m.update(key('e'))
 	late := read()
 
-	path := answered(t, late).(editFileMsg).path
-	r.FileExists(path)
+	r.Empty(keptTexts(t, temp))
+	r.Empty(keptTexts(t, m.opts.EditDir))
 
 	m, _ = m.update(enter())
 	m, _ = m.update(late)
 
-	r.NoFileExists(path)
+	r.Empty(keptTexts(t, temp))
+	r.Empty(keptTexts(t, m.opts.EditDir))
 	r.Empty(editor.seen)
-	r.Empty(m.editing.path)
 }
 
 // keptTexts are the files urga left in dir.
@@ -485,10 +532,12 @@ func TestEdit_ARefusedEditReopenedAfterLeavingKeepsTheTextAndDoesNotOpen(t *test
 	r.Len(editor.seen, 1)
 	r.IsType(allocationsPage{}, m.screen.page)
 
+	// The text stays after urga exits, outside the directory of the edits.
 	texts := keptTexts(t, dir)
 	r.Len(texts, 1)
 	r.Contains(texts[0], editor.replace)
 	r.Contains(texts[0], "syntax error")
+	r.Empty(keptTexts(t, m.opts.EditDir))
 	r.Regexp(`^Your text is in .+\. The edit was not opened again: the screen changed\.$`, m.flash.text)
 }
 
@@ -551,11 +600,8 @@ func TestEdit_TheFileThatKeepsALateEditFitsOnTheStatusLine(t *testing.T) {
 		"refusal": func(*testing.T, string) tea.Msg {
 			return refusedEditMsg{err: refused, again: file{extension: "hcl", content: text}}
 		},
-		"reopened": func(t *testing.T, dir string) tea.Msg {
-			path := filepath.Join(dir, "urga-1234567890.hcl")
-			require.NoError(t, os.WriteFile(path, []byte(text), 0o600))
-
-			return editFileMsg{path: path, edited: true}
+		"reopened": func(*testing.T, string) tea.Msg {
+			return editFileMsg{extension: "hcl", original: text, edited: true}
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

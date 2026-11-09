@@ -23,9 +23,9 @@ type Editor interface {
 // Messages of an edit.
 type (
 	editFileMsg struct {
-		path     string
-		original string
-		submit   func(source string) tea.Cmd
+		extension string
+		original  string
+		submit    func(source string) tea.Cmd
 
 		// edited says the file holds text a person wrote: a refused edit
 		// opened again.
@@ -42,10 +42,6 @@ type (
 		err  error
 	}
 )
-
-// release removes the file of an edit that was never opened: the screen it
-// was for is gone. It can hold what the cluster keeps secret.
-func (m editFileMsg) release() { _ = os.Remove(m.path) }
 
 // terminalEditor runs VISUAL or EDITOR and gives it the terminal.
 type terminalEditor struct{}
@@ -263,7 +259,7 @@ func refusal(reason, advice string) string {
 	return b.String()
 }
 
-// openEditor writes the resource to a temporary file for the editor.
+// openEditor reads the resource for the editor.
 func openEditor(read load) tea.Cmd {
 	return request(func(ctx context.Context) (editFileMsg, error) {
 		loaded, err := read(ctx)
@@ -271,18 +267,14 @@ func openEditor(read load) tea.Cmd {
 			return editFileMsg{}, err
 		}
 
-		path, err := writeTemp(loaded.extension, loaded.content)
-		if err != nil {
-			return editFileMsg{}, err
-		}
-
-		return editFileMsg{path: path, original: loaded.content, submit: loaded.submit, edited: loaded.edited}, nil
+		return editFileMsg{extension: loaded.extension, original: loaded.content, submit: loaded.submit, edited: loaded.edited}, nil
 	}, func(msg editFileMsg) tea.Msg { return msg })
 }
 
-// writeTemp writes the content to a new temporary file and returns its path.
-func writeTemp(extension, content string) (string, error) {
-	file, err := os.CreateTemp("", "urga-*."+extension)
+// writeTemp writes the content to a new temporary file in dir, the temporary
+// directory of the system when dir is empty, and returns its path.
+func writeTemp(dir, extension, content string) (string, error) {
+	file, err := os.CreateTemp(dir, "urga-*."+extension)
 	if err != nil {
 		return "", err
 	}
@@ -309,7 +301,8 @@ func fill(file *os.File, content string) error {
 	return err
 }
 
-// startEdit opens the file in the editor.
+// startEdit writes the file and opens it in the editor. The file is written
+// only now: an edit dropped on its way leaves none.
 func (m Model) startEdit(msg editFileMsg) (Model, tea.Cmd) {
 	if m.opts.Editor == nil {
 		return m.fail(errors.New("no editor: set EDITOR or VISUAL")), nil
@@ -318,7 +311,16 @@ func (m Model) startEdit(msg editFileMsg) (Model, tea.Cmd) {
 	msg.asked = m.asked
 	m.editing = msg
 
-	return m, m.opts.Editor.Edit(msg.path)
+	editor, dir := m.opts.Editor, m.opts.EditDir
+
+	return m, func() tea.Msg {
+		path, err := writeTemp(dir, msg.extension, msg.original)
+		if err != nil {
+			return editedMsg{err: err}
+		}
+
+		return editor.Edit(path)()
+	}
 }
 
 // finishEdit reads the edited file. An unchanged file sends nothing, and

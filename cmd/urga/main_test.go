@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -256,10 +259,10 @@ func TestOpen_ReadsTheSettingsOfTheConfigDirectory(t *testing.T) {
 address = "http://127.0.0.1:4646"
 `), 0o600))
 
-	_, err := open(cmdline{cluster: "dev"})
+	_, err := open(cmdline{cluster: "dev"}, "")
 	r.NoError(err)
 
-	_, err = open(cmdline{cluster: "stage"})
+	_, err = open(cmdline{cluster: "stage"}, "")
 	r.ErrorContains(err, `no cluster "stage": dev`)
 }
 
@@ -271,7 +274,7 @@ func TestOpen_ReturnsToTheScreenOfTheSessionFile(t *testing.T) {
 	r.NoError(os.MkdirAll(filepath.Join(home, "urga"), 0o700))
 	r.NoError(os.WriteFile(filepath.Join(home, "urga", "config.json"), []byte(`{"screen": "nodes"}`), 0o600))
 
-	m, err := open(cmdline{})
+	m, err := open(cmdline{}, "")
 	r.NoError(err)
 
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -361,7 +364,7 @@ func TestSaveSession_OfTheModelTheRunEndedWith(t *testing.T) {
 
 	home := offline(t)
 
-	m, err := open(cmdline{namespace: "batch", namespaceGiven: true})
+	m, err := open(cmdline{namespace: "batch", namespaceGiven: true}, "")
 	r.NoError(err)
 	r.NoError(saveSession(m))
 
@@ -378,13 +381,13 @@ func TestPlay_SavesTheSessionWhenTheProgramEnds(t *testing.T) {
 
 	home := offline(t)
 
-	m, err := open(cmdline{namespace: "batch", namespaceGiven: true})
+	m, err := open(cmdline{namespace: "batch", namespaceGiven: true}, "")
 	r.NoError(err)
 
 	done := make(chan error, 1)
 
 	go func() {
-		done <- play(m, tea.WithInput(strings.NewReader("q")), tea.WithOutput(io.Discard))
+		done <- play(context.Background(), m, tea.WithInput(strings.NewReader("q")), tea.WithOutput(io.Discard))
 	}()
 
 	select {
@@ -397,4 +400,74 @@ func TestPlay_SavesTheSessionWhenTheProgramEnds(t *testing.T) {
 	saved := config.Load(filepath.Join(home, "urga", "config.json")).Of("")
 	r.NotNil(saved.Namespace)
 	r.Equal("batch", *saved.Namespace)
+}
+
+func TestPlay_EndsAndSavesTheSessionWhenTheContextEnds(t *testing.T) {
+	r := require.New(t)
+
+	home := offline(t)
+
+	m, err := open(cmdline{namespace: "batch", namespaceGiven: true}, "")
+	r.NoError(err)
+
+	// No key comes: only the context ends the program, and the error says
+	// what ended it.
+	keys, _ := io.Pipe()
+	ctx, cancel := context.WithCancelCause(context.Background())
+	done := make(chan error, 1)
+
+	go func() {
+		done <- play(ctx, m, tea.WithInput(keys), tea.WithOutput(io.Discard))
+	}()
+
+	cancel(errors.New("hangup signal received"))
+
+	select {
+	case err := <-done:
+		r.EqualError(err, "hangup signal received")
+	case <-time.After(5 * time.Second):
+		r.FailNow("the program did not end with its context")
+	}
+
+	saved := config.Load(filepath.Join(home, "urga", "config.json")).Of("")
+	r.NotNil(saved.Namespace)
+	r.Equal("batch", *saved.Namespace)
+}
+
+func TestInEditDir_IsRemovedWhenTheRunEnds(t *testing.T) {
+	for name, ended := range map[string]error{
+		"the program ends":  nil,
+		"the program fails": errors.New("the program failed"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			temp := offline(t)
+			used := ""
+
+			err := inEditDir(func(dir string) error {
+				used = dir
+
+				r.Equal(temp, filepath.Dir(dir))
+				r.True(strings.HasPrefix(filepath.Base(dir), "urga-"), dir)
+
+				info, err := os.Stat(dir)
+				r.NoError(err)
+
+				if runtime.GOOS != "windows" {
+					r.Equal(os.FileMode(0o700), info.Mode().Perm())
+				}
+
+				// An edit still open: its file and what the editor keeps.
+				r.NoError(os.WriteFile(filepath.Join(dir, "urga-1.hcl"), []byte("secret"), 0o600))
+				r.NoError(os.WriteFile(filepath.Join(dir, ".urga-1.hcl.swp"), []byte("secret"), 0o600))
+
+				return ended
+			})
+
+			r.ErrorIs(err, ended)
+			r.NotEmpty(used)
+			r.NoDirExists(used)
+		})
+	}
 }

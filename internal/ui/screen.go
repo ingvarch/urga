@@ -464,16 +464,16 @@ func (m Model) openStream() (Model, tea.Cmd) {
 	return m, askedFor(m.asked, cmd)
 }
 
-// letGo closes the stream or removes the temp file a message holds for a page
-// that is no longer open: nothing else would ever do it.
+// letGo closes the stream a message holds for a page that is no longer open:
+// nothing else would ever do it.
 func letGo(msg tea.Msg) {
 	if opened, ok := msg.(streamOpened); ok {
 		opened.release()
 	}
 }
 
-// streamOpened is a message that holds a stream or a temp file: one no page
-// takes is closed or removed, since nothing else would do it.
+// streamOpened is a message that holds a stream: one no page takes is
+// closed, since nothing else would do it.
 type streamOpened interface{ release() }
 
 // returnTo puts a list back the way it was left. Its rows are still there,
@@ -630,18 +630,12 @@ func (m Model) reportLate(asked int, msg tea.Msg) (Model, tea.Cmd) {
 				extension = "hcl"
 			}
 
-			kept, ok := keepText(plan.source, extension)
-			text := kept + sprintf(" The plan of %s was not opened: the screen changed.", plan.jobID)
-			if !ok {
-				return m.failedLate(text), nil
-			}
-
-			return m.warn(text), nil
+			return m.keepLate(plan.source, extension, sprintf("The plan of %s was not opened: the screen changed.", plan.jobID)), nil
 		}
 
 	case editFileMsg:
 		if msg.edited {
-			return m.warn(keptIn(msg.path) + " The edit was not opened again: the screen changed."), nil
+			return m.keepLate(msg.original, msg.extension, "The edit was not opened again: the screen changed."), nil
 		}
 
 	case sayMsg, warnMsg, copyMsg, savedMsg, namespaceDeletedMsg:
@@ -686,10 +680,21 @@ func (m Model) failedLate(text string) Model {
 	return m
 }
 
+// keepLate keeps the text of an edit that has no screen to open on, and says
+// where it is and then what happened.
+func (m Model) keepLate(content, extension, then string) Model {
+	kept, ok := keepText(content, extension)
+	if !ok {
+		return m.failedLate(kept + " " + then)
+	}
+
+	return m.warn(kept + " " + then)
+}
+
 // keepText writes the text of an edit that has no screen to open on, and says
 // where it is, or that it is lost.
 func keepText(content, extension string) (string, bool) {
-	path, err := writeTemp(extension, content)
+	path, err := writeTemp("", extension, content)
 	if err != nil {
 		return sprintf("Your text could not be kept: %s.", nomad.Reason(err)), false
 	}

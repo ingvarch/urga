@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -44,17 +46,44 @@ func run() error {
 		return nil
 	}
 
-	model, err := open(cl)
+	ctx, stop := untilHangUp()
+	defer stop()
+
+	return inEditDir(func(dir string) error {
+		model, err := open(cl, dir)
+		if err != nil {
+			return err
+		}
+
+		return play(ctx, model)
+	})
+}
+
+// untilHangUp is a context that ends on SIGHUP, when the terminal is closed.
+// The program handles SIGINT and SIGTERM itself.
+func untilHangUp() (context.Context, context.CancelFunc) {
+	return signal.NotifyContext(context.Background(), syscall.SIGHUP)
+}
+
+// inEditDir runs f with a new directory for the files of an edit, and
+// removes it with what is left in it once f returns: an edit still open
+// when urga exits leaves no file behind.
+func inEditDir(f func(dir string) error) error {
+	dir, err := os.MkdirTemp("", "urga-*")
 	if err != nil {
 		return err
 	}
 
-	return play(model)
+	return errors.Join(f(dir), os.RemoveAll(dir))
 }
 
-// play runs the program and saves the session of the model it ended with.
-func play(model ui.Model, opts ...tea.ProgramOption) error {
-	final, err := tea.NewProgram(model, opts...).Run()
+// play runs the program until it quits or ctx ends, and saves the session of
+// the model it ended with. A program ctx ended fails with what ended it.
+func play(ctx context.Context, model ui.Model, opts ...tea.ProgramOption) error {
+	final, err := tea.NewProgram(model, append(opts, tea.WithContext(ctx))...).Run()
+	if errors.Is(err, tea.ErrProgramKilled) && ctx.Err() != nil {
+		err = context.Cause(ctx)
+	}
 
 	return errors.Join(err, saveSession(final))
 }
@@ -70,7 +99,7 @@ func saveSession(final tea.Model) error {
 
 // open builds urga from the command line and the settings, before any
 // request goes to the cluster.
-func open(cl cmdline) (ui.Model, error) {
+func open(cl cmdline, editDir string) (ui.Model, error) {
 	dir, err := config.Dir()
 	if err != nil {
 		return ui.Model{}, err
@@ -111,6 +140,7 @@ func open(cl cmdline) (ui.Model, error) {
 		ReadOnly:       st.readOnly,
 		Config:         cfg,
 		Editor:         ui.NewEditor(),
+		EditDir:        editDir,
 		Shell:          ui.NewShell(client),
 		InRegion:       ui.InRegionOf(client),
 	}, os.Getenv, executable())), nil
