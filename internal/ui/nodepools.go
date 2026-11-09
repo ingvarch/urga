@@ -25,7 +25,7 @@ func (nodePoolsPage) titles() []string { return nodePoolTitles }
 func (nodePoolsPage) topics() []string { return []string{nomad.TopicNodePool} }
 
 func (nodePoolsPage) fetch(e env) tea.Cmd {
-	return fetchList(e.client.NodePools, func(items []nomad.NodePool) tea.Msg { return nodePoolsMsg(items) })
+	return request(e.client.NodePools, func(items []nomad.NodePool) tea.Msg { return nodePoolsMsg(items) })
 }
 
 func (p nodePoolsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {

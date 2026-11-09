@@ -155,7 +155,7 @@ func (p clientPage) fetch(e env) tea.Cmd {
 	client, nodeID := e.client, p.nodeID
 
 	cmds := []tea.Cmd{
-		fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
+		request(func(ctx context.Context) ([]nomad.Alloc, error) {
 			return client.NodeAllocations(ctx, nodeID)
 		}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) }),
 		fetchHost(client, nodeID),

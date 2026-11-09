@@ -56,7 +56,7 @@ func (nodesPage) fewerTopics() []string { return []string{nomad.TopicNode} }
 func (p nodesPage) fetch(e env) tea.Cmd {
 	client, pool := e.client, p.pool
 
-	return fetchList(func(ctx context.Context) ([]nomad.Node, error) {
+	return request(func(ctx context.Context) ([]nomad.Node, error) {
 		var (
 			nodes []nomad.Node
 			err   error

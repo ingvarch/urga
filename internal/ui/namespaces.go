@@ -21,7 +21,7 @@ func (namespacesPage) topics() []string                          { return nil }
 func (p namespacesPage) take(tea.Msg, env) (page, outcome, bool) { return p, outcome{}, false }
 
 func (namespacesPage) fetch(e env) tea.Cmd {
-	return fetchList(e.client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) })
+	return request(e.client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) })
 }
 
 func (namespacesPage) ids(e env) []string { return names(e.namespaces, namespaceMark) }

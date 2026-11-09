@@ -54,7 +54,7 @@ func (filesPage) topics() []string { return nil }
 func (p filesPage) fetch(e env) tea.Cmd {
 	client, namespace, allocID, dir := e.client, p.namespace, p.allocID, p.path
 
-	return fetchList(func(ctx context.Context) ([]nomad.File, error) {
+	return request(func(ctx context.Context) ([]nomad.File, error) {
 		return client.Files(ctx, namespace, allocID, dir)
 	}, func(files []nomad.File) tea.Msg { return filesMsg(files) })
 }

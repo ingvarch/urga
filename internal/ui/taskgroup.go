@@ -32,7 +32,7 @@ func (taskGroupsPage) topics() []string { return nil }
 func (p taskGroupsPage) fetch(e env) tea.Cmd {
 	client, namespace, jobID := e.client, p.namespace, p.jobID
 
-	return fetchList(func(ctx context.Context) ([]nomad.TaskGroup, error) {
+	return request(func(ctx context.Context) ([]nomad.TaskGroup, error) {
 		return client.TaskGroups(ctx, namespace, jobID)
 	}, func(items []nomad.TaskGroup) tea.Msg { return taskGroupsMsg(items) })
 }

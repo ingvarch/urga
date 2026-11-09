@@ -157,7 +157,7 @@ func (m Model) askAboutTheCluster() tea.Cmd {
 		m.onConnection(tea.Batch(
 			fetchAgent(client),
 			fetchToken(client),
-			fetchList(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
+			request(client.Namespaces, func(items []nomad.Namespace) tea.Msg { return namespacesMsg(items) }),
 			fetchRegions(client),
 			fetchDatacenters(client),
 		)),

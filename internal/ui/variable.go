@@ -44,7 +44,7 @@ func (variablesPage) topics() []string { return []string{nomad.TopicVariable} }
 func (variablesPage) fetch(e env) tea.Cmd {
 	client, namespace := e.client, e.namespace
 
-	return fetchList(func(ctx context.Context) ([]nomad.Variable, error) {
+	return request(func(ctx context.Context) ([]nomad.Variable, error) {
 		return client.Variables(ctx, namespace)
 	}, func(items []nomad.Variable) tea.Msg { return variablesMsg(items) })
 }

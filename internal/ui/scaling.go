@@ -36,7 +36,7 @@ func (scalingPoliciesPage) topics() []string { return []string{nomad.TopicJob} }
 func (scalingPoliciesPage) fetch(e env) tea.Cmd {
 	client, namespace := e.client, e.namespace
 
-	return fetchList(func(ctx context.Context) ([]nomad.ScalingPolicy, error) {
+	return request(func(ctx context.Context) ([]nomad.ScalingPolicy, error) {
 		return client.ScalingPolicies(ctx, namespace)
 	}, func(items []nomad.ScalingPolicy) tea.Msg { return scalingPoliciesMsg(items) })
 }

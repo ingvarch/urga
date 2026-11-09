@@ -226,7 +226,7 @@ func (serversPage) topics() []string { return nil }
 
 func (serversPage) fetch(e env) tea.Cmd {
 	return tea.Batch(
-		fetchList(e.client.Servers, func(items []nomad.Server) tea.Msg { return serversMsg(items) }),
+		request(e.client.Servers, func(items []nomad.Server) tea.Msg { return serversMsg(items) }),
 		fetchHealth(e.client),
 	)
 }

@@ -70,7 +70,7 @@ func (p allocationsPage) where(e env) string {
 func (p allocationsPage) fetch(e env) tea.Cmd {
 	client, namespace, jobID, evalID := e.client, p.where(e), p.jobID, p.evalID
 
-	return fetchList(func(ctx context.Context) ([]nomad.Alloc, error) {
+	return request(func(ctx context.Context) ([]nomad.Alloc, error) {
 		if evalID != "" {
 			return client.EvaluationAllocations(ctx, namespace, evalID)
 		}

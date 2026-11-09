@@ -38,7 +38,7 @@ func (evaluationsPage) topics() []string { return []string{nomad.TopicEvaluation
 func (evaluationsPage) fetch(e env) tea.Cmd {
 	client, namespace := e.client, e.namespace
 
-	return fetchList(func(ctx context.Context) ([]nomad.Evaluation, error) {
+	return request(func(ctx context.Context) ([]nomad.Evaluation, error) {
 		return client.Evaluations(ctx, namespace)
 	}, func(items []nomad.Evaluation) tea.Msg { return evaluationsMsg(items) })
 }
