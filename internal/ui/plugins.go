@@ -137,6 +137,10 @@ func (pluginPage) titles() []string { return pluginTitles }
 
 func (pluginPage) topics() []string { return []string{nomad.TopicCSIPlugin} }
 
+func (p pluginPage) objectKeys() map[string]string {
+	return map[string]string{nomad.TopicCSIPlugin: p.id}
+}
+
 func (p pluginPage) fetch(e env) tea.Cmd {
 	client, id := e.client, p.id
 

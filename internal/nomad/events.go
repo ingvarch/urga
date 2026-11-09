@@ -179,15 +179,20 @@ func NewStream[T any](c <-chan T, errs <-chan error, onClose func()) *Stream[T] 
 // Changes is a stream of changes from the cluster.
 type Changes = Stream[Change]
 
-// Events follows what happens in the cluster. The caller closes the stream
-// when it stops reading, otherwise the request stays open.
+// Events follows what happens in the cluster. A topic with a key in keys
+// follows the one object of that key, a topic without one follows them all.
+// The caller closes the stream when it stops reading, otherwise the request
+// stays open.
 //
 // A cluster that does not stream returns an error at once: the caller then
 // keeps polling the way it did before.
-func (c *Client) Events(ctx context.Context, namespace string, topics []string, from uint64) (*Changes, error) {
+func (c *Client) Events(ctx context.Context, namespace string, topics []string, keys map[string]string, from uint64) (*Changes, error) {
 	watch := map[api.Topic][]string{}
 	for _, topic := range topics {
 		watch[api.Topic(topic)] = nil
+		if key := keys[topic]; key != "" {
+			watch[api.Topic(topic)] = []string{key}
+		}
 	}
 
 	// From 0 is the oldest event the cluster keeps. The caller drops what it

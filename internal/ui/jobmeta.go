@@ -23,6 +23,10 @@ func (p jobMetaPage) title(_ env, count int) string {
 func (jobMetaPage) titles() []string { return fieldTitles }
 func (jobMetaPage) topics() []string { return []string{nomad.TopicJob} }
 
+func (p jobMetaPage) objectKeys() map[string]string {
+	return map[string]string{nomad.TopicJob: p.jobID}
+}
+
 // where is the namespace of the job, which is where its stream watches.
 func (p jobMetaPage) where(env) string { return p.namespace }
 

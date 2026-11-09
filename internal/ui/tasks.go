@@ -48,6 +48,10 @@ func (tasksPage) titles() []string { return taskTitles }
 func (tasksPage) topics() []string   { return []string{nomad.TopicAllocation} }
 func (p tasksPage) where(env) string { return p.namespace }
 
+func (p tasksPage) objectKeys() map[string]string {
+	return map[string]string{nomad.TopicAllocation: p.allocID}
+}
+
 func (p tasksPage) fetch(e env) tea.Cmd {
 	return fetchAllocation(e.client, p.namespace, p.allocID)
 }
@@ -250,6 +254,10 @@ func (taskEventsPage) titles() []string { return taskEventTitles }
 // through.
 func (taskEventsPage) topics() []string   { return []string{nomad.TopicAllocation} }
 func (p taskEventsPage) where(env) string { return p.namespace }
+
+func (p taskEventsPage) objectKeys() map[string]string {
+	return map[string]string{nomad.TopicAllocation: p.allocID}
+}
 
 func (p taskEventsPage) fetch(e env) tea.Cmd {
 	return fetchAllocation(e.client, p.namespace, p.allocID)

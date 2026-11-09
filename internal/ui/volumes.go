@@ -201,6 +201,16 @@ func (p volumePage) topics() []string {
 	return []string{nomad.TopicCSIVolume, nomad.TopicCSIPlugin, nomad.TopicAllocation}
 }
 
+// objectKeys: Nomad keys no allocation by its volume, and the plugin is not
+// known until the volume is read, so the page follows every one of those.
+func (p volumePage) objectKeys() map[string]string {
+	if p.kind == nomad.VolumeHost {
+		return map[string]string{nomad.TopicHostVolume: p.id}
+	}
+
+	return map[string]string{nomad.TopicCSIVolume: p.id}
+}
+
 // where: a volume lives in its namespace, whatever the session looks at.
 func (p volumePage) where(env) string { return p.namespace }
 

@@ -50,7 +50,7 @@ type (
 	// stale, the feed of what happened, and the feed of what failed in every
 	// namespace.
 	eventsClient interface {
-		Events(ctx context.Context, namespace string, topics []string, from uint64) (*nomad.Changes, error)
+		Events(ctx context.Context, namespace string, topics []string, keys map[string]string, from uint64) (*nomad.Changes, error)
 		Feed(ctx context.Context, namespace string, subject nomad.Subject, from uint64) (*nomad.Feed, error)
 		Failures(ctx context.Context, namespace string, from uint64) (*nomad.Feed, error)
 		LatestIndex(ctx context.Context) (uint64, error)

@@ -133,6 +133,12 @@ func (clientPage) titles() []string { return allocTitles }
 // of eligibility is a change of the client, not of its allocations.
 func (clientPage) topics() []string { return []string{nomad.TopicAllocation, nomad.TopicNode} }
 
+// objectKeys: Nomad keys no allocation by its client, so the page follows
+// them all.
+func (p clientPage) objectKeys() map[string]string {
+	return map[string]string{nomad.TopicNode: p.nodeID}
+}
+
 // where: a client runs the work of every namespace, which is what its stream
 // watches.
 func (clientPage) where(env) string { return nomad.AllNamespaces }

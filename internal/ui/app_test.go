@@ -167,6 +167,7 @@ type fakeClient struct {
 	metaNodeID       string
 	askedVersion     uint64
 	watchedTopics    []string
+	watchedKeys      map[string]string
 	watchedFrom      uint64
 	watches          int
 	watchedNamespace string
@@ -1351,8 +1352,8 @@ func (f *fakeClient) BatchQueueStatus(_ context.Context, pool string) ([]nomad.Q
 	return nil, f.err
 }
 
-func (f *fakeClient) Events(_ context.Context, namespace string, topics []string, from uint64) (*nomad.Changes, error) {
-	f.watchedNamespace, f.watchedTopics, f.watchedFrom = namespace, topics, from
+func (f *fakeClient) Events(_ context.Context, namespace string, topics []string, keys map[string]string, from uint64) (*nomad.Changes, error) {
+	f.watchedNamespace, f.watchedTopics, f.watchedKeys, f.watchedFrom = namespace, topics, keys, from
 	f.watches++
 
 	if f.streamOf != nil {

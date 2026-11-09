@@ -133,6 +133,10 @@ func (p variablePage) title(_ env, count int) string {
 func (variablePage) titles() []string { return variableItemTitles }
 func (variablePage) topics() []string { return []string{nomad.TopicVariable} }
 
+func (p variablePage) objectKeys() map[string]string {
+	return map[string]string{nomad.TopicVariable: p.path}
+}
+
 // where: a variable lives in its namespace, whatever the session looks at.
 func (p variablePage) where(env) string { return p.namespace }
 

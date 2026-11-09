@@ -186,10 +186,15 @@ func (m Model) watchScreen() tea.Cmd {
 		return nil
 	}
 
+	var keys map[string]string
+	if o, ok := m.screen.page.(oneObject); ok {
+		keys = o.objectKeys()
+	}
+
 	client, namespace, id, from := m.client, namespaceOf(m.screen.page, m.env()), m.watch.id, m.watch.from(topics)
 
 	return func() tea.Msg {
-		changes, err := client.Events(context.Background(), namespace, topics, from)
+		changes, err := client.Events(context.Background(), namespace, topics, keys, from)
 		if err != nil {
 			return watchEndedMsg{id: id, err: err}
 		}
