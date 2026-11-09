@@ -79,13 +79,13 @@ func (p allocationsPage) fetch(e env) tea.Cmd {
 	}, func(items []nomad.Alloc) tea.Msg { return allocsMsg(items) })
 }
 
-func (p allocationsPage) take(msg tea.Msg, _ env) (page, outcome, bool) {
+func (p allocationsPage) take(msg tea.Msg, e env) (page, outcome, bool) {
 	allocs, ok := msg.(allocsMsg)
 	if !ok {
 		return p, outcome{}, false
 	}
 
-	p.allocs, p.read = allocs, time.Now()
+	p.allocs, p.read = allocs, e.now
 
 	return p, outcome{}, true
 }

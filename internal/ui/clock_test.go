@@ -76,13 +76,12 @@ func TestRender_APageCountsFromTheTimeOfTheModel(t *testing.T) {
 // time is part of what changes. Everything else counts from the model.
 var clockReaders = map[string]bool{
 	// update and what it calls when a message comes in
-	"Model.update":         true,
-	"Model.flashed":        true,
-	"allocationsPage.take": true,
-	"logState.take":        true,
-	"jobLogsPage.lines":    true,
-	"jobLogsPage.chunk":    true,
-	"saveName":             true,
+	"Model.update":      true,
+	"Model.flashed":     true,
+	"logState.take":     true,
+	"jobLogsPage.lines": true,
+	"jobLogsPage.chunk": true,
+	"saveName":          true,
 
 	// commands
 	"readPart":           true,
