@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -166,4 +167,79 @@ func TestToken_ARefusalOfTheClusterLeftIsNotExplainedByTheNext(t *testing.T) {
 	m, _ = m.update(tokenMsg(nomad.Token{Anonymous: true}))
 
 	r.NotContains(plain(statusLine(m)), "no token is set")
+}
+
+// onHTTP is a session on a cluster the token goes to over plain HTTP, before
+// its first answer.
+func onHTTP(client *fakeClient) Model {
+	client.address, client.inClear, client.changes = "http://nomad.example:4646", true, newChanges()
+
+	m := New(client, Options{Version: "v-test"})
+	m, _ = m.update(sizeMsg())
+
+	return m
+}
+
+const inClearWarning = "! the token goes to http://nomad.example:4646 without TLS"
+
+func TestToken_AWarningWhenItGoesInClear(t *testing.T) {
+	r := require.New(t)
+
+	m := onHTTP(&fakeClient{jobs: twoJobs()})
+	r.NotContains(plain(statusLine(m)), "without TLS")
+
+	m = drain(m, m.fetch())
+	r.Contains(plain(statusLine(m)), inClearWarning)
+
+	// Once for the connection: the next answer does not show it again.
+	m = m.quiet()
+	m = drain(m, m.fetch())
+	r.NotContains(plain(statusLine(m)), "without TLS")
+}
+
+func TestToken_NoWarningWhenItDoesNotGoInClear(t *testing.T) {
+	m := New(&fakeClient{jobs: twoJobs(), changes: newChanges()}, Options{Version: "v-test"})
+	m, _ = m.update(sizeMsg())
+	m = drain(m, m.fetch())
+
+	require.NotContains(t, plain(statusLine(m)), "without TLS")
+}
+
+func TestToken_TheWarningInClearDoesNotReplaceAnError(t *testing.T) {
+	r := require.New(t)
+
+	client := &fakeClient{err: errors.New("no route to host")}
+	m := onHTTP(client)
+
+	// The first read fails: its error stays.
+	m = drain(m, m.fetch())
+	r.Contains(plain(statusLine(m)), "no route to host")
+	r.NotContains(plain(statusLine(m)), "without TLS")
+
+	// The warning comes with the first answer.
+	client.err, client.jobs = nil, twoJobs()
+	m = drain(m, m.fetch())
+	r.Contains(plain(statusLine(m)), inClearWarning)
+}
+
+func TestToken_TheWarningInClearWaitsForTheLineToClear(t *testing.T) {
+	for name, shown := range map[string]func(Model) Model{
+		"another warning":   func(m Model) Model { return m.warn("not following the cluster") },
+		"an action error":   func(m Model) Model { return m.failedLate("job not found") },
+		"a running command": func(m Model) Model { return m.busy("Stopping web...") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+
+			m := shown(onHTTP(&fakeClient{jobs: twoJobs()}))
+			text := m.flash.text
+
+			m = drain(m, m.fetch())
+			r.Contains(plain(statusLine(m)), text)
+
+			m = m.quiet()
+			m = drain(m, m.fetch())
+			r.Contains(plain(statusLine(m)), inClearWarning)
+		})
+	}
 }

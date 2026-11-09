@@ -92,6 +92,20 @@ Any error of the cluster shows as the cluster wrote it, without the response
 code around it: `job not found`, not `Unexpected response code: 404 (job not
 found)`.
 
+The token goes with every request. Over plain HTTP, anyone on the network
+between you and the cluster can read it. So when a token is set and the
+address starts with `http://` and is not this machine (`localhost`,
+`127.0.0.0/8` or `::1`), the status line warns once the cluster first answers,
+and again after each switch of cluster:
+
+```
+! the token goes to http://nomad.example:4646 without TLS
+```
+
+The warning does not replace an error, another warning or a command that is
+still running: it shows with a later answer. To stop it, use an `https://`
+address.
+
 ## Newer releases
 
 When a newer release of urga is out, the header says so next to the version:

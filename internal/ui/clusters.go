@@ -128,7 +128,7 @@ func (m Model) connected(conn Connection) (Model, tea.Cmd) {
 	m.note = m.note.restart()
 
 	m.connection++
-	m.client = conn.Client
+	m.client, m.inClearDue = conn.Client, conn.Client.SendsTokenInClear()
 	m.opts.Cluster, m.opts.Color, m.opts.ReadOnly = conn.Name, conn.Color, conn.ReadOnly
 	m.opts.InRegion, m.opts.Shell = conn.InRegion, conn.Shell
 	m.opts.NamespaceGiven = false

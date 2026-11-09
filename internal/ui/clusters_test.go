@@ -98,6 +98,23 @@ func TestClusters_SwitchByName(t *testing.T) {
 	r.Contains(plain(m.render()), "read-only: Edit is off")
 }
 
+func TestClusters_AWarningWhenTheTokenGoesInClear(t *testing.T) {
+	r := require.New(t)
+
+	m, clusters := onDev(t)
+	clusters.prod.address, clusters.prod.inClear = "http://prod.example:4646", true
+
+	m = typeCommand(m, "ctx prod")
+	r.Contains(plain(statusLine(m)), "! the token goes to http://prod.example:4646 without TLS")
+
+	m = typeCommand(m, "ctx dev")
+	r.NotContains(plain(statusLine(m)), "without TLS")
+
+	// Again for each connection.
+	m = typeCommand(m, "ctx prod")
+	r.Contains(plain(statusLine(m)), "without TLS")
+}
+
 func TestClusters_EachKeepsItsNamespace(t *testing.T) {
 	r := require.New(t)
 

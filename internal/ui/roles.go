@@ -33,9 +33,10 @@ type Client interface {
 // The roles the cluster plays for the screens, one per kind of resource.
 type (
 	// clusterClient is the cluster as a whole: where it is, what it runs,
-	// whose token it is sent, and how busy it is.
+	// whose token it is sent and how, and how busy it is.
 	clusterClient interface {
 		Address() string
+		SendsTokenInClear() bool
 		Region() string
 		Agent(ctx context.Context) (nomad.Agent, error)
 		AgentLogs(ctx context.Context, target nomad.AgentTarget, level string) *nomad.LogStream

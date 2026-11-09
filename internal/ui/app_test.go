@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -137,6 +138,11 @@ type fakeClient struct {
 
 	err     error
 	raftErr error
+
+	// address is where the cluster is; inClear says the token goes to it
+	// over plain HTTP.
+	address string
+	inClear bool
 
 	// nodesErr and allocsErr fail the client list or a list of allocations
 	// alone, ahead of err, as a token that may not read one of them does.
@@ -383,7 +389,9 @@ type fakeClient struct {
 // wrote keeps a call that changes the cluster.
 func (f *fakeClient) wrote(method string) { f.writes = append(f.writes, method) }
 
-func (f *fakeClient) Address() string { return "https://nomad.example.com" }
+func (f *fakeClient) Address() string { return cmp.Or(f.address, "https://nomad.example.com") }
+
+func (f *fakeClient) SendsTokenInClear() bool { return f.inClear }
 
 func (f *fakeClient) Region() string { return f.region }
 
