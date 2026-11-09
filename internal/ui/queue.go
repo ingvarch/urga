@@ -387,7 +387,7 @@ func (p queuePage) press(k string, e env) (page, outcome, bool) {
 func (p queuePage) ids(env) []string {
 	ids := make([]string, 0, len(p.items))
 	for _, item := range p.items {
-		ids = append(ids, item.Namespace+"/"+item.JobID)
+		ids = append(ids, workloadMark(item))
 	}
 
 	return ids

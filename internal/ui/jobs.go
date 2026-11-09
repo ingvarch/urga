@@ -355,7 +355,7 @@ func batchQueue(ctx context.Context, client Client, pool string) (map[string]nom
 
 func markWorkload(m map[string]nomad.QueueWorkload, w nomad.QueueWorkload) {
 	if w.Namespace != "" {
-		m[w.Namespace+"/"+w.JobID] = w
+		m[workloadMark(w)] = w
 	}
 	m[w.JobID] = w
 }
