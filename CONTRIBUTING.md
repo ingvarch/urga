@@ -11,28 +11,8 @@ change is agreed before the work is done.
 
 ## Build and run
 
-You need Go, the version named in `go.mod`. A local Nomad dev agent is enough
-to point urga at, and urga finds it on `http://127.0.0.1:4646` without flags:
-
-```sh
-nomad agent -dev
-make run
-```
-
-```sh
-make check   # fmt, vet, lint, licenses, test, build
-make dist    # the whole release, published nowhere
-make screens # the pictures in the README, from a cluster of their own
-```
-
-`make lint` needs golangci-lint, the latest release, which CI lints with; it
-fails when golangci-lint is not installed.
-`make dist` needs goreleaser, the version named in `.tool-versions`.
-`make screens` needs nomad, tmux, curl and freeze, and takes about seven
-minutes: the charts of the client fill for six.
-`make licenses` fails when a module urga links has a license outside the
-list in `internal/licenses`; `make notices` also writes `THIRD_PARTY_NOTICES`,
-which the release ships.
+What the build needs, how to run urga against a local cluster and the checks
+are in [docs/development.md](docs/development.md).
 
 ## How a change is made
 

@@ -7,153 +7,99 @@
 
 # urga
 
-**A terminal UI for HashiCorp Nomad.**
-One binary, no config to write, no browser.
-
 [![ci](https://github.com/ingvarch/urga/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ingvarch/urga/actions/workflows/ci.yml)
-[![release](https://img.shields.io/github/v/release/ingvarch/urga)](https://github.com/ingvarch/urga/releases/latest)
 [![Go](https://img.shields.io/github/go-mod/go-version/ingvarch/urga)](go.mod)
+[![release](https://img.shields.io/github/v/release/ingvarch/urga)](https://github.com/ingvarch/urga/releases/latest)
 [![license](https://img.shields.io/github/license/ingvarch/urga)](LICENSE)
 
 </div>
+
+urga is a terminal UI for HashiCorp Nomad, for anyone who runs work on a
+Nomad cluster and wants to see it and act on it from the terminal. It is one
+binary with no config to write and no browser: it reads the same environment
+as the `nomad` CLI, lists every resource of the cluster, updates as the
+cluster changes, and lets you inspect, start, stop and edit from the keyboard.
+Igor Churmeev writes and maintains it as an independent project.
 
 ![The job list, with each job colored by its state and the keys of the screen at the top](docs/images/jobs.png)
 
 ![A client, with charts of its CPU and memory use and the allocations it runs](docs/images/client.png)
 
-## What it does
+## Features
 
-- Lists jobs, allocations, the tasks of an allocation or of the whole
-  namespace, task groups, deployments, evaluations, services, namespaces,
-  variables, clients, node pools, servers, volumes, CSI plugins and the ACL
-  objects.
-- Watches the deploy of a job with `w`: the newest evaluation, the deployment
-  and its allocations, until it ends.
-- Updates the screen when the cluster changes, using the Nomad event stream,
-  and shows the stream itself on `:events`, for the namespace, or for one job
-  or allocation. It says when a job was stopped or purged. It also says on
-  the status line when an allocation or a deployment fails in any namespace,
-  or a client goes down. A namespace created after urga connected is followed
-  once the stream opens again.
-- Counts on one screen what needs attention: dead jobs, failed allocations,
-  tasks that restart or run out of memory, clients that are down or draining,
-  blocked evaluations and failed deployments, and opens the list of each with
-  one key.
-- Shows task logs and the files of an allocation, follows them as they grow,
-  and reads a log further back than its last 64 KiB. Shows the log of a task
-  from every allocation of a job at once.
-- Follows what a Nomad agent logs, the one urga talks to, any client, or,
-  through a server, any server, at a level from trace to error, starting with
-  the past lines of its log file where the cluster keeps them.
-- Edits a job in your editor and shows the plan before it submits anything.
-- Shows the values of variables, hidden until you ask for them, and who holds
-  a variable as a lock, and releases a lock left held. Creates, edits and
-  deletes variables with check-and-set.
-- Creates, edits and deletes namespaces.
-- Shows the versions of a job, reverts to any of them, tags them, and marks them stable or unstable.
-- Explains why a job is not placed, has the scheduler evaluate it again, and
-  places its failed allocations again without waiting for their delay. Shows
-  what an evaluation planned for each group, and opens the allocations it
-  placed or changed.
-- Lists the launches of periodic and parameterized jobs, shows when a
-  periodic job runs next, runs it now, and dispatches a parameterized job
-  with its meta, payload and priority.
-- Starts, stops, scales and restarts jobs and allocations, restarts every
-  task of an allocation with its prestart and sidecar tasks, restarts and
-  signals single tasks, opens a shell in a task, and runs a command in a task
-  and keeps what it printed.
-- Drains clients and shows how a drain goes: the allocations it has left to
-  move and the time to its deadline. Shows the CPU and memory of a client over
-  time and how much of its CPU, memory and disk the allocations reserve, marks
-  the ones that are full, shows when the identity of a client expires and
-  renews it. Purges clients that are down, stopped jobs, and collects the
-  garbage of a client or of the whole cluster.
-- Shows the health of the servers and how many the cluster can lose.
-- Shows how the scheduler places work, and edits it with check-and-set.
-- Lists the scaling policies and shows what the autoscaler did with the
-  count of each group.
-- Lists the jobs and the clients of a node pool.
-- Works in read-only mode, and with several named clusters.
-- Says when a newer urga is out, what it changed and how to update.
-- Finds anything in the cluster by its name or ID, in every namespace.
-- Creates, edits and deletes ACL tokens, policies, roles, auth methods and
-  binding rules.
+- Every resource of the cluster: jobs, allocations, tasks, deployments,
+  evaluations, services, namespaces, variables, clients, node pools, servers,
+  volumes, CSI plugins and ACL objects. Finds anything by its name or ID in
+  every namespace.
+- Live: screens update from the Nomad event stream, the status line says when
+  an allocation or a deployment fails or a client goes down in any namespace,
+  and one screen counts what needs attention.
+- Jobs: edit in your editor and see the plan before anything is submitted,
+  revert to any version, watch a deploy until it ends, see why a job is not
+  placed, run periodic jobs now and dispatch parameterized ones.
+- Logs and tasks: task logs and files followed as they grow, the log of a task
+  from every allocation of a job at once, agent logs at any level, a shell in
+  a task, restarts and signals.
+- Clients and servers: drains and their progress, CPU and memory over time,
+  what the allocations reserve, server health, garbage collection, and the
+  scheduler configuration, edited with check-and-set.
+- Variables, namespaces and ACL tokens, policies, roles, auth methods and
+  binding rules: create, edit and delete them. Variables are written with
+  check-and-set, and their values stay hidden until you ask.
+- Read-only mode, several named clusters, and a note when a newer urga is
+  out.
 
-## Install
-
-On macOS, with Homebrew:
+## Usage
 
 ```sh
 brew install ingvarch/tap/urga
-```
-
-On Debian, Ubuntu, Fedora or RHEL, download the `.deb` or `.rpm` package from
-the [releases](https://github.com/ingvarch/urga/releases) page and install it:
-
-```sh
-sudo apt install ./urga_*_amd64.deb
-sudo dnf install ./urga-*.x86_64.rpm
-```
-
-On Arch Linux install from the AUR:
-
-```sh
-# https://aur.archlinux.org/packages/urga
-yay -S urga
-```
-
-For other systems (Linux, macOS, Windows and FreeBSD, on amd64 and ARM),
-download an archive from the same page, or install with Go:
-
-```sh
-go install github.com/ingvarch/urga/cmd/urga@latest
-```
-
-To build from source:
-
-```sh
-make build && ./bin/urga
-```
-
-## Quick start
-
-urga uses the same environment variables as the `nomad` CLI. No
-configuration file is needed.
-
-```sh
 export NOMAD_ADDR=https://nomad.example.com:4646
 export NOMAD_TOKEN=<your token>
 urga
 ```
 
-Press `?` for help, `:` to open another screen, `/` to filter and `q` to
-quit.
+Packages for Debian, Fedora and Arch, archives for other systems and
+`go install` are in [docs/install.md](docs/install.md). Press `?` for help,
+`:` to open another screen, `/` to filter and `q` to quit.
+
+## Quick start
+
+You need Go, Nomad and golangci-lint, see
+[docs/development.md](docs/development.md).
+
+```sh
+git clone https://github.com/ingvarch/urga.git
+cd urga
+make check
+nomad agent -dev   # in another terminal
+make run
+```
 
 ## Documentation
 
+- [Install](docs/install.md): Homebrew, deb and rpm packages, the AUR,
+  release archives, Go and the source.
 - [Configuration](docs/configuration.md): environment variables, flags,
-  read-only mode, the editor, and the saved session.
+  read-only mode, the token, newer releases, the editor, how screens stay up
+  to date, and the saved session.
 - [Named clusters](docs/clusters.md): an optional settings file for several
   clusters, and switching between them.
-- [Keys and commands](docs/keys.md): the command line, the filter, and the
-  keys of every screen.
-- [Jobs](docs/jobs.md): jobs, task groups and their scaling, editing and
-  plans, versions, evaluations and deployments.
+- [Keys and commands](docs/keys.md): the command line, the overview, find,
+  events, sort, the filter, and the keys of every screen.
+- [Jobs](docs/jobs.md): jobs, periodic and parameterized jobs, task groups
+  and their scaling, editing and plans, versions, evaluations, deployments and
+  watching a deploy.
 - [Allocations and tasks](docs/allocations.md): allocations, every task of
   the namespace with `:tasks`, checks, task actions, logs and files.
-- [Clients, servers and other resources](docs/clients.md): clients,
-  servers, agent logs, the scheduler, namespaces, services, variables and
-  node pools.
+- [Clients, servers and other resources](docs/clients.md): clients, servers,
+  agent logs, the scheduler, namespaces, services, variables, node pools,
+  regions and datacenters.
 - [Storage](docs/storage.md): CSI volumes, dynamic host volumes and CSI
   plugins.
 - [Access control](docs/acl.md): ACL tokens, policies, roles, auth methods
   and binding rules.
-
-## Contributing
-
-How to build urga, run the checks and send a change is in
-[CONTRIBUTING.md](CONTRIBUTING.md). Security problems are reported privately,
-see [SECURITY.md](SECURITY.md).
+- [Development](docs/development.md): prerequisites, running against a local
+  cluster, the checks and the project structure.
 
 ## License
 
@@ -162,6 +108,11 @@ MIT, see [LICENSE](LICENSE). The release archives and packages also carry
 
 Nomad is a trademark of HashiCorp. urga is an independent project and is not
 affiliated with or endorsed by HashiCorp.
+
+## Contributing
+
+How to propose and send a change is in [CONTRIBUTING.md](CONTRIBUTING.md).
+Security problems are reported privately, see [SECURITY.md](SECURITY.md).
 
 ## About the name
 
