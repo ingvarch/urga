@@ -503,7 +503,7 @@ func (m Model) render() string {
 		indent(m.status(), headerPadX),
 	)
 
-	return strings.Join(parts, "\n")
+	return drawable(strings.Join(parts, "\n"))
 }
 
 // clusterColour is the colour the settings give the cluster, nil for none.
