@@ -11,6 +11,12 @@ updates:
     groups:
       gomod-minor-patch:
         update-types: [minor, patch]
+    # hashicorp/nomad tags no versions of its api module, and go.mod pins it to
+    # the commit of a Nomad release. Dependabot takes the v1 tags of the root
+    # module for its versions and fails on each. docs/development.md says how
+    # to update it.
+    ignore:
+      - dependency-name: github.com/hashicorp/nomad/api
 
   - package-ecosystem: github-actions
     directory: /
