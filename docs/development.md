@@ -39,6 +39,20 @@ six.
 list in `internal/licenses`. `make notices` also writes `THIRD_PARTY_NOTICES`,
 which the release ships.
 
+## Dependencies
+
+Dependabot opens pull requests for newer Go modules and actions every day at
+06:00 UTC. It skips `github.com/hashicorp/nomad/api`: hashicorp/nomad tags no
+versions of that module, so `go.mod` pins it to the commit of a Nomad
+release. Asking for the tag (`@v2.1.1`) fails. To move to a newer release, ask
+for the commit of its tag:
+
+```sh
+git ls-remote https://github.com/hashicorp/nomad refs/tags/v2.1.1
+go get github.com/hashicorp/nomad/api@<commit>
+go mod tidy
+```
+
 ## Project structure
 
 | Path | What it holds |
